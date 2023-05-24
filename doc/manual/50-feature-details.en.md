@@ -1077,19 +1077,26 @@ Once the recovery instance is provisioned and disks cloned from the backup snaps
 
 - `--remote-ssh-command`: The ssh command required to log in to the recovery instance.
 - `--snapshot-recovery-instance`: The name of the recovery instance as required by the cloud provider.
-
-The following additional arguments are required with the `gcp` provider:
-
-- `--gcp-zone`: The name of the availability zone in which the recovery instance is located.
+- Any additional arguments specific to the snapshot provider.
 
 For example:
 
 ``` bash
 barman recover SERVER_NAME BACKUP_ID REMOTE_RECOVERY_DIRECTORY \
     --remote-ssh-command 'ssh USER@HOST' \
-    --snapshot-recovery-instance INSTANCE_NAME \
-    --gcp-zone ZONE_NAME
+    --snapshot-recovery-instance INSTANCE_NAME
 ```
+
+Barman will automatically detect that the backup is a snapshot backup and check that the attached disks were cloned from the snapshots for that backup.
+Barman will then prepare PostgreSQL for recovery by copying the backup label and WALs into place and setting any required recovery options in the PostgreSQL configuration.
+
+The following additional `barman recover` arguments are available with the `gcp` provider:
+
+- `--gcp-zone`: The name of the availability zone in which the recovery instance is located. If not provided then Barman will use the value of `gcp_zone` set in the server config.
+
+The following additional `barman recover` arguments are available with the `azure` provider:
+
+- `--azure-resource-group`: The resource group to which the recovery instance belongs. If not provided then Barman will use the value of `azure_resource_group` set in the server config.
 
 Note the following `barman recover` arguments / config variables are unavailable when recovering snapshot backups:
 
@@ -1099,9 +1106,6 @@ Note the following `barman recover` arguments / config variables are unavailable
 | `--jobs`                  | `parallel_jobs`         |
 | `--recovery-staging-path` | `recovery_staging_path` |
 | `--tablespace`            | N/A                     |
-
-Barman will automatically detect that the backup is a snapshot backup and check that the attached disks were cloned from the snapshots for that backup.
-Barman will then prepare PostgreSQL for recovery by copying the backup label and WALs into place and setting any required recovery options in the PostgreSQL configuration.
 
 ### Backup metadata for snapshot backups
 
@@ -1174,3 +1178,30 @@ $ barman --format=json show-backup primary 20230123T131430
 ```
 
 For backups taken with `barman-cloud-backup` there is an analogous [barman-cloud-backup-show][pgbarman-barman-cloud-backup-show] command which can be used along with `barman-cloud-backup-list` to query the backup metadata in the cloud object store.
+
+The metadata available in `snapshots_info/provider_info` and `snapshots_info/snapshots/*/provider` varies by cloud provider as explained in the following sections.
+
+#### GCP provider-specific metadata
+
+The following fields are available in `snapshots_info/provider_info`:
+
+- `project`: The GCP project ID of the project which owns the resources involved in backup and recovery.
+
+The following fields are available in `snapshots_info/snapshots/*/provider`:
+
+- `device_name`: The short device name with which the source disk for the snapshot was attached to the backup VM at the time of the backup.
+- `snapshot_name`: The name of the snapshot.
+- `snapshot_project`: The GCP project ID which owns the snapshot.
+
+#### Azure provider-specific metadata
+
+The following fields are available in `snapshots_info/provider_info`:
+
+- `subscription_id`: The Azure subscription ID which owns the resources involved in backup and recovery.
+- `resource_group`: The Azure resource group to which the resources involved in the backup belong.
+
+The following fields are available in `snapshots_info/snapshots/*/provider`:
+
+- `location`: The Azure location of the disk from which the snapshot was taken.
+- `lun`: The LUN identifying the disk from which the snapshot was taken at the time of the backup.
+- `snapshot_name`: The name of the snapshot.

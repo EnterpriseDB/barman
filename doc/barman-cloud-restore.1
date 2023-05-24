@@ -35,6 +35,7 @@ usage:\ barman\-cloud\-restore\ [\-V]\ [\-\-help]\ [\-v\ |\ \-q]\ [\-t]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-snapshot\-recovery\-instance\ SNAPSHOT_RECOVERY_INSTANCE]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-snapshot\-recovery\-zone\ GCP_ZONE]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-gcp\-zone\ GCP_ZONE]
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-azure\-resource\-group\ AZURE_RESOURCE_GROUP]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ source_url\ server_name\ backup_id\ recovery_dir
 
 This\ script\ can\ be\ used\ to\ download\ a\ backup\ previously\ made\ with\ barman\-
@@ -79,11 +80,16 @@ Extra\ options\ for\ the\ aws\-s3\ cloud\ provider:
 Extra\ options\ for\ the\ azure\-blob\-storage\ cloud\ provider:
 \ \ \-\-azure\-credential\ {azure\-cli,managed\-identity},\ \-\-credential\ {azure\-cli,managed\-identity}
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ Optionally\ specify\ the\ type\ of\ credential\ to\ use\ when
-\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ authenticating\ with\ Azure\ Blob\ Storage.\ If\ omitted
-\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ then\ the\ credential\ will\ be\ obtained\ from\ the
-\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ environment.\ If\ no\ credentials\ can\ be\ found\ in\ the
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ authenticating\ with\ Azure.\ If\ omitted\ then\ Azure\ Blob
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ Storage\ credentials\ will\ be\ obtained\ from\ the
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ environment\ and\ the\ default\ Azure\ authentication\ flow
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ will\ be\ used\ for\ authenticating\ with\ all\ other\ Azure
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ services.\ If\ no\ credentials\ can\ be\ found\ in\ the
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ environment\ then\ the\ default\ Azure\ authentication\ flow
-\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ will\ be\ used
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ will\ also\ be\ used\ for\ Azure\ Blob\ Storage.
+\ \ \-\-azure\-resource\-group\ AZURE_RESOURCE_GROUP
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ Resource\ group\ containing\ the\ instance\ and\ disks\ for
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ the\ snapshot\ recovery
 
 Extra\ options\ for\ google\-cloud\-storage\ cloud\ provider:
 \ \ \-\-gcp\-zone\ GCP_ZONE\ \ \ Zone\ containing\ the\ instance\ and\ disks\ for\ the

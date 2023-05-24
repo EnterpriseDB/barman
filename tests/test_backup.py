@@ -1650,7 +1650,9 @@ class TestSnapshotBackup(object):
         # THEN the deletion is successful
         assert delete_result is True
         # AND the snapshots were deleted via the snapshot interface
-        mock_get_snapshot_interface.assert_called_once_with(backup_info)
+        mock_get_snapshot_interface.assert_called_once_with(
+            backup_info, backup_manager.server.config
+        )
         mock_snapshot_interface = mock_get_snapshot_interface.return_value
         mock_snapshot_interface.delete_snapshot_backup.assert_called_once_with(
             backup_info

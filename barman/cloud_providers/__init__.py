@@ -269,6 +269,27 @@ def get_snapshot_interface_from_backup_info(backup_info, config=None):
             backup_info.snapshots_info.project,
             gcp_zone,
         )
+    elif backup_info.snapshots_info.provider == "azure":
+        from barman.cloud_providers.azure_blob_storage import (
+            AzureCloudSnapshotInterface,
+        )
+
+        # When creating a snapshot interface for dealing with existing backups we use
+        # the subscription ID from that backup and the resource group specified in
+        # provider_args. This means that:
+        #   1. Resources will always belong to the same subscription.
+        #   2. Recovery resources can be in a different resource group to the one used
+        #      to create the backup.
+        if backup_info.snapshots_info.subscription_id is None:
+            raise ConfigurationException(
+                "backup_info has snapshot provider 'azure' but "
+                "subscription_id is not set"
+            )
+        return AzureCloudSnapshotInterface(
+            backup_info.snapshots_info.subscription_id,
+            resource_group=config.azure_resource_group,
+            credential=_get_azure_credential(config.azure_credential),
+        )
     else:
         raise CloudProviderUnsupported(
             "Unsupported snapshot provider in backup info: %s"

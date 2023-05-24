@@ -791,6 +791,11 @@ def rebuild_xlogdb(args):
             "--gcp-zone",
             help="Zone containing the instance and disks for the snapshot recovery",
         ),
+        argument(
+            "--azure-resource-group",
+            help="Azure resource group containing the instance and disks for recovery "
+            "of a snapshot backup",
+        ),
     ]
 )
 def recover(args):
@@ -960,7 +965,10 @@ def recover(args):
         if args.gcp_zone is None and args.snapshot_recovery_zone is not None:
             args.gcp_zone = args.snapshot_recovery_zone
         # Override provider-specific options in the config
-        for arg in ("gcp_zone",):
+        for arg in (
+            "azure_resource_group",
+            "gcp_zone",
+        ):
             value = getattr(args, arg)
             if value is not None:
                 setattr(server.config, arg, value)

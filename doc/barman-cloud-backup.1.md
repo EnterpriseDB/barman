@@ -135,11 +135,13 @@ Extra options for the aws-s3 cloud provider:
 Extra options for the azure-blob-storage cloud provider:
   --azure-credential {azure-cli,managed-identity}, --credential {azure-cli,managed-identity}
                         Optionally specify the type of credential to use when
-                        authenticating with Azure Blob Storage. If omitted
-                        then the credential will be obtained from the
-                        environment. If no credentials can be found in the
+                        authenticating with Azure. If omitted then Azure Blob
+                        Storage credentials will be obtained from the
+                        environment and the default Azure authentication flow
+                        will be used for authenticating with all other Azure
+                        services. If no credentials can be found in the
                         environment then the default Azure authentication flow
-                        will be used
+                        will also be used for Azure Blob Storage.
   --encryption-scope ENCRYPTION_SCOPE
                         The name of an encryption scope defined in the Azure
                         Blob Storage service which is to be used to encrypt

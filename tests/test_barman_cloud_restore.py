@@ -94,9 +94,11 @@ class TestCloudRestore(object):
         )
 
     @pytest.mark.parametrize(
-        ("snapshot_args", "expected_error"),
+        ("provider", "snapshot_args", "expected_error"),
         (
+            # Backups with provider gcp require gcp_zone and snapshot_recovery_instance
             [
+                "gcp",
                 [],
                 (
                     "Incomplete options for snapshot restore - missing: "
@@ -104,6 +106,7 @@ class TestCloudRestore(object):
                 ),
             ],
             [
+                "gcp",
                 [
                     "--snapshot-recovery-instance",
                     "test_instance",
@@ -111,6 +114,7 @@ class TestCloudRestore(object):
                 "Incomplete options for snapshot restore - missing: gcp_zone",
             ],
             [
+                "gcp",
                 [
                     "--gcp-zone",
                     "test_zone",
@@ -120,7 +124,41 @@ class TestCloudRestore(object):
                     "snapshot_recovery_instance"
                 ),
             ],
+            # Backups with provider azure require azure_resource_group and
+            # snapshot_recovery_instance
             [
+                "azure",
+                [],
+                (
+                    "Incomplete options for snapshot restore - missing: "
+                    "snapshot_recovery_instance, azure_resource_group"
+                ),
+            ],
+            [
+                "azure",
+                [
+                    "--snapshot-recovery-instance",
+                    "test_instance",
+                ],
+                (
+                    "Incomplete options for snapshot restore - missing: "
+                    "azure_resource_group"
+                ),
+            ],
+            [
+                "azure",
+                [
+                    "--azure-resource-group",
+                    "test_resource_group",
+                ],
+                (
+                    "Incomplete options for snapshot restore - missing: "
+                    "snapshot_recovery_instance"
+                ),
+            ],
+            # Snapshot backups cannot be recovered with tablespace relocation rules
+            [
+                "gcp",
                 [
                     "--snapshot-recovery-instance",
                     "test_instance",
@@ -134,18 +172,36 @@ class TestCloudRestore(object):
                     "relocation rules cannot be used."
                 ),
             ],
+            [
+                "azure",
+                [
+                    "--snapshot-recovery-instance",
+                    "test_instance",
+                    "--azure-resource-group",
+                    "test_resource_group",
+                    "--tablespace",
+                    "tbs1:/path/to/tbs1",
+                ],
+                (
+                    "Backup {backup_id} is a snapshot backup therefore tablespace "
+                    "relocation rules cannot be used."
+                ),
+            ],
         ),
     )
     @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_restore.get_cloud_interface")
+    @mock.patch("barman.cloud_providers.azure_blob_storage.import_azure_mgmt_compute")
     @mock.patch(
         "barman.cloud_providers.google_cloud_storage.import_google_cloud_compute"
     )
     def test_unsupported_snapshot_args(
         self,
         _mock_google_cloud_compute,
+        _mock_azure_mgmt_compute,
         _mock_cloud_interface_factory,
         mock_catalog,
+        provider,
         snapshot_args,
         expected_error,
         caplog,
@@ -160,7 +216,7 @@ class TestCloudRestore(object):
         mock_catalog.return_value.parse_backup_id.return_value = backup_id
         # AND the catalog returns a mock backup_info with a snapshots_info field
         mock_backup_info = mock.Mock(
-            backup_id=backup_id, snapshots_info=mock.Mock(provider="gcp")
+            backup_id=backup_id, snapshots_info=mock.Mock(provider=provider)
         )
         mock_catalog.return_value.get_backup_info.return_value = mock_backup_info
 
@@ -175,6 +231,19 @@ class TestCloudRestore(object):
         # AND the expected error message occurs
         assert expected_error.format(**{"backup_id": backup_id}) in caplog.text
 
+    @pytest.mark.parametrize(
+        ("provider", "provider_args"),
+        (
+            (
+                "gcp",
+                ["--gcp-zone", "test_zone"],
+            ),
+            (
+                "azure",
+                ["--azure-resource-group", "test_resource_group"],
+            ),
+        ),
+    )
     @mock.patch("barman.clients.cloud_restore.get_snapshot_interface_from_backup_info")
     @mock.patch("barman.clients.cloud_restore.CloudBackupDownloaderSnapshot")
     @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
@@ -185,6 +254,8 @@ class TestCloudRestore(object):
         mock_catalog,
         mock_backup_downloader_snapshot,
         mock_get_snapshot_interface,
+        provider,
+        provider_args,
     ):
         """
         Verify that restoring a snapshots backup uses CloudBackupDownloaderSnapshot
@@ -196,7 +267,7 @@ class TestCloudRestore(object):
         mock_catalog.return_value.parse_backup_id.return_value = backup_id
         # AND the catalog returns a mock backup_info with a snapshots_info field
         mock_backup_info = mock.Mock(
-            backup_id=backup_id, snapshots_info=mock.Mock(provider="gcp")
+            backup_id=backup_id, snapshots_info=mock.Mock(provider=provider)
         )
         mock_catalog.return_value.get_backup_info.return_value = mock_backup_info
 
@@ -204,7 +275,6 @@ class TestCloudRestore(object):
         # backup
         recovery_dir = "/path/to/restore_dir"
         recovery_instance = "test_instance"
-        recovery_zone = "test_zone"
         cloud_restore.main(
             [
                 "cloud_storage_url",
@@ -213,9 +283,8 @@ class TestCloudRestore(object):
                 recovery_dir,
                 "--snapshot-recovery-instance",
                 recovery_instance,
-                "--gcp-zone",
-                recovery_zone,
             ]
+            + provider_args
         )
 
         # THEN a CloudBackupDownloaderSnapshot is created

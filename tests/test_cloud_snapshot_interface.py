@@ -127,13 +127,24 @@ class TestGetSnapshotInterface(object):
 
     @pytest.mark.parametrize(
         ("snapshot_provider", "interface_cls"),
-        [("aws", None), ("azure", None), ("gcp", GcpCloudSnapshotInterface)],
+        [
+            ("aws", None),
+            ("azure", AzureCloudSnapshotInterface),
+            ("gcp", GcpCloudSnapshotInterface),
+        ],
     )
+    @mock.patch("barman.cloud_providers._get_azure_credential")
+    @mock.patch("barman.cloud_providers.azure_blob_storage.import_azure_mgmt_compute")
     @mock.patch(
         "barman.cloud_providers.google_cloud_storage.import_google_cloud_compute"
     )
     def test_from_backup_info_cloud_provider(
-        self, _mock_google_cloud_compute, snapshot_provider, interface_cls
+        self,
+        _mock_google_cloud_compute,
+        _mock_azure_mgmt_compute,
+        _mock_get_azure_credential,
+        snapshot_provider,
+        interface_cls,
     ):
         """Verify supported and unsupported cloud providers with backup_info."""
         # GIVEN a backup_info with snapshots_info containing the specified snapshot
@@ -141,12 +152,15 @@ class TestGetSnapshotInterface(object):
         mock_backup_info = mock.Mock(
             snapshots_info=mock.Mock(provider=snapshot_provider)
         )
+        # AND a mock server config
+        mock_config = mock.Mock()
 
         # WHEN get_snapshot_interface_from_server_config is called
         if interface_cls:
             # THEN supported providers return the expected interface
             assert isinstance(
-                get_snapshot_interface_from_backup_info(mock_backup_info), interface_cls
+                get_snapshot_interface_from_backup_info(mock_backup_info, mock_config),
+                interface_cls,
             )
         else:
             # AND unsupported providers raise the expected exception
@@ -170,6 +184,27 @@ class TestGetSnapshotInterface(object):
         # THEN the expected exception is raised
         assert "backup_info has snapshot provider 'gcp' but project is not set" in str(
             exc.value
+        )
+
+    def test_from_backup_info_azure_no_subscription_id(self):
+        """
+        Verify an exception is raised for azure snapshots with no azure_subscription_id
+        in backup info.
+        """
+        # GIVEN a server config with the azure snapshot provider and no
+        # azure_subscription_id
+        mock_config = mock.Mock(snapshot_provider="azure", azure_subscription_id=None)
+        # AND a backup info with no azure_subscription_id
+        mock_backup_info = mock.Mock(
+            snapshots_info=mock.Mock(provider="azure", subscription_id=None)
+        )
+        # WHEN get snapshot_interface_from_server_config is called
+        with pytest.raises(ConfigurationException) as exc:
+            get_snapshot_interface_from_backup_info(mock_backup_info, mock_config)
+        # THEN the expected exception is raised
+        assert (
+            "backup_info has snapshot provider 'azure' but subscription_id is not set"
+            in str(exc.value)
         )
 
     @pytest.mark.parametrize(
@@ -2010,14 +2045,22 @@ class TestAzureVolumeMetadata(object):
             "expected_location",
         ],
         (
+            # If no attachment metadata or disk metadata is passed then we expect init
+            # to succeed but the lun and location to be None.
             (None, None, None, None),
+            # If the lun is set in the attachment metadata then we eexpect it to be
+            # set in the VolumeMetadata instance.
             (
                 mock.Mock(lun="10"),
                 None,
                 "10",
                 None,
             ),
+            # If the location is set in the attachment metadata then we eexpect it to
+            # be set in the VolumeMetadata instance.
             (None, mock.Mock(location="uksouth"), None, "uksouth"),
+            # If lun and location are set in the attachment metadata then we expect
+            # them to be set in the VolumeMetadata instance.
             (
                 mock.Mock(lun="10"),
                 mock.Mock(location="uksouth"),
@@ -2042,6 +2085,105 @@ class TestAzureVolumeMetadata(object):
         assert volume.location == expected_location
         # AND the internal _lun has the expected value
         assert volume._lun == expected_lun
+
+    @pytest.mark.parametrize(
+        ("create_option", "source_resource_id", "expected_source_snapshot"),
+        (
+            # If there is no create_option or source_resource_id then we expect
+            # source_snapshot to be None
+            (None, None, None),
+            # If there is no create_option and source_resource_id is set to
+            # a snapshot name we expect source_snapshot to be None
+            (
+                None,
+                "/subscriptions/id/resourceGroups/group/providers/Microsoft.Compute/snapshots/snapshot_name",
+                None,
+            ),
+            # If the create_option is not Copy we expect source_snapshot to be None
+            (
+                "NotCopy",
+                "/subscriptions/id/resourceGroups/group/providers/Microsoft.Compute/snapshots/snapshot_name",
+                None,
+            ),
+            # If the create_option is Copy but the source_resource_id is not a snapshot
+            # then we expect source_snapshot to be None
+            (
+                "Copy",
+                "/subscriptions/id/resourceGroups/group/providers/Microsoft.Compute/disks/disk_name",
+                None,
+            ),
+            # If create_option is Copy and source_resource_id is a snapshot ID then we
+            # expect source_snapshot to be set to the snapshot name
+            (
+                "Copy",
+                "/subscriptions/id/resourceGroups/group/providers/Microsoft.Compute/snapshots/snapshot_name",
+                "snapshot_name",
+            ),
+        ),
+    )
+    def test_init_source_snapshot(
+        self, create_option, source_resource_id, expected_source_snapshot
+    ):
+        """
+        Verify that the source snapshot is set correctly when available in the disk
+        metadata.
+        """
+        # GIVEN disk metadata with the specified create_option and source_resource_id
+        disk_metadata = mock.Mock(
+            creation_data=mock.Mock(
+                create_option=create_option,
+                source_resource_id=source_resource_id,
+            )
+        )
+
+        # WHEN volume metadata is created from the disk metadata
+        volume = AzureVolumeMetadata(None, disk_metadata)
+
+        # THEN the metadata has the expected source_snapshot value
+        assert volume.source_snapshot == expected_source_snapshot
+
+    @pytest.mark.parametrize(
+        "source_resource_id",
+        (
+            # Not a valid fully qualified resource ID
+            "providers/Microsoft.Compute/snapshots/foo",
+            # Missing snapshot name
+            "/subscriptions/id/resourceGroups/group/providers/Microsoft.Compute/snapshots/",
+            # Missing subscription ID
+            "/subscriptions//resourceGroups/group/providers/Microsoft.Compute/snapshots/foo",
+            # Missing resource group
+            "/subscriptions/id/resourceGroups//providers/Microsoft.Compute/snapshots/foo",
+        ),
+    )
+    def test_source_snapshot_parsing_error(self, source_resource_id):
+        """
+        Verify that an exception is raised when the source_resource_id cannot be
+        parsed.
+        """
+        # GIVEN disk metadata with create_option "Copy" and the specified
+        # source_resource_id
+        disk_name = "disk0"
+        disk_metadata = mock.Mock(
+            creation_data=mock.Mock(
+                create_option="Copy",
+                source_resource_id=source_resource_id,
+            )
+        )
+        disk_metadata.name = disk_name
+        # AND some arbitrary attachment metadata
+        attachment_metadata = mock.Mock()
+
+        # WHEN volume metadata is created from the disk metadata
+        # THEN a SnapshotBackupException is raised
+        with pytest.raises(SnapshotBackupException) as exc:
+            AzureVolumeMetadata(attachment_metadata, disk_metadata)
+
+        # AND the exception has the expected message
+        expected_msg = (
+            "Could not determine source snapshot for disk {} with source resource ID "
+            "{}"
+        ).format(disk_name, source_resource_id)
+        assert expected_msg in str(exc.value)
 
     def test_resolve_mounted_volume(self):
         """Verify resolve_mounted_volume sets mount info from findmnt output."""
