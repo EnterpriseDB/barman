@@ -18,6 +18,7 @@
 
 import logging
 import os
+import re
 import requests
 from io import BytesIO, RawIOBase, SEEK_END
 
@@ -546,6 +547,10 @@ class AzureCloudSnapshotInterface(CloudSnapshotInterface):
         "azure_resource_group",
     )
 
+    _required_config_for_restore = (
+        CloudSnapshotInterface._required_config_for_restore + ("azure_resource_group",)
+    )
+
     def __init__(self, subscription_id, resource_group=None, credential=None):
         """
         Imports the azure-mgmt-compute library and creates the clients necessary for
@@ -799,6 +804,7 @@ class AzureVolumeMetadata(VolumeMetadata):
         super(AzureVolumeMetadata, self).__init__()
         self.location = None
         self._lun = None
+        self._snapshot_name = None
         if attachment_metadata is not None:
             self._lun = attachment_metadata.lun
         if disk_metadata is not None:
@@ -806,6 +812,35 @@ class AzureVolumeMetadata(VolumeMetadata):
             # (even though snapshots can only be created in the same location as the
             # source disk, Azure requires us to specify the location anyway).
             self.location = disk_metadata.location
+            # Figure out whether this disk was cloned from a snapshot.
+            if (
+                disk_metadata.creation_data.create_option == "Copy"
+                and "providers/Microsoft.Compute/snapshots"
+                in disk_metadata.creation_data.source_resource_id
+            ):
+                # Extract the snapshot name from the source_resource_id in the disk
+                # metadata. We do not care about the source subscription or resource
+                # group - these may vary depending on whether the user has copied the
+                # snapshot between resource groups or subscriptions. We only care about
+                # the name because this is the part of the resource ID which Barman
+                # associates with backups.
+                resource_regex = (
+                    r"/subscriptions/(?!/).*/resourceGroups/(?!/).*"
+                    "/providers/Microsoft.Compute"
+                    r"/snapshots/(?P<snapshot_name>.*)"
+                )
+                match = re.search(
+                    resource_regex, disk_metadata.creation_data.source_resource_id
+                )
+                if match is None or match.group("snapshot_name") == "":
+                    raise SnapshotBackupException(
+                        "Could not determine source snapshot for disk %s with source resource ID %s"
+                        % (
+                            disk_metadata.name,
+                            disk_metadata.creation_data.source_resource_id,
+                        )
+                    )
+                self._snapshot_name = match.group("snapshot_name")
 
     def resolve_mounted_volume(self, cmd):
         """
@@ -847,7 +882,7 @@ class AzureVolumeMetadata(VolumeMetadata):
         :rtype: str
         :return: The snapshot short name.
         """
-        raise NotImplementedError()
+        return self._snapshot_name
 
 
 class AzureSnapshotMetadata(SnapshotMetadata):

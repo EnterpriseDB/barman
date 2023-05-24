@@ -243,4 +243,8 @@ The following additional arguments are required with the `gcp` provider:
 
 - `--gcp-zone`
 
+The following additional arguments are required with the `azure` provider:
+
+- `--azure-resource-group`
+
 The `--tablespace` option cannot be used with `barman-cloud-restore` when restoring a cloud snapshot backup:

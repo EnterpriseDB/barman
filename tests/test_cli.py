@@ -695,7 +695,6 @@ class TestCli(object):
         parse_backup_id_mock.return_value = mock_backup_info
         # AND the specified additional recovery args
         mock_recover_args.snapshot_recovery_instance = None
-        mock_recover_args.gcp_zone = None
         extra_recovery_args.update(snapshot_recovery_args)
         for k, v in extra_recovery_args.items():
             setattr(mock_recover_args, k, v)
@@ -719,6 +718,93 @@ class TestCli(object):
                 server.recover.call_args_list[0][1]["recovery_instance"]
                 == snapshot_recovery_args["snapshot_recovery_instance"]
             )
+
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_recover_recovery_instance_kwarg_not_passed(
+        self, get_server_mock, parse_backup_id_mock, mock_backup_info, mock_recover_args
+    ):
+        """
+        Verifies that recovery_instance is not passed to server.recover for
+        non-snapshot recoveries.
+        """
+        # GIVEN a regular non-snapshot basebackup
+        mock_backup_info.snapshots_info = None
+        parse_backup_id_mock.return_value = mock_backup_info
+        # AND the args do not specify a recovery instance
+        mock_recover_args.snapshot_recovery_instance = None
+        # AND the args do not specify any other snapshot provider options
+        mock_recover_args.azure_resource_group = None
+        mock_recover_args.gcp_zone = None
+
+        # WHEN barman recover is called
+        with pytest.raises(SystemExit):
+            recover(mock_recover_args)
+
+        # THEN recover was called once
+        get_server_mock.return_value.recover.assert_called_once()
+        # AND recovery_instance was not a keyword argument
+        assert (
+            "recovery_instance"
+            not in get_server_mock.return_value.recover.call_args_list[0][1]
+        )
+
+    @pytest.mark.parametrize(
+        ("arg", "arg_alias"),
+        (
+            ("gcp_zone", "snapshot_recovery_zone"),
+            ("azure_resource_group", None),
+        ),
+    )
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_recover_snapshot_provider_args(
+        self,
+        get_server_mock,
+        parse_backup_id_mock,
+        mock_backup_info,
+        mock_recover_args,
+        arg,
+        arg_alias,
+    ):
+        """
+        Verifies that snapshot provider args override the server config variables.
+        """
+        # GIVEN a server config
+        config = get_server_mock.return_value.config
+        # AND the specified arg is set to an initial value in the config
+        initial_value = "initial"
+        setattr(config, arg, initial_value)
+        # AND the backup being recovered is a snapshot backup
+        mock_backup_info.snapshots_info = Mock(snapshots=[])
+        parse_backup_id_mock.return_value = mock_backup_info
+
+        # WHEN recover is called without overriding the config
+        setattr(mock_recover_args, arg, None)
+        if arg_alias is not None:
+            setattr(mock_recover_args, arg_alias, None)
+        with pytest.raises(SystemExit):
+            recover(mock_recover_args)
+        # THEN the config value is unchanged
+        assert getattr(config, arg) == initial_value
+
+        # WHEN recover is called with the override argument
+        updated_value = "updated"
+        setattr(mock_recover_args, arg, updated_value)
+        with pytest.raises(SystemExit):
+            recover(mock_recover_args)
+        # THEN the config value is updated
+        assert getattr(config, arg) == updated_value
+
+        # WHEN recover is called with the alias
+        final_value = "final"
+        if arg_alias is not None:
+            setattr(mock_recover_args, arg_alias, final_value)
+            setattr(mock_recover_args, arg, None)
+            with pytest.raises(SystemExit):
+                recover(mock_recover_args)
+            # THEN the config value is updated
+            assert getattr(config, arg) == final_value
 
     def test_check_target_action(self):
         # The following ones must work
