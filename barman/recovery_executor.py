@@ -43,7 +43,6 @@ from barman.config import RecoveryOptions
 from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (
     BadXlogSegmentName,
-    CommandException,
     CommandFailedException,
     DataTransferFailure,
     FsOperationFailed,
@@ -51,6 +50,7 @@ from barman.exceptions import (
     RecoveryStandbyModeException,
     RecoveryTargetActionException,
     RecoveryPreconditionException,
+    SnapshotBackupException,
 )
 from barman.compression import GZipCompression, LZ4Compression, ZSTDCompression
 import barman.fs as fs
@@ -1543,14 +1543,12 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
             raise RecoveryPreconditionException(message)
 
     @staticmethod
-    def get_attached_snapshots_for_backup(
-        snapshot_interface, backup_info, instance_name, zone
-    ):
+    def get_attached_volumes_for_backup(snapshot_interface, backup_info, instance_name):
         """
         Verifies that disks cloned from the snapshots specified in the supplied
-        backup_info are attached to the named instance in the specified zone and
-        returns them as a dict where the keys are snapshot names and the values
-        are the names of the attached devices.
+        backup_info are attached to the named instance and returns them as a dict
+        where the keys are snapshot names and the values are the names of the
+        attached devices.
 
         If any snapshot associated with this backup is not found as the source
         for any disk attached to the instance then a RecoveryPreconditionException
@@ -1562,7 +1560,6 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
             recovered.
         :param str instance_name: The name of the VM instance to which the disks
             to be backed up are attached.
-        :param str zone: The zone in which the snapshot disks and instance reside.
         :rtype: dict[str,str]
         :return: A dict where the key is the snapshot name and the value is the
             device path for the source disk for that snapshot on the specified
@@ -1570,17 +1567,19 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
         """
         if backup_info.snapshots_info is None:
             return {}
-        attached_snapshots = snapshot_interface.get_attached_snapshots(
-            instance_name, zone
-        )
-        attached_snapshots_for_backup = {}
+        attached_volumes = snapshot_interface.get_attached_volumes(instance_name)
+        attached_volumes_for_backup = {}
         missing_snapshots = []
         for source_snapshot in backup_info.snapshots_info.snapshots:
             try:
-                attached_snapshots_for_backup[
-                    source_snapshot.identifier
-                ] = attached_snapshots[source_snapshot.identifier]
-            except KeyError:
+                disk, attached_volume = [
+                    (k, v)
+                    for k, v in attached_volumes.items()
+                    if v.source_snapshot == source_snapshot.identifier
+                ][0]
+
+                attached_volumes_for_backup[disk] = attached_volume
+            except IndexError:
                 missing_snapshots.append(source_snapshot.identifier)
 
         if len(missing_snapshots) > 0:
@@ -1589,10 +1588,10 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
                 % (instance_name, ", ".join(missing_snapshots))
             )
         else:
-            return attached_snapshots_for_backup
+            return attached_volumes_for_backup
 
     @staticmethod
-    def check_mount_points(backup_info, attached_snapshots, cmd):
+    def check_mount_points(backup_info, attached_volumes, cmd):
         """
         Check that each disk cloned from a snapshot is mounted at the same mount point
         as the original disk and with the same mount options.
@@ -1603,44 +1602,51 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
 
         :param BackupInfo backup_info: Backup information for the backup being
             recovered.
-        :param dict[str,str] attached_snapshots: A dict of snapshot_name:device_path
-            mappings where the device_path is the path at which the disk cloned from
-            that snapshot is attached to the recovery instance.
+        :param dict[str,barman.cloud.VolumeMetadata] attached_volumes: Metadata for the
+            volumes attached to the recovery instance.
         :param UnixLocalCommand cmd: The command wrapper for running commands on the
             recovery instance.
         """
         mount_point_errors = []
         mount_options_errors = []
-        for snapshot, device in sorted(attached_snapshots.items()):
+        for disk, volume in sorted(attached_volumes.items()):
             try:
-                mount_point, mount_options = cmd.findmnt(device)
-            except CommandException as e:
+                volume.resolve_mounted_volume(cmd)
+                mount_point = volume.mount_point
+                mount_options = volume.mount_options
+            except SnapshotBackupException as e:
                 mount_point_errors.append(
-                    "Error finding mount point for device %s: %s" % (device, e)
+                    "Error finding mount point for disk %s: %s" % (disk, e)
                 )
                 continue
             if mount_point is None:
                 mount_point_errors.append(
-                    "Could not find device %s at any mount point" % device
+                    "Could not find disk %s at any mount point" % disk
                 )
                 continue
             snapshot_metadata = next(
                 metadata
                 for metadata in backup_info.snapshots_info.snapshots
-                if metadata.identifier == snapshot
+                if metadata.identifier == volume.source_snapshot
             )
             expected_mount_point = snapshot_metadata.mount_point
             expected_mount_options = snapshot_metadata.mount_options
             if mount_point != expected_mount_point:
                 mount_point_errors.append(
-                    "Device %s cloned from snapshot %s is mounted at %s but %s was "
-                    "expected." % (device, snapshot, mount_point, expected_mount_point)
+                    "Disk %s cloned from snapshot %s is mounted at %s but %s was "
+                    "expected."
+                    % (disk, volume.source_snapshot, mount_point, expected_mount_point)
                 )
             if mount_options != expected_mount_options:
                 mount_options_errors.append(
-                    "Device %s cloned from snapshot %s is mounted with %s but %s was "
+                    "Disk %s cloned from snapshot %s is mounted with %s but %s was "
                     "expected."
-                    % (device, snapshot, mount_options, expected_mount_options)
+                    % (
+                        disk,
+                        volume.source_snapshot,
+                        mount_options,
+                        expected_mount_options,
+                    )
                 )
         if len(mount_point_errors) > 0:
             raise RecoveryPreconditionException(
@@ -1668,7 +1674,7 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
         standby_mode=None,
         recovery_conf_filename=None,
         recovery_instance=None,
-        recovery_zone=None,
+        provider_args=None,
     ):
         """
         Performs a recovery of a snapshot backup.
@@ -1694,18 +1700,19 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
         :param bool|None standby_mode: standby mode
         :param str|None recovery_conf_filename: filename for storing recovery
             configurations
-        :param str|None recovery_instance: The name of the recovery node as it is
-            known by the cloud provider
-        :param str|None recovery_zone: The zone in which the recovery node is located
+        :param str|None recovery_instance: The name of the recovery node as it
+            is known by the cloud provider
+        :param dict[str,str] provider_args: A dict of keyword arguments to be
+            passed to the cloud provider
         """
-        snapshot_interface = get_snapshot_interface_from_backup_info(backup_info)
-        attached_snapshots = self.get_attached_snapshots_for_backup(
-            snapshot_interface, backup_info, recovery_instance, recovery_zone
+        snapshot_interface = get_snapshot_interface_from_backup_info(
+            backup_info, provider_args
+        )
+        attached_volumes = self.get_attached_volumes_for_backup(
+            snapshot_interface, backup_info, recovery_instance
         )
         cmd = fs.unix_command_factory(remote_command, self.server.path)
-        SnapshotRecoveryExecutor.check_mount_points(
-            backup_info, attached_snapshots, cmd
-        )
+        SnapshotRecoveryExecutor.check_mount_points(backup_info, attached_volumes, cmd)
         self.check_recovery_dir_exists(dest, cmd)
 
         return super(SnapshotRecoveryExecutor, self).recover(

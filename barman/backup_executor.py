@@ -52,6 +52,7 @@ from barman.exceptions import (
     FsOperationFailed,
     PostgresConnectionError,
     PostgresIsInRecovery,
+    SnapshotBackupException,
     SshCommandException,
     FileNotFoundException,
 )
@@ -1446,7 +1447,6 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
         """
         super(SnapshotBackupExecutor, self).__init__(backup_manager, "snapshot")
         self.snapshot_instance = self.config.snapshot_instance
-        self.snapshot_zone = self.config.snapshot_zone
         self.snapshot_disks = self.config.snapshot_disks
         self.validate_configuration()
         try:
@@ -1482,7 +1482,6 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
             "snapshot_disks",
             "snapshot_instance",
             "snapshot_provider",
-            "snapshot_zone",
         )
         for config_var in required_config:
             if not getattr(self.server.config, config_var):
@@ -1491,28 +1490,25 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
                 )
 
     @staticmethod
-    def add_mount_data_to_backup_info(backup_info, remote_cmd):
+    def add_mount_data_to_volume_metadata(volumes, remote_cmd):
         """
-        Adds the mount point and mount options for each disk to the backup info.
+        Adds the mount point and mount options for each supplied volume.
 
-        Each disk for which a snapshot was created during the backup is attached to the
-        instance at a given device path. This function uses the `findmnt` Unix command
-        to retrieve the mount point and mount options for each of those devices. The
-        mount data for each disk is then added to the metadata for the corresponding
-        snapshot in the backup info.
+        Calls `resolve_mounted_volume` on each supplied volume so that the volume
+        metadata (which originated from the cloud provider) can be resolved to the
+        mount point and mount options of the volume as mounted on a compute instance.
 
-        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
-        :param UnixLocalCommand remote_cmd: Wrapper for local/remote commands.
+        This will set the current mount point and mount options of the volume so that
+        they can be stored in the snapshot metadata for the backup when the backup is
+        taken.
+
+        :param dict[str,barman.cloud.VolumeMetadata] volumes: Metadata for the volumes
+            attached to a specific compute instance.
+        :param UnixLocalCommand remote_cmd: Wrapper for executing local/remote commands
+            on the compute instance to which the volumes are attached.
         """
-        for snapshot in backup_info.snapshots_info.snapshots:
-            mount_point, mount_options = remote_cmd.findmnt(snapshot.device)
-            if mount_point is None:
-                raise BackupException(
-                    "Could not find mount point for device %s" % snapshot.device
-                )
-            else:
-                snapshot.mount_point = mount_point
-                snapshot.mount_options = mount_options
+        for volume in volumes.values():
+            volume.resolve_mounted_volume(remote_cmd)
 
     def backup_copy(self, backup_info):
         """
@@ -1527,15 +1523,25 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
         # Start the snapshot
         self.copy_start_time = datetime.datetime.now()
 
+        # Get volume metadata for the disks to be backed up
+        volumes_to_snapshot = self.snapshot_interface.get_attached_volumes(
+            self.snapshot_instance, self.snapshot_disks
+        )
+
+        # Resolve volume metadata to mount metadata using shell commands on the
+        # compute instance to which the volumes are attached - this information
+        # can then be added to the metadata for each snapshot when the backup is
+        # taken.
+        remote_cmd = UnixRemoteCommand(ssh_command=self.server.config.ssh_command)
+        self.add_mount_data_to_volume_metadata(volumes_to_snapshot, remote_cmd)
+
         self.snapshot_interface.take_snapshot_backup(
-            backup_info, self.snapshot_instance, self.snapshot_zone, self.snapshot_disks
+            backup_info,
+            self.snapshot_instance,
+            volumes_to_snapshot,
         )
 
         self.copy_end_time = datetime.datetime.now()
-
-        # Gather additional metadata to assist recovery of snapshots
-        remote_cmd = UnixRemoteCommand(ssh_command=self.server.config.ssh_command)
-        self.add_mount_data_to_backup_info(backup_info, remote_cmd)
 
         # Store statistics about the copy
         copy_time = total_seconds(self.copy_end_time - self.copy_start_time)
@@ -1546,7 +1552,7 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
 
     @staticmethod
     def find_missing_and_unmounted_disks(
-        cmd, snapshot_interface, snapshot_instance, snapshot_zone, snapshot_disks
+        cmd, snapshot_interface, snapshot_instance, snapshot_disks
     ):
         """
         Checks for any disks listed in snapshot_disks which are not correctly attached
@@ -1561,8 +1567,6 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
             taking snapshots and associated operations via cloud provider APIs.
         :param str snapshot_instance: The name of the VM instance to which the disks
             to be backed up are attached.
-        :param str snapshot_zone: The zone in which the snapshot disks and instance
-            reside.
         :param list[str] snapshot_disks: A list containing the names of the disks for
             which snapshots should be taken at backup time.
         :rtype tuple[list[str],list[str]]
@@ -1570,21 +1574,22 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
             attached to the VM instance and the second element is a list of all disks
             which are attached but not mounted.
         """
-        attached_devices = snapshot_interface.get_attached_devices(
-            snapshot_instance, snapshot_zone
-        )
+        attached_volumes = snapshot_interface.get_attached_volumes(snapshot_instance)
         missing_disks = []
         for disk in snapshot_disks:
-            if disk not in attached_devices.keys():
+            if disk not in attached_volumes.keys():
                 missing_disks.append(disk)
 
         unmounted_disks = []
         for disk in snapshot_disks:
             try:
-                mount_point, _mount_options = cmd.findmnt(attached_devices[disk])
+                attached_volumes[disk].resolve_mounted_volume(cmd)
+                mount_point = attached_volumes[disk].mount_point
             except KeyError:
                 # Ignore disks which were not attached
                 continue
+            except SnapshotBackupException:
+                mount_point = None
             if mount_point is None:
                 unmounted_disks.append(disk)
 
@@ -1605,15 +1610,12 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
         if self.server.config.disabled:
             # Skip checks if the server is not active
             return
-        check_strategy.init_check("snapshot instance exists in zone")
-        if not self.snapshot_interface.instance_exists(
-            self.snapshot_instance, self.snapshot_zone
-        ):
+        check_strategy.init_check("snapshot instance exists")
+        if not self.snapshot_interface.instance_exists(self.snapshot_instance):
             check_strategy.result(
                 self.config.name,
                 False,
-                hint="cannot find compute instance %s in zone %s"
-                % (self.snapshot_instance, self.snapshot_zone),
+                hint="cannot find compute instance %s" % self.snapshot_instance,
             )
             return
         else:
@@ -1625,7 +1627,6 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
             cmd,
             self.snapshot_interface,
             self.snapshot_instance,
-            self.snapshot_zone,
             self.snapshot_disks,
         )
 

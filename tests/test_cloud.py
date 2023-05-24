@@ -3381,7 +3381,7 @@ class TestCloudBackupSnapshot(object):
                 False,
                 [],
                 [],
-                "Cannot find compute instance {snapshot_instance} in zone {snapshot_zone}",
+                "Cannot find compute instance {snapshot_instance}",
             ),
             (
                 True,
@@ -3417,7 +3417,6 @@ class TestCloudBackupSnapshot(object):
             snapshot_interface,
             mock_postgres,
             self.instance_name,
-            self.zone,
             self.disks,
         )
         # AND the compute instance has the specified state
@@ -3435,15 +3434,13 @@ class TestCloudBackupSnapshot(object):
 
         # AND the exception has the expected message
         assert str(exc.value) == expected_error_msg.format(
-            **{"snapshot_instance": self.instance_name, "snapshot_zone": self.zone}
+            **{"snapshot_instance": self.instance_name}
         )
 
     @mock.patch("barman.cloud.CloudBackup._get_backup_info")
     @mock.patch("barman.cloud.ConcurrentBackupStrategy")
-    @mock.patch("barman.cloud.UnixLocalCommand")
     def test_backup(
         self,
-        mock_unix_local_command,
         mock_concurrent_backup_strategy,
         mock_get_backup_info,
         cloud_interface,
@@ -3458,18 +3455,23 @@ class TestCloudBackupSnapshot(object):
             snapshot_interface,
             mock_postgres,
             self.instance_name,
-            self.zone,
             self.disks[:1],
         )
         # AND the instance exists
         snapshot_interface.instance_exists.return_value = True
-        # AND the expected disks are attached
-        snapshot_interface.get_attached_devices.return_value = {"disk0": "/dev/dev0"}
-        # AND the expected disks are mounted
-        mock_unix_local_command.return_value.findmnt.return_value = (
-            "/opt/disk0",
-            "rw,noatime",
+        # AND the expected disks are attached and mounted
+        mock_volume_metadata = mock.Mock()
+
+        def mock_resolve_mounted_volume(_self):
+            mock_volume_metadata.mount_point = "/opt/disk0"
+            mock_volume_metadata.mount_options = "rw,noatime"
+
+        mock_volume_metadata.resolve_mounted_volume.side_effect = (
+            mock_resolve_mounted_volume
         )
+        snapshot_interface.get_attached_volumes.return_value = {
+            "disk0": mock_volume_metadata
+        }
         # AND a backup strategy which sets a given label
         backup_label = "test_backup_label"
         # AND a known backup_info
@@ -3494,9 +3496,16 @@ class TestCloudBackupSnapshot(object):
         )
 
         # AND a mock take_snapshot_backup function which sets snapshot_info
-        def mock_take_snapshot_backup(backup_info, _instance_name, _zone, _disks):
+        def mock_take_snapshot_backup(backup_info, _instance_name, disks):
             backup_info.snapshots_info = mock.Mock(
-                snapshots=[mock.Mock(identifier="snapshot0", device="/dev/dev0")]
+                snapshots=[
+                    mock.Mock(
+                        identifier="snapshot0",
+                        device="/dev/dev0",
+                        mount_point=disks["disk0"].mount_point,
+                        mount_options=disks["disk0"].mount_options,
+                    )
+                ]
             )
 
         snapshot_interface.take_snapshot_backup.side_effect = mock_take_snapshot_backup
@@ -3508,8 +3517,7 @@ class TestCloudBackupSnapshot(object):
         snapshot_interface.take_snapshot_backup.assert_called_once_with(
             backup_info,
             self.instance_name,
-            self.zone,
-            self.disks[:1],
+            {"disk0": mock_volume_metadata},
         )
         # AND the backup label was uploaded
         backup_label_key = "{}/{}/base/{}/backup_label".format(

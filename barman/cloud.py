@@ -36,10 +36,12 @@ from tempfile import NamedTemporaryFile
 from barman.annotations import KeepManagerMixinCloud
 from barman.backup_executor import ConcurrentBackupStrategy, SnapshotBackupExecutor
 from barman.clients import cloud_compression
+from barman.clients.cloud_cli import get_missing_attrs
 from barman.exceptions import (
     BackupPreconditionException,
     BarmanException,
     BackupException,
+    ConfigurationException,
 )
 from barman.fs import UnixLocalCommand, path_allowed
 from barman.infofile import BackupInfo
@@ -1838,7 +1840,6 @@ class CloudBackupSnapshot(CloudBackup):
         snapshot_interface,
         postgres,
         snapshot_instance,
-        snapshot_zone,
         snapshot_disks,
         backup_name=None,
     ):
@@ -1854,8 +1855,6 @@ class CloudBackupSnapshot(CloudBackup):
             PostgreSQL instance being backed up.
         :param str snapshot_instance: The name of the VM instance to which the disks
             to be backed up are attached.
-        :param str snapshot_zone: The zone in which the snapshot disks and instance
-            reside.
         :param list[str] snapshot_disks: A list containing the names of the disks for
             which snapshots should be taken at backup time.
         :param str|None backup_name: A friendly name which can be used to reference
@@ -1866,7 +1865,6 @@ class CloudBackupSnapshot(CloudBackup):
         )
         self.snapshot_interface = snapshot_interface
         self.snapshot_instance = snapshot_instance
-        self.snapshot_zone = snapshot_zone
         self.snapshot_disks = snapshot_disks
 
     # The remaining methods are the concrete implementations of the abstract methods from
@@ -1875,11 +1873,9 @@ class CloudBackupSnapshot(CloudBackup):
         """
         Perform any finalisation required to complete the copy of backup data.
 
-        For snapshot backups this means gathering the mount point and mount options
-        from the local node.
+        This is a no-op for snapshot backups.
         """
-        cmd = UnixLocalCommand()
-        SnapshotBackupExecutor.add_mount_data_to_backup_info(self.backup_info, cmd)
+        pass
 
     def _add_stats_to_backup_info(self):
         """
@@ -1916,11 +1912,17 @@ class CloudBackupSnapshot(CloudBackup):
         """
         Make a backup by creating snapshots of the specified disks.
         """
+        volumes_to_snapshot = self.snapshot_interface.get_attached_volumes(
+            self.snapshot_instance, self.snapshot_disks
+        )
+        cmd = UnixLocalCommand()
+        SnapshotBackupExecutor.add_mount_data_to_volume_metadata(
+            volumes_to_snapshot, cmd
+        )
         self.snapshot_interface.take_snapshot_backup(
             self.backup_info,
             self.snapshot_instance,
-            self.snapshot_zone,
-            self.snapshot_disks,
+            volumes_to_snapshot,
         )
 
     # The following method implements specific functionality for snapshot backups.
@@ -1934,12 +1936,9 @@ class CloudBackupSnapshot(CloudBackup):
 
         Raises a BackupPreconditionException if any of the checks fail.
         """
-        if not self.snapshot_interface.instance_exists(
-            self.snapshot_instance, self.snapshot_zone
-        ):
+        if not self.snapshot_interface.instance_exists(self.snapshot_instance):
             raise BackupPreconditionException(
-                "Cannot find compute instance %s in zone %s"
-                % (self.snapshot_instance, self.snapshot_zone)
+                "Cannot find compute instance %s" % self.snapshot_instance
             )
 
         cmd = UnixLocalCommand()
@@ -1950,7 +1949,6 @@ class CloudBackupSnapshot(CloudBackup):
             cmd,
             self.snapshot_interface,
             self.snapshot_instance,
-            self.snapshot_zone,
             self.snapshot_disks,
         )
 
@@ -2215,20 +2213,43 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
 class CloudSnapshotInterface(with_metaclass(ABCMeta)):
     """Defines a common interface for handling cloud snapshots."""
 
-    @abstractmethod
-    def take_snapshot(self, backup_info, disk_zone, disk_name):
-        """
-        Take a snapshot of a disk in the cloud.
+    _required_config_for_backup = ("snapshot_disks", "snapshot_instance")
+    _required_config_for_restore = ("snapshot_recovery_instance",)
 
-        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
-        :param str disk_zone: The zone in which the disk resides.
-        :param str disk_name: The name of the source disk for the snapshot.
-        :rtype: str
-        :return: The name used to reference the snapshot with the cloud provider.
+    @classmethod
+    def validate_backup_config(cls, config):
         """
+        Additional validation for backup options.
+
+        Raises a ConfigurationException if any required options are missing.
+
+        :param argparse.Namespace config: The backup options provided at the command line.
+        """
+        missing_options = get_missing_attrs(config, cls._required_config_for_backup)
+        if len(missing_options) > 0:
+            raise ConfigurationException(
+                "Incomplete options for snapshot backup - missing: %s"
+                % ", ".join(missing_options)
+            )
+
+    @classmethod
+    def validate_restore_config(cls, config):
+        """
+        Additional validation for restore options.
+
+        Raises a ConfigurationException if any required options are missing.
+
+        :param argparse.Namespace config: The backup options provided at the command line.
+        """
+        missing_options = get_missing_attrs(config, cls._required_config_for_restore)
+        if len(missing_options) > 0:
+            raise ConfigurationException(
+                "Incomplete options for snapshot restore - missing: %s"
+                % ", ".join(missing_options)
+            )
 
     @abstractmethod
-    def take_snapshot_backup(self, backup_info, instance_name, zone, disks):
+    def take_snapshot_backup(self, backup_info, instance_name, volumes):
         """
         Take a snapshot backup for the named instance.
 
@@ -2243,17 +2264,8 @@ class CloudSnapshotInterface(with_metaclass(ABCMeta)):
         :param barman.infofile.LocalBackupInfo backup_info: Backup information.
         :param str instance_name: The name of the VM instance to which the disks
             to be backed up are attached.
-        :param str zone: The zone in which the snapshot disks and instance reside.
-        :param list[str] disks: A list containing the names of the source disks.
-        """
-
-    @abstractmethod
-    def delete_snapshot(self, snapshot_identifier):
-        """
-        Delete the specified snapshot.
-
-        :param str snapshot_identifier: An identifier used to reference this snapshot
-            within the cloud provider API.
+        :param dict[str,barman.cloud.VolumeMetadata] volumes: Metadata for the volumes
+            to be backed up.
         """
 
     @abstractmethod
@@ -2265,50 +2277,110 @@ class CloudSnapshotInterface(with_metaclass(ABCMeta)):
         """
 
     @abstractmethod
-    def get_attached_devices(self, instance_name, zone):
+    def get_attached_volumes(self, instance_name, disks=None):
         """
-        Returns the non-boot devices attached to instance_name in zone.
+        Returns metadata for the volumes attached to this instance.
 
-        Implementations must return a dict where the key is the name of the attached
-        disk and the value is the full path to the device at which the disk is attached
-        on the instance.
+        Queries the cloud provider for metadata relating to the volumes attached to
+        the named instance and returns a dict of `VolumeMetadata` objects, keyed by
+        disk name.
+
+        If the optional disks parameter is supplied then this method must return
+        metadata for the disks in the supplied list only. A SnapshotBackupException
+        must be raised if any of the supplied disks are not found to be attached to
+        the instance.
+
+        If the disks parameter is not supplied then this method must return a
+        VolumeMetadata for all disks attached to this instance.
 
         :param str instance_name: The name of the VM instance to which the disks
             to be backed up are attached.
-        :param str zone: The zone in which the snapshot disks and instance reside.
-        :rtype: dict[str,str]
-        :return: A dict where the key is the disk name and the value is the device
-            path for that disk on the specified instance.
+        :param list[str]|None disks: A list containing the names of disks to be
+            backed up.
+        :rtype: dict[str, VolumeMetadata]
+        :return: A dict of VolumeMetadata objects representing each volume
+            attached to the instance, keyed by volume identifier.
         """
 
     @abstractmethod
-    def get_attached_snapshots(self, instance_name, zone):
+    def instance_exists(self, instance_name):
         """
-        Returns the snapshots which are sources for disks attached to instance.
-
-        Implementations must return each snapshot which is the source for a disk
-        attache to the instance along with the device path at which it is attached.
+        Determine whether the named instance exists.
 
         :param str instance_name: The name of the VM instance to which the disks
             to be backed up are attached.
-        :param str zone: The zone in which the snapshot disks and instance reside.
-        :rtype: dict[str,str]
-        :return: A dict where the key is the snapshot name and the value is the
-            device path for the source disk for that snapshot on the specified
-            instance.
-        """
-
-    @abstractmethod
-    def instance_exists(self, instance_name, zone):
-        """
-        Determine whether the named instance exists in the specified zone.
-
-        :param str instance_name: The name of the VM instance to which the disks
-            to be backed up are attached.
-        :param str zone: The zone in which the snapshot disks and instance reside.
         :rtype: bool
-        :return: True if the named instance exists in zone, False otherwise.
+        :return: True if the named instance exists, False otherwise.
         """
+
+
+class VolumeMetadata(object):
+    """
+    Represents metadata for a single volume attached to a cloud VM.
+
+    The main purpose of this class is to allow calling code to determine the mount
+    point and mount options for an attached volume without needing to know the
+    details of how these are determined for a specific cloud provider.
+
+    Implementations must therefore:
+
+    - Store metadata obtained from the cloud provider which can be used to resolve
+      this volume to an attached and mounted volume on the instance. This will
+      typically be a device name or something which can be resolved to a device name.
+    - Provide an implementation of `resolve_mounted_volume` which executes commands
+      on the cloud VM via a supplied UnixLocalCommand object in order to set the
+      _mount_point and _mount_options properties.
+
+    If the volume was cloned from a snapshot then the source snapshot identifier
+    must also be stored in this class so that calling code can determine if/how/where
+    a volume cloned from a given snapshot is mounted.
+    """
+
+    def __init__(self):
+        self._mount_point = None
+        self._mount_options = None
+
+    @abstractmethod
+    def resolve_mounted_volume(self, cmd):
+        """
+        Resolve the mount point and mount options using shell commands.
+
+        This method must use cmd together with any additional private properties
+        available in the provider-specific implementation in order to resolve the
+        mount point and mount options for this volume.
+
+        :param UnixLocalCommand cmd: Wrapper for local/remote commands on the instance
+            to which this volume is attached.
+        """
+
+    @abstractproperty
+    def source_snapshot(self):
+        """
+        The source snapshot from which this volume was cloned.
+
+        :rtype: str|None
+        :return: A snapshot identifier.
+        """
+
+    @property
+    def mount_point(self):
+        """
+        The mount point at which this volume is currently mounted.
+
+        This must be resolved using metadata obtained from the cloud provider which
+        describes how the volume is attached to the VM.
+        """
+        return self._mount_point
+
+    @property
+    def mount_options(self):
+        """
+        The mount options with which this device is currently mounted.
+
+        This must be resolved using metadata obtained from the cloud provider which
+        describes how the volume is attached to the VM.
+        """
+        return self._mount_options
 
 
 class SnapshotMetadata(object):
@@ -2411,20 +2483,6 @@ class SnapshotMetadata(object):
 
         :rtype: str
         :return: A snapshot identifier.
-        """
-
-    @abstractproperty
-    def device(self):
-        """
-        The device path to the source disk on the compute instance at the time the
-        backup was taken.
-
-        Subclasses must ensure this returns a full path. Certain cloud platforms,
-        such as GCP, provide only a short name which must be forged into a full path.
-        Such forging should take place here.
-
-        :rtype: str
-        :return: The device path.
         """
 
 

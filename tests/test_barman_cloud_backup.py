@@ -125,11 +125,24 @@ class TestCloudBackup(object):
         ("snapshot_args", "expected_error"),
         (
             [
-                ["--snapshot-disk", "disk0", "--snapshot-instance", "test_instance"],
+                [
+                    "--cloud-provider",
+                    "google-cloud-storage",
+                    "--snapshot-gcp-project",
+                    "test-project",
+                    "--snapshot-disk",
+                    "disk0",
+                    "--snapshot-instance",
+                    "test_instance",
+                ],
                 "Incomplete options for snapshot backup - missing: snapshot_zone",
             ],
             [
                 [
+                    "--cloud-provider",
+                    "google-cloud-storage",
+                    "--snapshot-gcp-project",
+                    "test-project",
                     "--snapshot-zone",
                     "test_zone",
                     "--snapshot-instance",
@@ -138,11 +151,24 @@ class TestCloudBackup(object):
                 "Incomplete options for snapshot backup - missing: snapshot_disks",
             ],
             [
-                ["--snapshot-disk", "disk0", "--snapshot-zone", "test_zone"],
+                [
+                    "--cloud-provider",
+                    "google-cloud-storage",
+                    "--snapshot-gcp-project",
+                    "snapshot_gcp_project",
+                    "--snapshot-disk",
+                    "disk0",
+                    "--snapshot-zone",
+                    "test_zone",
+                ],
                 "Incomplete options for snapshot backup - missing: snapshot_instance",
             ],
             [
                 [
+                    "--cloud-provider",
+                    "google-cloud-storage",
+                    "--snapshot-gcp-project",
+                    "snapshot_gcp_project",
                     "--snapshot-disk",
                     "disk0",
                     "--snapshot-instance",
@@ -198,8 +224,12 @@ class TestCloudBackup(object):
     @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
     @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
     @mock.patch("barman.clients.cloud_backup.CloudBackupUploader")
+    @mock.patch(
+        "barman.cloud_providers.google_cloud_storage.import_google_cloud_compute"
+    )
     def test_unsupported_snapshot_args(
         self,
+        _mock_google_cloud_compute,
         uploader_mock,
         _cloud_interface_mock,
         _postgres_connection,
@@ -266,7 +296,6 @@ class TestCloudBackup(object):
             mock_get_snapshot_interface.return_value,
             postgres_connection.return_value,
             "test_instance",
-            "test_zone",
             [
                 "disk0",
             ],

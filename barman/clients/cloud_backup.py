@@ -30,7 +30,6 @@ from barman.clients.cloud_cli import (
     NetworkErrorExit,
     OperationErrorExit,
     UrlArgumentType,
-    get_missing_attrs,
 )
 from barman.cloud import (
     CloudBackupSnapshot,
@@ -116,19 +115,11 @@ def _validate_config(config):
     required_snapshot_variables = (
         "snapshot_disks",
         "snapshot_instance",
-        "snapshot_zone",
     )
     is_snapshot_backup = any(
         [getattr(config, var) for var in required_snapshot_variables]
     )
     if is_snapshot_backup:
-        missing_options = get_missing_attrs(config, required_snapshot_variables)
-        if len(missing_options) > 0:
-            raise ConfigurationException(
-                "Incomplete options for snapshot backup - missing: %s"
-                % ", ".join(missing_options)
-            )
-
         if getattr(config, "compression"):
             raise ConfigurationException(
                 "Compression options cannot be used with snapshot backups"
@@ -209,15 +200,15 @@ def main(args=None):
 
                 with closing(postgres):
                     # Take snapshot backups if snapshot backups were specified
-                    if config.snapshot_instance:
+                    if config.snapshot_disks or config.snapshot_instance:
                         snapshot_interface = get_snapshot_interface(config)
+                        snapshot_interface.validate_backup_config(config)
                         snapshot_backup = CloudBackupSnapshot(
                             config.server_name,
                             cloud_interface,
                             snapshot_interface,
                             postgres,
                             config.snapshot_instance,
-                            config.snapshot_zone,
                             config.snapshot_disks,
                             config.backup_name,
                         )

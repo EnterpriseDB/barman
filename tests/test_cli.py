@@ -637,30 +637,6 @@ class TestCli(object):
                     "snapshot arguments have been used: --snapshot-recovery-instance"
                 ),
             ),
-            (
-                None,
-                {
-                    "snapshot_recovery_zone": "test_zone",
-                },
-                {},
-                (
-                    "Backup backup_id is not a snapshot backup but the following "
-                    "snapshot arguments have been used: --snapshot-recovery-zone"
-                ),
-            ),
-            (
-                None,
-                {
-                    "snapshot_recovery_instance": "test_instance",
-                    "snapshot_recovery_zone": "test_zone",
-                },
-                {},
-                (
-                    "Backup backup_id is not a snapshot backup but the following "
-                    "snapshot arguments have been used: --snapshot-recovery-instance, "
-                    "--snapshot-recovery-zone"
-                ),
-            ),
             # If there is snapshot_info but no snapshot args then there should be an
             # error
             (
@@ -669,8 +645,7 @@ class TestCli(object):
                 {},
                 (
                     "Backup backup_id is a snapshot backup and the following required "
-                    "arguments have not been provided: --snapshot-recovery-instance, "
-                    "--snapshot-recovery-zone"
+                    "arguments have not been provided: --snapshot-recovery-instance"
                 ),
             ),
             # If there is snapshot_info, snapshot args and also tablespace mappings
@@ -679,7 +654,6 @@ class TestCli(object):
                 Mock(snapshots=[]),
                 {
                     "snapshot_recovery_instance": "test_instance",
-                    "snapshot_recovery_zone": "test_zone",
                 },
                 {"tablespace": ("tbs1:/path/to/tbs1",)},
                 (
@@ -693,7 +667,6 @@ class TestCli(object):
                 Mock(snapshots=[]),
                 {
                     "snapshot_recovery_instance": "test_instance",
-                    "snapshot_recovery_zone": "test_zone",
                 },
                 {},
                 None,
@@ -745,10 +718,6 @@ class TestCli(object):
             assert (
                 server.recover.call_args_list[0][1]["recovery_instance"]
                 == snapshot_recovery_args["snapshot_recovery_instance"]
-            )
-            assert (
-                server.recover.call_args_list[0][1]["recovery_zone"]
-                == snapshot_recovery_args["snapshot_recovery_zone"]
             )
 
     def test_check_target_action(self):

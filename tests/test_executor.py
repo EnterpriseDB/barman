@@ -17,6 +17,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import datetime
+from functools import partial
 import logging
 import os
 
@@ -1506,7 +1507,7 @@ class TestSnapshotBackupExecutor(object):
 
     @pytest.mark.parametrize(
         "missing_option",
-        ("snapshot_disks", "snapshot_instance", "snapshot_provider", "snapshot_zone"),
+        ("snapshot_disks", "snapshot_instance", "snapshot_provider"),
     )
     @patch("barman.backup_executor.get_snapshot_interface_from_server_config")
     def test_snapshot_backup_executor_init_missing_options(
@@ -1537,87 +1538,46 @@ class TestSnapshotBackupExecutor(object):
         # AND the server is disabled
         assert server.config.disabled
 
-    def test_add_mount_data_to_backup_info(self):
-        """Verify that mount data is added to backup_info when it is returned."""
-        # GIVEN devices which are mounted
-        mock_remote_cmd = mock.Mock()
+    def test_add_mount_data_to_volume_metadata(self):
+        """Verify that mount data is added to volume metadata when it is returned."""
 
-        def mock_findmnt(device):
-            return {
-                "/dev/disk1": ("/opt/mount1", "rw,noatime"),
-                "/dev/disk2": ("/opt/mount2", "ro"),
-            }[device]
+        # GIVEN volumes which are mounted
+        def mock_resolve_mounted_volume(mock_volume, mount_point, mount_options, _cmd):
+            mock_volume.mount_point = mount_point
+            mock_volume.mount_options = mount_options
 
-        mock_remote_cmd.findmnt.side_effect = mock_findmnt
-        # AND a backup_info file with snapshots of these devices
-        backup_info = build_test_backup_info(
-            snapshots_info=mock.Mock(
-                snapshots=[
-                    mock.Mock(
-                        identifier="snapshot1",
-                        device="/dev/disk1",
-                    ),
-                    mock.Mock(
-                        identifier="snapshot2",
-                        device="/dev/disk2",
-                    ),
-                ]
-            )
+        mock_volumes = {
+            "disk1": mock.Mock(),
+            "disk2": mock.Mock(),
+        }
+        mock_volumes["disk1"].resolve_mounted_volume.side_effect = partial(
+            mock_resolve_mounted_volume,
+            mock_volumes["disk1"],
+            "/opt/mount1",
+            "rw,noatime",
+        )
+        mock_volumes["disk2"].resolve_mounted_volume.side_effect = partial(
+            mock_resolve_mounted_volume,
+            mock_volumes["disk2"],
+            "/opt/mount2",
+            "ro",
         )
 
-        # WHEN add_mount_data_to_backup_info is called
-        SnapshotBackupExecutor.add_mount_data_to_backup_info(
-            backup_info, mock_remote_cmd
-        )
+        mock_cmd = mock.Mock()
+
+        # WHEN add_mount_data_to_volume_metadata is called
+        SnapshotBackupExecutor.add_mount_data_to_volume_metadata(mock_volumes, mock_cmd)
 
         # THEN the backup_info is enhanced with the mount point and mount options
         # for each device
-        assert backup_info.snapshots_info.snapshots[0].mount_point == "/opt/mount1"
-        assert backup_info.snapshots_info.snapshots[0].mount_options == "rw,noatime"
-        assert backup_info.snapshots_info.snapshots[1].mount_point == "/opt/mount2"
-        assert backup_info.snapshots_info.snapshots[1].mount_options == "ro"
-
-    def test_add_mount_data_to_backup_info_not_mounted(self):
-        """Verify that an exception is raised when a device is not mounted."""
-        # GIVEN devices where one is not mounted
-        mock_remote_cmd = mock.Mock()
-
-        def mock_findmnt(device):
-            return {
-                "/dev/disk1": ("/opt/mount1", "rw,noatime"),
-                "/dev/disk2": (None, None),
-            }[device]
-
-        mock_remote_cmd.findmnt.side_effect = mock_findmnt
-        # AND a backup_info file with snapshots of these devices
-        backup_info = build_test_backup_info(
-            snapshots_info=mock.Mock(
-                snapshots=[
-                    mock.Mock(
-                        identifier="snapshot1",
-                        device="/dev/disk1",
-                    ),
-                    mock.Mock(
-                        identifier="snapshot2",
-                        device="/dev/disk2",
-                    ),
-                ]
-            )
-        )
-
-        # WHEN add_mount_data_to_backup_info is called
-        # THEN a BackupException is raised
-        with pytest.raises(BackupException) as e:
-            SnapshotBackupExecutor.add_mount_data_to_backup_info(
-                backup_info, mock_remote_cmd
-            )
-
-        # AND the exception message warns about the missing mount point
-        assert str(e.value) == "Could not find mount point for device /dev/disk2"
+        assert mock_volumes["disk1"].mount_point == "/opt/mount1"
+        assert mock_volumes["disk1"].mount_options == "rw,noatime"
+        assert mock_volumes["disk2"].mount_point == "/opt/mount2"
+        assert mock_volumes["disk2"].mount_options == "ro"
 
     @patch("barman.backup_executor.get_snapshot_interface_from_server_config")
     @patch(
-        "barman.backup_executor.SnapshotBackupExecutor.add_mount_data_to_backup_info"
+        "barman.backup_executor.SnapshotBackupExecutor.add_mount_data_to_volume_metadata"
     )
     @patch("barman.backup_executor.UnixRemoteCommand")
     @patch("barman.backup_executor.UnixLocalCommand")
@@ -1625,7 +1585,7 @@ class TestSnapshotBackupExecutor(object):
         self,
         mock_unix_local_command,
         mock_unix_remote_command,
-        mock_add_mount_data_to_backup_info,
+        mock_add_mount_data_to_volume_metadata,
         mock_get_snapshot_interface,
         core_snapshot_options,
     ):
@@ -1638,6 +1598,9 @@ class TestSnapshotBackupExecutor(object):
         executor = SnapshotBackupExecutor(server.backup_manager)
         # AND backup_info for a new backup
         backup_info = build_test_backup_info()
+        # AND a snapshot interface which returns mock volume metadata
+        mock_snapshot_interface = mock_get_snapshot_interface.return_value
+        mock_volume_metadata = mock_snapshot_interface.get_attached_volumes.return_value
 
         # WHEN backup_copy is called
         executor.backup_copy(backup_info)
@@ -1646,22 +1609,27 @@ class TestSnapshotBackupExecutor(object):
         mock_unix_local_command.return_value.create_dir_if_not_exists.assert_called_once_with(
             backup_info.get_data_directory()
         )
+        # AND the snapshot interface was asked for volume metadata from the
+        # expected disks
+        mock_snapshot_interface.get_attached_volumes.assert_called_once_with(
+            core_snapshot_options["snapshot_instance"],
+            [core_snapshot_options["snapshot_disks"]],
+        )
         # AND the snapshot interface is used to take a snapshot backup with the
         # expected args
         mock_get_snapshot_interface.return_value.take_snapshot_backup.assert_called_once_with(
             backup_info,
             core_snapshot_options["snapshot_instance"],
-            core_snapshot_options["snapshot_zone"],
-            [core_snapshot_options["snapshot_disks"]],
+            mock_volume_metadata,
         )
-        # AND add_mount_data_to_backup_info was called
-        mock_add_mount_data_to_backup_info.assert_called_once_with(
-            backup_info, mock_unix_remote_command.return_value
+        # AND add_mount_data_to_volume_metadata was called
+        mock_add_mount_data_to_volume_metadata.assert_called_once_with(
+            mock_volume_metadata, mock_unix_remote_command.return_value
         )
 
     @patch("barman.backup_executor.get_snapshot_interface_from_server_config")
     @patch(
-        "barman.backup_executor.SnapshotBackupExecutor.add_mount_data_to_backup_info"
+        "barman.backup_executor.SnapshotBackupExecutor.add_mount_data_to_volume_metadata"
     )
     @patch("barman.backup_executor.UnixRemoteCommand")
     @patch("barman.backup_executor.UnixLocalCommand")
@@ -1669,7 +1637,7 @@ class TestSnapshotBackupExecutor(object):
         self,
         _mock_unix_local_command,
         _mock_unix_remote_command,
-        _mock_add_mount_data_to_backup_info,
+        _mock_add_mount_data_to_volume_metadata,
         _mock_get_snapshot_interface,
         core_snapshot_options,
     ):
@@ -1721,24 +1689,27 @@ class TestSnapshotBackupExecutor(object):
         and mounted devices.
         """
         # GIVEN the specified attached and mounted disks are all returned by the
-        # get_attached_devices function
-        mock_get_attached_devices = (
-            mock_get_snapshot_interface.return_value.get_attached_devices
+        # get_attached_volumes function
+        mock_get_attached_volumes = (
+            mock_get_snapshot_interface.return_value.get_attached_volumes
         )
-        mock_get_attached_devices.return_value = dict(
-            (disk, "/dev/" + disk)
+        mock_get_attached_volumes.return_value = dict(
+            (disk, mock.Mock(mount_point=None, mount_options=None))
             for disk in expected_unmounted_disks + expected_mounted_disks
         )
-        # AND the specified mounted disks are returned by findmnt while the attached
-        # (but not mounted) disks are not found
+        # AND the specified mounted disks are returned by resolve_mounted_volume
+        # while the attached(but not mounted) disks are not found
         cmd = mock.Mock()
-        findmnt_resp = dict(
-            ("/dev/" + disk, ("/opt/" + disk, "rw")) for disk in expected_mounted_disks
-        )
-        findmnt_resp.update(
-            dict(("/dev/" + disk, (None, None)) for disk in expected_unmounted_disks)
-        )
-        cmd.findmnt.side_effect = lambda x: findmnt_resp[x]
+
+        def mock_resolve_mounted_volume(mock_volume, disk_name, _cmd):
+            mock_volume.mount_point = "/opt/" + disk_name
+            mock_volume.mount_options = "rw"
+
+        for disk in expected_mounted_disks:
+            mock_volume = mock_get_attached_volumes.return_value[disk]
+            mock_volume.resolve_mounted_volume.side_effect = partial(
+                mock_resolve_mounted_volume, mock_volume, disk
+            )
 
         # WHEN find_missing_and_unmounted_disks is called for all expected disksts
         (
@@ -1748,7 +1719,6 @@ class TestSnapshotBackupExecutor(object):
             cmd,
             mock_get_snapshot_interface.return_value,
             "instance1",
-            "zone1",
             expected_missing_disks + expected_unmounted_disks + expected_mounted_disks,
         )
 
@@ -1820,7 +1790,7 @@ class TestSnapshotBackupExecutor(object):
         assert len(check_strategy.check_result) == 3
         # AND each snapshot-specific check passes
         for check in (
-            "snapshot instance exists in zone",
+            "snapshot instance exists",
             "snapshot disks attached to instance",
             "snapshot disks mounted on instance",
         ):
@@ -1842,11 +1812,11 @@ class TestSnapshotBackupExecutor(object):
         ),
         [
             (
-                "snapshot instance exists in zone",
+                "snapshot instance exists",
                 False,
                 [],
                 [],
-                "cannot find compute instance {snapshot_instance} in zone {snapshot_zone}",
+                "cannot find compute instance {snapshot_instance}",
             ),
             (
                 "snapshot disks attached to instance",

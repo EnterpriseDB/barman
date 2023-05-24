@@ -141,8 +141,12 @@ class TestCloudRestore(object):
     )
     @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_restore.get_cloud_interface")
+    @mock.patch(
+        "barman.cloud_providers.google_cloud_storage.import_google_cloud_compute"
+    )
     def test_unsupported_snapshot_args(
         self,
+        _mock_google_cloud_compute,
         _mock_cloud_interface_factory,
         mock_catalog,
         snapshot_args,
@@ -158,7 +162,9 @@ class TestCloudRestore(object):
         backup_id = "20380119T031408"
         mock_catalog.return_value.parse_backup_id.return_value = backup_id
         # AND the catalog returns a mock backup_info with a snapshots_info field
-        mock_backup_info = mock.Mock(backup_id=backup_id, snapshots_info=mock.Mock())
+        mock_backup_info = mock.Mock(
+            backup_id=backup_id, snapshots_info=mock.Mock(provider="gcp")
+        )
         mock_catalog.return_value.get_backup_info.return_value = mock_backup_info
 
         # WHEN barman-cloud-restore is run with a subset of snapshot arguments
@@ -172,6 +178,7 @@ class TestCloudRestore(object):
         # AND the expected error message occurs
         assert expected_error.format(**{"backup_id": backup_id}) in caplog.text
 
+    @mock.patch("barman.clients.cloud_restore.get_snapshot_interface_from_backup_info")
     @mock.patch("barman.clients.cloud_restore.CloudBackupDownloaderSnapshot")
     @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_restore.get_cloud_interface")
@@ -180,6 +187,7 @@ class TestCloudRestore(object):
         mock_cloud_interface_factory,
         mock_catalog,
         mock_backup_downloader_snapshot,
+        mock_get_snapshot_interface,
     ):
         """
         Verify that restoring a snapshots backup uses CloudBackupDownloaderSnapshot
@@ -190,7 +198,9 @@ class TestCloudRestore(object):
         backup_id = "20380119T031408"
         mock_catalog.return_value.parse_backup_id.return_value = backup_id
         # AND the catalog returns a mock backup_info with a snapshots_info field
-        mock_backup_info = mock.Mock(backup_id=backup_id, snapshots_info=mock.Mock())
+        mock_backup_info = mock.Mock(
+            backup_id=backup_id, snapshots_info=mock.Mock(provider="gcp")
+        )
         mock_catalog.return_value.get_backup_info.return_value = mock_backup_info
 
         # WHEN barman-cloud-restore is run with the required arguments for a snapshots
@@ -213,12 +223,16 @@ class TestCloudRestore(object):
 
         # THEN a CloudBackupDownloaderSnapshot is created
         mock_backup_downloader_snapshot.assert_called_once_with(
-            mock_cloud_interface_factory.return_value, mock_catalog.return_value
+            mock_cloud_interface_factory.return_value,
+            mock_catalog.return_value,
+            mock_get_snapshot_interface.return_value,
         )
         # AND download_backup is called with the expected arguments
         backup_downloader = mock_backup_downloader_snapshot.return_value
         backup_downloader.download_backup.assert_called_once_with(
-            mock_backup_info, recovery_dir, recovery_instance, recovery_zone
+            mock_backup_info,
+            recovery_dir,
+            recovery_instance,
         )
 
 
@@ -319,7 +333,7 @@ class TestCloudBackupDownloaderSnapshot(TestCloudBackupDownloader):
     """Verify the cloud backup downloader for snapshot backups."""
 
     snapshot_name = "snapshot0"
-    device_path = "/dev/dev0"
+    disk_name = "disk0"
     mount_point = "/opt/disk0"
 
     @pytest.fixture
@@ -339,36 +353,44 @@ class TestCloudBackupDownloaderSnapshot(TestCloudBackupDownloader):
     def backup_info(self, snapshots_info):
         yield mock.Mock(backup_id=self.backup_id, snapshots_info=snapshots_info)
 
-    @mock.patch("barman.clients.cloud_restore.get_snapshot_interface_from_backup_info")
     @mock.patch("barman.clients.cloud_restore.UnixLocalCommand")
     def test_download_backup(
         self,
         mock_cmd,
-        mock_get_snapshot_interface,
         backup_info,
         mock_cloud_interface,
         mock_catalog,
     ):
         """Verify that the backup label is downloaded if all preconditions are met."""
-        # GIVEN a CloudBackupDownloaderSnapshot
-        downloader = CloudBackupDownloaderSnapshot(mock_cloud_interface, mock_catalog)
-        # AND the specified snapshots are returned by the snapshot interface
-        mock_get_snapshot_interface.return_value.get_attached_snapshots.return_value = {
-            "snapshot0": "/dev/dev0"
+        # GIVEN a snapshot interface which returns volume metadata for the specified
+        # snapshots
+        mock_volume_metadata = mock.Mock(source_snapshot="snapshot0")
+
+        def mock_resolve_mounted_volume(_self):
+            mock_volume_metadata.mount_point = "/opt/disk0"
+            mock_volume_metadata.mount_options = "rw,noatime"
+
+        mock_volume_metadata.resolve_mounted_volume.side_effect = (
+            mock_resolve_mounted_volume
+        )
+        mock_snapshots_interface = mock.Mock()
+        mock_snapshots_interface.get_attached_volumes.return_value = {
+            "disk0": mock_volume_metadata
         }
+        # AND a CloudBackupDownloaderSnapshot
+        downloader = CloudBackupDownloaderSnapshot(
+            mock_cloud_interface, mock_catalog, mock_snapshots_interface
+        )
         # AND the following recovery args
         recovery_dir = "/path/to/restore_dir"
         recovery_instance = "test_instance"
-        recovery_zone = "test_zone"
         # AND a mock findmnt command which returns a successful response
         mock_cmd.return_value.findmnt.return_value = ["/opt/disk0", "rw,noatime"]
         # AND a mock check_directory_exists command which returns True
         mock_cmd.return_value.check_directory_exists.return_value = True
 
         # WHEN download_backup is called
-        downloader.download_backup(
-            backup_info, recovery_dir, recovery_instance, recovery_zone
-        )
+        downloader.download_backup(backup_info, recovery_dir, recovery_instance)
         # THEN the backup label is downloaded to the recovery destination
         mock_cloud_interface.download_file.assert_called_once_with(
             "{}/base/{}/backup_label".format(
@@ -381,15 +403,17 @@ class TestCloudBackupDownloaderSnapshot(TestCloudBackupDownloader):
 
     @pytest.mark.parametrize(
         (
-            "attached_snapshots",
-            "findmnt_output",
+            "snapshot_name",
+            "mount_point",
+            "mount_options",
             "check_directory_exists_output",
             "expected_error_msg",
         ),
         (
             # No disk cloned from snapshot attached
             [
-                {},
+                None,
+                None,
                 None,
                 None,
                 (
@@ -399,19 +423,21 @@ class TestCloudBackupDownloaderSnapshot(TestCloudBackupDownloader):
             ],
             # Correct disk attached but not mounted in the right place
             [
-                {"snapshot0": "/dev/dev0"},
-                ("/opt/disk1", "rw,noatime"),
+                "snapshot0",
+                "/opt/disk1",
+                "rw,noatime",
                 None,
                 (
-                    "Error checking mount points: Device {device_path} cloned from "
+                    "Error checking mount points: Disk {disk_name} cloned from "
                     "snapshot {snapshot_name} is mounted at /opt/disk1 but "
                     "{mount_point} was expected."
                 ),
             ],
             # Recovery directory not present
             [
-                {"snapshot0": "/dev/dev0"},
-                ("/opt/disk0", "rw,noatime"),
+                "snapshot0",
+                "/opt/disk0",
+                "rw,noatime",
                 False,
                 (
                     "Recovery directory '{recovery_dir}' does not exist on the "
@@ -421,33 +447,42 @@ class TestCloudBackupDownloaderSnapshot(TestCloudBackupDownloader):
             ],
         ),
     )
-    @mock.patch("barman.clients.cloud_restore.get_snapshot_interface_from_backup_info")
     @mock.patch("barman.clients.cloud_restore.UnixLocalCommand")
     def test_download_backup_preconditions_failed(
         self,
         mock_cmd,
-        mock_get_snapshot_interface,
         backup_info,
         mock_cloud_interface,
         mock_catalog,
-        attached_snapshots,
-        findmnt_output,
+        snapshot_name,
+        mount_point,
+        mount_options,
         check_directory_exists_output,
         expected_error_msg,
     ):
         """Verify that backup download fails when preconditions are not met."""
-        # GIVEN a CloudBackupDownloaderSnapshot
-        downloader = CloudBackupDownloaderSnapshot(mock_cloud_interface, mock_catalog)
-        # AND the specified snapshots are returned by the snapshot interface
-        mock_get_snapshot_interface.return_value.get_attached_snapshots.return_value = (
-            attached_snapshots
+        # GIVEN a snapshot interface which returns volume metadata for the specified
+        # snapshots
+        mock_volume_metadata = mock.Mock(source_snapshot=snapshot_name)
+
+        def mock_resolve_mounted_volume(_self):
+            mock_volume_metadata.mount_point = mount_point
+            mock_volume_metadata.mount_options = mount_options
+
+        mock_volume_metadata.resolve_mounted_volume.side_effect = (
+            mock_resolve_mounted_volume
+        )
+        mock_snapshots_interface = mock.Mock()
+        mock_snapshots_interface.get_attached_volumes.return_value = {
+            self.disk_name: mock_volume_metadata
+        }
+        # AND a CloudBackupDownloaderSnapshot
+        downloader = CloudBackupDownloaderSnapshot(
+            mock_cloud_interface, mock_catalog, mock_snapshots_interface
         )
         # AND the following recovery args
         recovery_dir = "/path/to/restore_dir"
         recovery_instance = "test_instance"
-        recovery_zone = "test_zone"
-        # AND a mock findmnt command which returns the specified response
-        mock_cmd.return_value.findmnt.return_value = findmnt_output
         # AND a mock check_directory_exists command which returns the specified respone
         mock_cmd.return_value.check_directory_exists.return_value = (
             check_directory_exists_output
@@ -456,12 +491,10 @@ class TestCloudBackupDownloaderSnapshot(TestCloudBackupDownloader):
         # WHEN download_backup is called
         # THEN a RecoveryPreconditionException is raised
         with pytest.raises(RecoveryPreconditionException) as exc:
-            downloader.download_backup(
-                backup_info, recovery_dir, recovery_instance, recovery_zone
-            )
+            downloader.download_backup(backup_info, recovery_dir, recovery_instance)
         # AND the exception has the expected message
         assert str(exc.value) == expected_error_msg.format(
-            device_path=self.device_path,
+            disk_name=self.disk_name,
             mount_point=self.mount_point,
             recovery_dir=recovery_dir,
             recovery_instance=recovery_instance,
