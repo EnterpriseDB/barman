@@ -166,7 +166,7 @@ def _delete_backup(
     cloud_interface,
     catalog,
     backup_id,
-    dry_run=True,
+    config,
     skip_wal_cleanup_if_standalone=True,
 ):
     backup_info = catalog.get_backup_info(backup_id)
@@ -180,15 +180,17 @@ def _delete_backup(
                 snapshot.identifier for snapshot in backup_info.snapshots_info.snapshots
             ),
         )
-        if not dry_run:
-            snapshot_interface = get_snapshot_interface_from_backup_info(backup_info)
+        if not config.dry_run:
+            snapshot_interface = get_snapshot_interface_from_backup_info(
+                backup_info, config
+            )
             snapshot_interface.delete_snapshot_backup(backup_info)
     objects_to_delete = _get_files_for_backup(catalog, backup_info)
     backup_info_path = os.path.join(
         catalog.prefix, backup_info.backup_id, "backup.info"
     )
     logging.debug("Will delete backup.info file at %s" % backup_info_path)
-    if not dry_run:
+    if not config.dry_run:
         try:
             cloud_interface.delete_objects(objects_to_delete)
             # Do not try to delete backup.info until we have successfully deleted
@@ -205,7 +207,11 @@ def _delete_backup(
         )
 
     _remove_wals_for_backup(
-        cloud_interface, catalog, backup_info, dry_run, skip_wal_cleanup_if_standalone
+        cloud_interface,
+        catalog,
+        backup_info,
+        config.dry_run,
+        skip_wal_cleanup_if_standalone,
     )
     # It is important that the backup is removed from the catalog after cleaning
     # up the WALs because the code in _remove_wals_for_backup depends on the
@@ -265,7 +271,7 @@ def main(args=None):
                         config.server_name,
                     )
                     raise OperationErrorExit()
-                _delete_backup(cloud_interface, catalog, backup_id, config.dry_run)
+                _delete_backup(cloud_interface, catalog, backup_id, config)
             elif config.retention_policy:
                 try:
                     retention_policy = RetentionPolicyFactory.create(
@@ -296,7 +302,7 @@ def main(args=None):
                         cloud_interface,
                         catalog,
                         backup_id,
-                        config.dry_run,
+                        config,
                         skip_wal_cleanup_if_standalone=False,
                     )
     except Exception as exc:

@@ -1356,6 +1356,7 @@ class TestAzureCloudSnapshotInterface(object):
         mock_resp.result.return_value.provisioning_state = "Succeeded"
         mock_snapshot_operations = mock.Mock()
         mock_snapshot_operations.begin_create_or_update.return_value = mock_resp
+        mock_snapshot_operations.begin_delete.return_value = mock_resp
         return mock_snapshot_operations
 
     def _get_mock_instances_client(self, resource_group_name, instance_name, disks):
@@ -1707,6 +1708,139 @@ class TestAzureCloudSnapshotInterface(object):
                 self.azure_disks[0]["name"], self.azure_instance_name
             )
         )
+
+    def test_delete_snapshot(self, caplog):
+        """Verify that a snapshot can be deleted successfully."""
+        # GIVEN a successful response from the delete snapshot request
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        mock_compute_client.snapshots = self._get_mock_snapshot_operations()
+        # AND a new AzureCloudSnapshotInterface
+        snapshot_interface = AzureCloudSnapshotInterface(
+            self.azure_subscription_id, self.azure_resource_group
+        )
+        # AND log level is info
+        caplog.set_level(logging.INFO)
+
+        # WHEN a snapshot is deleted
+        snapshot_name = "test_snapshot"
+        resource_group = "test_resource_group"
+        snapshot_interface._delete_snapshot(snapshot_name, resource_group)
+
+        # THEN delete was called on the client with the expected arguments
+        mock_compute_client.snapshots.begin_delete.assert_called_once_with(
+            resource_group, snapshot_name
+        )
+        # AND wait was called on the response
+        mock_compute_client.snapshots.begin_delete.return_value.wait.assert_called_once()
+        # AND a success message was logged
+        assert "Snapshot {} deleted".format(snapshot_name) in caplog.text
+
+    def test_delete_snapshot_not_found(self):
+        """
+        Verify that a ResourceNotFound error is propagated rather than being considered
+        a successful deletion. This is because a ResourceNotFoundError is raised if the
+        resource group cannot be found - this is an error condition.
+        """
+        # GIVEN a delete snapshot request which will raise a ResourceNotFoundError
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        mock_compute_client.snapshots = self._get_mock_snapshot_operations()
+        mock_compute_client.snapshots.begin_delete.side_effect = ResourceNotFoundError
+        # AND a new AzureCloudSnapshotInterface
+        snapshot_interface = AzureCloudSnapshotInterface(
+            self.azure_subscription_id, self.azure_resource_group
+        )
+
+        # WHEN a snapshot is deleted
+        # THEN a ResourceNotFoundError is raised
+        snapshot_name = "test_snapshot"
+        resource_group = "test_resource_group"
+        with pytest.raises(ResourceNotFoundError):
+            snapshot_interface._delete_snapshot(snapshot_name, resource_group)
+
+    def test_delete_snapshot_failed(self):
+        """Verify that an unsuccessful response results in a CloudProviderError."""
+        # GIVEN a delete snapshot request which will return an unsuccessful response
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        mock_compute_client.snapshots = self._get_mock_snapshot_operations()
+        mock_resp = mock_compute_client.snapshots.begin_delete.return_value
+        mock_resp.status.return_value = "failed"
+        mock_resp.result.return_value = "failure message"
+        # AND a new AzureCloudSnapshotInterface
+        snapshot_interface = AzureCloudSnapshotInterface(
+            self.azure_subscription_id, self.azure_resource_group
+        )
+
+        # WHEN a snapshot is deleted and a failure response is received
+        # THEN a CloudProviderError is raised
+        snapshot_name = "snapshot_name"
+        with pytest.raises(CloudProviderError) as exc:
+            snapshot_interface._delete_snapshot(snapshot_name, "resource group")
+        # AND the exception has the expected message
+        expected_message = (
+            "Deletion of snapshot {} failed with error code {}: {}".format(
+                snapshot_name, "failed", "failure message"
+            )
+        )
+        assert expected_message in str(exc.value)
+
+    @pytest.mark.parametrize(
+        "snapshots_list",
+        (
+            [],
+            [mock.Mock(identifier="snapshot0")],
+            [mock.Mock(identifier="snapshot0"), mock.Mock(identifier="snapshot1")],
+        ),
+    )
+    def test_delete_snapshot_backup(
+        self,
+        snapshots_list,
+        caplog,
+    ):
+        """Verify that all snapshots for a backup are deleted."""
+        # GIVEN a backup_info specifying zero or more snapshots in a given resource group
+        resource_group = "resource group"
+        backup_info = mock.Mock(
+            backup_id=self.backup_id,
+            snapshots_info=mock.Mock(
+                resource_group=resource_group, snapshots=snapshots_list
+            ),
+        )
+        # AND log level is info
+        caplog.set_level(logging.INFO)
+        # AND the snapshot delete requests are successful
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        mock_compute_client.snapshots = self._get_mock_snapshot_operations()
+        # AND a new AzureCloudSnapshotInterface
+        snapshot_interface = AzureCloudSnapshotInterface(self.azure_subscription_id)
+
+        # WHEN delete_snapshot_backup is called
+        snapshot_interface.delete_snapshot_backup(backup_info)
+
+        # THEN begin_delete was called for each snapshot
+        mock_snapshots_operation = mock_compute_client.snapshots
+        assert mock_snapshots_operation.begin_delete.call_count == len(snapshots_list)
+        for snapshot in snapshots_list:
+            assert (
+                (
+                    resource_group,
+                    snapshot.identifier,
+                ),
+            ) in mock_snapshots_operation.begin_delete.call_args_list
+            # AND the expected log message was logged for each snapshot
+            assert (
+                "Deleting snapshot '{}' for backup {}".format(
+                    snapshot.identifier, self.backup_id
+                )
+                in caplog.text
+            )
 
     @pytest.mark.parametrize(
         (
