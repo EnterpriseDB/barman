@@ -82,8 +82,7 @@ backup_method = snapshot
 snapshot_provider = gcp
 ```
 
-Currently only Google Cloud Platform (gcp) is fully supported.
-Snapshot backups are supported using Azure however *support for deletion of Azure snapshot backups is not yet implemented*.
+Currently Google Cloud Platform (`gcp`) and Microsoft Azure (`azure`) are supported.
 
 The following parameters must be set regardless of cloud provider:
 

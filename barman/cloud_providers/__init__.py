@@ -285,9 +285,13 @@ def get_snapshot_interface_from_backup_info(backup_info, config=None):
                 "backup_info has snapshot provider 'azure' but "
                 "subscription_id is not set"
             )
+        if config is not None and hasattr(config, "azure_resource_group"):
+            resource_group = config.azure_resource_group
+        else:
+            resource_group = None
         return AzureCloudSnapshotInterface(
             backup_info.snapshots_info.subscription_id,
-            resource_group=config.azure_resource_group,
+            resource_group=resource_group,
             credential=_get_azure_credential(config.azure_credential),
         )
     else:
