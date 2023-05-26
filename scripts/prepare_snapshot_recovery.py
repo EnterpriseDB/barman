@@ -346,8 +346,8 @@ def main():
         print("No snapshot related to this backup: Nothing to do")
         exit(1)
 
-    snapshot_interface = GcpCloudSnapshotInterface(project_id)
-    if not snapshot_interface.instance_exists(args.recovery_node, args.zone):
+    snapshot_interface = GcpCloudSnapshotInterface(project_id, args.zone)
+    if not snapshot_interface.instance_exists(args.recovery_node):
         print(
             f"Recovery instance {args.recovery_node} in zone {args.zone} is not reachable or does not exists."
         )
