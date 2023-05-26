@@ -24,7 +24,7 @@ GEN_MODE='html'
 
 function die()
 {
-    echo $@
+    echo "$@"
     exit 1
 }
 
