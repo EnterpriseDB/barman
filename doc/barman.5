@@ -96,6 +96,37 @@ Global/Server.
 .RS
 .RE
 .TP
+.B azure_credential
+The credential type (either \f[C]azure\-cli\f[] or
+\f[C]managed\-identity\f[]) to use when authenticating with Azure.
+If this is omitted then the default Azure authentication flow will be
+used.
+Global/Server.
+.RS
+.RE
+.TP
+.B azure_resource_group
+The name of the Azure resource group to which the compute instance and
+disks defined by \f[C]snapshot_instance\f[] and \f[C]snapshot_disks\f[]
+belong.
+Global/Server.
+Required when the \f[C]snapshot\f[] value is specified for
+\f[C]backup_method\f[] and \f[C]snapshot_provider\f[] is set to
+\f[C]azure\f[].
+.RS
+.RE
+.TP
+.B azure_subscription_id
+The ID of the Azure subscription which owns the instance and storage
+volumes defined by \f[C]snapshot_instance\f[] and
+\f[C]snapshot_disks\f[].
+Global/Server.
+Required when the \f[C]snapshot\f[] value is specified for
+\f[C]backup_method\f[] and \f[C]snapshot_provider\f[] is set to
+\f[C]azure\f[].
+.RS
+.RE
+.TP
 .B backup_compression
 The compression to be used during the backup process.
 Only supported when \f[C]backup_method\ =\ postgres\f[].
@@ -330,6 +361,26 @@ Set to true if you are invoking barman with the \f[C]\-c/\-\-config\f[]
 option and your configuration is in the same place on both the passive
 and primary barman servers.
 Defaults to false.
+.RS
+.RE
+.TP
+.B gcp_project
+The ID of the GCP project which owns the instance and storage volumes
+defined by \f[C]snapshot_instance\f[] and \f[C]snapshot_disks\f[].
+Global/Server.
+Required when the \f[C]snapshot\f[] value is specified for
+\f[C]backup_method\f[] and \f[C]snapshot_provider\f[] is set to
+\f[C]gcp\f[].
+.RS
+.RE
+.TP
+.B gcp_zone
+The name of the availability zone where the compute instance and disks
+to be backed up in a snapshot backup are located.
+Server.
+Required when the \f[C]snapshot\f[] value is specified for
+\f[C]backup_method\f[] and \f[C]snapshot_provider\f[] is set to
+\f[C]gcp\f[].
 .RS
 .RE
 .TP
@@ -753,16 +804,6 @@ Required when the \f[C]snapshot\f[] value is specified for
 .RS
 .RE
 .TP
-.B snapshot_gcp_project
-The ID of the GCP project which owns the instance and storage volumes
-defined by \f[C]snapshot_instance\f[] and \f[C]snapshot_disks\f[].
-Global/Server.
-Required when the \f[C]snapshot\f[] value is specified for
-\f[C]backup_method\f[] and \f[C]snapshot_provider\f[] is set to
-\f[C]gcp\f[].
-.RS
-.RE
-.TP
 .B snapshot_instance
 The name of the VM or compute instance where the storage volumes are
 attached.
@@ -778,15 +819,6 @@ Global/Server.
 Required when the \f[C]snapshot\f[] value is specified for
 \f[C]backup_method\f[].
 Supported values: \f[C]gcp\f[].
-.RS
-.RE
-.TP
-.B snapshot_zone
-The name of the availability zone where the compute instance and disks
-to be backed up in a snapshot backup are located.
-Server.
-Required when the \f[C]snapshot\f[] value is specified for
-\f[C]backup_method\f[].
 .RS
 .RE
 .TP

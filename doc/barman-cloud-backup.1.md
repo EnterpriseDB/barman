@@ -44,18 +44,20 @@ usage: barman-cloud-backup [-V] [--help] [-v | -q] [-t]
                            [--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}]
                            [--endpoint-url ENDPOINT_URL] [-P PROFILE]
                            [--read-timeout READ_TIMEOUT]
-                           [--credential {azure-cli,managed-identity}]
+                           [--azure-credential {azure-cli,managed-identity}]
                            [-z | -j | --snappy] [-h HOST] [-p PORT] [-U USER]
                            [--immediate-checkpoint] [-J JOBS]
                            [-S MAX_ARCHIVE_SIZE] [-d DBNAME] [-n BACKUP_NAME]
                            [--snapshot-instance SNAPSHOT_INSTANCE]
-                           [--snapshot-disk NAME]
-                           [--snapshot-zone SNAPSHOT_ZONE]
-                           [--snapshot-gcp-project SNAPSHOT_GCP_PROJECT]
-                           [--kms-key-name KMS_KEY_NAME]
+                           [--snapshot-disk NAME] [--snapshot-zone GCP_ZONE]
+                           [--snapshot-gcp-project GCP_PROJECT]
+                           [--gcp-project GCP_PROJECT]
+                           [--kms-key-name KMS_KEY_NAME] [--gcp-zone GCP_ZONE]
                            [--tags [TAGS [TAGS ...]]] [-e {AES256,aws:kms}]
                            [--sse-kms-key-id SSE_KMS_KEY_ID]
                            [--encryption-scope ENCRYPTION_SCOPE]
+                           [--azure-subscription-id AZURE_SUBSCRIPTION_ID]
+                           [--azure-resource-group AZURE_RESOURCE_GROUP]
                            destination_url server_name
 
 This script can be used to perform a backup of a local PostgreSQL instance and
@@ -103,8 +105,9 @@ optional arguments:
                         Instance where the disks to be backed up as snapshots
                         are attached
   --snapshot-disk NAME  Name of a disk from which snapshots should be taken
-  --snapshot-zone SNAPSHOT_ZONE
+  --snapshot-zone GCP_ZONE
                         Zone of the disks from which snapshots should be taken
+                        (deprecated: replaced by --gcp-zone)
   --tags [TAGS [TAGS ...]]
                         Tags to be added to all uploaded files in cloud
                         storage
@@ -130,7 +133,7 @@ Extra options for the aws-s3 cloud provider:
                         Only allowed if `-e/--encryption` is set to `aws:kms`.
 
 Extra options for the azure-blob-storage cloud provider:
-  --credential {azure-cli,managed-identity}
+  --azure-credential {azure-cli,managed-identity}, --credential {azure-cli,managed-identity}
                         Optionally specify the type of credential to use when
                         authenticating with Azure Blob Storage. If omitted
                         then the credential will be obtained from the
@@ -141,13 +144,26 @@ Extra options for the azure-blob-storage cloud provider:
                         The name of an encryption scope defined in the Azure
                         Blob Storage service which is to be used to encrypt
                         the data in Azure
+  --azure-subscription-id AZURE_SUBSCRIPTION_ID
+                        The ID of the Azure subscription which owns the
+                        instance and storage volumes defined by the
+                        --snapshot-instance and --snapshot-disk arguments.
+  --azure-resource-group AZURE_RESOURCE_GROUP
+                        The name of the Azure resource group to which the
+                        compute instance and disks defined by the --snapshot-
+                        instance and --snapshot-disk arguments belong.
 
 Extra options for google-cloud-storage cloud provider:
-  --snapshot-gcp-project SNAPSHOT_GCP_PROJECT
-                        GCP project under which disk snapshots should be stored
+  --snapshot-gcp-project GCP_PROJECT
+                        GCP project under which disk snapshots should be
+                        stored (deprecated: replaced by --gcp-project)
+  --gcp-project GCP_PROJECT
+                        GCP project under which disk snapshots should be
+                        stored
   --kms-key-name KMS_KEY_NAME
                         The name of the GCP KMS key which should be used for
                         encrypting the uploaded data in GCS.
+  --gcp-zone GCP_ZONE   Zone of the disks from which snapshots should be taken
 ```
 # REFERENCES
 

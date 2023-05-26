@@ -342,19 +342,35 @@ def parse_arguments(args=None):
     )
     parser.add_argument(
         "--snapshot-zone",
-        help="Zone of the disks from which snapshots should be taken",
+        help=(
+            "Zone of the disks from which snapshots should be taken (deprecated: "
+            "replaced by --gcp-zone)"
+        ),
+        dest="gcp_zone",
     )
     gcs_arguments = parser.add_argument_group(
         "Extra options for google-cloud-storage cloud provider"
     )
     gcs_arguments.add_argument(
         "--snapshot-gcp-project",
+        help=(
+            "GCP project under which disk snapshots should be stored (deprecated: "
+            "replaced by --gcp-project)"
+        ),
+        dest="gcp_project",
+    )
+    gcs_arguments.add_argument(
+        "--gcp-project",
         help="GCP project under which disk snapshots should be stored",
     )
     gcs_arguments.add_argument(
         "--kms-key-name",
         help="The name of the GCP KMS key which should be used for encrypting the "
         "uploaded data in GCS.",
+    )
+    gcs_arguments.add_argument(
+        "--gcp-zone",
+        help="Zone of the disks from which snapshots should be taken",
     )
     add_tag_argument(
         parser,
@@ -378,6 +394,16 @@ def parse_arguments(args=None):
         "--encryption-scope",
         help="The name of an encryption scope defined in the Azure Blob Storage "
         "service which is to be used to encrypt the data in Azure",
+    )
+    azure_arguments.add_argument(
+        "--azure-subscription-id",
+        help="The ID of the Azure subscription which owns the instance and storage "
+        "volumes defined by the --snapshot-instance and --snapshot-disk arguments.",
+    )
+    azure_arguments.add_argument(
+        "--azure-resource-group",
+        help="The name of the Azure resource group to which the compute instance and "
+        "disks defined by the --snapshot-instance and --snapshot-disk arguments belong.",
     )
     return parser.parse_args(args=args)
 

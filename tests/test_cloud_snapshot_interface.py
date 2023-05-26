@@ -20,6 +20,7 @@ import logging
 import mock
 import pytest
 
+from azure.core.exceptions import ResourceNotFoundError
 from google.api_core.exceptions import NotFound
 
 from barman.cloud import CloudProviderError
@@ -29,6 +30,10 @@ from barman.cloud_providers import (
     get_snapshot_interface,
     get_snapshot_interface_from_backup_info,
     get_snapshot_interface_from_server_config,
+)
+from barman.cloud_providers.azure_blob_storage import (
+    AzureCloudSnapshotInterface,
+    AzureVolumeMetadata,
 )
 from barman.cloud_providers.google_cloud_storage import (
     GcpCloudSnapshotInterface,
@@ -49,13 +54,24 @@ class TestGetSnapshotInterface(object):
 
     @pytest.mark.parametrize(
         ("snapshot_provider", "interface_cls"),
-        [("aws", None), ("azure", None), ("gcp", GcpCloudSnapshotInterface)],
+        [
+            ("aws", None),
+            ("azure", AzureCloudSnapshotInterface),
+            ("gcp", GcpCloudSnapshotInterface),
+        ],
     )
+    @mock.patch("barman.cloud_providers._get_azure_credential")
+    @mock.patch("barman.cloud_providers.azure_blob_storage.import_azure_mgmt_compute")
     @mock.patch(
         "barman.cloud_providers.google_cloud_storage.import_google_cloud_compute"
     )
     def test_from_config_cloud_provider(
-        self, _mock_google_cloud_compute, snapshot_provider, interface_cls
+        self,
+        _mock_google_cloud_compute,
+        _mock_azure_mgmt_compute,
+        _mock_get_azure_credential,
+        snapshot_provider,
+        interface_cls,
     ):
         """Verify supported and unsupported cloud providers with server config."""
         # GIVEN a server config with the specified snapshot provider
@@ -79,14 +95,33 @@ class TestGetSnapshotInterface(object):
         """
         Verify an exception is raised for gcp snapshots with no project in server config.
         """
-        # GIVEN a server config with the gcp snapshot provider and no snapshot_gcp_project
-        mock_config = mock.Mock(snapshot_provider="gcp", snapshot_gcp_project=None)
+        # GIVEN a server config with the gcp snapshot provider and neither the
+        # gcp_project option nor the deprecated snapshot_gcp_project option
+        mock_config = mock.Mock(
+            snapshot_provider="gcp", gcp_project=None, snapshot_gcp_project=None
+        )
+        # WHEN get snapshot_interface_from_server_config is called
+        with pytest.raises(ConfigurationException) as exc:
+            get_snapshot_interface_from_server_config(mock_config)
+        # THEN the expected exception is raised
+        assert "gcp_project option must be set when snapshot_provider is gcp" in str(
+            exc.value
+        )
+
+    def test_from_config_azure_no_subscription_id(self):
+        """
+        Verify an exception is raised for azure snapshots with no azure_subscription_id
+        in server config.
+        """
+        # GIVEN a server config with the azure snapshot provider and the
+        # azure_subscription_id
+        mock_config = mock.Mock(snapshot_provider="azure", azure_subscription_id=None)
         # WHEN get snapshot_interface_from_server_config is called
         with pytest.raises(ConfigurationException) as exc:
             get_snapshot_interface_from_server_config(mock_config)
         # THEN the expected exception is raised
         assert (
-            "snapshot_gcp_project option must be set when snapshot_provider is gcp"
+            "azure_subscription_id option must be set when snapshot_provider is azure"
             in str(exc.value)
         )
 
@@ -125,7 +160,7 @@ class TestGetSnapshotInterface(object):
         """
         Verify an exception is raised for gcp snapshots with no project in backup_info.
         """
-        # GIVEN a server config with the gcp snapshot provider and no snapshot_gcp_project
+        # GIVEN a server config with the gcp snapshot provider and no gcp_project
         mock_backup_info = mock.Mock(
             snapshots_info=mock.Mock(provider="gcp", project=None)
         )
@@ -141,15 +176,25 @@ class TestGetSnapshotInterface(object):
         ("cloud_provider", "interface_cls"),
         [
             ("aws-s3", None),
-            ("azure-blob-storage", None),
+            (
+                "azure-blob-storage",
+                AzureCloudSnapshotInterface,
+            ),
             ("google-cloud-storage", GcpCloudSnapshotInterface),
         ],
     )
+    @mock.patch("barman.cloud_providers._get_azure_credential")
+    @mock.patch("barman.cloud_providers.azure_blob_storage.import_azure_mgmt_compute")
     @mock.patch(
         "barman.cloud_providers.google_cloud_storage.import_google_cloud_compute"
     )
     def test_from_args_cloud_provider(
-        self, _mock_google_cloud_compute, cloud_provider, interface_cls
+        self,
+        _mock_google_cloud_compute,
+        _mock_azure_mgmt_compute,
+        _mock_get_azure_credential,
+        cloud_provider,
+        interface_cls,
     ):
         """Verify supported and unsupported cloud providers with config args."""
         # GIVEN a cloud config with the specified snapshot provider
@@ -171,10 +216,12 @@ class TestGetSnapshotInterface(object):
         """
         Verify an exception is raised for gcp snapshots with no project in args.
         """
-        # GIVEN a cloud config with the specified snapshot provider and a missing
-        # snapshot_gcp_project argument
+        # GIVEN a cloud config with the specified snapshot provider where the
+        # gcp_project and deprecated snapshot_gcp_project arguments are missing
         mock_config = mock.Mock(
-            cloud_provider="google-cloud-storage", snapshot_gcp_project=None
+            cloud_provider="google-cloud-storage",
+            gcp_project=None,
+            snapshot_gcp_project=None,
         )
 
         # WHEN get snapshot_interface_from_backup_info is called
@@ -182,8 +229,29 @@ class TestGetSnapshotInterface(object):
             get_snapshot_interface(mock_config)
         # AND the exception has the expected message
         assert (
-            "--snapshot-gcp-project option must be set for snapshot backups when "
+            "--gcp-project option must be set for snapshot backups when "
             "cloud provider is google-cloud-storage"
+        ) == str(exc.value)
+
+    def test_from_args_azure_no_subscription(self):
+        """
+        Verify an exception is raised for azure snapshots with no azure_subscription_id
+        in args.
+        """
+        # GIVEN a cloud config with the azure snapshot provider where the
+        # azure_subscription_id argument is missing
+        mock_config = mock.Mock(
+            cloud_provider="azure-blob-storage",
+            azure_subscription_id=None,
+        )
+
+        # WHEN get snapshot_interface_from_backup_info is called
+        with pytest.raises(ConfigurationException) as exc:
+            get_snapshot_interface(mock_config)
+        # AND the exception has the expected message
+        assert (
+            "--azure-subscription-id option must be set for snapshot backups when "
+            "cloud provider is azure-blob-storage"
         ) == str(exc.value)
 
 
@@ -208,7 +276,7 @@ class TestGcpCloudSnapshotInterface(object):
             "physical_block_size": 2048,
             "size_gb": 10,
             "mount_options": "rw",
-            "mount_point": "/opt/disk0",
+            "mount_point": "/opt/disk1",
         },
         {
             "name": "test_disk_2",
@@ -216,7 +284,7 @@ class TestGcpCloudSnapshotInterface(object):
             "physical_block_size": 4096,
             "size_gb": 100,
             "mount_options": "rw,relatime",
-            "mount_point": "/opt/disk0",
+            "mount_point": "/opt/disk2",
         },
     )
     gcp_zone = "us-east1-b"
@@ -928,6 +996,41 @@ class TestGcpCloudSnapshotInterface(object):
                 == expected_source_snapshot
             )
 
+    def test_get_attached_volumes_for_disks(self, mock_google_cloud_compute):
+        """
+        Verifies that only the requested disks are returned when the disks parameter is
+        passed to get_attached_volumes.
+        """
+        # GIVEN a new GcpCloudSnapshotInterface
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, self.gcp_zone)
+        # AND a mock InstancesClient which returns metadata listing two disks
+        mock_instances_client = mock_google_cloud_compute.InstancesClient.return_value
+        mock_instance_metadata = mock.Mock(
+            disks=[
+                mock.Mock(
+                    source="projects/test_project/zones/us-east1-b/disks/disk0",
+                    device_name="dev0",
+                ),
+                mock.Mock(
+                    source="projects/test_project/zones/us-east1-b/disks/disk1",
+                    device_name="dev1",
+                ),
+            ]
+        )
+        mock_instances_client.get.return_value = mock_instance_metadata
+        # AND a mock DisksClient which returns some arbitrary metadata
+        mock_disks_client = mock_google_cloud_compute.DisksClient.return_value
+        mock_disks_client.get.return_value = mock.Mock(source_snapshot=None)
+
+        # WHEN get_attached_volumes is called requesting only disk1
+        attached_volumes = snapshot_interface.get_attached_volumes(
+            self.gcp_instance_name, disks=["disk1"]
+        )
+
+        # THEN only "disk1" is included in the resulting dict
+        assert len(attached_volumes) == 1
+        assert "disk1" in attached_volumes
+
     @pytest.mark.parametrize(
         "mock_disks",
         (
@@ -1152,6 +1255,840 @@ class TestGcpVolumeMetadata(object):
         # GIVEN a GcpVolumeMetadata for device `pgdata`
         attachment_metadata = mock.Mock(device_name=device_name)
         volume = GcpVolumeMetadata(attachment_metadata)
+        # AND the specified findmnt response
+        mock_cmd = mock.Mock()
+        mock_cmd.findmnt.side_effect = findmnt_fun
+
+        # WHEN resolve_mounted_volume is called
+        # THEN the expected exception occurs
+        with pytest.raises(SnapshotBackupException) as exc:
+            volume.resolve_mounted_volume(mock_cmd)
+
+        # AND the exception has the expected error message
+        assert str(exc.value) == expected_exception_msg
+
+
+class TestAzureCloudSnapshotInterface(object):
+    """
+    Verify behaviour of the AzureCloudSnapshotInterface class.
+    """
+
+    azure_disks = (
+        {
+            "id": "disk_0",
+            "location": "uksouth",
+            "lun": 10,
+            "managed_disk_id": "disk_id_0",
+            "mount_options": "rw,noatime",
+            "mount_point": "/opt/disk0",
+            "name": "test_disk_0",
+        },
+        {
+            "id": "disk_1",
+            "location": "uksouth",
+            "lun": 11,
+            "managed_disk_id": "disk_id_1",
+            "mount_options": "rw",
+            "mount_point": "/opt/disk1",
+            "name": "test_disk_1",
+        },
+        {
+            "id": "disk_2",
+            "location": "uksouth",
+            "lun": 12,
+            "managed_disk_id": "disk_id_2",
+            "mount_options": "rw,relatime",
+            "mount_point": "/opt/disk2",
+            "name": "test_disk_2",
+        },
+    )
+    azure_instance_name = "azure_vm"
+    azure_resource_group = "test_resource_group"
+    azure_subscription_id = "test_subscription_id"
+    backup_id = "20380119T031407"
+    server_name = "test_server"
+
+    def _get_snapshot_name(self, disk_name):
+        """Helper which forges the expected snapshot name for the given disk name."""
+        return "{}-{}".format(disk_name, self.backup_id.lower())
+
+    def _get_mock_snapshot_operations(self):
+        """
+        Helper which creates a mock SnapshotOperations client that always succeeds.
+        """
+        mock_resp = mock.Mock()
+        mock_resp.status.return_value = "Succeeded"
+        mock_resp.result.return_value.provisioning_state = "Succeeded"
+        mock_snapshot_operations = mock.Mock()
+        mock_snapshot_operations.begin_create_or_update.return_value = mock_resp
+        return mock_snapshot_operations
+
+    def _get_mock_instances_client(self, resource_group_name, instance_name, disks):
+        """
+        Helper which create a mock instances client for the given
+        resource_group/instance with the specified disks attached as the specified
+        device.
+        """
+
+        def get_fun(resource_group, instance):
+            if instance == instance_name and resource_group == resource_group_name:
+                mock_data_disks = []
+                for disk in disks:
+                    data_disk = mock.Mock(
+                        lun=disk["lun"],
+                        managed_disk=mock.Mock(id=disk["managed_disk_id"]),
+                    )
+                    data_disk.name = disk["name"]
+                    mock_data_disks.append(data_disk)
+                mock_storage_profile = mock.Mock(data_disks=mock_data_disks)
+                return mock.Mock(storage_profile=mock_storage_profile)
+            else:
+                raise ResourceNotFoundError("instance not found")
+
+        return mock.Mock(get=get_fun)
+
+    def _get_mock_disks_client(self, resource_group_name, disks):
+        """
+        Helper which creates a mock disks client for the given resource group with the
+        specified disks available.
+        """
+        disk_metadata = dict(
+            (
+                disk["name"],
+                mock.Mock(location=disk["location"]),
+            )
+            for disk in disks
+        )
+
+        def get_fun(resource_group, disk):
+            if resource_group == resource_group_name:
+                try:
+                    return disk_metadata[disk]
+                except KeyError:
+                    raise ResourceNotFoundError("disk not found")
+
+        return mock.Mock(get=get_fun)
+
+    def _get_mock_volumes(self, disks):
+        """Helper which returns mock VolumeMetadata objects for the named disks."""
+        return dict(
+            (
+                disk["name"],
+                mock.Mock(
+                    mount_point=disk["mount_point"],
+                    mount_options=disk["mount_options"],
+                    location=disk["location"],
+                ),
+            )
+            for disk in disks
+        )
+
+    @pytest.fixture(autouse=True)
+    def mock_azure_mgmt_compute(self):
+        with mock.patch(
+            "barman.cloud_providers.azure_blob_storage.import_azure_mgmt_compute"
+        ) as mock_import_azure_mgmt_compute:
+            self._mock_azure_mgmt_compute = mock_import_azure_mgmt_compute.return_value
+            yield mock_import_azure_mgmt_compute.return_value
+
+    @pytest.fixture(autouse=True)
+    def mock_azure_identity(self):
+        with mock.patch(
+            "barman.cloud_providers.azure_blob_storage.import_azure_identity"
+        ) as mock_import_azure_identity:
+            self._mock_azure_identity = mock_import_azure_identity.return_value
+            yield mock_import_azure_identity.return_value
+
+    def test_init_with_null_subscription_id(self):
+        """
+        Verify creating AzureCloudSnapshotInterface fails if subscription_id is not set.
+        """
+        # GIVEN a null subscription ID
+        azure_subscription_id = None
+
+        # WHEN an AzureCloudSnapshotInterface is created
+        # THEN a TypeError is raised
+        with pytest.raises(TypeError) as exc:
+            AzureCloudSnapshotInterface(azure_subscription_id)
+
+        # AND the expected message is included
+        assert str(exc.value) == "subscription_id cannot be None"
+
+    def test_init(self):
+        """
+        Verify creating AzureCloudSnapshotInterface creates the necessary Azure client.
+        """
+        # GIVEN a non-null Azure subscription
+        subscription_id = self.azure_subscription_id
+        # WHEN an AzureCloudSnapshotInterface is created
+        snapshot_interface = AzureCloudSnapshotInterface(subscription_id)
+        # THEN an azure.mgmt.compute.ComputeManagementClient is created
+        assert (
+            snapshot_interface.client
+            == self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        # AND the DefaultAzureCredential was used
+        self._mock_azure_mgmt_compute.ComputeManagementClient.assert_called_once_with(
+            self._mock_azure_identity.DefaultAzureCredential.return_value,
+            subscription_id,
+        )
+
+    def test_init_with_credential(self):
+        """
+        Verify creation of AzureCloudSnapshotInterface with provided credential.
+        """
+        # GIVEN a non-null Azure subscription
+        subscription_id = self.azure_subscription_id
+        # AND a user-specified credential
+        credential = mock.Mock()
+        # WHEN an AzureCloudSnapshotInterface is created
+        AzureCloudSnapshotInterface(subscription_id, credential=credential)
+        # THEN the user-specified credential was used to create the
+        # ComputeManagementClient
+        self._mock_azure_mgmt_compute.ComputeManagementClient.assert_called_once_with(
+            credential.return_value, subscription_id
+        )
+
+    def test_take_snapshot(self, caplog):
+        """
+        Verify that _take_snapshot calls the Azure library and waits for the result.
+        """
+        # GIVEN a new AzureCloudSnapshotInterface
+        snapshot_interface = AzureCloudSnapshotInterface(self.azure_subscription_id)
+        # AND a backup_info for a given server name and backup ID
+        backup_info = mock.Mock(backup_id=self.backup_id, server_name=self.server_name)
+        # AND a mock SnapshotsOperations which returns a successful response to
+        # begin_create_or_update
+        mock_snapshot_operations = self._get_mock_snapshot_operations()
+        mock_resp = mock_snapshot_operations.begin_create_or_update.return_value
+        self._mock_azure_mgmt_compute.ComputeManagementClient.return_value.snapshots = (
+            mock_snapshot_operations
+        )
+        # AND log level is INFO
+        caplog.set_level(logging.INFO)
+
+        # WHEN _take_snapshot is called
+        snapshot_name = snapshot_interface._take_snapshot(
+            backup_info,
+            self.azure_resource_group,
+            self.azure_disks[0]["location"],
+            self.azure_disks[0]["name"],
+            self.azure_disks[0]["id"],
+        )
+
+        # THEN begin_create_or_update is called on the SnapshotsOperations with the
+        # expected args
+        expected_disk_id = self.azure_disks[0]["id"]
+        expected_disk_name = self.azure_disks[0]["name"]
+        expected_location = self.azure_disks[0]["location"]
+        expected_snapshot_name = self._get_snapshot_name(expected_disk_name)
+        mock_snapshot_operations.begin_create_or_update.assert_called_once_with(
+            self.azure_resource_group,
+            expected_snapshot_name,
+            {
+                "location": expected_location,
+                "incremental": True,
+                "creation_data": {
+                    "create_option": "Copy",
+                    "source_uri": expected_disk_id,
+                },
+            },
+        )
+        # AND wait() was called on the response to await completion of the snapshot
+        mock_resp.wait.assert_called_once()
+        # AND the name of the snapshot was returned
+        assert snapshot_name == expected_snapshot_name
+        # AND the expected log output occurred
+        expected_log_content = (
+            "Taking snapshot '{}' of disk '{}'".format(
+                expected_snapshot_name, expected_disk_name
+            ),
+            "Waiting for snapshot '{}' completion".format(expected_snapshot_name),
+            "Snapshot '{}' completed".format(expected_snapshot_name),
+        )
+        for expected_log, log_line in zip(
+            expected_log_content, caplog.text.split("\n")
+        ):
+            assert expected_log in log_line
+
+    @pytest.mark.parametrize(
+        ("mock_status", "mock_provisioning_state"),
+        (("Succeeded", "Failed"), ("123", "Succeeded"), ("123", "Failed")),
+    )
+    def test_take_snapshot_failed(self, mock_status, mock_provisioning_state):
+        """
+        Verify that _take_snapshot raises an exception on failure.
+        """
+        # GIVEN a new AzureCloudSnapshotInterface
+        snapshot_interface = AzureCloudSnapshotInterface(self.azure_subscription_id)
+        # AND a backup_info for a given server name and backup ID
+        backup_info = mock.Mock(backup_id=self.backup_id, server_name=self.server_name)
+        # AND a mock SnapshotsOperations which returns a failed response to
+        # begin_create_or_update
+        mock_snapshot_operations = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value.snapshots
+        )
+        mock_resp = mock_snapshot_operations.begin_create_or_update.return_value
+        mock_resp.status.return_value = mock_status
+        mock_resp.result.return_value.provisioning_state = mock_provisioning_state
+        mock_resp.result.return_value.__str__.return_value = "result_string"
+
+        # WHEN _take_snapshot is called
+        # THEN a CloudProviderError is raised
+        with pytest.raises(CloudProviderError) as exc:
+            snapshot_interface._take_snapshot(
+                backup_info,
+                self.azure_resource_group,
+                self.azure_disks[0]["location"],
+                self.azure_disks[0]["name"],
+                self.azure_disks[0]["id"],
+            )
+        # AND the exception message contains the snapshot name, error code and error
+        # message
+        expected_snapshot_name = self._get_snapshot_name(self.azure_disks[0]["name"])
+        expected_message = "Snapshot '{}' failed with error code {}: {}".format(
+            expected_snapshot_name, mock_status, "result_string"
+        )
+        assert str(exc.value) == expected_message
+
+    @pytest.mark.parametrize("number_of_disks", (1, 2, 3))
+    def test_take_snapshot_backup(self, number_of_disks):
+        """
+        Verify that take_snapshot_backup takes the required snapshots and updates the
+        backup_info when prerequisites are met.
+        """
+        # GIVEN a set of disks, represented as VolumeMetadata
+        disks = self.azure_disks[:number_of_disks]
+        assert len(disks) == number_of_disks
+        # AND a backup_info for a given server name and backup ID
+        backup_info = mock.Mock(backup_id=self.backup_id, server_name=self.server_name)
+        # AND a mock VirtualMachinesOperations which returns an instance with the
+        # required disks attached
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        mock_compute_client.virtual_machines = self._get_mock_instances_client(
+            self.azure_resource_group, self.azure_instance_name, disks
+        )
+        # AND a mock SnapshotsOperation which returns a successful response to
+        # begin_create_or_update
+        mock_compute_client.snapshots = self._get_mock_snapshot_operations()
+        # AND a new AzureCloudSnapshotInterface
+        snapshot_interface = AzureCloudSnapshotInterface(
+            self.azure_subscription_id, self.azure_resource_group
+        )
+
+        # WHEN take_snapshot_backup is called for multiple disks
+        snapshot_interface.take_snapshot_backup(
+            backup_info, self.azure_instance_name, self._get_mock_volumes(disks)
+        )
+
+        # THEN the backup_info is updated with the expected snapshot metadata
+        snapshots_info = backup_info.snapshots_info
+        assert snapshots_info.subscription_id == self.azure_subscription_id
+        assert snapshots_info.resource_group == self.azure_resource_group
+        assert snapshots_info.provider == "azure"
+        assert len(snapshots_info.snapshots) == len(disks)
+        for disk in disks:
+            snapshot_name = self._get_snapshot_name(disk["name"])
+            snapshot = next(
+                snapshot
+                for snapshot in snapshots_info.snapshots
+                if snapshot.snapshot_name == snapshot_name
+            )
+            assert snapshot.identifier == snapshot_name
+            assert snapshot.snapshot_name == snapshot_name
+            assert snapshot.location == disk["location"]
+            assert snapshot.lun == disk["lun"]
+            assert snapshot.mount_options == disk["mount_options"]
+            assert snapshot.mount_point == disk["mount_point"]
+
+    def test_take_snapshot_backup_instance_not_found(self):
+        """
+        Verify that a SnapshotBackupException is raised if the instance cannot be
+        found.
+        """
+        # GIVEN a new AzureCloudSnapshotInterface
+        snapshot_interface = AzureCloudSnapshotInterface(
+            self.azure_subscription_id, self.azure_resource_group
+        )
+        # AND a mock VirtualMachinesOperations which cannot find the instance
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        mock_compute_client.virtual_machines.get.side_effect = ResourceNotFoundError(
+            "instance not found"
+        )
+
+        # WHEN take_snapshot_backup is called
+        # THEN a SnapshotBackupException is raised
+        with pytest.raises(SnapshotBackupException) as exc:
+            snapshot_interface.take_snapshot_backup(
+                mock.Mock(),
+                self.azure_instance_name,
+                self._get_mock_volumes(self.azure_disks),
+            )
+
+        # AND the exception contains the expected message
+        assert str(exc.value) == (
+            "Cannot find instance with name {} in resource group {} "
+            "in subscription {}"
+        ).format(
+            self.azure_instance_name,
+            self.azure_resource_group,
+            self.azure_subscription_id,
+        )
+
+    def test_take_snapshot_backup_disks_not_attached(self):
+        """
+        Verify that a SnapshotBackupException is raised if the expected disks are not
+        attached.
+        """
+        # GIVEN a new AzureCloudSnapshotInterface
+        snapshot_interface = AzureCloudSnapshotInterface(
+            self.azure_subscription_id, self.azure_resource_group
+        )
+        # AND a mock VirtualMachinesOperations which returns an instance with no disks
+        # attached
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        mock_compute_client.virtual_machines = self._get_mock_instances_client(
+            self.azure_resource_group, self.azure_instance_name, {}
+        )
+
+        # WHEN take_snapshot_backup is called
+        # THEN a SnapshotBackupException is raised
+        with pytest.raises(SnapshotBackupException) as exc:
+            snapshot_interface.take_snapshot_backup(
+                mock.Mock(),
+                self.azure_instance_name,
+                self._get_mock_volumes(self.azure_disks),
+            )
+
+        # AND the exception contains the expected message
+        assert str(exc.value) == (
+            "Disk {} not attached to instance {}".format(
+                self.azure_disks[0]["name"], self.azure_instance_name
+            )
+        )
+
+    @pytest.mark.parametrize(
+        (
+            "disks_metadata",
+            "expected_disk_names",
+            "expected_luns",
+            "expected_locations",
+        ),
+        (
+            ([], [], [], []),
+            (
+                [
+                    {
+                        "location": "uksouth",
+                        "lun": "10",
+                        "managed_disk_id": "disk_id_0",
+                        "name": "disk0",
+                    }
+                ],
+                ["disk0"],
+                ["10"],
+                ["uksouth"],
+            ),
+            (
+                [
+                    {
+                        "location": "uksouth",
+                        "lun": "10",
+                        "managed_disk_id": "disk_id_0",
+                        "name": "disk0",
+                    },
+                    {
+                        "location": "ukwest",
+                        "lun": "11",
+                        "managed_disk_id": "disk_id_1",
+                        "name": "disk1",
+                    },
+                ],
+                ["disk0", "disk1"],
+                ["10", "11"],
+                ["uksouth", "ukwest"],
+            ),
+        ),
+    )
+    def test_get_attached_volumes(
+        self,
+        disks_metadata,
+        expected_disk_names,
+        expected_luns,
+        expected_locations,
+    ):
+        """Verify that attached volumes are returned as a dict keyed by disk name."""
+        # GIVEN a new AzureCloudSnapshotInterface
+        snapshot_interface = AzureCloudSnapshotInterface(
+            self.azure_subscription_id, self.azure_resource_group
+        )
+        # AND a mock VirtualMachinesOperations which returns an instance with the
+        # required disks attached
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        mock_compute_client.virtual_machines = self._get_mock_instances_client(
+            self.azure_resource_group, self.azure_instance_name, disks_metadata
+        )
+        # AND a mock DisksOperation which returns the specified metadata
+        mock_compute_client.disks = self._get_mock_disks_client(
+            self.azure_resource_group, disks_metadata
+        )
+
+        # WHEN get_attached_volumes is called
+        attached_volumes = snapshot_interface.get_attached_volumes(
+            self.azure_instance_name
+        )
+
+        # THEN a dict of VolumeMetadata is returned, keyed by disk name
+        assert len(attached_volumes) == len(expected_disk_names)
+        for expected_disk_name, expected_lun, expected_location in zip(
+            expected_disk_names, expected_luns, expected_locations
+        ):
+            assert expected_disk_name in attached_volumes
+            # AND the lun matches that returned by the instance metadata
+            assert attached_volumes[expected_disk_name]._lun == expected_lun
+            # AND the location matches that returned by the disk metadata
+            assert attached_volumes[expected_disk_name].location == expected_location
+
+    def test_get_attached_volumes_for_disks(self):
+        """
+        Verifies that only the requested disks are returned when the disks parameter is
+        passed to get_attached_volumes.
+        """
+        # GIVEN a new AzureCloudSnapshotInterface
+        snapshot_interface = AzureCloudSnapshotInterface(
+            self.azure_subscription_id, self.azure_resource_group
+        )
+        # AND a mock VirtualMachinesOperations which returns an instance with the
+        # required disks attached
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        disks_metadata = [
+            {
+                "location": "uksouth",
+                "lun": "10",
+                "managed_disk_id": "disk_id_0",
+                "name": "disk0",
+            },
+            {
+                "location": "ukwest",
+                "lun": "11",
+                "managed_disk_id": "disk_id_1",
+                "name": "disk1",
+            },
+        ]
+        mock_compute_client.virtual_machines = self._get_mock_instances_client(
+            self.azure_resource_group, self.azure_instance_name, disks_metadata
+        )
+        # AND a mock DisksOperation which returns the specified metadata
+        mock_compute_client.disks = self._get_mock_disks_client(
+            self.azure_resource_group, disks_metadata
+        )
+
+        # WHEN get_attached_volumes is called
+        attached_volumes = snapshot_interface.get_attached_volumes(
+            self.azure_instance_name, disks=["disk1"]
+        )
+
+        # THEN only "disk1" is included in the resulting dict
+        assert len(attached_volumes) == 1
+        assert "disk1" in attached_volumes
+
+    def test_get_attached_volumes_disk_not_found(self):
+        """
+        Verify that a SnapshotBackupException is raised if a disk cannot be found.
+        """
+        # GIVEN a set of disks
+        disks = self.azure_disks
+        # AND a mock VirtualMachinesOperations which returns an instance with a
+        # subset of the required disks attached
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        mock_compute_client.virtual_machines = self._get_mock_instances_client(
+            self.azure_resource_group, self.azure_instance_name, disks[:-1]
+        )
+        # AND a mock DisksOperation which returns the specified metadata for the
+        # same subset of disks
+        mock_compute_client.disks = self._get_mock_disks_client(
+            self.azure_resource_group, disks[:-1]
+        )
+        # AND a new AzureCloudSnapshotInterface
+        snapshot_interface = AzureCloudSnapshotInterface(
+            self.azure_subscription_id, self.azure_resource_group
+        )
+
+        # WHEN get_attached_volumes is called
+        # THEN a SnapshotBackupException is raised
+        with pytest.raises(SnapshotBackupException) as exc:
+            snapshot_interface.get_attached_volumes(
+                self.azure_instance_name, [disk["name"] for disk in disks]
+            )
+
+        # AND the exception contains the expected message
+        assert str(exc.value) == (
+            "Cannot find disk with name {} in resource group {} in subscription {}"
+        ).format(
+            disks[-1]["name"], self.azure_resource_group, self.azure_subscription_id
+        )
+
+    def test_get_attached_volumes_disk_not_attaached(self):
+        """
+        Verify that a SnapshotBackupException is raised if a disk is not attached
+        to the instance.
+        """
+        # GIVEN a set of disks
+        disks = self.azure_disks
+        # AND a mock VirtualMachinesOperations which returns an instance with a
+        # subset of the required disks attached
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        mock_compute_client.virtual_machines = self._get_mock_instances_client(
+            self.azure_resource_group, self.azure_instance_name, disks[:-1]
+        )
+        # AND a mock DisksOperation which returns the specified metadata for all
+        # disks
+        mock_compute_client.disks = self._get_mock_disks_client(
+            self.azure_resource_group, disks
+        )
+        # AND a new AzureCloudSnapshotInterface
+        snapshot_interface = AzureCloudSnapshotInterface(
+            self.azure_subscription_id, self.azure_resource_group
+        )
+
+        # WHEN get_attached_volumes is called
+        # THEN a SnapshotBackupException is raised
+        with pytest.raises(SnapshotBackupException) as exc:
+            snapshot_interface.get_attached_volumes(
+                self.azure_instance_name, [disk["name"] for disk in disks]
+            )
+
+        # AND the exception contains the expected message
+        assert str(exc.value) == "Disks not attached to instance {}: {}".format(
+            self.azure_instance_name, disks[-1]["name"]
+        )
+
+    @pytest.mark.parametrize(
+        "mock_disks",
+        (
+            [
+                {
+                    "lun": "10",
+                    "managed_disk_id": "disk_id_0",
+                    "name": "disk0",
+                },
+                {
+                    "lun": "11",
+                    "managed_disk_id": "disk_id_0",
+                    "name": "disk0",
+                },
+            ],
+            [
+                {
+                    "lun": "10",
+                    "managed_disk_id": "disk_id_0",
+                    "name": "disk0",
+                },
+                {
+                    "lun": "11",
+                    "managed_disk_id": "disk_id_1",
+                    "name": "disk1",
+                },
+                {
+                    "lun": "11",
+                    "managed_disk_id": "disk_id_1",
+                    "name": "disk1",
+                },
+            ],
+        ),
+    )
+    def test_get_attached_volumes_duplicate_names(self, mock_disks):
+        """
+        Verify that an exception is raised if a disk appears to be attached more than
+        once.
+        """
+        # GIVEN a mock VirtualMachinesOperations which returns an instance with the
+        # specified disks attached
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        mock_compute_client.virtual_machines = self._get_mock_instances_client(
+            self.azure_resource_group, self.azure_instance_name, mock_disks
+        )
+        # AND a new AzureCloudSnapshotInterface
+        snapshot_interface = AzureCloudSnapshotInterface(
+            self.azure_subscription_id, self.azure_resource_group
+        )
+
+        # WHEN get_attached_volumes is called
+        # THEN an AssertionError is raised
+        with pytest.raises(AssertionError):
+            snapshot_interface.get_attached_volumes(self.azure_instance_name)
+
+    def test_get_attached_volumes_instance_not_found(self):
+        """
+        Verify that a SnapshotBackupException is raised if the instance cannot be
+        found.
+        """
+        # GIVEN a mock VirtualMachinesOperations which cannot find the instance
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        mock_compute_client.virtual_machines.get.side_effect = ResourceNotFoundError(
+            "instance_not_found"
+        )
+        # AND a new AzureCloudSnapshotInterface
+        snapshot_interface = AzureCloudSnapshotInterface(
+            self.azure_subscription_id, self.azure_resource_group
+        )
+
+        # WHEN get_attached_volumes is called
+        # THEN a SnapshotBackupException is raised
+        with pytest.raises(SnapshotBackupException) as exc:
+            snapshot_interface.get_attached_volumes(self.azure_instance_name)
+
+        # AND the exception contains the expected message
+        assert str(exc.value) == (
+            "Cannot find instance with name {} in resource group {} "
+            "in subscription {}"
+        ).format(
+            self.azure_instance_name,
+            self.azure_resource_group,
+            self.azure_subscription_id,
+        )
+
+    def test_instance_exists(self):
+        """Verify successfully retrieving the instance results in a True response."""
+        # GIVEN a new AzureCloudSnapshotInterface
+        snapshot_interface = AzureCloudSnapshotInterface(
+            self.azure_subscription_id, self.azure_resource_group
+        )
+        # WHEN instance exists is called for an instance which exists
+        result = snapshot_interface.instance_exists(self.azure_instance_name)
+
+        # THEN it returns True
+        assert result is True
+
+    def test_instance_exists_not_found(self):
+        """Verify a NotFound error results in a False response."""
+        # GIVEN a new AzureCloudSnapshotInterface
+        snapshot_interface = AzureCloudSnapshotInterface(
+            self.azure_subscription_id, self.azure_resource_group
+        )
+        # AND a mock VirtualMachinesOperations which cannot find the instance
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        mock_compute_client.virtual_machines.get.side_effect = ResourceNotFoundError(
+            "instance_not_found"
+        )
+
+        # WHEN instance exists is called
+        result = snapshot_interface.instance_exists(self.azure_instance_name)
+
+        # THEN it returns False
+        assert result is False
+
+
+class TestAzureVolumeMetadata(object):
+    """Verify behaviour of AzureVolumeMetadata."""
+
+    @pytest.mark.parametrize(
+        [
+            "attachment_metadata",
+            "disk_metadata",
+            "expected_lun",
+            "expected_location",
+        ],
+        (
+            (None, None, None, None),
+            (
+                mock.Mock(lun="10"),
+                None,
+                "10",
+                None,
+            ),
+            (None, mock.Mock(location="uksouth"), None, "uksouth"),
+            (
+                mock.Mock(lun="10"),
+                mock.Mock(location="uksouth"),
+                "10",
+                "uksouth",
+            ),
+        ),
+    )
+    def test_init(
+        self,
+        attachment_metadata,
+        disk_metadata,
+        expected_lun,
+        expected_location,
+    ):
+        """Verify AzureVolumeMetadata is created from supplied metadata"""
+        # WHEN volume metadata is created from the specified attachment_metadata and
+        # disk_metadata
+        volume = AzureVolumeMetadata(attachment_metadata, disk_metadata)
+
+        # THEN the metadata has the expected location
+        assert volume.location == expected_location
+        # AND the internal _lun has the expected value
+        assert volume._lun == expected_lun
+
+    def test_resolve_mounted_volume(self):
+        """Verify resolve_mounted_volume sets mount info from findmnt output."""
+        # GIVEN a AzureVolumeMetadata for lun `10`
+        attachment_metadata = mock.Mock(lun="10")
+        volume = AzureVolumeMetadata(attachment_metadata)
+        # AND the specified findmnt response
+        mock_cmd = mock.Mock()
+        mock_cmd.findmnt.return_value = ("/opt/disk0", "rw,noatime")
+
+        # WHEN resolve_mounted_volume is called
+        volume.resolve_mounted_volume(mock_cmd)
+
+        # THEN findmnt was called with the expected arguments
+        mock_cmd.findmnt.assert_called_once_with("/dev/disk/azure/scsi1/lun10")
+
+        # AND the expected mount point and options are set on the volume metadata
+        assert volume.mount_point == "/opt/disk0"
+        assert volume.mount_options == "rw,noatime"
+
+    @pytest.mark.parametrize(
+        ("findmnt_fun", "lun", "expected_exception_msg"),
+        (
+            (
+                lambda x: (None, None),
+                "10",
+                "Could not find volume with lun 10 at any mount point",
+            ),
+            (
+                CommandException("error doing findmnt"),
+                "10",
+                "Error finding mount point for volume with lun 10: error doing findmnt",
+            ),
+            (
+                lambda x: (None, None),
+                None,
+                "Cannot resolve mounted volume: LUN unknown",
+            ),
+        ),
+    )
+    def test_resolve_mounted_volume_failure(
+        self, findmnt_fun, lun, expected_exception_msg
+    ):
+        """Verify the failure modes of resolve_mounted_volume."""
+        # GIVEN a AzureVolumeMetadata for lun `10`
+        attachment_metadata = mock.Mock(lun=lun)
+        volume = AzureVolumeMetadata(attachment_metadata)
         # AND the specified findmnt response
         mock_cmd = mock.Mock()
         mock_cmd.findmnt.side_effect = findmnt_fun

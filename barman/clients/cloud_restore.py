@@ -94,15 +94,8 @@ def main(args=None):
             _validate_config(config, backup_info)
 
             if backup_info.snapshots_info:
-                provider_args = {}
-                for arg in vars(config):
-                    if (
-                        arg.startswith("snapshot_")
-                        and arg != "snapshot_recovery_instance"
-                    ):
-                        provider_args[arg] = getattr(config, arg)
                 snapshot_interface = get_snapshot_interface_from_backup_info(
-                    backup_info, provider_args
+                    backup_info, config
                 )
                 snapshot_interface.validate_restore_config(config)
                 downloader = CloudBackupDownloaderSnapshot(
@@ -158,6 +151,17 @@ def parse_arguments(args=None):
     )
     parser.add_argument(
         "--snapshot-recovery-zone",
+        help=(
+            "Zone containing the instance and disks for the snapshot recovery "
+            "(deprecated: replaced by --gcp-zone)"
+        ),
+        dest="gcp_zone",
+    )
+    gcs_arguments = parser.add_argument_group(
+        "Extra options for google-cloud-storage cloud provider"
+    )
+    gcs_arguments.add_argument(
+        "--gcp-zone",
         help="Zone containing the instance and disks for the snapshot recovery",
     )
     return parser.parse_args(args=args)
@@ -333,8 +337,6 @@ class CloudBackupDownloaderSnapshot(CloudBackupDownloader):
         :param str destination_dir: Path to the destination directory
         :param str recovery_instance: The name of the VM instance to which the disks
             cloned from the backup snapshots are attached.
-        :param dict[str,str] provider_args: A dict of keyword arguments to be
-            passed to the cloud provider
         """
         attached_volumes = SnapshotRecoveryExecutor.get_attached_volumes_for_backup(
             self.snapshot_interface,

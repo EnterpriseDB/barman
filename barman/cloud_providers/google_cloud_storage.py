@@ -374,12 +374,11 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
     """
 
     _required_config_for_backup = CloudSnapshotInterface._required_config_for_backup + (
-        "snapshot_zone",
+        "gcp_zone",
     )
 
     _required_config_for_restore = (
-        CloudSnapshotInterface._required_config_for_restore
-        + ("snapshot_recovery_zone",)
+        CloudSnapshotInterface._required_config_for_restore + ("gcp_zone",)
     )
 
     DEVICE_PREFIX = "/dev/disk/by-id/google-"

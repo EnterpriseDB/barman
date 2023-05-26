@@ -207,11 +207,16 @@ To take a snapshot backup with barman-cloud, use `barman-cloud-backup` with the 
 
 - `--snapshot-disk` (can be used multiple times for multiple disks)
 - `--snapshot-instance`
-- `--snapshot-zone`
 
-If the `--cloud-provider` is `google-cloud-storage` then the following argument is also required:
+If the `--cloud-provider` is `google-cloud-storage` then the following arguments are also required:
 
-- `--snapshot-gcp-project`
+- `--gcp-project`
+- `--gcp-zone`
+
+If the `--cloud-provider` is `azure-blob-storage` then the following arguments are also required:
+
+- `--azure-subscription-id`
+- `--azure-resource-group`
 
 The following options cannot be used with `barman-cloud-backup` when cloud snapshots are requested:
 
@@ -230,9 +235,12 @@ The snapshot metadata required to provision the recovery instance can be queried
 Note that, just like when using `barman-cloud-restore` with an object stored backup, the command will not prepare PostgreSQL for the recovery.
 Any PITR options, custom `restore_command` values or WAL files required before PostgreSQL starts must be handled manually or by external tooling.
 
-The following additional arguments must be used with `barman-cloud-restore` when restoring a backup made with cloud snapshots:
+The following additional argument must be used with `barman-cloud-restore` when restoring a backup made with cloud snapshots:
 
 - `--snapshot-recovery-instance`
-- `--snapshot-recovery-zone`
+
+The following additional arguments are required with the `gcp` provider:
+
+- `--gcp-zone`
 
 The `--tablespace` option cannot be used with `barman-cloud-restore` when restoring a cloud snapshot backup:

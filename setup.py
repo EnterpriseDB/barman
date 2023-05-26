@@ -101,6 +101,7 @@ setup(
     extras_require={
         "cloud": ["boto3"],
         "azure": ["azure-identity", "azure-storage-blob"],
+        "azure-snapshots": ["azure-identity", "azure-mgmt-compute"],
         "snappy": ["python-snappy"],
         "google": [
             "google-cloud-storage",

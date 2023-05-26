@@ -32,10 +32,11 @@ usage: barman-cloud-restore [-V] [--help] [-v | -q] [-t]
                             [--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}]
                             [--endpoint-url ENDPOINT_URL] [-P PROFILE]
                             [--read-timeout READ_TIMEOUT]
-                            [--credential {azure-cli,managed-identity}]
+                            [--azure-credential {azure-cli,managed-identity}]
                             [--tablespace NAME:LOCATION]
                             [--snapshot-recovery-instance SNAPSHOT_RECOVERY_INSTANCE]
-                            [--snapshot-recovery-zone SNAPSHOT_RECOVERY_ZONE]
+                            [--snapshot-recovery-zone GCP_ZONE]
+                            [--gcp-zone GCP_ZONE]
                             source_url server_name backup_id recovery_dir
 
 This script can be used to download a backup previously made with barman-
@@ -62,9 +63,9 @@ optional arguments:
   --snapshot-recovery-instance SNAPSHOT_RECOVERY_INSTANCE
                         Instance where the disks recovered from the snapshots
                         are attached
-  --snapshot-recovery-zone SNAPSHOT_RECOVERY_ZONE
+  --snapshot-recovery-zone GCP_ZONE
                         Zone containing the instance and disks for the
-                        snapshot recovery
+                        snapshot recovery (deprecated: replaced by --gcp-zone)
 
 Extra options for the aws-s3 cloud provider:
   --endpoint-url ENDPOINT_URL
@@ -78,13 +79,17 @@ Extra options for the aws-s3 cloud provider:
                         seconds)
 
 Extra options for the azure-blob-storage cloud provider:
-  --credential {azure-cli,managed-identity}
+  --azure-credential {azure-cli,managed-identity}, --credential {azure-cli,managed-identity}
                         Optionally specify the type of credential to use when
                         authenticating with Azure Blob Storage. If omitted
                         then the credential will be obtained from the
                         environment. If no credentials can be found in the
                         environment then the default Azure authentication flow
                         will be used
+
+Extra options for google-cloud-storage cloud provider:
+  --gcp-zone GCP_ZONE   Zone containing the instance and disks for the
+                        snapshot recovery
 ```
 # REFERENCES
 

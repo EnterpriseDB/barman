@@ -24,6 +24,10 @@ from datetime import datetime
 import mock
 import pytest
 from dateutil.tz import tzlocal, tzoffset
+from barman.cloud_providers.azure_blob_storage import (
+    AzureSnapshotMetadata,
+    AzureSnapshotsInfo,
+)
 from barman.cloud_providers.google_cloud_storage import (
     GcpSnapshotMetadata,
     GcpSnapshotsInfo,
@@ -744,6 +748,58 @@ class TestBackupInfo(object):
         assert snapshot0_json["provider"]["device_name"] == "dev0"
         assert snapshot0_json["provider"]["snapshot_name"] == "short_snapshot_name"
         assert snapshot0_json["provider"]["snapshot_project"] == "project_name"
+
+    def test_with_snapshots_info_azure(self, tmpdir):
+        """
+        Test that snapshots_info is included in file and output if set.
+        """
+        # GIVEN a backup.info file for a server
+        server = build_mocked_server(
+            main_conf={"basebackups_directory": tmpdir.strpath},
+        )
+        backup_dir = tmpdir.mkdir("fake_name")
+        infofile = backup_dir.join("backup.info")
+        b_info = LocalBackupInfo(server, backup_id="fake_name")
+        b_info.status = BackupInfo.DONE
+
+        # WHEN snapshots_info is set and the file is saved
+        snapshots_info = AzureSnapshotsInfo(
+            subscription_id="test-subscription",
+            resource_group="test-rg",
+            snapshots=[
+                AzureSnapshotMetadata(
+                    mount_point="/opt/mount0",
+                    mount_options="rw",
+                    lun="10",
+                    snapshot_name="short_snapshot_name",
+                    location="uksouth",
+                )
+            ],
+        )
+        b_info.snapshots_info = snapshots_info
+        b_info.save()
+
+        # THEN a new BackupInfo created from the saved file has the SnapshotsInfo attributes
+        new_backup_info = LocalBackupInfo(server, info_file=infofile.strpath)
+        assert new_backup_info.snapshots_info.provider == "azure"
+        assert new_backup_info.snapshots_info.subscription_id == "test-subscription"
+        snapshot0 = new_backup_info.snapshots_info.snapshots[0]
+        assert snapshot0.mount_point == "/opt/mount0"
+        assert snapshot0.mount_options == "rw"
+        assert snapshot0.lun == "10"
+        assert snapshot0.snapshot_name == "short_snapshot_name"
+        assert snapshot0.location == "uksouth"
+
+        # AND the snapshots_info is included in the JSON output
+        snapshots_json = b_info.to_json()["snapshots_info"]
+        assert snapshots_json["provider"] == "azure"
+        assert snapshots_json["provider_info"]["subscription_id"] == "test-subscription"
+        snapshot0_json = snapshots_json["snapshots"][0]
+        assert snapshot0_json["mount"]["mount_point"] == "/opt/mount0"
+        assert snapshot0_json["mount"]["mount_options"] == "rw"
+        assert snapshot0_json["provider"]["lun"] == "10"
+        assert snapshot0_json["provider"]["snapshot_name"] == "short_snapshot_name"
+        assert snapshot0_json["provider"]["location"] == "uksouth"
 
     def test_with_no_snapshots_info(self, tmpdir):
         """

@@ -128,22 +128,22 @@ class TestCloudBackup(object):
                 [
                     "--cloud-provider",
                     "google-cloud-storage",
-                    "--snapshot-gcp-project",
+                    "--gcp-project",
                     "test-project",
                     "--snapshot-disk",
                     "disk0",
                     "--snapshot-instance",
                     "test_instance",
                 ],
-                "Incomplete options for snapshot backup - missing: snapshot_zone",
+                "Incomplete options for snapshot backup - missing: gcp_zone",
             ],
             [
                 [
                     "--cloud-provider",
                     "google-cloud-storage",
-                    "--snapshot-gcp-project",
+                    "--gcp-project",
                     "test-project",
-                    "--snapshot-zone",
+                    "--gcp-zone",
                     "test_zone",
                     "--snapshot-instance",
                     "test_instance",
@@ -154,11 +154,11 @@ class TestCloudBackup(object):
                 [
                     "--cloud-provider",
                     "google-cloud-storage",
-                    "--snapshot-gcp-project",
-                    "snapshot_gcp_project",
+                    "--gcp-project",
+                    "gcp_project",
                     "--snapshot-disk",
                     "disk0",
-                    "--snapshot-zone",
+                    "--gcp-zone",
                     "test_zone",
                 ],
                 "Incomplete options for snapshot backup - missing: snapshot_instance",
@@ -167,13 +167,13 @@ class TestCloudBackup(object):
                 [
                     "--cloud-provider",
                     "google-cloud-storage",
-                    "--snapshot-gcp-project",
-                    "snapshot_gcp_project",
+                    "--gcp-project",
+                    "gcp_project",
                     "--snapshot-disk",
                     "disk0",
                     "--snapshot-instance",
                     "test_instance",
-                    "--snapshot-zone",
+                    "--gcp-zone",
                     "test_zone",
                     "--snappy",
                 ],
@@ -185,13 +185,13 @@ class TestCloudBackup(object):
                     "disk0",
                     "--snapshot-instance",
                     "test_instance",
-                    "--snapshot-zone",
+                    "--gcp-zone",
                     "test_zone",
                     "--cloud-provider",
                     "google-cloud-storage",
                 ],
                 (
-                    "--snapshot-gcp-project option must be set for snapshot backups "
+                    "--gcp-project option must be set for snapshot backups "
                     "when cloud provider is google-cloud-storage"
                 ),
             ],
@@ -201,7 +201,7 @@ class TestCloudBackup(object):
                     "disk0",
                     "--snapshot-instance",
                     "test_instance",
-                    "--snapshot-zone",
+                    "--gcp-zone",
                     "test_zone",
                 ],
                 "No snapshot provider for cloud provider: aws-s3",
@@ -212,24 +212,40 @@ class TestCloudBackup(object):
                     "disk0",
                     "--snapshot-instance",
                     "test_instance",
-                    "--snapshot-zone",
-                    "test_zone",
                     "--cloud-provider",
                     "azure-blob-storage",
                 ],
-                "No snapshot provider for cloud provider: azure-blob-storage",
+                (
+                    "--azure-subscription-id option must be set for snapshot backups "
+                    "when cloud provider is azure-blob-storage"
+                ),
+            ],
+            [
+                [
+                    "--snapshot-disk",
+                    "disk0",
+                    "--snapshot-instance",
+                    "test_instance",
+                    "--cloud-provider",
+                    "azure-blob-storage",
+                    "--azure-subscription-id",
+                    "azure-subscription-id",
+                ],
+                "Incomplete options for snapshot backup - missing: azure_resource_group",
             ],
         ),
     )
     @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
     @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
     @mock.patch("barman.clients.cloud_backup.CloudBackupUploader")
+    @mock.patch("barman.cloud_providers.azure_blob_storage.import_azure_mgmt_compute")
     @mock.patch(
         "barman.cloud_providers.google_cloud_storage.import_google_cloud_compute"
     )
     def test_unsupported_snapshot_args(
         self,
         _mock_google_cloud_compute,
+        _mock_azure_mgmgt_compute,
         uploader_mock,
         _cloud_interface_mock,
         _postgres_connection,
@@ -251,17 +267,6 @@ class TestCloudBackup(object):
         # AND the expected error message occurs
         assert expected_error in caplog.text
 
-    @pytest.mark.parametrize(
-        "cloud_provider_args",
-        (
-            [
-                "--cloud-provider",
-                "google-cloud-storage",
-                "--snapshot-gcp-project",
-                "gcp_project",
-            ],
-        ),
-    )
     @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
     @mock.patch("barman.clients.cloud_backup.get_snapshot_interface")
     @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
@@ -274,9 +279,12 @@ class TestCloudBackup(object):
         postgres_connection,
         _rmtree_mock,
         _tempfile_mock,
-        cloud_provider_args,
     ):
+        # GIVEN a mock CloudBackupSnapshot instance
         mock_snapshot_backup = mock_cloud_backup_snapshot.return_value
+
+        # WHEN barman-cloud-backup is called with arguments which cause a snapshot
+        # backup to happen
         cloud_backup.main(
             [
                 "cloud_storage_url",
@@ -285,11 +293,11 @@ class TestCloudBackup(object):
                 "disk0",
                 "--snapshot-instance",
                 "test_instance",
-                "--snapshot-zone",
-                "test_zone",
             ]
-            + cloud_provider_args
         )
+
+        # THEN the mock CloudBackupSnapshot instance was called with the expected
+        # arguments
         mock_cloud_backup_snapshot.assert_called_once_with(
             "test_server",
             mock_get_cloud_interface.return_value,
@@ -301,6 +309,7 @@ class TestCloudBackup(object):
             ],
             None,
         )
+        # AND its backup function was called exactly once
         mock_snapshot_backup.backup.assert_called_once()
 
     @pytest.mark.parametrize(

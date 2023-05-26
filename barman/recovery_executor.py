@@ -1674,7 +1674,6 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
         standby_mode=None,
         recovery_conf_filename=None,
         recovery_instance=None,
-        provider_args=None,
     ):
         """
         Performs a recovery of a snapshot backup.
@@ -1702,11 +1701,9 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
             configurations
         :param str|None recovery_instance: The name of the recovery node as it
             is known by the cloud provider
-        :param dict[str,str] provider_args: A dict of keyword arguments to be
-            passed to the cloud provider
         """
         snapshot_interface = get_snapshot_interface_from_backup_info(
-            backup_info, provider_args
+            backup_info, self.server.config
         )
         attached_volumes = self.get_attached_volumes_for_backup(
             snapshot_interface, backup_info, recovery_instance

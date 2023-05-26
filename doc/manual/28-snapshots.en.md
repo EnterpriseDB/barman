@@ -46,6 +46,33 @@ The required permissions are:
 - `compute.snapshots.delete`
 - `compute.snapshots.list`
 
+#### Azure snapshot prerequisites
+
+The azure-mgmt-compute and azure-identity libraries must be available to the Python distribution used by Barman.
+
+These libraries are an optional dependency and are not installed as standard by any of the Barman packages.
+They can be installed as follows using `pip`:
+
+``` bash
+pip3 install azure-mgmt-compute azure-identity
+```
+
+> **NOTE:** The minimum version of Python required by the azure-mgmt-compute
+> library is 3.7. Azure snapshots cannot be used with earlier versions of Python.
+
+The following additional prerequisites apply to snapshot backups on Azure:
+
+- All disks included in the snapshot backup must be managed disks which are attached to the VM instance as data disks.
+- Barman must be able to use a credential obtained either using managed identity or CLI login and this must grant access to Azure with the required set of permissions.
+
+The following permissions are required:
+
+- `Microsoft.Compute/disks/read`
+- `Microsoft.Compute/virtualMachines/read`
+- `Microsoft.Compute/snapshots/read`
+- `Microsoft.Compute/snapshots/write`
+- `Microsoft.Compute/snapshots/delete`
+
 ### Configuration for snapshot backups
 
 To configure Barman for backup via cloud snapshots, set the `backup_method` parameter to `snapshot` and set `snapshot_provider` to a supported cloud provider:
@@ -55,17 +82,17 @@ backup_method = snapshot
 snapshot_provider = gcp
 ```
 
-Currently only Google Cloud Platform (gcp) is supported.
+Currently only Google Cloud Platform (gcp) is fully supported.
+Snapshot backups are supported using Azure however *support for recovery/restore and deletion of Azure snapshot backups is not yet implemented*.
 
 The following parameters must be set regardless of cloud provider:
 
 ``` ini
 snapshot_instance = INSTANCE_NAME
-snapshot_zone = ZONE
 snapshot_disks = DISK_NAME,DISK2_NAME,...
 ```
 
-Where `snapshot_instance` is set to the name of the VM or compute instance where the storage volumes are attached, `snapshot_zone` is the available zone in which the instance is located and `snapshot_disks` is a comma-separated list of the disks which should be included in the backup.
+Where `snapshot_instance` is set to the name of the VM or compute instance where the storage volumes are attached and `snapshot_disks` is a comma-separated list of the disks which should be included in the backup.
 
 > **IMPORTANT:** You must ensure that `snapshot_disks` includes every disk
 > which stores data required by PostgreSQL. Any data which is not stored
@@ -74,13 +101,26 @@ Where `snapshot_instance` is set to the name of the VM or compute instance where
 
 #### Configuration for Google Cloud Platform snapshots
 
-The following additional parameter must be set when using GCP:
+The following additional parameters must be set when using GCP:
 
 ``` ini
-snapshot_gcp_project = GCP_PROJECT_ID
+gcp_project = GCP_PROJECT_ID
+gcp_zone = ZONE
 ```
 
-This should be set to the ID of the GCP project which owns the instance and storage volumes defined by `snapshot_instance` and `snapshot_disks`.
+`gcp_project` should be set to the ID of the GCP project which owns the instance and storage volumes defined by `snapshot_instance` and `snapshot_disks`. `gcp_zone` should be set to the availability zone in which the instance is located.
+
+#### Configuration for Azure snapshots
+
+The following additional parameters must be set when using Azure:
+
+``` ini
+azure_subscription_id = AZURE_SUBSCRIPTION_ID
+azure_resource_group = AZURE_RESOURCE_GROUP
+```
+
+`azure_subscription_id` should be set to the ID of the Azure subscription ID which owns the instance and storage volumes defined by `snapshot_instance` and `snapshot_disks`.
+`azure_resource_group` should be set to the resource group to which the instance and disks belong.
 
 ### Taking a snapshot backup
 

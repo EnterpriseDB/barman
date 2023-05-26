@@ -16,8 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>
 
-from collections import defaultdict
-
 from barman.exceptions import BarmanException, ConfigurationException
 
 
@@ -69,6 +67,27 @@ def _make_s3_cloud_interface(config, cloud_interface_kwargs):
     return S3CloudInterface(**cloud_interface_kwargs)
 
 
+def _get_azure_credential(credential_type):
+    if credential_type is None:
+        return None
+
+    try:
+        from azure.identity import AzureCliCredential, ManagedIdentityCredential
+    except ImportError:
+        raise SystemExit("Missing required python module: azure-identity")
+
+    supported_credentials = {
+        "azure-cli": AzureCliCredential,
+        "managed-identity": ManagedIdentityCredential,
+    }
+    try:
+        return supported_credentials[credential_type]
+    except KeyError:
+        raise CloudProviderOptionUnsupported(
+            "Unsupported credential: %s" % credential_type
+        )
+
+
 def _make_azure_cloud_interface(config, cloud_interface_kwargs):
     from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
 
@@ -83,24 +102,10 @@ def _make_azure_cloud_interface(config, cloud_interface_kwargs):
         ),
     )
 
-    if "credential" in config and config.credential is not None:
-        try:
-            from azure.identity import AzureCliCredential, ManagedIdentityCredential
-        except ImportError:
-            raise SystemExit("Missing required python module: azure-identity")
-
-        supported_credentials = {
-            "azure-cli": AzureCliCredential,
-            "managed-identity": ManagedIdentityCredential,
-        }
-        try:
-            cloud_interface_kwargs["credential"] = supported_credentials[
-                config.credential
-            ]()
-        except KeyError:
-            raise CloudProviderOptionUnsupported(
-                "Unsupported credential: %s" % config.credential
-            )
+    if "azure_credential" in config:
+        credential = _get_azure_credential(config.azure_credential)
+        if credential is not None:
+            cloud_interface_kwargs["credential"] = credential()
 
     return AzureCloudInterface(**cloud_interface_kwargs)
 
@@ -168,13 +173,26 @@ def get_snapshot_interface(config):
             GcpCloudSnapshotInterface,
         )
 
-        if config.snapshot_gcp_project is None:
+        if config.gcp_project is None:
             raise ConfigurationException(
-                "--snapshot-gcp-project option must be set for snapshot backups "
+                "--gcp-project option must be set for snapshot backups "
                 "when cloud provider is google-cloud-storage"
             )
-        return GcpCloudSnapshotInterface(
-            config.snapshot_gcp_project, config.snapshot_zone
+        return GcpCloudSnapshotInterface(config.gcp_project, config.gcp_zone)
+    elif config.cloud_provider == "azure-blob-storage":
+        from barman.cloud_providers.azure_blob_storage import (
+            AzureCloudSnapshotInterface,
+        )
+
+        if config.azure_subscription_id is None:
+            raise ConfigurationException(
+                "--azure-subscription-id option must be set for snapshot "
+                "backups when cloud provider is azure-blob-storage"
+            )
+        return AzureCloudSnapshotInterface(
+            config.azure_subscription_id,
+            resource_group=config.azure_resource_group,
+            credential=_get_azure_credential(config.azure_credential),
         )
     else:
         raise CloudProviderUnsupported(
@@ -197,12 +215,27 @@ def get_snapshot_interface_from_server_config(server_config):
             GcpCloudSnapshotInterface,
         )
 
-        if server_config.snapshot_gcp_project is None:
+        gcp_project = server_config.gcp_project or server_config.snapshot_gcp_project
+        if gcp_project is None:
             raise ConfigurationException(
-                "snapshot_gcp_project option must be set when snapshot_provider is gcp"
+                "gcp_project option must be set when snapshot_provider is gcp"
             )
-        return GcpCloudSnapshotInterface(
-            server_config.snapshot_gcp_project, server_config.snapshot_zone
+        gcp_zone = server_config.gcp_zone or server_config.snapshot_zone
+        return GcpCloudSnapshotInterface(gcp_project, gcp_zone)
+    elif server_config.snapshot_provider == "azure":
+        from barman.cloud_providers.azure_blob_storage import (
+            AzureCloudSnapshotInterface,
+        )
+
+        if server_config.azure_subscription_id is None:
+            raise ConfigurationException(
+                "azure_subscription_id option must be set when snapshot_provider "
+                "is azure"
+            )
+        return AzureCloudSnapshotInterface(
+            server_config.azure_subscription_id,
+            resource_group=server_config.azure_resource_group,
+            credential=_get_azure_credential(server_config.azure_credential),
         )
     else:
         raise CloudProviderUnsupported(
@@ -210,24 +243,18 @@ def get_snapshot_interface_from_server_config(server_config):
         )
 
 
-def get_snapshot_interface_from_backup_info(backup_info, provider_args=None):
+def get_snapshot_interface_from_backup_info(backup_info, config=None):
     """
     Factory function that creates CloudSnapshotInterface for the snapshot provider
     specified in the supplied backup info.
 
     :param barman.infofile.BackupInfo backup_info: The metadata for a specific backup.
-    :param dict[str,str] provider_args: A dict of keyword arguments to be passed to the
         cloud provider.
+    :param argparse.Namespace|barman.config.Config config: The backup options provided
+        by the command line or the Barman configuration.
     :rtype: CloudSnapshotInterface
     :returns: A CloudSnapshotInterface for the specified snapshot provider.
     """
-    # provider_args is not always provided by the calling code, for example when
-    # creating an interface to delete snapshots the zone is not required in GCP.
-    # In such cases we use a defaultdict and trust the provider implementations to
-    # handle None values safely.
-    if provider_args is None:
-        provider_args = defaultdict(lambda: None)
-
     if backup_info.snapshots_info.provider == "gcp":
         from barman.cloud_providers.google_cloud_storage import (
             GcpCloudSnapshotInterface,
@@ -237,9 +264,10 @@ def get_snapshot_interface_from_backup_info(backup_info, provider_args=None):
             raise BarmanException(
                 "backup_info has snapshot provider 'gcp' but project is not set"
             )
+        gcp_zone = config is not None and config.gcp_zone or None
         return GcpCloudSnapshotInterface(
             backup_info.snapshots_info.project,
-            provider_args["snapshot_recovery_zone"],
+            gcp_zone,
         )
     else:
         raise CloudProviderUnsupported(
@@ -262,6 +290,12 @@ def snapshots_info_from_dict(snapshots_info):
         from barman.cloud_providers.google_cloud_storage import GcpSnapshotsInfo
 
         return GcpSnapshotsInfo.from_dict(snapshots_info)
+    elif "provider" in snapshots_info and snapshots_info["provider"] == "azure":
+        from barman.cloud_providers.azure_blob_storage import (
+            AzureSnapshotsInfo,
+        )
+
+        return AzureSnapshotsInfo.from_dict(snapshots_info)
     else:
         raise CloudProviderUnsupported(
             "Unsupported snapshot provider in backup info: %s"

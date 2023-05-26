@@ -695,7 +695,7 @@ class TestCli(object):
         parse_backup_id_mock.return_value = mock_backup_info
         # AND the specified additional recovery args
         mock_recover_args.snapshot_recovery_instance = None
-        mock_recover_args.snapshot_recovery_zone = None
+        mock_recover_args.gcp_zone = None
         extra_recovery_args.update(snapshot_recovery_args)
         for k, v in extra_recovery_args.items():
             setattr(mock_recover_args, k, v)

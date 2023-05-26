@@ -39,6 +39,7 @@ from barman.exceptions import (
     DataTransferFailure,
     FsOperationFailed,
     PostgresConnectionError,
+    SnapshotBackupException,
     SshCommandException,
 )
 from barman.infofile import BackupInfo, LocalBackupInfo, Tablespace
@@ -1731,6 +1732,44 @@ class TestSnapshotBackupExecutor(object):
         # disks
         assert not any(disk in missing_disks for disk in expected_mounted_disks)
         assert not any(disk in unmounted_disks for disk in expected_mounted_disks)
+
+    @patch("barman.backup_executor.get_snapshot_interface_from_server_config")
+    def test_find_missing_and_unmounted_disks_resolve_exception(
+        self, mock_get_snapshot_interface, caplog
+    ):
+        """
+        Verify that, when a SnapshotBackupException is raised during resolution of
+        mounted volumes, the disk is considered unmounted.
+        """
+        # GIVEN the specified attached and mounted disks are all returned by the
+        # get_attached_volumes function
+        mock_get_attached_volumes = (
+            mock_get_snapshot_interface.return_value.get_attached_volumes
+        )
+        mock_get_attached_volumes.return_value = {
+            "disk0": mock.Mock(mount_point=None, mount_options=None)
+        }
+        # AND resolve_mounted_volume raises a SnapshotBackupException
+        cmd = mock.Mock()
+        mock_volume = mock_get_attached_volumes.return_value["disk0"]
+        mock_volume.resolve_mounted_volume.side_effect = SnapshotBackupException(
+            "test-message"
+        )
+
+        # WHEN find_missing_and_unmounted_disks is called
+        (
+            missing_disks,
+            unmounted_disks,
+        ) = SnapshotBackupExecutor.find_missing_and_unmounted_disks(
+            cmd, mock_get_snapshot_interface.return_value, "instance0", ["disk0"]
+        )
+
+        # THEN the disk is not present in missing_disks
+        assert len(missing_disks) == 0
+        # AND the disk is present in unmounted_disks
+        assert "disk0" in unmounted_disks
+        # AND the exception message was logged
+        assert "test-message" in caplog.text
 
     @patch("barman.backup_executor.ExternalBackupExecutor.check")
     def test_check_skipped_if_server_disabled(

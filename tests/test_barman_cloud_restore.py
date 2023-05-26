@@ -100,7 +100,7 @@ class TestCloudRestore(object):
                 [],
                 (
                     "Incomplete options for snapshot restore - missing: "
-                    "snapshot_recovery_instance, snapshot_recovery_zone"
+                    "snapshot_recovery_instance, gcp_zone"
                 ),
             ],
             [
@@ -108,14 +108,11 @@ class TestCloudRestore(object):
                     "--snapshot-recovery-instance",
                     "test_instance",
                 ],
-                (
-                    "Incomplete options for snapshot restore - missing: "
-                    "snapshot_recovery_zone"
-                ),
+                "Incomplete options for snapshot restore - missing: gcp_zone",
             ],
             [
                 [
-                    "--snapshot-recovery-zone",
+                    "--gcp-zone",
                     "test_zone",
                 ],
                 (
@@ -127,7 +124,7 @@ class TestCloudRestore(object):
                 [
                     "--snapshot-recovery-instance",
                     "test_instance",
-                    "--snapshot-recovery-zone",
+                    "--gcp-zone",
                     "test_zone",
                     "--tablespace",
                     "tbs1:/path/to/tbs1",
@@ -216,7 +213,7 @@ class TestCloudRestore(object):
                 recovery_dir,
                 "--snapshot-recovery-instance",
                 recovery_instance,
-                "--snapshot-recovery-zone",
+                "--gcp-zone",
                 recovery_zone,
             ]
         )
