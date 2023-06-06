@@ -377,6 +377,67 @@ class TestCloudBackupDelete(object):
             backup_info
         )
 
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch(
+        "barman.clients.cloud_backup_delete.get_snapshot_interface_from_backup_info"
+    )
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_delete_snapshot_backup_dry_run(
+        self,
+        get_cloud_interface_mock,
+        get_snapshot_interface_mock,
+        cloud_backup_catalog_mock,
+        capsys,
+    ):
+        """
+        Tests that nothing is deleted for a snapshot backup when the --dry-run flag is
+        used.
+        """
+        # GIVEN a backup catalog with one named backup and no WALs
+        backup_id = "20210723T095432"
+        backup_metadata = self._create_backup_metadata(
+            [(backup_id, "backup name")], is_snapshot_backup=True
+        )
+        # AND a backup_info with a snapshot
+        backup_info = backup_metadata[backup_id]["info"]
+        snapshots = [
+            mock.Mock(identifier="snapshot0"),
+        ]
+        backup_info.snapshots_info = mock.Mock(snapshots=snapshots)
+
+        # AND a CloudBackupCatalog which returns the backup_info for only that backup
+        cloud_backup_catalog_mock.return_value = self._create_catalog(backup_metadata)
+
+        # WHEN barman-cloud-backup-delete runs
+        # AND the --dry-run flag is used
+        cloud_backup_delete.main(
+            [
+                "cloud_storage_url",
+                "test_server",
+                "--backup-id",
+                "20210723T095432",
+                "--dry-run",
+            ]
+        )
+
+        # THEN the cloud provider does not request any deletions
+        cloud_interface_mock = get_cloud_interface_mock.return_value
+        assert len(cloud_interface_mock.delete_objects.call_args_list) == 0
+        # AND delete_snapshot_backup was not called for the backup
+        mock_snapshots_interface = get_snapshot_interface_mock.return_value
+        mock_snapshots_interface.delete_snapshot_backup.assert_not_called()
+
+        # AND details of skipped deletions are printed to stdout
+        out, _err = capsys.readouterr()
+        assert "Skipping deletion of snapshots due to --dry-run option" in out
+        assert (
+            "Skipping deletion of 20210723T095432/backup_label due to --dry-run option"
+        ) in out
+        assert (
+            "Skipping deletion of objects ['20210723T095432/backup.info'] due to "
+            "--dry-run option"
+        ) in out
+
     @pytest.mark.parametrize("backup_id_arg", ("20210723T095432", "backup name"))
     @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
