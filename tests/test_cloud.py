@@ -23,6 +23,7 @@ import os
 import shutil
 import sys
 from argparse import Namespace
+from functools import partial
 from io import BytesIO
 from tarfile import TarFile, TarInfo
 from tarfile import open as open_tar
@@ -1034,6 +1035,109 @@ class TestS3CloudInterface(object):
         # the content of the downloaded file matches the original content
         with open(os.path.join(str(tmpdir), content_filename), "r") as f:
             assert f.read() == content
+
+    @pytest.mark.parametrize(
+        # mock_page_data is a list of tuples of (CommonPrefixes, Contents) values
+        # where CommonPrefixes and Contents are lists of the prefixes and keys to
+        # be returned when `get` is called on that page.
+        ("mock_page_data", "expected_values"),
+        (
+            # If common prefixes and contents are empty then we expect no items
+            # to be returned
+            ((([], []),), []),
+            # If there are only common prefixes then we expect to see only those
+            # prefixes
+            (
+                [
+                    (["/a/common/prefix/", "/another/common/prefix/"], []),
+                ],
+                ["/a/common/prefix/", "/another/common/prefix/"],
+            ),
+            # If there are only objects then we expect to see only those objects
+            (
+                [
+                    ([], ["/an/object", "/another/object"]),
+                ],
+                ["/an/object", "/another/object"],
+            ),
+            # If there are both prefixes and objects then we expect to see the
+            # prefixes, then the objects
+            (
+                [
+                    (
+                        ["/a/common/prefix/", "/another/common/prefix/"],
+                        ["/an/object", "/another/object"],
+                    ),
+                ],
+                [
+                    "/a/common/prefix/",
+                    "/another/common/prefix/",
+                    "/an/object",
+                    "/another/object",
+                ],
+            ),
+            # If there are multiple pages then we expect to see the prefixes then
+            # objects for each page
+            (
+                [
+                    (
+                        ["/a/common/prefix/", "/another/common/prefix/"],
+                        ["/an/object", "/another/object"],
+                    ),
+                    (
+                        ["/a/common/prefix2/", "/another/common/prefix2/"],
+                        ["/an/object2", "/another/object2"],
+                    ),
+                ],
+                [
+                    "/a/common/prefix/",
+                    "/another/common/prefix/",
+                    "/an/object",
+                    "/another/object",
+                    "/a/common/prefix2/",
+                    "/another/common/prefix2/",
+                    "/an/object2",
+                    "/another/object2",
+                ],
+            ),
+        ),
+    )
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_list_bucket(self, boto_mock, mock_page_data, expected_values):
+        """
+        Verify that list_bucket returns bucket content in the expected format.
+        """
+        # GIVEN a mock s3 bucket with the specified contents
+        mock_pages = []
+
+        def get_fun(common_prefixes, contents, msg):
+            if msg == "CommonPrefixes":
+                return [{"Prefix": p} for p in common_prefixes]
+            elif msg == "Contents":
+                return [{"Key": o} for o in contents]
+
+        for common_prefixes, contents in mock_page_data:
+            mock_page = mock.Mock()
+            mock_page.get = partial(get_fun, common_prefixes, contents)
+            mock_pages.append(mock_page)
+
+        s3_mock = boto_mock.Session.return_value.resource.return_value
+        paginator_mock = s3_mock.meta.client.get_paginator.return_value
+        paginator_mock.paginate.return_value = mock_pages
+
+        # AND a cloud interface which uses this bucket
+        cloud_interface = S3CloudInterface("s3://bucket/test", encryption=None)
+
+        # WHEN list_bucket is called
+        # THEN the expected values are returned
+        assert [
+            key for key in cloud_interface.list_bucket(prefix="", delimiter="/")
+        ] == expected_values
+
+        # AND the paginator was called with the expected arguments
+        paginator_mock.paginate.assert_called_once_with(
+            Bucket="bucket", Prefix="", Delimiter="/"
+        )
 
 
 class TestAzureCloudInterface(object):

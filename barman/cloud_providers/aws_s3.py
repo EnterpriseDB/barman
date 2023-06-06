@@ -242,21 +242,23 @@ class S3CloudInterface(CloudInterface):
         if prefix.startswith(delimiter):
             prefix = prefix.lstrip(delimiter)
 
-        res = self.s3.meta.client.list_objects_v2(
+        paginator = self.s3.meta.client.get_paginator("list_objects_v2")
+        pages = paginator.paginate(
             Bucket=self.bucket_name, Prefix=prefix, Delimiter=delimiter
         )
 
-        # List "folders"
-        keys = res.get("CommonPrefixes")
-        if keys is not None:
-            for k in keys:
-                yield k.get("Prefix")
+        for page in pages:
+            # List "folders"
+            keys = page.get("CommonPrefixes")
+            if keys is not None:
+                for k in keys:
+                    yield k.get("Prefix")
 
-        # List "files"
-        objects = res.get("Contents")
-        if objects is not None:
-            for o in objects:
-                yield o.get("Key")
+            # List "files"
+            objects = page.get("Contents")
+            if objects is not None:
+                for o in objects:
+                    yield o.get("Key")
 
     def download_file(self, key, dest_path, decompress):
         """
