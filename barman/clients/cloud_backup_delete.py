@@ -185,6 +185,14 @@ def _delete_backup(
                 backup_info, config
             )
             snapshot_interface.delete_snapshot_backup(backup_info)
+        # Delete the backup_label for snapshots backups as this is not stored in the
+        # same format used by the non-snapshot backups.
+        backup_label_path = os.path.join(
+            catalog.prefix, backup_info.backup_id, "backup_label"
+        )
+        if not config.dry_run:
+            cloud_interface.delete_objects([backup_label_path])
+
     objects_to_delete = _get_files_for_backup(catalog, backup_info)
     backup_info_path = os.path.join(
         catalog.prefix, backup_info.backup_id, "backup.info"

@@ -101,7 +101,9 @@ class TestCloudBackupDelete(object):
             for name, path in file_paths.items()
         )
 
-    def _create_backup_metadata(self, backup_ids, begin_wals={}, end_wals={}):
+    def _create_backup_metadata(
+        self, backup_ids, begin_wals=None, end_wals=None, is_snapshot_backup=False
+    ):
         """
         Helper for tests which creates mock BackupFileInfo and BackupInfo objects
         which are returned in a dict keyed by backup_id.
@@ -113,6 +115,10 @@ class TestCloudBackupDelete(object):
           1. Creating a mock CloudBackupCatalog.
           2. Providing the data needed to verify that the expected backups were deleted.
         """
+        if begin_wals is None:
+            begin_wals = {}
+        if end_wals is None:
+            end_wals = {}
         backup_metadata = {}
         for backup in backup_ids:
             backup_name = None
@@ -121,12 +127,17 @@ class TestCloudBackupDelete(object):
             else:
                 backup_id = backup
             backup_metadata[backup_id] = {}
-            mock_backup_files = self._get_mock_backup_files(
-                {
-                    16388: "%s/16388" % backup_id,
-                    None: "%s/data.tar" % backup_id,
-                }
-            )
+            if is_snapshot_backup:
+                # Snapshot backups will not have any data.tar or tablespace files
+                # so we do not need to include them in the mock
+                mock_backup_files = {}
+            else:
+                mock_backup_files = self._get_mock_backup_files(
+                    {
+                        16388: "%s/16388" % backup_id,
+                        None: "%s/data.tar" % backup_id,
+                    }
+                )
             backup_metadata[backup_id]["files"] = mock_backup_files
             backup_info = mock.MagicMock(name="backup_info", snapshots_info=None)
             backup_info.backup_id = backup_id
@@ -249,7 +260,12 @@ class TestCloudBackupDelete(object):
             )
 
     def _verify_only_these_backups_deleted(
-        self, get_cloud_interface_mock, backup_metadata, backup_ids, wals={}
+        self,
+        get_cloud_interface_mock,
+        backup_metadata,
+        backup_ids,
+        wals={},
+        is_snapshot_backup=False,
     ):
         """
         Helper function which allows tests to verify that the provided list of
@@ -266,6 +282,10 @@ class TestCloudBackupDelete(object):
         """
         call_args = []
         for backup_id in backup_ids:
+            # We expect snapshot backups to delete the backup_label since it is not
+            # stored within a tarball.
+            if is_snapshot_backup:
+                call_args.append(["%s/backup_label" % backup_id])
             call_args.append(
                 self._get_sorted_files_for_backup(backup_metadata, backup_id)
             )
@@ -323,7 +343,9 @@ class TestCloudBackupDelete(object):
         """
         # GIVEN a backup catalog with one named backup and no WALs
         backup_id = "20210723T095432"
-        backup_metadata = self._create_backup_metadata([(backup_id, "backup name")])
+        backup_metadata = self._create_backup_metadata(
+            [(backup_id, "backup name")], is_snapshot_backup=True
+        )
         # AND a backup_info with multiple snapshots
         backup_info = backup_metadata[backup_id]["info"]
         snapshots = [
@@ -344,7 +366,10 @@ class TestCloudBackupDelete(object):
         # THEN the cloud interface was only used to delete the files associated with
         # that backup and the backup.info file for that backup
         self._verify_only_these_backups_deleted(
-            get_cloud_interface_mock, backup_metadata, [backup_id]
+            get_cloud_interface_mock,
+            backup_metadata,
+            [backup_id],
+            is_snapshot_backup=True,
         )
         # AND delete_snapshot_backup was called for the backup
         mock_snapshots_interface = get_snapshot_interface_mock.return_value
