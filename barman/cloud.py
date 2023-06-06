@@ -1202,6 +1202,26 @@ class CloudInterface(with_metaclass(ABCMeta)):
                 "please check the command output."
             )
 
+    @abstractmethod
+    def get_prefixes(self, prefix):
+        """
+        Return only the common prefixes under the supplied prefix.
+
+        :param str prefix: The object key prefix under which the common prefixes
+            will be found.
+        :rtype: Iterator[str]
+        :return: A list of unique prefixes immediately under the supplied prefix.
+        """
+
+    @abstractmethod
+    def delete_under_prefix(self, prefix):
+        """
+        Delete all objects under the specified prefix.
+
+        :param str prefix: The object key prefix under which all objects should be
+            deleted.
+        """
+
 
 class CloudBackup(with_metaclass(ABCMeta)):
     """
@@ -2049,6 +2069,12 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
         """
         if self._backup_list:
             self._backup_list.pop(backup_id)
+
+    def get_wal_prefixes(self):
+        """
+        Return only the common prefixes under the wals prefix.
+        """
+        return self.cloud_interface.get_prefixes(self.wal_prefix)
 
     def get_wal_paths(self):
         """

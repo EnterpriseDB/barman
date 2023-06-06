@@ -335,6 +335,12 @@ class BadXlogSegmentName(WALFileException):
     """
 
 
+class BadXlogPrefix(WALFileException):
+    """
+    Exception for a bad xlog prefix
+    """
+
+
 class BadHistoryFileContents(WALFileException):
     """
     Exception for a corrupted history file

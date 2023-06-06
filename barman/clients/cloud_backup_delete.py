@@ -34,7 +34,7 @@ from barman.cloud_providers import (
     get_cloud_interface,
     get_snapshot_interface_from_backup_info,
 )
-from barman.exceptions import InvalidRetentionPolicy
+from barman.exceptions import BadXlogPrefix, InvalidRetentionPolicy
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import force_str
 from barman import xlog
@@ -105,6 +105,65 @@ def _remove_wals_for_backup(
             deleted_backup=deleted_backup,
             available_backups=catalog.get_backup_list(),
         )
+        # Identify any prefixes under which all WALs are no longer needed.
+        # This is a shortcut which allows us to delete all WALs under a prefix without
+        # checking each individual WAL.
+        try:
+            wal_prefixes = catalog.get_wal_prefixes()
+        except NotImplementedError:
+            # If fetching WAL prefixes isn't supported by the cloud provider then
+            # the old method of checking each WAL must be used for all WALs.
+            wal_prefixes = []
+        deletable_prefixes = []
+        for wal_prefix in wal_prefixes:
+            try:
+                tli_and_log = wal_prefix.split("/")[-2]
+                tli, log = xlog.decode_hash_dir(tli_and_log)
+            except (BadXlogPrefix, IndexError):
+                # If the prefix does not appear to be a tli and log we output a warning
+                # and move on to the next prefix rather than error out.
+                logging.warning(
+                    "Ignoring malformed WAL object prefix: {}".format(wal_prefix)
+                )
+                continue
+            # If this prefix contains a timeline which should be protected then we
+            # cannot delete the WALS under it so advance to the next prefix.
+            if tli in timelines_to_protect:
+                continue
+
+            # If the tli and log fall are inclusively between the tli and log for the
+            # begin and end WAL of any protected WAL range then this prefix cannot be
+            # deleted outright.
+            for begin_wal, end_wal in wal_ranges_to_protect:
+                begin_tli, begin_log, _ = xlog.decode_segment_name(begin_wal)
+                end_tli, end_log, _ = xlog.decode_segment_name(end_wal)
+                if (
+                    tli >= begin_tli
+                    and log >= begin_log
+                    and tli <= end_tli
+                    and log <= end_log
+                ):
+                    break
+            else:
+                # The prefix tli and log do not match any protected timelines or
+                # protected WAL ranges so all WALs are eligible for deletion if the tli
+                # is the same timeline and the log is below the begin_wal log of the
+                # backup being deleted.
+                until_begin_tli, until_begin_log, _ = xlog.decode_segment_name(
+                    remove_until.begin_wal
+                )
+                if tli == until_begin_tli and log < until_begin_log:
+                    # All WALs under this prefix pre-date the backup being deleted so they
+                    # can be deleted in one request.
+                    deletable_prefixes.append(wal_prefix)
+        for wal_prefix in deletable_prefixes:
+            if not dry_run:
+                cloud_interface.delete_under_prefix(wal_prefix)
+            else:
+                print(
+                    "Skipping deletion of all objects under prefix %s "
+                    "due to --dry-run option" % wal_prefix
+                )
         try:
             wal_paths = catalog.get_wal_paths()
         except Exception as exc:
@@ -115,6 +174,10 @@ def _remove_wals_for_backup(
             )
             return
         for wal_name, wal in wal_paths.items():
+            # If the wal starts with a prefix we deleted then ignore it so that the
+            # dry-run output is accurate
+            if any(wal.startswith(prefix) for prefix in deletable_prefixes):
+                continue
             if xlog.is_history_file(wal_name):
                 continue
             if timelines_to_protect:

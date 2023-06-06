@@ -409,3 +409,37 @@ class S3CloudInterface(CloudInterface):
                     % (error_dict["Key"], error_dict["Code"], error_dict["Message"])
                 )
             raise CloudProviderError()
+
+    def get_prefixes(self, prefix):
+        """
+        Return only the common prefixes under the supplied prefix.
+
+        :param str prefix: The object key prefix under which the common prefixes
+            will be found.
+        :rtype: Iterator[str]
+        :return: A list of unique prefixes immediately under the supplied prefix.
+        """
+        for wal_prefix in self.list_bucket(prefix + "/", delimiter="/"):
+            if wal_prefix.endswith("/"):
+                yield wal_prefix
+
+    def delete_under_prefix(self, prefix):
+        """
+        Delete all objects under the specified prefix.
+
+        :param str prefix: The object key prefix under which all objects should be
+            deleted.
+        """
+        if len(prefix) == 0 or prefix == "/" or not prefix.endswith("/"):
+            raise ValueError(
+                "Deleting all objects under prefix %s is not allowed" % prefix
+            )
+        bucket = self.s3.Bucket(self.bucket_name)
+        for resp in bucket.objects.filter(Prefix=prefix).delete():
+            response_metadata = resp["ResponseMetadata"]
+            if response_metadata["HTTPStatusCode"] != 200:
+                logging.error(
+                    'Deletion of objects under %s failed with error code: "%s"'
+                    % (prefix, response_metadata["HTTPStatusCode"])
+                )
+                raise CloudProviderError()

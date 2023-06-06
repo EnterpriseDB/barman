@@ -350,6 +350,26 @@ class GoogleCloudInterface(CloudInterface):
             logging.error(failures)
             raise CloudProviderError()
 
+    def get_prefixes(self, prefix):
+        """
+        Return only the common prefixes under the supplied prefix.
+
+        :param str prefix: The object key prefix under which the common prefixes
+            will be found.
+        :rtype: Iterator[str]
+        :return: A list of unique prefixes immediately under the supplied prefix.
+        """
+        raise NotImplementedError()
+
+    def delete_under_prefix(self, prefix):
+        """
+        Delete all objects under the specified prefix.
+
+        :param str prefix: The object key prefix under which all objects should be
+            deleted.
+        """
+        raise NotImplementedError()
+
 
 def import_google_cloud_compute():
     """

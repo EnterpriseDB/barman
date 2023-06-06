@@ -60,6 +60,24 @@ class Test(object):
         with pytest.raises(barman.exceptions.BadXlogSegmentName):
             xlog.decode_segment_name("000000000000X00000000000")
 
+    def test_decode_hash_dir(self):
+        """
+        Verify the decoding of the prefix under which WALs are stored.
+        """
+        assert xlog.decode_hash_dir("0000000000000000") == [0, 0]
+        assert xlog.decode_hash_dir("0000000100000001") == [1, 1]
+        assert xlog.decode_hash_dir("0000000A0000000A") == [10, 10]
+        assert xlog.decode_hash_dir("0000001100000011") == [17, 17]
+        assert xlog.decode_hash_dir("0000000000000002") == [0, 2]
+        assert xlog.decode_hash_dir("0000000100000000") == [1, 0]
+        assert xlog.decode_hash_dir("0000000200000001") == [2, 1]
+        with pytest.raises(barman.exceptions.BadXlogPrefix):
+            xlog.decode_hash_dir("000000000000000")
+        with pytest.raises(barman.exceptions.BadXlogPrefix):
+            xlog.decode_hash_dir("000000000000000000")
+        with pytest.raises(barman.exceptions.BadXlogPrefix):
+            xlog.decode_hash_dir("000000000000X000")
+
     def test_generate_segment_names_xlog_file_size_known(self):
         assert tuple(
             xlog.generate_segment_names(

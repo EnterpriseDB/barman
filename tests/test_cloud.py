@@ -1139,6 +1139,99 @@ class TestS3CloudInterface(object):
             Bucket="bucket", Prefix="", Delimiter="/"
         )
 
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface.list_bucket")
+    def test_get_prefixes(self, mock_list_bucket):
+        """
+        Verify get_prefixes only returns prefixes
+        """
+        # GIVEN a cloud interface which returns a number of prefixes and objects
+        mock_list_bucket.return_value = [
+            "wals/0000000100000000/",
+            "wals/0000000200000001/",
+            "wals/00000001.history",
+        ]
+        cloud_interface = S3CloudInterface("s3://bucket/test", encryption=None)
+
+        # WHEN get_prefixes is called for a given prefix
+        prefixes = cloud_interface.get_prefixes("wals")
+
+        # THEN the common prefixes are returned and the objects are not
+        assert [p for p in prefixes] == [
+            "wals/0000000100000000/",
+            "wals/0000000200000001/",
+        ]
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_under_prefix(self, boto_mock):
+        """Verify delete_under_prefix succeeds."""
+        # GIVEN a mock s3 bucket which responds successfully to all deletions
+        s3_mock = boto_mock.Session.return_value.resource.return_value
+        bucket_mock = s3_mock.Bucket.return_value
+        mock_responses = [
+            {"ResponseMetadata": {"HTTPStatusCode": 200}},
+            {"ResponseMetadata": {"HTTPStatusCode": 200}},
+            {"ResponseMetadata": {"HTTPStatusCode": 200}},
+        ]
+        bucket_mock.objects.filter.return_value.delete.return_value = mock_responses
+
+        # AND an S3CloudInterface to that bucket
+        cloud_interface = S3CloudInterface("s3://bucket/test", encryption=None)
+
+        # WHEN delete_under_prefix is called with a given prefix
+        prefix = "wals/0000000100000001/"
+        cloud_interface.delete_under_prefix(prefix)
+
+        # AND the bucket was called with the expected name
+        s3_mock.Bucket.assert_called_once_with(cloud_interface.bucket_name)
+
+        # AND the objects were filtered with the prefix
+        bucket_mock.objects.filter.assert_called_once_with(Prefix=prefix)
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_under_prefix_errors(self, boto_mock):
+        """Verify delete_under_prefix fails if any responses are not 200."""
+        # GIVEN a mock s3 bucket which responds successfully to all deletions
+        s3_mock = boto_mock.Session.return_value.resource.return_value
+        bucket_mock = s3_mock.Bucket.return_value
+        mock_responses = [
+            {"ResponseMetadata": {"HTTPStatusCode": 200}},
+            {"ResponseMetadata": {"HTTPStatusCode": 500}},
+            {"ResponseMetadata": {"HTTPStatusCode": 200}},
+        ]
+        bucket_mock.objects.filter.return_value.delete.return_value = mock_responses
+
+        # AND an S3CloudInterface to that bucket
+        cloud_interface = S3CloudInterface("s3://bucket/test", encryption=None)
+
+        # WHEN delete_under_prefix is called
+        # THEN a CloudProviderError is raised
+        with pytest.raises(CloudProviderError):
+            cloud_interface.delete_under_prefix("wals/0000000100000001/")
+
+    @pytest.mark.parametrize(
+        "prefix",
+        (
+            # An empty prefix should not be deleted
+            "",
+            # A prefix which is just "/" should not be deleted
+            "/",
+            # A prefix without a trailing slash should not be deleted
+            "wals/0000000100000000",
+        ),
+    )
+    def test_delete_under_prefix_failures(self, prefix):
+        """
+        Verify delete_under_prefix will not delete prefixes which would lead to
+        deletion of more than intended.
+        """
+        # GIVEN an S3CloudInterface
+        cloud_interface = S3CloudInterface("s3://bucket/test", encryption=None)
+
+        # WHEN delete_under_prefix is called with a given prefix
+        # THEN a ValueError is raised
+        with pytest.raises(ValueError):
+            cloud_interface.delete_under_prefix(prefix)
+
 
 class TestAzureCloudInterface(object):
     """
@@ -2025,6 +2118,30 @@ class TestAzureCloudInterface(object):
         with open(os.path.join(str(tmpdir), content_filename), "r") as f:
             assert f.read() == content
 
+    @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
+    def test_get_prefixes(self, _container_client_mock):
+        """Verify that get_prefixes raises a NotImplementedError"""
+        # GIVEN an AzureCloudInterface instance
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob"
+        )
+        # WHEN get_prefixes is called
+        # THEN a NotImplementedError is raised
+        with pytest.raises(NotImplementedError):
+            cloud_interface.get_prefixes("prefix/")
+
+    @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
+    def test_delete_under_prefix(self, _container_client_mock):
+        """Verify that delete_under_prefix raises a NotImplementedError"""
+        # GIVEN an AzureCloudInterface instance
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob"
+        )
+        # WHEN delete_under_prefix is called
+        # THEN a NotImplementedError is raised
+        with pytest.raises(NotImplementedError):
+            cloud_interface.delete_under_prefix("prefix/")
+
 
 class TestGoogleCloudInterface(TestCase):
     """
@@ -2481,6 +2598,30 @@ class TestGoogleCloudInterface(TestCase):
                             opened_dest_file,
                             test_case["compression"],
                         )
+
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage")
+    def test_get_prefixes(self, _gcs_storage_mock):
+        """Verify that get_prefixes raises a NotImplementedError"""
+        # GIVEN a GoogleCloudInterface instance
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-test/path/to/object/"
+        )
+        # WHEN get_prefixes is called
+        # THEN a NotImplementedError is raised
+        with pytest.raises(NotImplementedError):
+            cloud_interface.get_prefixes("prefix/")
+
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage")
+    def test_delete_under_prefix(self, _gcs_storage_mock):
+        """Verify that delete_under_prefix raises a NotImplementedError"""
+        # GIVEN a GoogleCloudInterface instance
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-test/path/to/object/"
+        )
+        # WHEN delete_under_prefix is called
+        # THEN a NotImplementedError is raised
+        with pytest.raises(NotImplementedError):
+            cloud_interface.delete_under_prefix("prefix/")
 
 
 class TestGoogleCloudInterfaceParametrized(object):
@@ -3178,6 +3319,18 @@ end_time=2022-11-09 12:05:00
         assert "Unknown backup '%s' for server 'test-server'" % backup_name in str(
             exc.value
         )
+
+    def test_get_wal_prefixes(self):
+        """Verify the retrieval of common WAL prefixes."""
+        # GIVEN a mock cloud interface
+        mock_cloud_interface = mock.Mock(path="namespace")
+        # AND a catalog which uses that interface
+        catalog = CloudBackupCatalog(mock_cloud_interface, "test-server")
+        # WHEN get_wal_prefixes is called for the catalog
+        catalog.get_wal_prefixes()
+        # THEN the get_prefixes method of the cloud interface is called with the
+        # wal_prefix of the catalog
+        mock_cloud_interface.get_prefixes.assert_called_once_with(catalog.wal_prefix)
 
 
 class TestCloudTarUploader(object):
