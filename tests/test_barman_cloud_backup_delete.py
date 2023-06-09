@@ -208,7 +208,7 @@ class TestCloudBackupDelete(object):
             return backup_state[backup_info.backup_id]["files"]
 
         def get_wal_paths():
-            return dict([wal, "wals/%s.gz" % wal] for wal in wals)
+            return dict([wal, "wals/%s/%s.gz" % (wal[0:16], wal)] for wal in wals)
 
         def remove_wal_from_cache(wal_name):
             wals.remove(wal_name)
@@ -1067,8 +1067,8 @@ class TestCloudBackupDelete(object):
             [backup_id],
             wals={
                 backup_id: [
-                    "wals/000000010000000000000074.gz",
-                    "wals/000000010000000000000075.gz",
+                    "wals/0000000100000000/000000010000000000000074.gz",
+                    "wals/0000000100000000/000000010000000000000075.gz",
                 ]
             },
         )
@@ -1120,10 +1120,10 @@ class TestCloudBackupDelete(object):
             [oldest_backup_id],
             wals={
                 oldest_backup_id: [
-                    "wals/000000010000000000000073.gz",
-                    "wals/000000010000000000000074.gz",
-                    "wals/000000010000000000000075.00000028.backup.gz",
-                    "wals/000000010000000000000075.gz",
+                    "wals/0000000100000000/000000010000000000000073.gz",
+                    "wals/0000000100000000/000000010000000000000074.gz",
+                    "wals/0000000100000000/000000010000000000000075.00000028.backup.gz",
+                    "wals/0000000100000000/000000010000000000000075.gz",
                 ]
             },
         )
@@ -1175,9 +1175,9 @@ class TestCloudBackupDelete(object):
             [oldest_backup_id],
             wals={
                 oldest_backup_id: [
-                    "wals/000000010000000000000073.gz",
-                    "wals/000000010000000000000074.gz",
-                    "wals/000000010000000000000075.gz",
+                    "wals/0000000100000000/000000010000000000000073.gz",
+                    "wals/0000000100000000/000000010000000000000074.gz",
+                    "wals/0000000100000000/000000010000000000000075.gz",
                 ]
             },
         )
@@ -1238,8 +1238,8 @@ class TestCloudBackupDelete(object):
             "due to --dry-run option"
         ) in out
         assert (
-            "Skipping deletion of objects ['wals/000000010000000000000073.gz', "
-            "'wals/000000010000000000000074.gz', 'wals/000000010000000000000075.gz'] "
+            "Skipping deletion of objects ['wals/0000000100000000/000000010000000000000073.gz', "
+            "'wals/0000000100000000/000000010000000000000074.gz', 'wals/0000000100000000/000000010000000000000075.gz'] "
             "due to --dry-run option"
         ) in out
 
@@ -1296,13 +1296,13 @@ class TestCloudBackupDelete(object):
             out_of_policy_backup_ids,
             wals={
                 out_of_policy_backup_ids[0]: [
-                    "wals/000000010000000000000075.gz",
-                    "wals/000000010000000000000076.gz",
-                    "wals/000000010000000000000077.gz",
+                    "wals/0000000100000000/000000010000000000000075.gz",
+                    "wals/0000000100000000/000000010000000000000076.gz",
+                    "wals/0000000100000000/000000010000000000000077.gz",
                 ],
                 out_of_policy_backup_ids[1]: [
-                    "wals/000000010000000000000078.gz",
-                    "wals/000000010000000000000079.gz",
+                    "wals/0000000100000000/000000010000000000000078.gz",
+                    "wals/0000000100000000/000000010000000000000079.gz",
                 ],
             },
         )
@@ -1359,9 +1359,9 @@ class TestCloudBackupDelete(object):
             [oldest_backup_id],
             wals={
                 oldest_backup_id: [
-                    "wals/000000020000000000000073.gz",
-                    "wals/000000020000000000000074.gz",
-                    "wals/000000020000000000000075.gz",
+                    "wals/0000000200000000/000000020000000000000073.gz",
+                    "wals/0000000200000000/000000020000000000000074.gz",
+                    "wals/0000000200000000/000000020000000000000075.gz",
                 ]
             },
         )
@@ -1473,9 +1473,9 @@ class TestCloudBackupDelete(object):
             # backup's timeline
             wals={
                 oldest_backup_id: [
-                    "wals/000000010000000000000076.gz",
-                    "wals/000000010000000000000077.gz",
-                    "wals/000000020000000000000075.gz",
+                    "wals/0000000100000000/000000010000000000000076.gz",
+                    "wals/0000000100000000/000000010000000000000077.gz",
+                    "wals/0000000200000000/000000020000000000000075.gz",
                 ]
             },
         )
@@ -1658,12 +1658,12 @@ class TestCloudBackupDelete(object):
             # been deleted
             wals={
                 target_backup_id: [
-                    "wals/000000010000000000000072.gz",
-                    "wals/000000010000000000000076.gz",
-                    "wals/000000010000000000000077.gz",
-                    "wals/000000010000000000000078.gz",
-                    "wals/000000010000000000000079.gz",
-                    "wals/00000001000000000000007A.gz",
+                    "wals/0000000100000000/000000010000000000000072.gz",
+                    "wals/0000000100000000/000000010000000000000076.gz",
+                    "wals/0000000100000000/000000010000000000000077.gz",
+                    "wals/0000000100000000/000000010000000000000078.gz",
+                    "wals/0000000100000000/000000010000000000000079.gz",
+                    "wals/0000000100000000/00000001000000000000007A.gz",
                 ]
             },
         )
@@ -1741,13 +1741,13 @@ class TestCloudBackupDelete(object):
             # been deleted
             wals={
                 target_backup_id: [
-                    "wals/00000001000000000000006E.gz",
-                    "wals/000000010000000000000072.gz",
-                    "wals/000000010000000000000076.gz",
-                    "wals/000000010000000000000077.gz",
-                    "wals/000000010000000000000078.gz",
-                    "wals/000000010000000000000079.gz",
-                    "wals/00000001000000000000007A.gz",
+                    "wals/0000000100000000/00000001000000000000006E.gz",
+                    "wals/0000000100000000/000000010000000000000072.gz",
+                    "wals/0000000100000000/000000010000000000000076.gz",
+                    "wals/0000000100000000/000000010000000000000077.gz",
+                    "wals/0000000100000000/000000010000000000000078.gz",
+                    "wals/0000000100000000/000000010000000000000079.gz",
+                    "wals/0000000100000000/00000001000000000000007A.gz",
                 ]
             },
         )
@@ -1820,22 +1820,22 @@ class TestCloudBackupDelete(object):
                 # AND all WALs for the oldest backup up to the next backup were
                 # deleted because it was non-archival
                 oldest_backup_id: [
-                    "wals/00000001000000000000006E.gz",
-                    "wals/00000001000000000000006F.gz",
-                    "wals/000000010000000000000070.gz",
-                    "wals/000000010000000000000071.gz",
-                    "wals/000000010000000000000072.gz",
+                    "wals/0000000100000000/00000001000000000000006E.gz",
+                    "wals/0000000100000000/00000001000000000000006F.gz",
+                    "wals/0000000100000000/000000010000000000000070.gz",
+                    "wals/0000000100000000/000000010000000000000071.gz",
+                    "wals/0000000100000000/000000010000000000000072.gz",
                 ],
                 # AND all WALs from but not including the end_wal of the archival
                 # backup up to but not including the begin_wal of the newest backup
                 # were deleted - therefore implicitly the WALs of the archival backup
                 # were preserved
                 target_backup_id: [
-                    "wals/000000010000000000000076.gz",
-                    "wals/000000010000000000000077.gz",
-                    "wals/000000010000000000000078.gz",
-                    "wals/000000010000000000000079.gz",
-                    "wals/00000001000000000000007A.gz",
+                    "wals/0000000100000000/000000010000000000000076.gz",
+                    "wals/0000000100000000/000000010000000000000077.gz",
+                    "wals/0000000100000000/000000010000000000000078.gz",
+                    "wals/0000000100000000/000000010000000000000079.gz",
+                    "wals/0000000100000000/00000001000000000000007A.gz",
                 ],
             },
         )
@@ -1980,12 +1980,12 @@ class TestCloudBackupDelete(object):
             # been deleted
             wals={
                 target_backup_id: [
-                    "wals/000000010000000000000072.gz",
-                    "wals/000000010000000000000076.gz",
-                    "wals/000000010000000000000077.gz",
-                    "wals/000000010000000000000078.gz",
-                    "wals/000000010000000000000079.gz",
-                    "wals/00000001000000000000007A.gz",
+                    "wals/0000000100000000/000000010000000000000072.gz",
+                    "wals/0000000100000000/000000010000000000000076.gz",
+                    "wals/0000000100000000/000000010000000000000077.gz",
+                    "wals/0000000100000000/000000010000000000000078.gz",
+                    "wals/0000000100000000/000000010000000000000079.gz",
+                    "wals/0000000100000000/00000001000000000000007A.gz",
                 ]
             },
         )
@@ -2051,8 +2051,8 @@ class TestCloudBackupDelete(object):
         # THEN an error was logged when the first backup could not be deleted
         assert (
             "Could not delete the following WALs for backup 20210722T095432: "
-            "['wals/000000010000000000000075.gz', 'wals/000000010000000000000076.gz', "
-            "'wals/000000010000000000000077.gz'], Reason: Something went wrong on "
+            "['wals/0000000100000000/000000010000000000000075.gz', 'wals/0000000100000000/000000010000000000000076.gz', "
+            "'wals/0000000100000000/000000010000000000000077.gz'], Reason: Something went wrong on "
             "delete" in caplog.text
         )
 
@@ -2066,18 +2066,18 @@ class TestCloudBackupDelete(object):
             # backup deletion
             wals={
                 out_of_policy_backup_ids[0]: [
-                    "wals/000000010000000000000075.gz",
-                    "wals/000000010000000000000076.gz",
-                    "wals/000000010000000000000077.gz",
+                    "wals/0000000100000000/000000010000000000000075.gz",
+                    "wals/0000000100000000/000000010000000000000076.gz",
+                    "wals/0000000100000000/000000010000000000000077.gz",
                 ],
                 # AND the WALs which could not be deleted with the first backup are cleaned
                 # up after deletion of the second backup
                 out_of_policy_backup_ids[1]: [
-                    "wals/000000010000000000000075.gz",
-                    "wals/000000010000000000000076.gz",
-                    "wals/000000010000000000000077.gz",
-                    "wals/000000010000000000000078.gz",
-                    "wals/000000010000000000000079.gz",
+                    "wals/0000000100000000/000000010000000000000075.gz",
+                    "wals/0000000100000000/000000010000000000000076.gz",
+                    "wals/0000000100000000/000000010000000000000077.gz",
+                    "wals/0000000100000000/000000010000000000000078.gz",
+                    "wals/0000000100000000/000000010000000000000079.gz",
                 ],
             },
         )
@@ -2159,11 +2159,11 @@ class TestCloudBackupDelete(object):
                 # AND the WAL which could not be deleted with the first backup is cleaned
                 # up after deletion of the second backup
                 out_of_policy_backup_ids[1]: [
-                    "wals/000000010000000000000075.gz",
-                    "wals/000000010000000000000076.gz",
-                    "wals/000000010000000000000077.gz",
-                    "wals/000000010000000000000078.gz",
-                    "wals/000000010000000000000079.gz",
+                    "wals/0000000100000000/000000010000000000000075.gz",
+                    "wals/0000000100000000/000000010000000000000076.gz",
+                    "wals/0000000100000000/000000010000000000000077.gz",
+                    "wals/0000000100000000/000000010000000000000078.gz",
+                    "wals/0000000100000000/000000010000000000000079.gz",
                 ]
             },
         )
