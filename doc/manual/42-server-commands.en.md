@@ -49,8 +49,6 @@ number of seconds, and the state will remain in `WAITING_FOR_WALS`.The
 `cron` command will continue to check that missing WAL files are
 archived, then label the backup as `DONE`.
 
-
-
 ## `check`
 
 You can check the connection to a given server and the
@@ -71,18 +69,21 @@ barman check <server_name>
 
 ## `generate-manifest`
 
-This command is useful when backup is created remotely and pg_basebackup is not 
+This command is useful when backup is created remotely and pg_basebackup is not
 involved and `backup_manifest` file does not exist in backup.
 It will generate `backup_manifest` file from backup_id using backup in barman server.
 If the file already exist, generation command will abort.
 
 Command example:
+
 ```bash
 barman generate-manifest <server_name> <backup_id>
 ```
+
 Either backup_id [backup id shortcuts]{#backup-id-shortcuts} can be used.
 
 This command can also be used as post_backup hook script as follows:
+
 ```bash
 post_backup_script=barman generate-manifest ${BARMAN_SERVER} ${BARMAN_BACKUP_ID}
 ```
@@ -147,7 +148,7 @@ generate a `restore_command` using the `barman-wal-restore` script.
 connection errors.
 
 This script has many useful options such as the automatic compression and
-decompression of the WAL files and the *peek* feature, which allows you
+decompression of the WAL files and the _peek_ feature, which allows you
 to retrieve the next WAL files while PostgreSQL is applying one of them. It is
 an excellent way to optimise the bandwidth usage between PostgreSQL and
 Barman.
@@ -292,7 +293,6 @@ barman show-servers <server_name>
 > **TIP:** you can request a full configuration report using `all` as
 > the server name.
 
-
 ## `status`
 
 The `status` command shows live information and status of a PostgreSQL
@@ -324,13 +324,15 @@ an error is returned.
 > **NOTE:** In Barman 2.1 and 2.2 this command was called `switch-xlog`.
 > It has been renamed for naming consistency with PostgreSQL 10 and higher.
 
-## `verify`
+## `verify-backup`
 
-The `verify` command uses backup_manifest file from backup and runs 
+The `verify-backup` command uses backup_manifest file from backup and runs
 `pg_verifybackup` against it.  
+
 ```bash
-barman verify <server_name> <backup_id>
+barman verify-backup <server_name> <backup_id>
 ```
+
 This command will call `pg_verifybackup <path_to_backup_manifest> -n` (available on PG>=13)
 `pg_verifybackup` Must be installed on backup server.
 For rsync backups, it can be used with `generate-manifest` command.
