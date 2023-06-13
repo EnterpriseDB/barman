@@ -24,14 +24,16 @@ Then, as `root` simply type:
 yum install barman
 ```
 
-> **NOTE: **
+> **NOTE:**
 > We suggest that you exclude any Barman related packages from getting updated
 > via the PGDG repository. This can be done by adding the following line
 > to any PGDG repository definition that is included in the Barman server inside
 > any `/etc/yum.repos.d/pgdg-*.repo` file:
+
    ```ini
    exclude=barman* python*-barman
    ```
+
 > By doing this, you solely rely on
 > EnterpriseDB's 2ndQuadrant repositories for package management of Barman software.
 
@@ -111,7 +113,7 @@ The following Barman features depend on PostgreSQL binaries:
 * [Streaming backup](#streaming-backup) with `backup_method = postgres` (requires `pg_basebackup`)
 * [Streaming WAL archiving](#wal-streaming) with `streaming_archiver = on` (requires
   `pg_receivewal` or `pg_receivexlog`)
-* [Verifying backups](#verify) with `barman verify-backup` (requires `pg_verifybackup`)
+* [Verifying backups](#verify-backup) with `barman verify-backup` (requires `pg_verifybackup`)
 
 Depending on the target OS these binaries are installed with either the PostgreSQL client or server packages:
 
