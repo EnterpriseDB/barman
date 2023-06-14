@@ -1,5 +1,37 @@
 Barman News - History of user-visible changes
 
+Version 3.6.0 - 15 June 2023
+
+- PostgreSQL version 10 is no longer supported.
+
+- Support is added for snapshot backups on Microsoft Azure using
+  Managed Disks.
+
+- The `--snapshot-recovery-zone` option is renamed `--gcp-zone` for
+  consistency with other provider-specific options. The old name
+  is deprecated and will be removed in a future release.
+
+- The `snapshot_zone` option and `--snapshot-zone` argument are
+  renamed `gcp_zone` and `--gcp-zone` respectively. The old names
+  are deprecated and will be removed in a future release.
+
+- The `snapshot_gcp_project` option and `--snapshot-gcp-project`
+  argument are renamed to `gcp_project` and `--gcp-project`. The
+  old names are deprecated and will be removed in a future release.
+
+- Bug fixes:
+
+    - Barman will no longer attempt to execute the `replication-status`
+      command for a passive node.
+
+    - The `backup_label` is deleted from cloud storage when a
+      snapshot backup is deleted with `barman-cloud-backup-delete`.
+
+    - Man pages for the `generate-manifest` and `verify-backup`
+      commands are added.
+
+    - Minor documentation fixes.
+
 Version 3.5.0 - 29 March 2023
 
 - Python 2.7 is no longer supported. The earliest Python version
