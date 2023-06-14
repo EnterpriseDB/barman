@@ -1071,7 +1071,13 @@ Recovery from a snapshot backup consists of the following steps:
 3. Use the [barman recover](#recover) or [barman-cloud-restore](#barman-cloud-restore-for-snapshots) command to validate and finalize the recovery.
 
 Steps 1 and 2 are best handled by an existing infrastructure-as-code system however it is also possible to carry these steps out manually or using a custom script.
-An example of such a script is [provided with Barman][snapshot-recovery-script] however this script makes various assumptions about the environment in which it runs and should not be considered suitable for production use.
+
+The following resources may be helpful when carrying out these steps:
+
+- An example [recovery script for GCP][snapshot-recovery-script].
+- An example [runbook for Azure][snapshot-recovery-runbook-azure].
+
+The above resources make assumptions about the backup/recovery environment and should not be considered suitable for production use without further customization.
 
 Once the recovery instance is provisioned and disks cloned from the backup snapshots are attached and mounted, run `barman recover` with the following additional arguments:
 
