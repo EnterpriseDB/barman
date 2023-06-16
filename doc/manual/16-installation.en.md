@@ -24,18 +24,25 @@ Then, as `root` simply type:
 yum install barman
 ```
 
-> **NOTE:**
-> We suggest that you exclude any Barman related packages from getting updated
-> via the PGDG repository. This can be done by adding the following line
-> to any PGDG repository definition that is included in the Barman server inside
-> any `/etc/yum.repos.d/pgdg-*.repo` file:
+In addition to the Barman packages available in the EDB and PGDG repositories, Barman RPMs published by the Fedora project can be found in EPEL.
+These RPMs are not maintained by the Barman developers and use a different configuration layout to the packages available in the PGDG and EDB repositories:
 
-   ```ini
-   exclude=barman* python*-barman
-   ```
+- EDB and PGDG packages use `/etc/barman.conf` as the main configuration file and `/etc/barman.d` for additional configuration files.
+- The Fedora packages use `/etc/barman/barman.conf` as the main configuration file and `/etc/barman/conf.d` for additional configuration files.
 
-> By doing this, you solely rely on
-> EnterpriseDB's 2ndQuadrant repositories for package management of Barman software.
+The difference in configuration file layout means that upgrades between the EPEL and non-EPEL Barman packages can break existing Barman installations until configuration files are manually updated.
+We therefore recommend that you use a single source repository for Barman packages.
+This can be achieved by adding the following line to the definition for repositories from which you do not want to obtain Barman packages:
+
+```ini
+exclude=barman* python*-barman
+```
+
+Specifically:
+
+- To use only EDB Barman packages, add the exclude directive to repository definitions in `/etc/yum.repos.d/epel.repo` and `/etc/yum.repos.d/pgdg-*.repo`.
+- To use only PGDG Barman packages, add the exclude directive to repository definitions in `/etc/yum.repos.d/epel.repo` and `/etc/yum.repos.d/enterprisedb*.repo`.
+- To use only EPEL Barman packages, add the exclude directive to repository definitions in `/etc/yum.repos.d/pgdg-*.repo` and `/etc/yum.repos.d/enterprisedb*.repo`.
 
 ## Installation on Debian/Ubuntu using packages
 
