@@ -120,8 +120,14 @@ apt-get install barman-cli-cloud
 
 Install the `barman-cli-cloud` package on the Barman server as described above.
 
-Configure `barman-cloud-backup` as a post backup script by adding the following
-to the Barman configuration for a PostgreSQL server:
+It is possible to use `barman-cloud-backup` as a post backup script for the
+following Barman backup flavours:
+
+- Backups taken with `backup_method = rsync`.
+- Backups taken with `backup_method = postgres` where `backup_compression` is
+  not used.
+
+To do so, add the following to a server configuration in Barman:
 
 ```
 post_backup_retry_script = 'barman-cloud-backup [*OPTIONS*] *DESTINATION_URL* ${BARMAN_SERVER}
