@@ -144,6 +144,14 @@ The [psql][psql] program is recommended in addition to the above binaries.
 While Barman does not use it directly the documentation provides examples of how it can be used to verify PostgreSQL connections are working as intended.
 The `psql` binary can be found in the PostgreSQL client packages.
 
+### Third party PostgreSQL variants
+
+If you are using Barman for the backup and recovery of third-party
+PostgreSQL variants then you will need to check whether the PGDG
+client/server binaries described above are compatible with your variant.
+If they are incompatible then you will need to install compatible
+alternatives from appropriate packages.
+
 # Upgrading Barman
 
 Barman follows the trunk-based development paradigm, and as such
