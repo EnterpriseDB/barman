@@ -7,4 +7,9 @@ streaming_archiver
     checks as well as management (including compression) of WAL files.
     If set to `off` (default) barman will rely only on continuous archiving
     for a server WAL archive operations, eventually terminating any running
-    `pg_receivexlog` for the server. Global/Server.
+    `pg_receivexlog` for the server.  Note: If neither `streaming_archiver`
+    nor `archiver` are set, Barman will automatically set `archiver` to
+    `true`. This is in order to maintain parity with deprecated behaviour
+    where `archiver` would be enabled by default. This behaviour will be
+    removed from the next major Barman version.
+    Global/Server.

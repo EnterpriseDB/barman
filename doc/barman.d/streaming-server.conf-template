@@ -36,5 +36,9 @@ slot_name = barman
 ;streaming_archiver_name = barman_receive_wal
 ;streaming_archiver_batch_size = 50
 
+; Uncomment the following line if you are also using archive_command
+; otherwise the "empty incoming directory" check will fail
+;archiver = on
+
 ; PATH setting for this server
 ;path_prefix = "/usr/pgsql-12/bin"
