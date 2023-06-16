@@ -73,12 +73,17 @@ setup.
 .B archiver
 This option allows you to activate log file shipping through
 PostgreSQL\[aq]s \f[C]archive_command\f[] for a server.
-If set to \f[C]true\f[] (default), Barman expects that continuous
-archiving for a server is in place and will activate checks as well as
-management (including compression) of WAL files that Postgres deposits
-in the \f[I]incoming\f[] directory.
-Setting it to \f[C]false\f[], will disable standard continuous archiving
-for a server.
+If set to \f[C]true\f[], Barman expects that continuous archiving for a
+server is in place and will activate checks as well as management
+(including compression) of WAL files that Postgres deposits in the
+\f[I]incoming\f[] directory.
+Setting it to \f[C]false\f[] (default), will disable standard continuous
+archiving for a server.
+Note: If neither \f[C]archiver\f[] nor \f[C]streaming_archiver\f[] are
+set, Barman will automatically set this option to \f[C]true\f[].
+This is in order to maintain parity with deprecated behaviour where
+\f[C]archiver\f[] would be enabled by default.
+This behaviour will be removed from the next major Barman version.
 Global/Server.
 .RS
 .RE
@@ -886,6 +891,11 @@ compression) of WAL files.
 If set to \f[C]off\f[] (default) barman will rely only on continuous
 archiving for a server WAL archive operations, eventually terminating
 any running \f[C]pg_receivexlog\f[] for the server.
+Note: If neither \f[C]streaming_archiver\f[] nor \f[C]archiver\f[] are
+set, Barman will automatically set \f[C]archiver\f[] to \f[C]true\f[].
+This is in order to maintain parity with deprecated behaviour where
+\f[C]archiver\f[] would be enabled by default.
+This behaviour will be removed from the next major Barman version.
 Global/Server.
 .RS
 .RE
