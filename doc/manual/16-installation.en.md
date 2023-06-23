@@ -32,7 +32,7 @@ These RPMs are not maintained by the Barman developers and use a different confi
 
 The difference in configuration file layout means that upgrades between the EPEL and non-EPEL Barman packages can break existing Barman installations until configuration files are manually updated.
 We therefore recommend that you use a single source repository for Barman packages.
-This can be achieved by adding the following line to the definition for repositories from which you do not want to obtain Barman packages:
+This can be achieved by adding the following line to the definition of the repositories from which you do not want to obtain Barman packages:
 
 ```ini
 exclude=barman* python*-barman
@@ -40,9 +40,9 @@ exclude=barman* python*-barman
 
 Specifically:
 
-- To use only EDB Barman packages, add the exclude directive to repository definitions in `/etc/yum.repos.d/epel.repo` and `/etc/yum.repos.d/pgdg-*.repo`.
-- To use only PGDG Barman packages, add the exclude directive to repository definitions in `/etc/yum.repos.d/epel.repo` and `/etc/yum.repos.d/enterprisedb*.repo`.
-- To use only EPEL Barman packages, add the exclude directive to repository definitions in `/etc/yum.repos.d/pgdg-*.repo` and `/etc/yum.repos.d/enterprisedb*.repo`.
+- To use only Barman packages from the EDB repositories, add the exclude directive from above to repository definitions in `/etc/yum.repos.d/epel.repo` and `/etc/yum.repos.d/pgdg-*.repo`.
+- To use only Barman packages from the PGDG repositories, add the exclude directive from above to repository definitions in `/etc/yum.repos.d/epel.repo` and `/etc/yum.repos.d/enterprisedb*.repo`.
+- To use only Barman packages from the EPEL repositories, add the exclude directive from above to repository definitions in `/etc/yum.repos.d/pgdg-*.repo` and `/etc/yum.repos.d/enterprisedb*.repo`.
 
 ## Installation on Debian/Ubuntu using packages
 
