@@ -242,21 +242,23 @@ class S3CloudInterface(CloudInterface):
         if prefix.startswith(delimiter):
             prefix = prefix.lstrip(delimiter)
 
-        res = self.s3.meta.client.list_objects_v2(
+        paginator = self.s3.meta.client.get_paginator("list_objects_v2")
+        pages = paginator.paginate(
             Bucket=self.bucket_name, Prefix=prefix, Delimiter=delimiter
         )
 
-        # List "folders"
-        keys = res.get("CommonPrefixes")
-        if keys is not None:
-            for k in keys:
-                yield k.get("Prefix")
+        for page in pages:
+            # List "folders"
+            keys = page.get("CommonPrefixes")
+            if keys is not None:
+                for k in keys:
+                    yield k.get("Prefix")
 
-        # List "files"
-        objects = res.get("Contents")
-        if objects is not None:
-            for o in objects:
-                yield o.get("Key")
+            # List "files"
+            objects = page.get("Contents")
+            if objects is not None:
+                for o in objects:
+                    yield o.get("Key")
 
     def download_file(self, key, dest_path, decompress):
         """
@@ -407,3 +409,37 @@ class S3CloudInterface(CloudInterface):
                     % (error_dict["Key"], error_dict["Code"], error_dict["Message"])
                 )
             raise CloudProviderError()
+
+    def get_prefixes(self, prefix):
+        """
+        Return only the common prefixes under the supplied prefix.
+
+        :param str prefix: The object key prefix under which the common prefixes
+            will be found.
+        :rtype: Iterator[str]
+        :return: A list of unique prefixes immediately under the supplied prefix.
+        """
+        for wal_prefix in self.list_bucket(prefix + "/", delimiter="/"):
+            if wal_prefix.endswith("/"):
+                yield wal_prefix
+
+    def delete_under_prefix(self, prefix):
+        """
+        Delete all objects under the specified prefix.
+
+        :param str prefix: The object key prefix under which all objects should be
+            deleted.
+        """
+        if len(prefix) == 0 or prefix == "/" or not prefix.endswith("/"):
+            raise ValueError(
+                "Deleting all objects under prefix %s is not allowed" % prefix
+            )
+        bucket = self.s3.Bucket(self.bucket_name)
+        for resp in bucket.objects.filter(Prefix=prefix).delete():
+            response_metadata = resp["ResponseMetadata"]
+            if response_metadata["HTTPStatusCode"] != 200:
+                logging.error(
+                    'Deletion of objects under %s failed with error code: "%s"'
+                    % (prefix, response_metadata["HTTPStatusCode"])
+                )
+                raise CloudProviderError()

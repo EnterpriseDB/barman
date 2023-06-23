@@ -29,6 +29,7 @@ from tempfile import NamedTemporaryFile
 
 from barman.exceptions import (
     BadHistoryFileContents,
+    BadXlogPrefix,
     BadXlogSegmentName,
     CommandException,
     WalArchiveContentError,
@@ -53,6 +54,9 @@ _xlog_re = re.compile(
     """,
     re.VERBOSE,
 )
+
+# xlog prefix parser (regular expression)
+_xlog_prefix_re = re.compile(r"^([\dA-Fa-f]{8})([\dA-Fa-f]{8})$")
 
 # xlog location parser for concurrent backup (regular expression)
 _location_re = re.compile(r"^([\dA-F]+)/([\dA-F]+)$")
@@ -313,6 +317,24 @@ def hash_dir(path):
         return "%08X%08X" % (tli, log)
     else:
         return ""
+
+
+def decode_hash_dir(hash_dir):
+    """
+    Get the timeline and log from a hash dir prefix.
+
+    :param str hash_dir: A string representing the prefix used when determining
+        the folder or object key prefix under which Barman will store a given
+        WAL segment. This prefix is composed of the timeline and the higher 32-bit
+        number of the WAL segment.
+    :rtype: List[int]
+    :return: A list of two elements where the first item is the timeline and the
+        second is the higher 32-bit number of the WAL segment.
+    """
+    match = _xlog_prefix_re.match(hash_dir)
+    if not match:
+        raise BadXlogPrefix(hash_dir)
+    return [int(x, 16) if x else None for x in match.groups()]
 
 
 def parse_lsn(lsn_string):

@@ -207,8 +207,14 @@ class TestCloudBackupDelete(object):
         def get_backup_files(backup_info, allow_missing=False):
             return backup_state[backup_info.backup_id]["files"]
 
+        def get_wal_prefixes():
+            for wal in sorted(
+                set(wal[0:16] for wal in wals if not wal.endswith("history"))
+            ):
+                yield "wals/" + wal + "/"
+
         def get_wal_paths():
-            return dict([wal, "wals/%s.gz" % wal] for wal in wals)
+            return dict([wal, "wals/%s/%s.gz" % (wal[0:16], wal)] for wal in wals)
 
         def remove_wal_from_cache(wal_name):
             wals.remove(wal_name)
@@ -239,24 +245,41 @@ class TestCloudBackupDelete(object):
                 "get_wal_paths.side_effect": get_wal_paths,
                 "remove_wal_from_cache.side_effect": remove_wal_from_cache,
                 "parse_backup_id.side_effect": parse_backup_id,
+                "get_wal_prefixes.side_effect": get_wal_prefixes,
             }
         )
         catalog.should_keep_backup.return_value = False
         catalog.get_keep_target.return_value = None
         return catalog
 
-    def _verify_cloud_interface_calls(self, get_cloud_interface_mock, expected_calls):
+    def _verify_cloud_interface_calls(
+        self,
+        get_cloud_interface_mock,
+        expected_delete_object_calls,
+        expected_delete_under_prefix_calls,
+    ):
         """
-        Verify that cloud_interface.delete_objects was called only with the arguments
-        provided in expected_calls and only in that order.
+        Verify that:
+        - cloud_interface.delete_objects was called only with the arguments provided
+          in expected_delete_object_calls and only in that order.
+        - cloud_interface.delete_under_prefix was called only with the arguments provided
+          in expected_delete_under_prefix_calls and only in that order.
         """
         cloud_interface_mock = get_cloud_interface_mock.return_value
         assert len(cloud_interface_mock.delete_objects.call_args_list) == len(
-            expected_calls
+            expected_delete_object_calls
         )
-        for i, call_args in enumerate(expected_calls):
+        for i, call_args in enumerate(expected_delete_object_calls):
             assert (
                 call_args == cloud_interface_mock.delete_objects.call_args_list[i][0][0]
+            )
+        assert len(cloud_interface_mock.delete_under_prefix.call_args_list) == len(
+            expected_delete_under_prefix_calls
+        )
+        for i, call_args in enumerate(expected_delete_under_prefix_calls):
+            assert (
+                call_args
+                == cloud_interface_mock.delete_under_prefix.call_args_list[i][0][0]
             )
 
     def _verify_only_these_backups_deleted(
@@ -265,6 +288,7 @@ class TestCloudBackupDelete(object):
         backup_metadata,
         backup_ids,
         wals={},
+        wal_prefixes={},
         is_snapshot_backup=False,
     ):
         """
@@ -280,24 +304,34 @@ class TestCloudBackupDelete(object):
           3. Optionally (if a list of WALs exists in `wals` for the backup being
              deleted) that the expected WALs were deleted.
         """
-        call_args = []
+        delete_objects_calls = []
+        delete_under_prefix_calls = []
         for backup_id in backup_ids:
             # We expect snapshot backups to delete the backup_label since it is not
             # stored within a tarball.
             if is_snapshot_backup:
-                call_args.append(["%s/backup_label" % backup_id])
-            call_args.append(
+                delete_objects_calls.append(["%s/backup_label" % backup_id])
+            delete_objects_calls.append(
                 self._get_sorted_files_for_backup(backup_metadata, backup_id)
             )
-            call_args.append(["%s/backup.info" % backup_id])
+            delete_objects_calls.append(["%s/backup.info" % backup_id])
             try:
-                call_args.append(wals[backup_id])
+                delete_objects_calls.append(wals[backup_id])
             except KeyError:
                 # Not all tests expect WALs to be deleted so silently continue here
                 pass
+            try:
+                for wal_prefix in wal_prefixes[backup_id]:
+                    delete_under_prefix_calls.append(wal_prefix)
+            except KeyError:
+                # Not all tests expect WAL prefixes to be deleted so silently continue
+                # here
+                pass
+
         self._verify_cloud_interface_calls(
             get_cloud_interface_mock,
-            call_args,
+            delete_objects_calls,
+            delete_under_prefix_calls,
         )
 
     @pytest.mark.parametrize("backup_id_arg", ("20210723T095432", "backup name"))
@@ -1067,8 +1101,8 @@ class TestCloudBackupDelete(object):
             [backup_id],
             wals={
                 backup_id: [
-                    "wals/000000010000000000000074.gz",
-                    "wals/000000010000000000000075.gz",
+                    "wals/0000000100000000/000000010000000000000074.gz",
+                    "wals/0000000100000000/000000010000000000000075.gz",
                 ]
             },
         )
@@ -1120,10 +1154,10 @@ class TestCloudBackupDelete(object):
             [oldest_backup_id],
             wals={
                 oldest_backup_id: [
-                    "wals/000000010000000000000073.gz",
-                    "wals/000000010000000000000074.gz",
-                    "wals/000000010000000000000075.00000028.backup.gz",
-                    "wals/000000010000000000000075.gz",
+                    "wals/0000000100000000/000000010000000000000073.gz",
+                    "wals/0000000100000000/000000010000000000000074.gz",
+                    "wals/0000000100000000/000000010000000000000075.00000028.backup.gz",
+                    "wals/0000000100000000/000000010000000000000075.gz",
                 ]
             },
         )
@@ -1175,9 +1209,9 @@ class TestCloudBackupDelete(object):
             [oldest_backup_id],
             wals={
                 oldest_backup_id: [
-                    "wals/000000010000000000000073.gz",
-                    "wals/000000010000000000000074.gz",
-                    "wals/000000010000000000000075.gz",
+                    "wals/0000000100000000/000000010000000000000073.gz",
+                    "wals/0000000100000000/000000010000000000000074.gz",
+                    "wals/0000000100000000/000000010000000000000075.gz",
                 ]
             },
         )
@@ -1195,8 +1229,8 @@ class TestCloudBackupDelete(object):
         backup_id = "20210723T095432"
         oldest_backup_id = "20210722T095432"
         begin_wals = {
-            backup_id: "000000010000000000000076",
-            oldest_backup_id: "000000010000000000000075",
+            backup_id: "000000010000000100000001",
+            oldest_backup_id: "0000000100000000000000FE",
         }
         backup_metadata = self._create_backup_metadata(
             [backup_id, oldest_backup_id], begin_wals=begin_wals
@@ -1207,10 +1241,10 @@ class TestCloudBackupDelete(object):
         cloud_backup_catalog_mock.return_value = self._create_catalog(
             backup_metadata,
             wals=[
-                "000000010000000000000073",
-                "000000010000000000000074",
-                "000000010000000000000075",
-                "000000010000000000000076",
+                "0000000100000000000000FE",
+                "0000000100000000000000FF",
+                "000000010000000100000000",
+                "000000010000000100000001",
             ],
         )
 
@@ -1238,8 +1272,11 @@ class TestCloudBackupDelete(object):
             "due to --dry-run option"
         ) in out
         assert (
-            "Skipping deletion of objects ['wals/000000010000000000000073.gz', "
-            "'wals/000000010000000000000074.gz', 'wals/000000010000000000000075.gz'] "
+            "Skipping deletion of all objects under prefix wals/0000000100000000/ "
+            "due to --dry-run option"
+        ) in out
+        assert (
+            "Skipping deletion of objects ['wals/0000000100000001/000000010000000100000000.gz'] "
             "due to --dry-run option"
         ) in out
 
@@ -1296,13 +1333,13 @@ class TestCloudBackupDelete(object):
             out_of_policy_backup_ids,
             wals={
                 out_of_policy_backup_ids[0]: [
-                    "wals/000000010000000000000075.gz",
-                    "wals/000000010000000000000076.gz",
-                    "wals/000000010000000000000077.gz",
+                    "wals/0000000100000000/000000010000000000000075.gz",
+                    "wals/0000000100000000/000000010000000000000076.gz",
+                    "wals/0000000100000000/000000010000000000000077.gz",
                 ],
                 out_of_policy_backup_ids[1]: [
-                    "wals/000000010000000000000078.gz",
-                    "wals/000000010000000000000079.gz",
+                    "wals/0000000100000000/000000010000000000000078.gz",
+                    "wals/0000000100000000/000000010000000000000079.gz",
                 ],
             },
         )
@@ -1359,9 +1396,9 @@ class TestCloudBackupDelete(object):
             [oldest_backup_id],
             wals={
                 oldest_backup_id: [
-                    "wals/000000020000000000000073.gz",
-                    "wals/000000020000000000000074.gz",
-                    "wals/000000020000000000000075.gz",
+                    "wals/0000000200000000/000000020000000000000073.gz",
+                    "wals/0000000200000000/000000020000000000000074.gz",
+                    "wals/0000000200000000/000000020000000000000075.gz",
                 ]
             },
         )
@@ -1473,9 +1510,9 @@ class TestCloudBackupDelete(object):
             # backup's timeline
             wals={
                 oldest_backup_id: [
-                    "wals/000000010000000000000076.gz",
-                    "wals/000000010000000000000077.gz",
-                    "wals/000000020000000000000075.gz",
+                    "wals/0000000100000000/000000010000000000000076.gz",
+                    "wals/0000000100000000/000000010000000000000077.gz",
+                    "wals/0000000200000000/000000020000000000000075.gz",
                 ]
             },
         )
@@ -1658,12 +1695,12 @@ class TestCloudBackupDelete(object):
             # been deleted
             wals={
                 target_backup_id: [
-                    "wals/000000010000000000000072.gz",
-                    "wals/000000010000000000000076.gz",
-                    "wals/000000010000000000000077.gz",
-                    "wals/000000010000000000000078.gz",
-                    "wals/000000010000000000000079.gz",
-                    "wals/00000001000000000000007A.gz",
+                    "wals/0000000100000000/000000010000000000000072.gz",
+                    "wals/0000000100000000/000000010000000000000076.gz",
+                    "wals/0000000100000000/000000010000000000000077.gz",
+                    "wals/0000000100000000/000000010000000000000078.gz",
+                    "wals/0000000100000000/000000010000000000000079.gz",
+                    "wals/0000000100000000/00000001000000000000007A.gz",
                 ]
             },
         )
@@ -1741,13 +1778,13 @@ class TestCloudBackupDelete(object):
             # been deleted
             wals={
                 target_backup_id: [
-                    "wals/00000001000000000000006E.gz",
-                    "wals/000000010000000000000072.gz",
-                    "wals/000000010000000000000076.gz",
-                    "wals/000000010000000000000077.gz",
-                    "wals/000000010000000000000078.gz",
-                    "wals/000000010000000000000079.gz",
-                    "wals/00000001000000000000007A.gz",
+                    "wals/0000000100000000/00000001000000000000006E.gz",
+                    "wals/0000000100000000/000000010000000000000072.gz",
+                    "wals/0000000100000000/000000010000000000000076.gz",
+                    "wals/0000000100000000/000000010000000000000077.gz",
+                    "wals/0000000100000000/000000010000000000000078.gz",
+                    "wals/0000000100000000/000000010000000000000079.gz",
+                    "wals/0000000100000000/00000001000000000000007A.gz",
                 ]
             },
         )
@@ -1820,22 +1857,22 @@ class TestCloudBackupDelete(object):
                 # AND all WALs for the oldest backup up to the next backup were
                 # deleted because it was non-archival
                 oldest_backup_id: [
-                    "wals/00000001000000000000006E.gz",
-                    "wals/00000001000000000000006F.gz",
-                    "wals/000000010000000000000070.gz",
-                    "wals/000000010000000000000071.gz",
-                    "wals/000000010000000000000072.gz",
+                    "wals/0000000100000000/00000001000000000000006E.gz",
+                    "wals/0000000100000000/00000001000000000000006F.gz",
+                    "wals/0000000100000000/000000010000000000000070.gz",
+                    "wals/0000000100000000/000000010000000000000071.gz",
+                    "wals/0000000100000000/000000010000000000000072.gz",
                 ],
                 # AND all WALs from but not including the end_wal of the archival
                 # backup up to but not including the begin_wal of the newest backup
                 # were deleted - therefore implicitly the WALs of the archival backup
                 # were preserved
                 target_backup_id: [
-                    "wals/000000010000000000000076.gz",
-                    "wals/000000010000000000000077.gz",
-                    "wals/000000010000000000000078.gz",
-                    "wals/000000010000000000000079.gz",
-                    "wals/00000001000000000000007A.gz",
+                    "wals/0000000100000000/000000010000000000000076.gz",
+                    "wals/0000000100000000/000000010000000000000077.gz",
+                    "wals/0000000100000000/000000010000000000000078.gz",
+                    "wals/0000000100000000/000000010000000000000079.gz",
+                    "wals/0000000100000000/00000001000000000000007A.gz",
                 ],
             },
         )
@@ -1980,12 +2017,12 @@ class TestCloudBackupDelete(object):
             # been deleted
             wals={
                 target_backup_id: [
-                    "wals/000000010000000000000072.gz",
-                    "wals/000000010000000000000076.gz",
-                    "wals/000000010000000000000077.gz",
-                    "wals/000000010000000000000078.gz",
-                    "wals/000000010000000000000079.gz",
-                    "wals/00000001000000000000007A.gz",
+                    "wals/0000000100000000/000000010000000000000072.gz",
+                    "wals/0000000100000000/000000010000000000000076.gz",
+                    "wals/0000000100000000/000000010000000000000077.gz",
+                    "wals/0000000100000000/000000010000000000000078.gz",
+                    "wals/0000000100000000/000000010000000000000079.gz",
+                    "wals/0000000100000000/00000001000000000000007A.gz",
                 ]
             },
         )
@@ -2051,8 +2088,8 @@ class TestCloudBackupDelete(object):
         # THEN an error was logged when the first backup could not be deleted
         assert (
             "Could not delete the following WALs for backup 20210722T095432: "
-            "['wals/000000010000000000000075.gz', 'wals/000000010000000000000076.gz', "
-            "'wals/000000010000000000000077.gz'], Reason: Something went wrong on "
+            "['wals/0000000100000000/000000010000000000000075.gz', 'wals/0000000100000000/000000010000000000000076.gz', "
+            "'wals/0000000100000000/000000010000000000000077.gz'], Reason: Something went wrong on "
             "delete" in caplog.text
         )
 
@@ -2066,18 +2103,18 @@ class TestCloudBackupDelete(object):
             # backup deletion
             wals={
                 out_of_policy_backup_ids[0]: [
-                    "wals/000000010000000000000075.gz",
-                    "wals/000000010000000000000076.gz",
-                    "wals/000000010000000000000077.gz",
+                    "wals/0000000100000000/000000010000000000000075.gz",
+                    "wals/0000000100000000/000000010000000000000076.gz",
+                    "wals/0000000100000000/000000010000000000000077.gz",
                 ],
                 # AND the WALs which could not be deleted with the first backup are cleaned
                 # up after deletion of the second backup
                 out_of_policy_backup_ids[1]: [
-                    "wals/000000010000000000000075.gz",
-                    "wals/000000010000000000000076.gz",
-                    "wals/000000010000000000000077.gz",
-                    "wals/000000010000000000000078.gz",
-                    "wals/000000010000000000000079.gz",
+                    "wals/0000000100000000/000000010000000000000075.gz",
+                    "wals/0000000100000000/000000010000000000000076.gz",
+                    "wals/0000000100000000/000000010000000000000077.gz",
+                    "wals/0000000100000000/000000010000000000000078.gz",
+                    "wals/0000000100000000/000000010000000000000079.gz",
                 ],
             },
         )
@@ -2159,11 +2196,464 @@ class TestCloudBackupDelete(object):
                 # AND the WAL which could not be deleted with the first backup is cleaned
                 # up after deletion of the second backup
                 out_of_policy_backup_ids[1]: [
-                    "wals/000000010000000000000075.gz",
-                    "wals/000000010000000000000076.gz",
-                    "wals/000000010000000000000077.gz",
-                    "wals/000000010000000000000078.gz",
-                    "wals/000000010000000000000079.gz",
+                    "wals/0000000100000000/000000010000000000000075.gz",
+                    "wals/0000000100000000/000000010000000000000076.gz",
+                    "wals/0000000100000000/000000010000000000000077.gz",
+                    "wals/0000000100000000/000000010000000000000078.gz",
+                    "wals/0000000100000000/000000010000000000000079.gz",
                 ]
             },
+        )
+
+    @pytest.mark.parametrize(
+        (
+            "wal_catalog",
+            "backups",
+            "delete_args",
+            "expected_backup_deletions",
+            "expected_prefix_deletions",
+            "expected_wal_deletions",
+        ),
+        (
+            (
+                # GIVEN a WAL catalog with two WALs with different log values
+                ["0000000100000000000000FF", "000000010000000100000000"],
+                # AND a backup with a begin_wal in the most recent log
+                {"20230609T120000": {"begin_wal": "000000010000000100000000"}},
+                # WHEN the backup is deleted
+                ["--backup-id", "20230609T120000"],
+                # THEN the deleted backup was deleted
+                ["20230609T120000"],
+                # AND the WAL prefix where the log is less than the deleted backup
+                # begin_wal is bulk deleted
+                {"20230609T120000": ["wals/0000000100000000/"]},
+                # AND no individual WALs were deleted
+                {},
+            ),
+            (
+                # GIVEN a WAL catalog with WALs with two different log values
+                [
+                    "0000000100000000000000FF",
+                    "000000010000000100000000",
+                    "000000010000000100000001",
+                ],
+                # AND a backup with a begin_wal in the most recent log where there
+                # is an earlier WAL segment in the same log
+                {"20230609T120000": {"begin_wal": "000000010000000100000001"}},
+                # WHEN the backup is deleted
+                ["--backup-id", "20230609T120000"],
+                # THEN the deleted backup was deleted
+                ["20230609T120000"],
+                # AND the WAL prefix where the log is less than the deleted backup
+                # begin_wal is bulk deleted
+                {"20230609T120000": ["wals/0000000100000000/"]},
+                # AND the WAL in the same prefix as the deleted backup but earlier
+                # than its begin_wal was deleted
+                {
+                    "20230609T120000": [
+                        "wals/0000000100000001/000000010000000100000000.gz"
+                    ]
+                },
+            ),
+            (
+                # GIVEN a WAL catalog with WALs spanning three different log values
+                [
+                    "0000000100000000000000FF",
+                    "000000010000000100000000",
+                    "0000000100000001000000FF",
+                    "000000010000000200000000",
+                    "000000010000000200000001",
+                    "000000010000000200000002",
+                    "000000010000000200000003",
+                ],
+                # AND a backup with a begin_wal in the most recent log
+                {"20230609T120000": {"begin_wal": "000000010000000200000002"}},
+                # WHEN the backup is deleted
+                ["--backup-id", "20230609T120000"],
+                # THEN the deleted backup was deleted
+                ["20230609T120000"],
+                # AND the WAL prefix where the log is less than the deleted backup
+                # begin_wal is bulk deleted
+                {
+                    "20230609T120000": [
+                        "wals/0000000100000000/",
+                        "wals/0000000100000001/",
+                    ]
+                },
+                # AND WALs earlier than begin_wal but in the same prefix were also
+                # deleted
+                {
+                    "20230609T120000": [
+                        "wals/0000000100000002/000000010000000200000000.gz",
+                        "wals/0000000100000002/000000010000000200000001.gz",
+                    ]
+                },
+            ),
+            (
+                # GIVEN a WAL catalog with two WALs with different tli and log values
+                ["0000000100000000000000FF", "000000020000000100000000"],
+                # AND a backup with a begin_wal in the most recent log
+                {"20230609T120000": {"begin_wal": "000000020000000100000000"}},
+                # WHEN the backup is deleted
+                ["--backup-id", "20230609T120000"],
+                # THEN the deleted backup was deleted
+                ["20230609T120000"],
+                # AND no WAL prefixes were deleted
+                {},
+                # AND the WALs on the old timeline were deleted
+                {
+                    "20230609T120000": [
+                        "wals/0000000100000000/0000000100000000000000FF.gz"
+                    ]
+                },
+            ),
+            (
+                # GIVEN a WAL catalog spanning multiple logs
+                [
+                    "0000000100000000000000FE",
+                    "0000000100000000000000FF",
+                    "000000010000000100000000",
+                    "0000000100000001000000FF",
+                    "000000010000000200000000",
+                    "000000010000000200000001",
+                ],
+                {
+                    # AND a backup with a begin_wal in the earliest log
+                    "20230609T120000": {
+                        "begin_wal": "0000000100000000000000FE",
+                        "end_wal": "0000000100000000000000FE",
+                    },
+                    # AND a newer backup with a begin_wal in the later log
+                    "20230610T120000": {
+                        "begin_wal": "000000010000000200000001",
+                        "end_wal": "000000010000000200000001",
+                    },
+                },
+                # WHEN the earlier backup is deleted
+                ["--backup-id", "20230609T120000"],
+                # THEN the deleted backup was deleted
+                ["20230609T120000"],
+                # AND the older WAL prefixes were deleted
+                {
+                    "20230609T120000": [
+                        "wals/0000000100000000/",
+                        "wals/0000000100000001/",
+                    ]
+                },
+                # AND the WAL earler than begin_wal of the remaining backup was deleted
+                {
+                    "20230609T120000": [
+                        "wals/0000000100000002/000000010000000200000000.gz"
+                    ]
+                },
+            ),
+            (
+                # GIVEN a WAL catalog spanning multiple logs
+                [
+                    "0000000100000000000000FE",
+                    "0000000100000000000000FF",
+                    "000000010000000100000000",
+                    "0000000100000001000000FF",
+                    "000000010000000200000000",
+                    "000000010000000200000001",
+                ],
+                {
+                    # AND a backup with a begin_wal in the earliest log
+                    "20230609T120000": {
+                        "begin_wal": "0000000100000000000000FE",
+                        "end_wal": "0000000100000000000000FE",
+                    },
+                    # AND a newer backup with a begin_wal in the later log
+                    "20230610T120000": {
+                        "begin_wal": "000000010000000200000001",
+                        "end_wal": "000000010000000200000001",
+                    },
+                },
+                # WHEN the earlier backup is deleted by retention policy
+                ["--retention-policy", "REDUNDANCY 1"],
+                # THEN the deleted backup was deleted
+                ["20230609T120000"],
+                # AND the older WAL prefixes were deleted
+                {
+                    "20230609T120000": [
+                        "wals/0000000100000000/",
+                        "wals/0000000100000001/",
+                    ]
+                },
+                # AND the WAL earler than begin_wal of the remaining backup was deleted
+                {
+                    "20230609T120000": [
+                        "wals/0000000100000002/000000010000000200000000.gz"
+                    ]
+                },
+            ),
+            (
+                # GIVEN a WAL catalog spanning multiple logs
+                [
+                    "0000000100000000000000FE",
+                    "0000000100000000000000FF",
+                    "000000010000000100000000",
+                    "00000001000000010000007F",
+                    "000000010000000100000080",
+                    "0000000100000001000000FF",
+                    "000000010000000200000000",
+                    "000000010000000200000001",
+                    "000000010000000200000002",
+                ],
+                {
+                    # AND a keep:full backup with a begin and end WAL in the
+                    # middle log
+                    "20230608T120000": {
+                        "begin_wal": "00000001000000010000007F",
+                        "end_wal": "000000010000000100000080",
+                        "keep": KeepManager.TARGET_FULL,
+                    },
+                    # AND a newer backup with a begin_wal in the later log
+                    "20230609T120000": {
+                        "begin_wal": "000000010000000200000001",
+                        "end_wal": "000000010000000200000001",
+                    },
+                    # AND a newer backup
+                    "20230610T120000": {
+                        "begin_wal": "000000010000000200000002",
+                        "end_wal": "000000010000000200000002",
+                    },
+                },
+                # WHEN the middle backup is deleted by retention policy
+                ["--retention-policy", "REDUNDANCY 1"],
+                # THEN the deleted backup was deleted
+                ["20230609T120000"],
+                # AND no WAL prefixes were deleted
+                {},
+                # AND no WAL files were deleted
+                {},
+            ),
+            (
+                # GIVEN a WAL catalog spanning multiple logs
+                [
+                    "0000000100000000000000FE",
+                    "0000000100000000000000FF",
+                    "000000010000000100000000",
+                    "00000001000000010000007F",
+                    "000000010000000100000080",
+                    "0000000100000001000000FF",
+                    "000000010000000200000000",
+                    "000000010000000200000001",
+                    "000000010000000200000002",
+                ],
+                {
+                    # AND a keep:full backup with a begin and end WAL in the
+                    # middle log
+                    "20230608T120000": {
+                        "begin_wal": "00000001000000010000007F",
+                        "end_wal": "000000010000000100000080",
+                        "keep": KeepManager.TARGET_STANDALONE,
+                    },
+                    # AND a newer backup with a begin_wal in the later log
+                    "20230609T120000": {
+                        "begin_wal": "000000010000000200000000",
+                        "end_wal": "000000010000000200000000",
+                    },
+                    # AND a newer backup
+                    "20230610T120000": {
+                        "begin_wal": "000000010000000200000001",
+                        "end_wal": "000000010000000200000002",
+                    },
+                },
+                # WHEN the middle backup is deleted by retention policy
+                ["--retention-policy", "REDUNDANCY 1"],
+                # THEN the deleted backup was deleted
+                ["20230609T120000"],
+                # AND the oldest WAL prefix was deleted
+                {
+                    "20230609T120000": [
+                        "wals/0000000100000000/",
+                    ]
+                },
+                # AND the WAL files before and after the keep:full backup were deleted,
+                # up to the begin_wal of the remaining backup
+                {
+                    "20230609T120000": [
+                        "wals/0000000100000001/000000010000000100000000.gz",
+                        "wals/0000000100000001/0000000100000001000000FF.gz",
+                        "wals/0000000100000002/000000010000000200000000.gz",
+                    ],
+                },
+            ),
+        ),
+    )
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_wal_prefix_bulk_deletion(
+        self,
+        get_cloud_interface_mock,
+        cloud_backup_catalog_mock,
+        wal_catalog,
+        backups,
+        delete_args,
+        expected_backup_deletions,
+        expected_prefix_deletions,
+        expected_wal_deletions,
+    ):
+        """
+        Verify that the wal prefix deletion is used when the criteria are met.
+        """
+        # Create the necessary mocks for the test fixture so that the
+        # _remove_wals_for_backup logic can be tested.
+        backup_metadata = self._create_backup_metadata(
+            backups.keys(),
+            begin_wals=dict((k, v["begin_wal"]) for k, v in backups.items()),
+            end_wals=dict(
+                (k, v["end_wal"]) for k, v in backups.items() if "end_wal" in v
+            ),
+        )
+
+        cloud_backup_catalog_mock.return_value = self._create_catalog(
+            backup_metadata,
+            wals=wal_catalog,
+        )
+
+        def should_keep_backup(backup_id, use_cache=True):
+            return backups[backup_id].get("keep", None)
+
+        cloud_backup_catalog_mock.return_value.get_keep_target.side_effect = (
+            should_keep_backup
+        )
+
+        # Call delete with the specified arguments
+        cloud_backup_delete.main(["cloud_storage_url", "test_server", *delete_args])
+
+        # Verify that the expected backups, WAK prefixes and WALs were deleted
+        self._verify_only_these_backups_deleted(
+            get_cloud_interface_mock,
+            backup_metadata,
+            expected_backup_deletions,
+            wals=expected_wal_deletions,
+            wal_prefixes=expected_prefix_deletions,
+        )
+
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_wal_prefix_bulk_deletion_not_implemented(
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+    ):
+        """
+        Verifies that WAL prefix deletion is gracefully skipped if get_wal_prefixes is
+        not implemented for a given cloud provider.
+        """
+        # GIVEN a backup catalog with one backup with a begin_wal value
+        backup_id = "20230609T120000"
+        begin_wals = {
+            backup_id: "000000010000000100000001",
+        }
+        backup_metadata = self._create_backup_metadata(
+            [backup_id], begin_wals=begin_wals
+        )
+
+        # AND a CloudBackupCatalog which returns the backup_info for only that backup
+        # and a list of three WALs
+        cloud_backup_catalog_mock.return_value = self._create_catalog(
+            backup_metadata,
+            wals=[
+                "0000000100000000000000FF",
+                "000000010000000100000000",
+                "000000010000000100000001",
+            ],
+        )
+
+        # AND the cloud provider has not implemented get_wal_prefixes
+        cloud_backup_catalog_mock.return_value.get_wal_prefixes.side_effect = (
+            NotImplementedError
+        )
+
+        # WHEN barman-cloud-backup-delete runs, specifying the backup ID
+        cloud_backup_delete.main(
+            ["cloud_storage_url", "test_server", "--backup-id", backup_id]
+        )
+
+        # THEN the WALs were deleted individually via delete_objects even though the
+        # 0000000100000000 prefix was eligible for bulk deletion.
+        self._verify_only_these_backups_deleted(
+            get_cloud_interface_mock,
+            backup_metadata,
+            [backup_id],
+            wals={
+                backup_id: [
+                    "wals/0000000100000000/0000000100000000000000FF.gz",
+                    "wals/0000000100000001/000000010000000100000000.gz",
+                ]
+            },
+        )
+
+    @pytest.mark.parametrize(
+        "bad_wal_prefix",
+        (
+            "0000000100000000",
+            "wals/00000000100000000/",
+            "wals/notevenclose/",
+        ),
+    )
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_wal_prefix_deletion_failure(
+        self,
+        get_cloud_interface_mock,
+        cloud_backup_catalog_mock,
+        bad_wal_prefix,
+        caplog,
+    ):
+        """Verify a wal_prefix which does not split cleanly is handled."""
+        # GIVEN a backup catalog with one backup with a begin_wal value
+        backup_id = "20230609T120000"
+        begin_wals = {
+            backup_id: "000000010000000200000001",
+        }
+        backup_metadata = self._create_backup_metadata(
+            [backup_id], begin_wals=begin_wals
+        )
+
+        # AND a CloudBackupCatalog which returns the backup_info for only that backup
+        # and a list of three WALs
+        cloud_backup_catalog_mock.return_value = self._create_catalog(
+            backup_metadata,
+            wals=[
+                "0000000100000000000000FF",
+                "000000010000000100000000",
+                "000000010000000200000000",
+                "000000010000000200000001",
+            ],
+        )
+
+        # AND the first prefix is malformed but the rest are not
+        cloud_backup_catalog_mock.return_value.get_wal_prefixes.side_effect = lambda: [
+            bad_wal_prefix,
+            "wals/0000000100000001/",
+            "wals/0000000100000002/",
+        ]
+
+        # WHEN barman-cloud-backup-delete runs, specifying the backup ID
+        cloud_backup_delete.main(
+            ["cloud_storage_url", "test_server", "--backup-id", backup_id]
+        )
+
+        # THEN the second prefix is deleted in bulk and the WALs under the first and
+        # final prefixes but before the begin_wal of the deleted backup are deleted
+        # individually
+        self._verify_only_these_backups_deleted(
+            get_cloud_interface_mock,
+            backup_metadata,
+            [backup_id],
+            wals={
+                backup_id: [
+                    "wals/0000000100000000/0000000100000000000000FF.gz",
+                    "wals/0000000100000002/000000010000000200000000.gz",
+                ]
+            },
+            wal_prefixes={backup_id: ["wals/0000000100000001/"]},
+        )
+
+        # AND the expected warning is logged
+        assert (
+            "Ignoring malformed WAL object prefix: {}".format(bad_wal_prefix)
+            in caplog.text
         )
