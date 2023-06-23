@@ -56,7 +56,7 @@ from barman.utils import (
     drop_privileges,
     force_str,
     get_log_levels,
-    is_backup_id,
+    get_backup_id_using_shortcut,
     parse_log_level,
     RESERVED_BACKUP_IDS,
     SHA256,
@@ -2090,15 +2090,8 @@ def parse_backup_id(server, args):
     :param args: command line arguments namespace
     :rtype: barman.infofile.LocalBackupInfo
     """
-    if args.backup_id in ("latest", "last"):
-        backup_id = server.get_last_backup_id()
-    elif args.backup_id in ("oldest", "first"):
-        backup_id = server.get_first_backup_id()
-    elif args.backup_id in ("last-failed"):
-        backup_id = server.get_last_backup_id([BackupInfo.FAILED])
-    elif is_backup_id(args.backup_id):
-        backup_id = args.backup_id
-    else:
+    backup_id = get_backup_id_using_shortcut(server, args.backup_id, BackupInfo)
+    if backup_id is None:
         try:
             backup_id = server.get_backup_id_from_name(args.backup_id)
         except ValueError as exc:
