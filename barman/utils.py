@@ -843,3 +843,26 @@ def get_backup_info_from_name(backups, backup_name):
         raise ValueError(msg)
     elif len(matching_backups) == 1:
         return matching_backups[0]
+
+
+def get_backup_id_using_shortcut(server, shortcut, BackupInfo):
+    """
+    Get backup ID from one of Barman shortcuts.
+
+    :param str server: The obj where to look from.
+    :param str shortcut: pattern to search.
+    :param BackupInfo BackupInfo: Place where we keep some Barman constants.
+    :return str backup_id|None: The backup ID for the provided shortcut.
+    """
+    backup_id = None
+
+    if shortcut in ("latest", "last"):
+        backup_id = server.get_last_backup_id()
+    elif shortcut in ("oldest", "first"):
+        backup_id = server.get_first_backup_id()
+    elif shortcut in ("last-failed"):
+        backup_id = server.get_last_backup_id([BackupInfo.FAILED])
+    elif is_backup_id(shortcut):
+        backup_id = shortcut
+
+    return backup_id
