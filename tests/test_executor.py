@@ -1713,17 +1713,25 @@ class TestSnapshotBackupExecutor(object):
             )
 
         # WHEN find_missing_and_unmounted_disks is called for all expected disksts
+        instance_name = "instance1"
+        snapshot_disks = (
+            expected_missing_disks + expected_unmounted_disks + expected_mounted_disks
+        )
         (
             missing_disks,
             unmounted_disks,
         ) = SnapshotBackupExecutor.find_missing_and_unmounted_disks(
             cmd,
             mock_get_snapshot_interface.return_value,
-            "instance1",
-            expected_missing_disks + expected_unmounted_disks + expected_mounted_disks,
+            instance_name,
+            snapshot_disks,
         )
 
-        # THEN the returned list of missing disks matches those not found amongst the
+        # THEN get_attached_volumes was called with the expected arguments
+        mock_get_attached_volumes.assert_called_once_with(
+            instance_name, snapshot_disks, fail_on_missing=False
+        )
+        # AND the returned list of missing disks matches those not found amongst the
         # attached devices
         assert missing_disks == expected_missing_disks
         # AND the returned list of unmounted disks matches those not found by findmnt

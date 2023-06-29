@@ -1574,7 +1574,9 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
             attached to the VM instance and the second element is a list of all disks
             which are attached but not mounted.
         """
-        attached_volumes = snapshot_interface.get_attached_volumes(snapshot_instance)
+        attached_volumes = snapshot_interface.get_attached_volumes(
+            snapshot_instance, snapshot_disks, fail_on_missing=False
+        )
         missing_disks = []
         for disk in snapshot_disks:
             if disk not in attached_volumes.keys():
