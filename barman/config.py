@@ -429,6 +429,8 @@ class ServerConfig(object):
         "active",
         "archiver",
         "archiver_batch_size",
+        "aws_profile",
+        "aws_region",
         "azure_credential",
         "azure_resource_group",
         "azure_subscription_id",
@@ -517,6 +519,8 @@ class ServerConfig(object):
     BARMAN_KEYS = [
         "archiver",
         "archiver_batch_size",
+        "aws_profile",
+        "aws_region",
         "azure_credential",
         "azure_resource_group",
         "azure_subscription_id",

@@ -96,6 +96,19 @@ Global/Server.
 .RS
 .RE
 .TP
+.B aws_profile
+The name of the AWS profile to use when authenticating with AWS (e.g.
+INI section in AWS credentials file).
+Global/Server.
+aws_region
+.RS
+.RE
+The name of the AWS region containing the EC2 VM and storage volumes
+defined by \f[C]snapshot_instance\f[] and \f[C]snapshot_disks\f[].
+Global/Server.
+.RS
+.RE
+.TP
 .B azure_credential
 The credential type (either \f[C]azure\-cli\f[] or
 \f[C]managed\-identity\f[]) to use when authenticating with Azure.

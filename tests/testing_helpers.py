@@ -239,6 +239,8 @@ def build_config_dictionary(config_keys=None):
         "active": True,
         "archiver": True,
         "archiver_batch_size": 0,
+        "aws_profile": None,
+        "aws_region": None,
         "azure_credential": None,
         "azure_resource_group": None,
         "azure_subscription_id": None,

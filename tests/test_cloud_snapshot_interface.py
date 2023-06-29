@@ -21,6 +21,7 @@ import mock
 import pytest
 
 from azure.core.exceptions import ResourceNotFoundError
+from botocore.exceptions import ClientError
 from google.api_core.exceptions import NotFound
 
 from barman.cloud import CloudProviderError
@@ -31,6 +32,7 @@ from barman.cloud_providers import (
     get_snapshot_interface_from_backup_info,
     get_snapshot_interface_from_server_config,
 )
+from barman.cloud_providers.aws_s3 import AwsCloudSnapshotInterface, AwsVolumeMetadata
 from barman.cloud_providers.azure_blob_storage import (
     AzureCloudSnapshotInterface,
     AzureVolumeMetadata,
@@ -44,6 +46,7 @@ from barman.exceptions import (
     CommandException,
     ConfigurationException,
     SnapshotBackupException,
+    SnapshotInstanceNotFoundException,
 )
 
 
@@ -55,7 +58,7 @@ class TestGetSnapshotInterface(object):
     @pytest.mark.parametrize(
         ("snapshot_provider", "interface_cls"),
         [
-            ("aws", None),
+            ("aws", AwsCloudSnapshotInterface),
             ("azure", AzureCloudSnapshotInterface),
             ("gcp", GcpCloudSnapshotInterface),
         ],
@@ -65,8 +68,10 @@ class TestGetSnapshotInterface(object):
     @mock.patch(
         "barman.cloud_providers.google_cloud_storage.import_google_cloud_compute"
     )
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_from_config_cloud_provider(
         self,
+        _mock_boto3,
         _mock_google_cloud_compute,
         _mock_azure_mgmt_compute,
         _mock_get_azure_credential,
@@ -210,7 +215,7 @@ class TestGetSnapshotInterface(object):
     @pytest.mark.parametrize(
         ("cloud_provider", "interface_cls"),
         [
-            ("aws-s3", None),
+            ("aws-s3", AwsCloudSnapshotInterface),
             (
                 "azure-blob-storage",
                 AzureCloudSnapshotInterface,
@@ -223,8 +228,10 @@ class TestGetSnapshotInterface(object):
     @mock.patch(
         "barman.cloud_providers.google_cloud_storage.import_google_cloud_compute"
     )
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_from_args_cloud_provider(
         self,
+        _mock_boto3,
         _mock_google_cloud_compute,
         _mock_azure_mgmt_compute,
         _mock_get_azure_credential,
@@ -2415,6 +2422,899 @@ class TestAzureVolumeMetadata(object):
 
         # WHEN resolve_mounted_volume is called
         # THEN the expected exception occurs
+        with pytest.raises(SnapshotBackupException) as exc:
+            volume.resolve_mounted_volume(mock_cmd)
+
+        # AND the exception has the expected error message
+        assert str(exc.value) == expected_exception_msg
+
+
+class TestAwsCloudSnapshotInterface(object):
+    """
+    Verify behaviour of the AwsCloudSnapshotInterface class.
+    """
+
+    aws_account_id = "0123456789"
+    # aws_disks defines several storage volumes as dicts, which will be used by mocks
+    # in order to create boto3 responses and other data structures required by tests.
+    aws_disks = [
+        {
+            "device": "/dev/xvdf",
+            "id": "vol-0",
+            "mount_point": "/opt/disk0",
+            "mount_options": "rw,noatime",
+            "name": "test_disk_0",
+        },
+        {
+            "device": "/dev/xvdg",
+            "id": "vol-1",
+            "mount_point": "/opt/disk1",
+            "mount_options": "rw",
+            "name": "test_disk_1",
+        },
+        {
+            "device": "/dev/xvdh",
+            "id": "vol-2",
+            "mount_point": "/opt/disk2",
+            "mount_options": "rw,relatime",
+            "name": "test_disk_2",
+        },
+    ]
+    aws_instance_id = "i-0123456789abcdef01"
+    aws_region = "eu-west-1"
+    backup_id = "20380119T031407"
+    server_name = "test_server"
+
+    def _get_mock_volumes(self, disks):
+        """Helper which returns mock AwsVolumeMetadata objects for the given disks."""
+        return dict(
+            (
+                disk["name"],
+                mock.Mock(
+                    mount_point=disk["mount_point"],
+                    mount_options=disk["mount_options"],
+                    id=disk["id"],
+                ),
+            )
+            for disk in disks
+        )
+
+    def _get_mock_create_snapshot(self, disks):
+        """Helper which returns mock create_snapshots responses for the given disks."""
+        responses = iter(
+            [
+                {
+                    "OwnerId": self.aws_account_id,
+                    "SnapshotId": "snap-{}".format(disk["id"].split("-")[-1]),
+                    "State": "pending",
+                }
+                for disk in disks
+            ]
+        )
+
+        def mock_fun(*args, **kwargs):
+            return next(responses)
+
+        return mock_fun
+
+    def _get_mock_describe_instances_resp(self, disks, virtualization_type="hvm"):
+        """Helper which returns a mock describe_instances response."""
+        block_device_mappings = [
+            {"DeviceName": disk["device"], "Ebs": {"VolumeId": disk["id"]}}
+            for disk in disks
+        ]
+        return {
+            "Reservations": [
+                {
+                    "Instances": [
+                        {
+                            "BlockDeviceMappings": block_device_mappings,
+                            "InstanceId": self.aws_instance_id,
+                            "RootDeviceName": "/dev/xvda",
+                            "VirtualizationType": virtualization_type,
+                        }
+                    ]
+                }
+            ]
+        }
+
+    def _get_mock_describe_volumes_resp(self, disks):
+        """Helper which returns a mock describe_volumes response."""
+        return {
+            "Volumes": [
+                {
+                    "Attachments": [
+                        {
+                            "Device": disk["device"],
+                            "InstanceId": self.aws_instance_id,
+                            "VolumeId": disk["id"],
+                        }
+                    ],
+                    "Tags": [{"Key": "Name", "Value": disk["name"]}],
+                    "VolumeId": disk["id"],
+                }
+                for disk in disks
+            ]
+        }
+
+    def _get_snapshot_id(self, disk):
+        """Helper which forges the expected snapshot id for the given disk id."""
+        return disk["id"].replace("vol", "snap")
+
+    def _get_snapshot_name(self, disk):
+        """Helper which forges the expected snapshot name for the given disk name."""
+        return "{}-{}".format(disk["name"], self.backup_id.lower())
+
+    @pytest.fixture()
+    def mock_ec2_client(self, mock_boto3):
+        yield mock_boto3.Session.return_value.client.return_value
+
+    @pytest.fixture(autouse=True)
+    def mock_boto3(self):
+        with mock.patch("barman.cloud_providers.aws_s3.boto3") as mock_boto3:
+            self._mock_boto3 = mock_boto3
+            yield mock_boto3
+
+    @pytest.mark.parametrize(
+        ("init_args", "expected_session_args", "expected_region"),
+        (
+            # GIVEN no arguments, session should be created with no profile
+            (
+                (),
+                {"profile_name": None},
+                None,
+            ),
+            # GIVEN a profile name, session should be created with that profile
+            (
+                ("test_profile",),
+                {"profile_name": "test_profile"},
+                None,
+            ),
+            # GIVEN a region in the args, we expect that region to be used
+            (
+                ("test_profile", "eu-west-1"),
+                {"profile_name": "test_profile"},
+                "eu-west-1",
+            ),
+        ),
+    )
+    def test_init(self, init_args, expected_session_args, expected_region):
+        """
+        Verify creating AwsCloudSnapshotInterface creates the necessary EC2 client.
+        """
+        # WHEN an AwsCloudSnapshotInterface is created with the specified arguments
+        snapshot_interface = AwsCloudSnapshotInterface(*init_args)
+        # THEN a boto3.Session is created with the expected arguments
+        self._mock_boto3.Session.assert_called_once_with(**expected_session_args)
+        mock_session = self._mock_boto3.Session.return_value
+        assert snapshot_interface.session == mock_session
+        # AND an ec2 client was created
+        snapshot_interface.ec2_client = mock_session.client.return_value
+        # AND if we expected a region, it was used when creating the ec2 client
+        if expected_region is not None:
+            mock_session.client.assert_called_once_with(
+                "ec2", region_name=expected_region
+            )
+            # AND the region is set on the snapshot interface
+            assert snapshot_interface.region == expected_region
+        # OR if we did not, then the session default region was used
+        else:
+            mock_session.client.assert_called_once_with(
+                "ec2", region_name=mock_session.region_name
+            )
+            # AND the default region is set on the snapshot interface
+            assert snapshot_interface.region == mock_session.region_name
+
+    def test_create_snapshot(self, caplog):
+        """
+        Verify that _create_snapshot calls boto3 and returns the expected values.
+        """
+        # GIVEN a new AwsCloudInterface
+        snapshot_interface = AwsCloudSnapshotInterface()
+        # AND a backup_info for a given server name and backup ID
+        backup_info = mock.Mock(backup_id=self.backup_id, server_name=self.server_name)
+        # AND a mock create_snapshot function which returns a successful response
+        mock_ec2_client = self._mock_boto3.Session.return_value.client.return_value
+        mock_resp = mock_ec2_client.create_snapshot.return_value
+        mock_resp["State"] = "pending"
+        # AND log level is INFO
+        caplog.set_level(logging.INFO)
+
+        # WHEN _create_snapshot is called
+        volume_name = "my-pgdata-volume"
+        volume_id = "vol-0123456789abcdef01"
+        snapshot_name, snapshot_resp = snapshot_interface._create_snapshot(
+            backup_info,
+            volume_name,
+            volume_id,
+        )
+
+        # THEN create_snapshot is called on the EC2 client with the expected args
+        mock_ec2_client.create_snapshot.assert_called_once()
+        mock_ec2_client.create_snapshot.assert_called_once_with(
+            TagSpecifications=[
+                {
+                    "ResourceType": "snapshot",
+                    "Tags": [{"Key": "Name", "Value": snapshot_name}],
+                }
+            ],
+            VolumeId=volume_id,
+        )
+        # AND snapshot_name has the expected value
+        expected_snapshot_name = "my-pgdata-volume-{}".format(self.backup_id.lower())
+        assert snapshot_name == expected_snapshot_name
+        # AND the create_snapshot response was returned
+        assert snapshot_resp == mock_resp
+        # AND the expected log message occurred
+        assert (
+            "Taking snapshot '{}' of disk '{}' ({})".format(
+                expected_snapshot_name, volume_name, volume_id
+            )
+            in caplog.text
+        )
+
+    def test_create_snapshot_failed(self):
+        """
+        Verify that _create_snapshot calls boto3 and returns the expected values.
+        """
+        # GIVEN a new AwsCloudInterface
+        snapshot_interface = AwsCloudSnapshotInterface()
+        # AND a backup_info for a given server name and backup ID
+        backup_info = mock.Mock(backup_id=self.backup_id, server_name=self.server_name)
+        # AND a mock create_snapshot function which returns a snapshot in an error
+        # state
+        mock_resp = {}
+        mock_ec2_client = self._mock_boto3.Session.return_value.client.return_value
+        mock_ec2_client.create_snapshot.return_value = mock_resp
+        mock_resp["State"] = "error"
+
+        # WHEN _create_snapshot is called
+        # THEN a CloudProviderError is raised
+        volume_name = "my-pgdata-volume"
+        volume_id = "vol-0123456789abcdef01"
+        with pytest.raises(CloudProviderError) as exc:
+            snapshot_interface._create_snapshot(
+                backup_info,
+                volume_name,
+                volume_id,
+            )
+        # AND the exception message contains the snapshot name
+        expected_snapshot_name = "my-pgdata-volume-{}".format(self.backup_id.lower())
+        assert "Snapshot '{}' failed".format(expected_snapshot_name) in str(exc.value)
+
+    @pytest.mark.parametrize("number_of_disks", (1, 2, 3))
+    def test_take_snapshot_backup(self, number_of_disks, mock_ec2_client):
+        """
+        Verify that take_snapshot_backup waits for completion of all snapshots and
+        updates the backup_info when complete.
+        """
+        # GIVEN a set of disks, represented as VolumeMetadata
+        disks = self.aws_disks[:number_of_disks]
+        assert len(disks) == number_of_disks
+        volumes = self._get_mock_volumes(disks)
+        # AND a backup_info for a given server name and backup ID
+        backup_info = mock.Mock(backup_id=self.backup_id, server_name=self.server_name)
+        # AND a mock EC2 client which returns an instance with the required disks
+        # attached
+        mock_ec2_client.describe_instances.return_value = (
+            self._get_mock_describe_instances_resp(disks)
+        )
+        # AND the mock EC2 client returns successful create_snapashot responses
+        mock_ec2_client.create_snapshot.side_effect = self._get_mock_create_snapshot(
+            disks
+        )
+        # AND a new AwsCloudSnapshotInterface
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+
+        # WHEN take_snapshot_backup is called
+        snapshot_interface.take_snapshot_backup(
+            backup_info, self.aws_instance_id, volumes
+        )
+
+        # THEN we waited for completion of all snapshots
+        expected_snapshot_ids = [self._get_snapshot_id(disk) for disk in disks]
+        mock_ec2_client.get_waiter.return_value.wait.assert_called_once_with(
+            Filters=[{"Name": "snapshot-id", "Values": expected_snapshot_ids}]
+        )
+
+        # AND the backup_info is updated with the expected snapshot metadata
+        snapshots_info = backup_info.snapshots_info
+        assert snapshots_info.account_id == self.aws_account_id
+        assert snapshots_info.region == self.aws_region
+        assert snapshots_info.provider == "aws"
+        assert len(snapshots_info.snapshots) == len(disks)
+        for disk in disks:
+            snapshot_id = self._get_snapshot_id(disk)
+            snapshot = next(
+                snapshot
+                for snapshot in snapshots_info.snapshots
+                if snapshot.identifier == snapshot_id
+            )
+            assert snapshot.identifier == snapshot_id
+            assert snapshot.snapshot_name == self._get_snapshot_name(disk)
+            assert snapshot.device_name == disk["device"]
+            assert snapshot.mount_options == disk["mount_options"]
+            assert snapshot.mount_point == disk["mount_point"]
+
+    def test_take_snapshot_backup_instance_not_found(self, mock_ec2_client):
+        """
+        Verify that a SnapshotBackupException is raised if the instance cannot be
+        found.
+        """
+        # GIVEN a new AwsCloudSnapshotInterface
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+        # AND a mock ec2_client which cannot find the instance
+        mock_ec2_client.describe_instances.return_value = {"Reservations": []}
+
+        # WHEN take_snapshot_backup is called
+        # THEN a SnapshotBackupException is raised
+        with pytest.raises(SnapshotBackupException) as exc:
+            snapshot_interface.take_snapshot_backup(
+                mock.Mock(),
+                self.aws_instance_id,
+                self._get_mock_volumes(self.aws_disks),
+            )
+
+        # AND the exception contains the expected message
+        assert str(exc.value) == "Cannot find instance {}".format(self.aws_instance_id)
+
+    def test_take_snapshot_backup_disks_not_attached(self, mock_ec2_client):
+        """
+        Verify that a SnapshotBackupException is raised if the expected disks are not
+        attached.
+        """
+        # GIVEN a new AwsCloudSnapshotInterface
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+        # AND a mock ec2_client which returns an instance with no disks attached
+        mock_ec2_client.describe_instances.return_value = (
+            self._get_mock_describe_instances_resp([])
+        )
+
+        # WHEN take_snapshot_backup is called
+        # THEN a SnapshotBackupException is raised
+        with pytest.raises(SnapshotBackupException) as exc:
+            snapshot_interface.take_snapshot_backup(
+                mock.Mock(),
+                self.aws_instance_id,
+                self._get_mock_volumes(self.aws_disks),
+            )
+
+        # AND the exception contains the expected message
+        assert str(exc.value) == (
+            "Disk {} not attached to instance {}".format(
+                self.aws_disks[0]["name"], self.aws_instance_id
+            )
+        )
+
+    aws_live_states = ["pending", "running", "shutting-down", "stopping", "stopped"]
+
+    def test_get_instance_metadata_by_id(self, mock_ec2_client):
+        """
+        Verify that instance metadata is returned when queried by ID.
+        """
+        # GIVEN a mock snapshots interface
+        snapshots_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+        # AND an EC2 client which responds successfully
+        mock_instance_metadata = mock.Mock()
+        mock_ec2_client.describe_instances.return_value = {
+            "Reservations": [{"Instances": [mock_instance_metadata]}]
+        }
+
+        # WHEN _get_instance_metadata is called with an instance ID
+        instance_metadata = snapshots_interface._get_instance_metadata(
+            self.aws_instance_id
+        )
+
+        # THEN describe_instances was called once with the instance ID and filter
+        mock_ec2_client.describe_instances.assert_called_once_with(
+            InstanceIds=[self.aws_instance_id],
+            Filters=[{"Name": "instance-state-name", "Values": self.aws_live_states}],
+        )
+
+        # AND the mock instance metadata was returned
+        assert instance_metadata == mock_instance_metadata
+
+    def test_get_instance_metadata_by_id_like_name(self, mock_ec2_client):
+        """
+        Verify that if an ID is malformed, Barman attempts to look it up by name.
+        """
+        # GIVEN a mock snapshots interface
+        snapshots_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+        # AND an EC2 client which responds first with a InvalidInstanceID.Malformed
+        # and then with a successful response
+        mock_instance_metadata = mock.Mock()
+        mock_ec2_client.describe_instances.side_effect = [
+            ClientError({"Error": {"Code": "InvalidInstanceID.Malformed"}}, ""),
+            {"Reservations": [{"Instances": [mock_instance_metadata]}]},
+        ]
+
+        # WHEN _get_instance_metadata is called with an instance name which looks
+        # superficially like an ID
+        instance_name = "i-not-an-id"
+        instance_metadata = snapshots_interface._get_instance_metadata(instance_name)
+
+        # THEN describe_instances was called once with the instance ID and filter
+        assert mock_ec2_client.describe_instances.call_args_list[0][1] == {
+            "InstanceIds": [instance_name],
+            "Filters": [
+                {"Name": "instance-state-name", "Values": self.aws_live_states}
+            ],
+        }
+        # AND again with a tag filter
+        assert mock_ec2_client.describe_instances.call_args_list[1][1] == {
+            "Filters": [
+                {"Name": "tag:Name", "Values": [instance_name]},
+                {"Name": "instance-state-name", "Values": self.aws_live_states},
+            ]
+        }
+
+        # AND the mock instance metadata was returned
+        assert instance_metadata == mock_instance_metadata
+
+    def test_get_instance_metadata_by_name(self, mock_ec2_client):
+        """
+        Verify that names which do not look like IDs are only looked up by name.
+        """
+        # GIVEN a mock snapshots interface
+        snapshots_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+        # AND an EC2 client which responds successfully
+        mock_instance_metadata = mock.Mock()
+        mock_ec2_client.describe_instances.return_value = {
+            "Reservations": [{"Instances": [mock_instance_metadata]}]
+        }
+
+        # WHEN _get_instance_metadata is called with an instance name
+        instance_name = "the name of an instance"
+        instance_metadata = snapshots_interface._get_instance_metadata(instance_name)
+
+        # THEN describe_instances was called once with the a tag filter
+        mock_ec2_client.describe_instances.assert_called_once_with(
+            Filters=[
+                {"Name": "tag:Name", "Values": [instance_name]},
+                {"Name": "instance-state-name", "Values": self.aws_live_states},
+            ]
+        )
+
+        # AND the mock instance metadata was returned
+        assert instance_metadata == mock_instance_metadata
+
+    @pytest.mark.parametrize(
+        ("describe_instances_resp", "expected_exception", "expected_msg"),
+        (
+            # If no reservations are returned we expect a
+            # SnapshotInstanceNotFoundException
+            (
+                {"Reservations": []},
+                SnapshotInstanceNotFoundException,
+                "Cannot find instance",
+            ),
+            # If no instances are returned we expect a
+            # SnapshotInstanceNotFoundException
+            (
+                {"Reservations": [{"Instances": []}]},
+                SnapshotInstanceNotFoundException,
+                "Cannot find instance",
+            ),
+            # If multiple reservations are returned we expect a
+            # CloudProviderError
+            (
+                {"Reservations": [{"Instances": []}, {"Instances": []}]},
+                CloudProviderError,
+                "Cannot find a unique EC2 reservation containing instance",
+            ),
+            # If multiple instances are returned we expect a
+            # CloudProviderError
+            (
+                {"Reservations": [{"Instances": [{}, {}]}]},
+                CloudProviderError,
+                "Cannot find a unique EC2 instance matching",
+            ),
+            # If multiple reservations and instances are returned we expect a
+            # CloudProviderError
+            (
+                {"Reservations": [{"Instances": [{}, {}]}, {"Instances": []}]},
+                CloudProviderError,
+                "Cannot find a unique EC2 reservation containing instance",
+            ),
+        ),
+    )
+    def test_get_instance_metadata_errors(
+        self, describe_instances_resp, expected_exception, expected_msg, mock_ec2_client
+    ):
+        """
+        Verify the expected exceptions are raised when there are either too few or
+        too many matching reservations and instances.
+        """
+        # GIVEN a mock snapshots interface
+        snapshots_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+
+        # AND an EC2 client which responds with the specified response
+        mock_ec2_client.describe_instances.return_value = describe_instances_resp
+
+        # WHEN _get_instance_metadata is called
+        # THEN the expected exception is raised
+        with pytest.raises(expected_exception) as exc:
+            snapshots_interface._get_instance_metadata("some instance name")
+
+        # AND the exception has the expected value
+        assert expected_msg in str(exc.value)
+
+    def test_get_attached_volumes(self, mock_ec2_client):
+        """
+        Verify that attached volumes are returned as a dict keyed by the expected
+        identifier.
+        """
+        # GIVEN a mock snapshots interface
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+        # AND a mock EC2 client which returns an instance with the required disks
+        # attached
+        virtualization_type = "hvm"
+        mock_ec2_client.describe_instances.return_value = (
+            self._get_mock_describe_instances_resp(
+                self.aws_disks, virtualization_type=virtualization_type
+            )
+        )
+        # AND the mock EC2 client returns describe_volume_responses for these disks
+        mock_ec2_client.describe_volumes.return_value = (
+            self._get_mock_describe_volumes_resp(self.aws_disks)
+        )
+        # AND the first disk is the root device
+        root_disk = self.aws_disks[0]
+        attached_disks = self.aws_disks[1:]
+        mock_instance_resp = mock_ec2_client.describe_instances.return_value
+        mock_instance = mock_instance_resp["Reservations"][0]["Instances"][0]
+        mock_instance["RootDeviceName"] = root_disk["device"]
+
+        # WHEN get_attached_volumes is called
+        volumes = snapshot_interface.get_attached_volumes(self.aws_instance_id)
+
+        # THEN describe_volumes was called filtering by instance ID
+        mock_ec2_client.describe_volumes.assert_called_once_with(
+            Filters=[
+                {
+                    "Name": "attachment.instance-id",
+                    "Values": [self.aws_instance_id],
+                }
+            ]
+        )
+        # AND the attached disks have been returned, indexed by volume ID
+        assert set(volumes.keys()) == set(disk["id"] for disk in attached_disks)
+        # AND the instance virtualization type has been saved
+        assert all(
+            volume._virtualization_type == virtualization_type
+            for volume in volumes.values()
+        )
+        # AND the volume ID has been saved
+        assert [volume.id for volume in volumes.values()] == [
+            disk["id"] for disk in attached_disks
+        ]
+        # AND the root volume was not included
+        assert root_disk["id"] not in volumes
+
+    def test_get_attached_volumes_for_disks(self, mock_ec2_client):
+        """
+        Verify that the requested disks are returned as a dict keyed by the expected
+        identifier.
+        """
+        # GIVEN a mock snapshots interface
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+        # AND a mock EC2 client which returns an instance with the required disks
+        # attached
+        virtualization_type = "hvm"
+        mock_ec2_client.describe_instances.return_value = (
+            self._get_mock_describe_instances_resp(
+                self.aws_disks, virtualization_type=virtualization_type
+            )
+        )
+        # AND the mock EC2 client returns describe_volume_responses for these disks
+        mock_ec2_client.describe_volumes.return_value = (
+            self._get_mock_describe_volumes_resp(self.aws_disks)
+        )
+
+        # WHEN get_attached_volumes is called for disks specified by a mix of name
+        # and id
+        requested_disks = [self.aws_disks[1]["id"], self.aws_disks[2]["name"]]
+        volumes = snapshot_interface.get_attached_volumes(
+            self.aws_instance_id, requested_disks
+        )
+
+        # THEN describe_volumes was called filtering by instance ID
+        mock_ec2_client.describe_volumes.assert_called_once_with(
+            Filters=[
+                {
+                    "Name": "attachment.instance-id",
+                    "Values": [self.aws_instance_id],
+                }
+            ]
+        )
+        # AND only the requested disks have been returned, indexed by the identifier
+        # used to request them
+        assert set(volumes.keys()) == set(disk for disk in requested_disks)
+        # AND the volume ID has been saved
+        assert [volume.id for volume in volumes.values()] == [
+            disk["id"] for disk in self.aws_disks[1:]
+        ]
+
+    def test_get_attached_volumes_disks_not_found(self, mock_ec2_client):
+        """Verify behaviour when a requested disk cannot be found."""
+        # GIVEN a mock snapshots interface
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+        # AND a mock EC2 client which returns an instance with a subset of disks
+        # attached
+        virtualization_type = "hvm"
+        mock_ec2_client.describe_instances.return_value = (
+            self._get_mock_describe_instances_resp(
+                self.aws_disks[-1:], virtualization_type=virtualization_type
+            )
+        )
+        # AND the mock EC2 client returns describe_volume_responses for these disks
+        mock_ec2_client.describe_volumes.return_value = (
+            self._get_mock_describe_volumes_resp(self.aws_disks[-1:])
+        )
+
+        # WHEN get_attached_volumes is called requesting all disks using a mix of
+        # names and IDs
+        # THEN a SnapshotBackupException is raised
+        requested_disks = [
+            self.aws_disks[0]["id"],
+            self.aws_disks[1]["name"],
+            self.aws_disks[2]["id"],
+        ]
+        expected_missing_disks = [
+            self.aws_disks[0]["id"],
+            self.aws_disks[1]["name"],
+        ]
+        with pytest.raises(SnapshotBackupException) as exc:
+            snapshot_interface.get_attached_volumes(
+                self.aws_instance_id, requested_disks
+            )
+        # AND The exception contains the expected message
+        assert str(exc.value) == "Disks not attached to instance {}: {}".format(
+            self.aws_instance_id, ", ".join(expected_missing_disks)
+        )
+        # WHEN get_attached_volumes is called with fail_on_missing=False
+        # THEN no exception is raised
+        volumes = snapshot_interface.get_attached_volumes(
+            self.aws_instance_id,
+            requested_disks,
+            fail_on_missing=False,
+        )
+        # AND the attached volumes contains only those disks which were present
+        assert set(volumes.keys()) == set(requested_disks[-1:])
+
+    @pytest.mark.parametrize(
+        ("mock_disks", "identifier_key", "should_succeed"),
+        (
+            # Looking up by name should fail when there are multiple matching names
+            (
+                [
+                    {"id": "vol-0", "name": "test_disk", "device": "/dev/sdf"},
+                    {"id": "vol-1", "name": "test_disk", "device": "/dev/sdg"},
+                ],
+                "name",
+                False,
+            ),
+            # Looking up by name should succeed even if volume IDs are duplicates
+            (
+                [
+                    {"id": "vol-0", "name": "test disk", "device": "/dev/sdf"},
+                    {"id": "vol-0", "name": "other disk", "device": "/dev/sdg"},
+                ],
+                "name",
+                True,
+            ),
+            # Looking up by id should fail if there are multiple matching IDs
+            (
+                [
+                    {"id": "vol-0", "name": "test disk", "device": "/dev/sdf"},
+                    {"id": "vol-0", "name": "other disk", "device": "/dev/sdg"},
+                ],
+                "id",
+                False,
+            ),
+            # Looking up by id should succeed even if volume names are duplicates
+            (
+                [
+                    {"id": "vol-0", "name": "test_disk", "device": "/dev/sdf"},
+                    {"id": "vol-1", "name": "test_disk", "device": "/dev/sdg"},
+                ],
+                "id",
+                True,
+            ),
+        ),
+    )
+    def test_get_attached_volumes_duplicates(
+        self, mock_disks, identifier_key, should_succeed, mock_ec2_client
+    ):
+        """Verify behaviour when a requested disk has multiple matches."""
+        # GIVEN a mock snapshots interface
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+        # AND a mock EC2 client which returns an instance with the speified disks
+        mock_ec2_client.describe_instances.return_value = (
+            self._get_mock_describe_instances_resp(mock_disks)
+        )
+        # AND the mock EC2 client returns describe_volume_responses for these disks
+        mock_ec2_client.describe_volumes.return_value = (
+            self._get_mock_describe_volumes_resp(mock_disks)
+        )
+
+        # WHEN get_attached_volumes is called requesting the disks using the specified
+        # identifier
+        # AND we expect it to succeed
+        # THEN no exception is raised
+        disks_to_request = [disk[identifier_key] for disk in mock_disks]
+        if should_succeed:
+            snapshot_interface.get_attached_volumes(
+                self.aws_instance_id, disks_to_request
+            )
+        # AND if we expect it to fail
+        # THEN a SnapshotBackupException is raised
+        else:
+            with pytest.raises(CloudProviderError) as exc:
+                snapshot_interface.get_attached_volumes(
+                    self.aws_instance_id, disks_to_request
+                )
+            # AND the exception message has the expected content
+            assert "Duplicate volumes found matching {}: {}".format(
+                disks_to_request[0], ", ".join(d["id"] for d in mock_disks)
+            ) in str(exc.value)
+
+    def test_get_attached_volumes_instance_not_found(self, mock_ec2_client):
+        """Verify behaviour when a requested instance cannot be found."""
+        # GIVEN a mock snapshots interface
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+        # AND a mock EC2 client which returns no instances
+        mock_ec2_client.describe_instances.return_value = {"Reservations": []}
+
+        # WHEN get_attached_volumes is called
+        # THEN a SnapshotInstanceNotFoundException is raised
+        with pytest.raises(SnapshotInstanceNotFoundException):
+            snapshot_interface.get_attached_volumes(self.aws_instance_id)
+
+    def test_instance_exists(self, mock_ec2_client):
+        """Verify that instance_exists returns True if an instance exists."""
+        # GIVEN a mock snapshots interface
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+        # AND a mock EC2 client which returns a matching instance
+        mock_ec2_client.describe_instances.return_value = {
+            "Reservations": [{"Instances": [{"InstanceId": self.aws_instance_id}]}]
+        }
+        # WHEN instance_exists is called
+        resp = snapshot_interface.instance_exists(self.aws_instance_id)
+        # THEN it returns True
+        assert resp is True
+
+    def test_instance_exists_not_found(self, mock_ec2_client):
+        """Verify that instance_exists returns False if an instance is not found."""
+        # GIVEN a mock snapshots interface
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+        # AND a mock EC2 client which returns no instances
+        mock_ec2_client.describe_instances.return_value = {"Reservations": []}
+        # WHEN instance_exists is called
+        resp = snapshot_interface.instance_exists(self.aws_instance_id)
+        # THEN it returns False
+        assert resp is False
+
+
+class TestAwsVolumeMetadata(object):
+    """Verify behaviour of AwsVolumeMetadata."""
+
+    @pytest.mark.parametrize(
+        (
+            "attachment_metadata",
+            "virtualization_type",
+            "expected_virtualization_type",
+            "expected_device_name",
+            "expected_id",
+        ),
+        (
+            (None, None, None, None, None),
+            ({}, None, None, None, None),
+            ({}, "hvm", "hvm", None, None),
+            (
+                {"Device": "/dev/xvdf", "VolumeId": "vol-0123"},
+                "hvm",
+                "hvm",
+                "/dev/xvdf",
+                "vol-0123",
+            ),
+        ),
+    )
+    def test_init(
+        self,
+        attachment_metadata,
+        virtualization_type,
+        expected_virtualization_type,
+        expected_device_name,
+        expected_id,
+    ):
+        """Verify AwsVolumeMetadata is created from the supplied data."""
+        # WHEN an AwsVolumeMetadata is created
+        volume = AwsVolumeMetadata(attachment_metadata, virtualization_type)
+        # THEN the resulting objecth as the expected properties
+        assert volume._virtualization_type == expected_virtualization_type
+        assert volume._device_name == expected_device_name
+        assert volume.id == expected_id
+
+    @pytest.mark.parametrize(
+        (
+            "device_name_from_api",
+            "device_name_on_instance",
+            "virtualization_type",
+        ),
+        (
+            # Devices mapped with the same name should be found for either type of
+            # virtualization
+            ("/dev/sdf", "/dev/sdf", "hvm"),
+            ("/dev/sdf", "/dev/sdf", "paravirtual"),
+            # Devices mapped to xvdf should be found with hardware virtualization
+            ("/dev/sdf", "/dev/xvdf", "hvm"),
+            # Devices mapped to hdf should be found with paravirtualization
+            ("/dev/sdf", "/dev/hdf", "paravirtual"),
+        ),
+    )
+    def test_resolve_mounted_volume(
+        self, device_name_from_api, device_name_on_instance, virtualization_type
+    ):
+        # GIVEN AwsVolumeMetadata with the API-reported device name and virtualization
+        # type
+        attachment_metadata = {"VolumeId": "vol-0123", "Device": device_name_from_api}
+        volume = AwsVolumeMetadata(attachment_metadata, virtualization_type)
+        # AND a findmnt response which returns mount data for the mapped device name
+        mock_cmd = mock.Mock()
+
+        def mock_findmnt(device):
+            if device == device_name_on_instance:
+                return "mount_point", "mount_options"
+            else:
+                return None, None
+
+        mock_cmd.findmnt.side_effect = mock_findmnt
+
+        # WHEN resolve_mounted_volume is called
+        volume.resolve_mounted_volume(mock_cmd)
+
+        # THEN the expected mount data is set on the volume metadata
+        assert volume.mount_point == "mount_point"
+        assert volume.mount_options == "mount_options"
+
+    @pytest.mark.parametrize(
+        (
+            "mock_findmnt",
+            "device_name_from_api",
+            "expected_exception_msg",
+        ),
+        (
+            (
+                lambda x: (None, None),
+                "/dev/sdf",
+                "Could not find device /dev/sdf at any mount point",
+            ),
+            (
+                CommandException("error doing findmnt"),
+                "/dev/sdf",
+                "Error finding mount point for device path /dev/sdf: error doing findmnt",
+            ),
+            (
+                lambda x: (None, None),
+                None,
+                "Cannot resolve mounted volume: device name unknown",
+            ),
+        ),
+    )
+    def test_resolve_mounted_volume_failure(
+        self, mock_findmnt, device_name_from_api, expected_exception_msg
+    ):
+        # GIVEN AwsVolumeMetadata with the API-reported device name and virtualization
+        # type
+        attachment_metadata = {"VolumeId": "vol-0123", "Device": device_name_from_api}
+        volume = AwsVolumeMetadata(attachment_metadata)
+        # AND a findmnt response which returns mount data for the mapped device name
+        mock_cmd = mock.Mock()
+        mock_cmd.findmnt.side_effect = mock_findmnt
+
+        # WHEN resolve_mounted_volume is called
+        # THEN a SnapshotBackupException is raised
         with pytest.raises(SnapshotBackupException) as exc:
             volume.resolve_mounted_volume(mock_cmd)
 

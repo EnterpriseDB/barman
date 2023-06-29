@@ -100,6 +100,7 @@ setup(
     install_requires=install_requires,
     extras_require={
         "cloud": ["boto3"],
+        "aws-snapshots": ["boto3"],
         "azure": ["azure-identity", "azure-storage-blob"],
         "azure-snapshots": ["azure-identity", "azure-mgmt-compute"],
         "snappy": ["python-snappy"],

@@ -194,6 +194,10 @@ def get_snapshot_interface(config):
             resource_group=config.azure_resource_group,
             credential=_get_azure_credential(config.azure_credential),
         )
+    elif config.cloud_provider == "aws-s3":
+        from barman.cloud_providers.aws_s3 import AwsCloudSnapshotInterface
+
+        return AwsCloudSnapshotInterface(config.aws_profile, config.aws_region)
     else:
         raise CloudProviderUnsupported(
             "No snapshot provider for cloud provider: %s" % config.cloud_provider
@@ -236,6 +240,12 @@ def get_snapshot_interface_from_server_config(server_config):
             server_config.azure_subscription_id,
             resource_group=server_config.azure_resource_group,
             credential=_get_azure_credential(server_config.azure_credential),
+        )
+    elif server_config.snapshot_provider == "aws":
+        from barman.cloud_providers.aws_s3 import AwsCloudSnapshotInterface
+
+        return AwsCloudSnapshotInterface(
+            server_config.aws_profile, server_config.aws_region
         )
     else:
         raise CloudProviderUnsupported(
@@ -321,6 +331,12 @@ def snapshots_info_from_dict(snapshots_info):
         )
 
         return AzureSnapshotsInfo.from_dict(snapshots_info)
+    elif "provider" in snapshots_info and snapshots_info["provider"] == "aws":
+        from barman.cloud_providers.aws_s3 import (
+            AwsSnapshotsInfo,
+        )
+
+        return AwsSnapshotsInfo.from_dict(snapshots_info)
     else:
         raise CloudProviderUnsupported(
             "Unsupported snapshot provider in backup info: %s"

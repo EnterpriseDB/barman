@@ -201,17 +201,6 @@ class TestCloudBackup(object):
                     "disk0",
                     "--snapshot-instance",
                     "test_instance",
-                    "--gcp-zone",
-                    "test_zone",
-                ],
-                "No snapshot provider for cloud provider: aws-s3",
-            ],
-            [
-                [
-                    "--snapshot-disk",
-                    "disk0",
-                    "--snapshot-instance",
-                    "test_instance",
                     "--cloud-provider",
                     "azure-blob-storage",
                 ],
