@@ -2303,7 +2303,7 @@ class CloudSnapshotInterface(with_metaclass(ABCMeta)):
         """
 
     @abstractmethod
-    def get_attached_volumes(self, instance_name, disks=None):
+    def get_attached_volumes(self, instance_name, disks=None, fail_on_missing=True):
         """
         Returns metadata for the volumes attached to this instance.
 
@@ -2316,6 +2316,11 @@ class CloudSnapshotInterface(with_metaclass(ABCMeta)):
         must be raised if any of the supplied disks are not found to be attached to
         the instance.
 
+        If the optional disks parameter is supplied then this method returns metadata
+        for the disks in the supplied list only. If fail_on_missing is set to True then
+        a SnapshotBackupException is raised if any of the supplied disks are not found
+        to be attached to the instance.
+
         If the disks parameter is not supplied then this method must return a
         VolumeMetadata for all disks attached to this instance.
 
@@ -2323,6 +2328,8 @@ class CloudSnapshotInterface(with_metaclass(ABCMeta)):
             to be backed up are attached.
         :param list[str]|None disks: A list containing the names of disks to be
             backed up.
+        :param bool fail_on_missing: Fail with a SnapshotBackupException if any
+            specified disks are not attached to the instance.
         :rtype: dict[str, VolumeMetadata]
         :return: A dict of VolumeMetadata objects representing each volume
             attached to the instance, keyed by volume identifier.

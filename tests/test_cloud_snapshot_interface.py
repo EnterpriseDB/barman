@@ -687,7 +687,7 @@ class TestGcpCloudSnapshotInterface(object):
         # AND a new GcpCloudSnapshotInterface
         snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, self.gcp_zone)
 
-        # WHEN take snapshot_backup is called
+        # WHEN get_attached_volumes is called
         # THEN a SnapshotBackupException is raised
         with pytest.raises(SnapshotBackupException) as exc:
             snapshot_interface.get_attached_volumes(
@@ -700,6 +700,17 @@ class TestGcpCloudSnapshotInterface(object):
         ) == "Cannot find disk with name {} in zone {} for project {}".format(
             disks[-1]["name"], self.gcp_zone, self.gcp_project
         )
+
+        # WHEN get_attached_volumes is called with fail_on_missing=False
+        # THEN no exception is raised
+        attached_volumes = snapshot_interface.get_attached_volumes(
+            self.gcp_instance_name,
+            [disk["name"] for disk in disks],
+            fail_on_missing=False,
+        )
+        # AND the attached volumes contains only those disks which were present
+        expected_volumes = [d["name"] for d in disks[:-1]]
+        assert set(attached_volumes.keys()) == set(expected_volumes)
 
     def test_get_attached_volumes_disk_not_attached(
         self,
@@ -728,7 +739,7 @@ class TestGcpCloudSnapshotInterface(object):
         # AND a new GcpCloudSnapshotInterface
         snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, self.gcp_zone)
 
-        # WHEN take snapshot_backup is called
+        # WHEN get_attached_volumes is called
         # THEN a SnapshotBackupException is raised
         with pytest.raises(SnapshotBackupException) as exc:
             snapshot_interface.get_attached_volumes(
@@ -739,6 +750,17 @@ class TestGcpCloudSnapshotInterface(object):
         assert str(exc.value) == "Disks not attached to instance {}: {}".format(
             self.gcp_instance_name, disks[-1]["name"]
         )
+
+        # WHEN get_attached_volumes is called with fail_on_missing=False
+        # THEN no exception is raised
+        attached_volumes = snapshot_interface.get_attached_volumes(
+            self.gcp_instance_name,
+            [disk["name"] for disk in disks],
+            fail_on_missing=False,
+        )
+        # AND the attached volumes contains only those disks which were present
+        expected_volumes = [d["name"] for d in disks[:-1]]
+        assert set(attached_volumes.keys()) == set(expected_volumes)
 
     def test_get_attached_volumes_disk_attached_multiple_times(
         self,
@@ -768,7 +790,7 @@ class TestGcpCloudSnapshotInterface(object):
         # AND a new GcpCloudSnapshotInterface
         snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, self.gcp_zone)
 
-        # WHEN take snapshot_backup is called
+        # WHEN get_attached_volumes is called
         # THEN a SnapshotBackupException is raised
         with pytest.raises(AssertionError):
             snapshot_interface.get_attached_volumes(
@@ -2009,6 +2031,17 @@ class TestAzureCloudSnapshotInterface(object):
             disks[-1]["name"], self.azure_resource_group, self.azure_subscription_id
         )
 
+        # WHEN get_attached_volumes is called with fail_on_missing=False
+        # THEN no exception is raised
+        attached_volumes = snapshot_interface.get_attached_volumes(
+            self.azure_instance_name,
+            [disk["name"] for disk in disks],
+            fail_on_missing=False,
+        )
+        # AND the attached volumes contains only those disks which were present
+        expected_volumes = [d["name"] for d in disks[:-1]]
+        assert set(attached_volumes.keys()) == set(expected_volumes)
+
     def test_get_attached_volumes_disk_not_attaached(self):
         """
         Verify that a SnapshotBackupException is raised if a disk is not attached
@@ -2045,6 +2078,17 @@ class TestAzureCloudSnapshotInterface(object):
         assert str(exc.value) == "Disks not attached to instance {}: {}".format(
             self.azure_instance_name, disks[-1]["name"]
         )
+
+        # WHEN get_attached_volumes is called with fail_on_missing=False
+        # THEN no exception is raised
+        attached_volumes = snapshot_interface.get_attached_volumes(
+            self.azure_instance_name,
+            [disk["name"] for disk in disks],
+            fail_on_missing=False,
+        )
+        # AND the attached volumes contains only those disks which were present
+        expected_volumes = [d["name"] for d in disks[:-1]]
+        assert set(attached_volumes.keys()) == set(expected_volumes)
 
     @pytest.mark.parametrize(
         "mock_disks",

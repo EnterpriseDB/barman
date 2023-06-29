@@ -770,7 +770,7 @@ class AzureCloudSnapshotInterface(CloudSnapshotInterface):
                 snapshot.identifier, backup_info.snapshots_info.resource_group
             )
 
-    def get_attached_volumes(self, instance_name, disks=None):
+    def get_attached_volumes(self, instance_name, disks=None, fail_on_missing=True):
         """
         Returns metadata for the volumes attached to this instance.
 
@@ -778,8 +778,9 @@ class AzureCloudSnapshotInterface(CloudSnapshotInterface):
         instance and returns a dict of `VolumeMetadata` objects, keyed by disk name.
 
         If the optional disks parameter is supplied then this method returns metadata
-        for the disks in the supplied list only. A SnapshotBackupException is raised if
-        any of the supplied disks are not found to be attached to the instance.
+        for the disks in the supplied list only. If fail_on_missing is set to True then
+        a SnapshotBackupException is raised if any of the supplied disks are not found
+        to be attached to the instance.
 
         If the disks parameter is not supplied then this method returns a
         VolumeMetadata object for every disk attached to this instance.
@@ -788,6 +789,8 @@ class AzureCloudSnapshotInterface(CloudSnapshotInterface):
             are attached.
         :param list[str]|None disks: A list containing the names of disks to be
             backed up.
+        :param bool fail_on_missing: Fail with a SnapshotBackupException if any
+            specified disks are not attached to the instance.
         :rtype: dict[str, VolumeMetadata]
         :return: A dict of VolumeMetadata objects representing each volume
             attached to the instance, keyed by volume identifier.
@@ -804,7 +807,7 @@ class AzureCloudSnapshotInterface(CloudSnapshotInterface):
                 attachment_metadata, disk_metadata
             )
         # Check all requested disks were found and complain if necessary
-        if disks is not None:
+        if disks is not None and fail_on_missing:
             unattached_disks = []
             for disk_name in disks:
                 if disk_name not in attached_volumes:
