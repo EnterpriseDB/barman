@@ -180,8 +180,13 @@ def create_argument_parser(description, source_or_destination=UrlArgumentType.so
     )
     s3_arguments.add_argument(
         "-P",
-        "--profile",
+        "--aws-profile",
         help="profile name (e.g. INI section in AWS credentials file)",
+    )
+    s3_arguments.add_argument(
+        "--profile",
+        help="profile name (deprecated: replaced by --aws-profile)",
+        dest="aws_profile",
     )
     s3_arguments.add_argument(
         "--read-timeout",

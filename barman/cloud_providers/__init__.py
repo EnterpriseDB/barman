@@ -47,7 +47,7 @@ def _make_s3_cloud_interface(config, cloud_interface_kwargs):
 
     cloud_interface_kwargs.update(
         {
-            "profile_name": config.profile,
+            "profile_name": config.aws_profile,
             "endpoint_url": config.endpoint_url,
             "read_timeout": config.read_timeout,
         }

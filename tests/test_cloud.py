@@ -2687,7 +2687,10 @@ class TestGetCloudInterface(object):
     @pytest.fixture()
     def mock_config_aws(self):
         return Namespace(
-            endpoint_url=None, profile=None, source_url="test-url", read_timeout=None
+            endpoint_url=None,
+            aws_profile=None,
+            source_url="test-url",
+            read_timeout=None,
         )
 
     @pytest.fixture()
