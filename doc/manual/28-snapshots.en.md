@@ -73,6 +73,29 @@ The following permissions are required:
 - `Microsoft.Compute/snapshots/write`
 - `Microsoft.Compute/snapshots/delete`
 
+#### AWS snapshot prerequisites
+
+The boto3 library must be available to the Python distribution used by Barman.
+
+This library is an optional dependency and not installed as standard by any of the Barman packages.
+It can be installed as follows using `pip`:
+
+```bash
+pip3 install boto3
+```
+
+The following additional prerequisites apply to snapshot backups on AWS:
+
+- All disks included in the snapshot backup must be non-root EBS volumes and must be attached to the same VM instance.
+- NVMe volumes are not currently supported.
+
+The following permissions are required:
+
+- `ec2:CreateSnapshot`
+- `ec2:DescribeSnapshots`
+- `ec2:DescribeInstances`
+- `ec2:DescribeVolumes`
+
 ### Configuration for snapshot backups
 
 To configure Barman for backup via cloud snapshots, set the `backup_method` parameter to `snapshot` and set `snapshot_provider` to a supported cloud provider:
@@ -82,7 +105,8 @@ backup_method = snapshot
 snapshot_provider = gcp
 ```
 
-Currently Google Cloud Platform (`gcp`) and Microsoft Azure (`azure`) are supported.
+Currently Google Cloud Platform (`gcp`) and Microsoft Azure (`azure`) are fully supported.
+Snapshot backups are supported using AWS however *support for recovery/restore and deletion of AWS snapshot backups is not yet implemented*.
 
 The following parameters must be set regardless of cloud provider:
 
@@ -120,6 +144,21 @@ azure_resource_group = AZURE_RESOURCE_GROUP
 
 `azure_subscription_id` should be set to the ID of the Azure subscription ID which owns the instance and storage volumes defined by `snapshot_instance` and `snapshot_disks`.
 `azure_resource_group` should be set to the resource group to which the instance and disks belong.
+
+#### Configuration for AWS snapshots
+
+The following optional parameters can be set when using AWS:
+
+``` ini
+aws_region = AWS_REGION
+aws_profile = AWS_PROFILE_NAME
+```
+
+If `aws_profile` is used it should be set to the name of a section in the AWS credentials file.
+If `aws_profile` is not used then the default profile will be used.
+If no credentials file exists then credentials will be sourced from the environment.
+
+If `aws_region` is specified it will override any region that may be defined in the AWS profile.
 
 ### Taking a snapshot backup
 

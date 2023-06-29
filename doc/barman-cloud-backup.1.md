@@ -56,6 +56,7 @@ usage: barman-cloud-backup [-V] [--help] [-v | -q] [-t]
                            [--kms-key-name KMS_KEY_NAME] [--gcp-zone GCP_ZONE]
                            [--tags [TAGS [TAGS ...]]] [-e {AES256,aws:kms}]
                            [--sse-kms-key-id SSE_KMS_KEY_ID]
+                           [--aws-region AWS_REGION]
                            [--encryption-scope ENCRYPTION_SCOPE]
                            [--azure-subscription-id AZURE_SUBSCRIPTION_ID]
                            [--azure-resource-group AZURE_RESOURCE_GROUP]
@@ -134,6 +135,10 @@ Extra options for the aws-s3 cloud provider:
                         the uploaded data in S3. Can be specified using the
                         key ID on its own or using the full ARN for the key.
                         Only allowed if `-e/--encryption` is set to `aws:kms`.
+  --aws-region AWS_REGION
+                        The name of the AWS region containing the EC2 VM and
+                        storage volumes defined by the --snapshot-instance and
+                        --snapshot-disk arguments.
 
 Extra options for the azure-blob-storage cloud provider:
   --azure-credential {azure-cli,managed-identity}, --credential {azure-cli,managed-identity}

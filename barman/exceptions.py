@@ -128,6 +128,12 @@ class SnapshotBackupException(BackupException):
     """
 
 
+class SnapshotInstanceNotFoundException(SnapshotBackupException):
+    """
+    Raised when the VM instance related to a snapshot backup cannot be found
+    """
+
+
 class SyncError(SyncException):
     """
     Synchronisation error

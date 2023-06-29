@@ -24,6 +24,7 @@ from datetime import datetime
 import mock
 import pytest
 from dateutil.tz import tzlocal, tzoffset
+from barman.cloud_providers.aws_s3 import AwsSnapshotMetadata, AwsSnapshotsInfo
 from barman.cloud_providers.azure_blob_storage import (
     AzureSnapshotMetadata,
     AzureSnapshotsInfo,
@@ -800,6 +801,58 @@ class TestBackupInfo(object):
         assert snapshot0_json["provider"]["lun"] == "10"
         assert snapshot0_json["provider"]["snapshot_name"] == "short_snapshot_name"
         assert snapshot0_json["provider"]["location"] == "uksouth"
+
+    def test_with_snapshots_info_aws(self, tmpdir):
+        """
+        Test that snapshots_info is included in file and output if set.
+        """
+        # GIVEN a backup.info file for a server
+        server = build_mocked_server(
+            main_conf={"basebackups_directory": tmpdir.strpath},
+        )
+        backup_dir = tmpdir.mkdir("fake_name")
+        infofile = backup_dir.join("backup.info")
+        b_info = LocalBackupInfo(server, backup_id="fake_name")
+        b_info.status = BackupInfo.DONE
+
+        # WHEN snapshots_info is set and the file is saved
+        snapshots_info = AwsSnapshotsInfo(
+            account_id="0123456789",
+            region="eu-west-2",
+            snapshots=[
+                AwsSnapshotMetadata(
+                    mount_point="/opt/mount0",
+                    mount_options="rw",
+                    device_name="/dev/sdf",
+                    snapshot_name="user-assigned name",
+                    snapshot_id="snap-0123",
+                )
+            ],
+        )
+        b_info.snapshots_info = snapshots_info
+        b_info.save()
+
+        # THEN a new BackupInfo created from the saved file has the SnapshotsInfo attributes
+        new_backup_info = LocalBackupInfo(server, info_file=infofile.strpath)
+        assert new_backup_info.snapshots_info.provider == "aws"
+        assert new_backup_info.snapshots_info.account_id == "0123456789"
+        snapshot0 = new_backup_info.snapshots_info.snapshots[0]
+        assert snapshot0.mount_point == "/opt/mount0"
+        assert snapshot0.mount_options == "rw"
+        assert snapshot0.device_name == "/dev/sdf"
+        assert snapshot0.snapshot_name == "user-assigned name"
+        assert snapshot0.snapshot_id == "snap-0123"
+
+        # AND the snapshots_info is included in the JSON output
+        snapshots_json = b_info.to_json()["snapshots_info"]
+        assert snapshots_json["provider"] == "aws"
+        assert snapshots_json["provider_info"]["account_id"] == "0123456789"
+        snapshot0_json = snapshots_json["snapshots"][0]
+        assert snapshot0_json["mount"]["mount_point"] == "/opt/mount0"
+        assert snapshot0_json["mount"]["mount_options"] == "rw"
+        assert snapshot0_json["provider"]["device_name"] == "/dev/sdf"
+        assert snapshot0_json["provider"]["snapshot_name"] == "user-assigned name"
+        assert snapshot0_json["provider"]["snapshot_id"] == "snap-0123"
 
     def test_with_no_snapshots_info(self, tmpdir):
         """

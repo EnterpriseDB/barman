@@ -218,6 +218,11 @@ If the `--cloud-provider` is `azure-blob-storage` then the following arguments a
 - `--azure-subscription-id`
 - `--azure-resource-group`
 
+If the `--cloud-provider` is `aws-s3` then the following optional arguments can be used:
+
+- `--aws-profile`
+- `--aws-region`
+
 The following options cannot be used with `barman-cloud-backup` when cloud snapshots are requested:
 
 - `--bzip2`, `--gzip` or `--snappy`

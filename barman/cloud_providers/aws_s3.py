@@ -24,8 +24,17 @@ from barman.clients.cloud_compression import decompress_to_file
 from barman.cloud import (
     CloudInterface,
     CloudProviderError,
+    CloudSnapshotInterface,
     DecompressingStreamingIO,
     DEFAULT_DELIMITER,
+    SnapshotMetadata,
+    SnapshotsInfo,
+    VolumeMetadata,
+)
+from barman.exceptions import (
+    CommandException,
+    SnapshotBackupException,
+    SnapshotInstanceNotFoundException,
 )
 
 
@@ -443,3 +452,568 @@ class S3CloudInterface(CloudInterface):
                     % (prefix, response_metadata["HTTPStatusCode"])
                 )
                 raise CloudProviderError()
+
+
+class AwsCloudSnapshotInterface(CloudSnapshotInterface):
+    """
+    Implementation of CloudSnapshotInterface for EBS snapshots as implemented in AWS
+    as documented at:
+
+        https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-creating-snapshot.html
+    """
+
+    def __init__(self, profile_name=None, region=None):
+        """
+        Creates the client necessary for creating and managing snapshots.
+
+        :param str profile_name: AWS auth profile identifier.
+        :param str region: The AWS region in which snapshot resources are located.
+        """
+        self.session = boto3.Session(profile_name=profile_name)
+        # If a specific region was provided then this overrides any region which may be
+        # defined in the profile
+        self.region = region or self.session.region_name
+        self.ec2_client = self.session.client("ec2", region_name=self.region)
+
+    def _get_instance_metadata(self, instance_identifier):
+        """
+        Retrieve the boto3 describe_instances metadata for the specified instance.
+
+        The supplied instance_identifier can be either an AWS instance ID or a name.
+        If an instance ID is supplied then this function will look it up directly. If
+        a name is supplied then the `tag:Name` filter will be used to query the AWS
+        API for instances with the matching `Name` tag.
+
+        :param str instance_identifier: The instance ID or name of the VM instance.
+        :rtype: dict
+        :return: A dict containing the describe_instances metadata for the specified
+            VM instance.
+        """
+        # Consider all states other than `terminated` as valid instances
+        allowed_states = ["pending", "running", "shutting-down", "stopping", "stopped"]
+        # If the identifier looks like an instance ID then we attempt to look it up
+        resp = None
+        if instance_identifier.startswith("i-"):
+            try:
+                resp = self.ec2_client.describe_instances(
+                    InstanceIds=[instance_identifier],
+                    Filters=[
+                        {"Name": "instance-state-name", "Values": allowed_states},
+                    ],
+                )
+            except ClientError as exc:
+                error_code = exc.response["Error"]["Code"]
+                # If we have a malformed instance ID then continue and treat it
+                # like a name, otherwise re-raise the original error
+                if error_code != "InvalidInstanceID.Malformed":
+                    raise
+        # If we do not have a response then try looking up by name
+        if resp is None:
+            resp = self.ec2_client.describe_instances(
+                Filters=[
+                    {"Name": "tag:Name", "Values": [instance_identifier]},
+                    {"Name": "instance-state-name", "Values": allowed_states},
+                ]
+            )
+        # Check for non-unique reservations and instances before returning the instance
+        # because tag uniqueness is not a thing
+        reservations = resp["Reservations"]
+        if len(reservations) == 1:
+            if len(reservations[0]["Instances"]) == 1:
+                return reservations[0]["Instances"][0]
+            elif len(reservations[0]["Instances"]) > 1:
+                raise CloudProviderError(
+                    "Cannot find a unique EC2 instance matching {}".format(
+                        instance_identifier
+                    )
+                )
+        elif len(reservations) > 1:
+            raise CloudProviderError(
+                "Cannot find a unique EC2 reservation containing instance {}".format(
+                    instance_identifier
+                )
+            )
+        raise SnapshotInstanceNotFoundException(
+            "Cannot find instance {}".format(instance_identifier)
+        )
+
+    def _has_tag(self, resource, tag_name, tag_value):
+        """
+        Determine whether the resource metadata contains a specified tag.
+
+        :param dict resource: Metadata describing an AWS resource.
+        :parma str tag_name: The name of the tag to be checked.
+        :param str tag_value: The value of the tag to be checked.
+        :rtype: bool
+        :return: True if a tag with the specified name and value was found, False
+            otherwise.
+        """
+        if "Tags" in resource:
+            for tag in resource["Tags"]:
+                if tag["Key"] == tag_name and tag["Value"] == tag_value:
+                    return True
+        return False
+
+    def _lookup_volume(self, attached_volumes, volume_identifier):
+        """
+        Searches a supplied list of describe_volumes metadata for the specified volume.
+
+        :param list[dict] attached_volumes: A list of volumes in the format provided by
+            the boto3 describe_volumes function.
+        :param str volume_identifier: The volume ID or name of the volume to be looked
+            up.
+        :rtype: dict|None
+        :return: describe_volume metadata for the volume matching the supplied
+            identifier.
+        """
+        # Check whether volume_identifier matches a VolumeId
+        matching_volumes = [
+            volume
+            for volume in attached_volumes
+            if volume["VolumeId"] == volume_identifier
+        ]
+        # If we do not have a match, try again but search for a matching Name tag
+        if not matching_volumes:
+            matching_volumes = [
+                volume
+                for volume in attached_volumes
+                if self._has_tag(volume, "Name", volume_identifier)
+            ]
+        # If there is more than one matching volume then it's an error condition
+        if len(matching_volumes) > 1:
+            raise CloudProviderError(
+                "Duplicate volumes found matching {}: {}".format(
+                    volume_identifier,
+                    ", ".join(v["VolumeId"] for v in matching_volumes),
+                )
+            )
+        # If no matching volumes were found then return None - it is up to the calling
+        # code to decide if this is an error
+        elif len(matching_volumes) == 0:
+            return None
+        # Otherwise, we found exactly one matching volume and return its metadata
+        else:
+            return matching_volumes[0]
+
+    def _get_requested_volumes(self, instance_metadata, disks=None):
+        """
+        Fetch describe_volumes metadata for disks attached to a specified VM instance.
+
+        Queries the AWS API for metadata describing the volumes attached to the
+        instance described in instance_metadata.
+
+        If `disks` is specified then metadata is only returned for the volumes that are
+        included in the list and attached to the instance. Volumes which are requested
+        in the `disks` list but not attached to the instance are not included in the
+        response - it is up to calling code to decide whether this is an error
+        condition.
+
+        Entries in `disks` can be either volume IDs or names. The value provided for
+        each volume will be included in the response under the key `identifier`.
+
+        If `disks` is not provided then every non-root volume attached to the instance
+        will be included in the response.
+
+        :param dict instance_metadata: A dict containing the describe_instances metadata
+            for a VM instance.
+        :param list[str] disks: A list of volume IDs or volume names. If specified then
+            only volumes in this list which are attached to the instance described by
+            instance_metadata will be included in the response.
+        :rtype: list[dict[str,str|dict]]
+        :return: A list of dicts containing identifiers and describe_volumes metadata
+            for the requested volumes.
+        """
+        # Pre-fetch the describe_volumes output for all volumes attached to the instance
+        attached_volumes = self.ec2_client.describe_volumes(
+            Filters=[
+                {
+                    "Name": "attachment.instance-id",
+                    "Values": [instance_metadata["InstanceId"]],
+                },
+            ]
+        )["Volumes"]
+        # If disks is None then use a list of all Ebs volumes attached to the instance
+        requested_volumes = []
+        if disks is None:
+            disks = [
+                device["Ebs"]["VolumeId"]
+                for device in instance_metadata["BlockDeviceMappings"]
+                if "Ebs" in device
+            ]
+        # For each requested volume, look it up in the describe_volumes output using
+        # _lookup_volume which will handle both volume IDs and volume names
+        for volume_identifier in disks:
+            volume = self._lookup_volume(attached_volumes, volume_identifier)
+            if volume is not None:
+                attachment_metadata = None
+                for attachment in volume["Attachments"]:
+                    if attachment["InstanceId"] == instance_metadata["InstanceId"]:
+                        attachment_metadata = attachment
+                        break
+                if attachment_metadata is not None:
+                    # Ignore the root volume
+                    if (
+                        attachment_metadata["Device"]
+                        == instance_metadata["RootDeviceName"]
+                    ):
+                        continue
+                    requested_volumes.append(
+                        {
+                            "identifier": volume_identifier,
+                            "attachment_metadata": attachment_metadata,
+                        }
+                    )
+        return requested_volumes
+
+    def _create_snapshot(self, backup_info, volume_name, volume_id):
+        """
+        Create a snapshot of an EBS volume in AWS.
+
+        Unlike its counterparts in AzureCloudSnapshotInterface and
+        GcpCloudSnapshotInterface, this function does not wait for the snapshot to
+        enter a successful completed state and instead relies on the calling code
+        to perform any necessary waiting.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        :param str volume_name: The user-supplied identifier for the volume. Used
+            when creating the snapshot name.
+        :param str volume_id: The AWS volume ID. Used when calling the AWS API to
+            create the snapshot.
+        :rtype: (str, dict)
+        :return: The snapshot name and the snapshot metadata returned by AWS.
+        """
+        snapshot_name = "%s-%s" % (
+            volume_name,
+            backup_info.backup_id.lower(),
+        )
+        logging.info(
+            "Taking snapshot '%s' of disk '%s' (%s)",
+            snapshot_name,
+            volume_name,
+            volume_id,
+        )
+        resp = self.ec2_client.create_snapshot(
+            TagSpecifications=[
+                {
+                    "ResourceType": "snapshot",
+                    "Tags": [
+                        {"Key": "Name", "Value": snapshot_name},
+                    ],
+                }
+            ],
+            VolumeId=volume_id,
+        )
+
+        if resp["State"] == "error":
+            raise CloudProviderError(
+                "Snapshot '{}' failed: {}".format(snapshot_name, resp)
+            )
+
+        return snapshot_name, resp
+
+    def take_snapshot_backup(self, backup_info, instance_identifier, volumes):
+        """
+        Take a snapshot backup for the named instance.
+
+        Creates a snapshot for each named disk and saves the required metadata
+        to backup_info.snapshots_info as an AwsSnapshotsInfo object.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        :param str instance_identifier: The instance ID or name of the VM instance to
+            which the disks to be backed up are attached.
+        :param dict[str,barman.cloud_providers.aws_s3.AwsVolumeMetadata] volumes:
+            Metadata describing the volumes to be backed up.
+        """
+        instance_metadata = self._get_instance_metadata(instance_identifier)
+        attachment_metadata = instance_metadata["BlockDeviceMappings"]
+        snapshots = []
+        for volume_identifier, volume_metadata in volumes.items():
+            attached_volumes = [
+                v
+                for v in attachment_metadata
+                if v["Ebs"]["VolumeId"] == volume_metadata.id
+            ]
+            if len(attached_volumes) == 0:
+                raise SnapshotBackupException(
+                    "Disk %s not attached to instance %s"
+                    % (volume_identifier, instance_identifier)
+                )
+            assert len(attached_volumes) == 1
+
+            snapshot_name, snapshot_resp = self._create_snapshot(
+                backup_info, volume_identifier, volume_metadata.id
+            )
+            snapshots.append(
+                AwsSnapshotMetadata(
+                    snapshot_id=snapshot_resp["SnapshotId"],
+                    snapshot_name=snapshot_name,
+                    device_name=attached_volumes[0]["DeviceName"],
+                    mount_options=volume_metadata.mount_options,
+                    mount_point=volume_metadata.mount_point,
+                )
+            )
+
+        # Await completion of all snapshots using a boto3 waiter. This will call
+        # `describe_snapshots` every 15 seconds until all snapshot IDs are in a
+        # successful state. If the successful state is not reached after the maximum
+        # number of attempts (default: 40) then a WaiterError is raised.
+        snapshot_ids = [snapshot.identifier for snapshot in snapshots]
+        logging.info("Waiting for completion of snapshots: %s", ", ".join(snapshot_ids))
+        waiter = self.ec2_client.get_waiter("snapshot_completed")
+        waiter.wait(Filters=[{"Name": "snapshot-id", "Values": snapshot_ids}])
+
+        backup_info.snapshots_info = AwsSnapshotsInfo(
+            snapshots=snapshots,
+            region=self.region,
+            # All snapshots will have the same OwnerId so we get it from the last
+            # snapshot response.
+            account_id=snapshot_resp["OwnerId"],
+        )
+
+    def delete_snapshot_backup(self, backup_info):
+        """
+        Delete all snapshots for the supplied backup.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        """
+        raise NotImplementedError()
+
+    def get_attached_volumes(
+        self, instance_identifier, disks=None, fail_on_missing=True
+    ):
+        """
+        Returns metadata for the non-root volumes attached to this instance.
+
+        Queries AWS for metadata relating to the volumes attached to the named instance
+        and returns a dict of `VolumeMetadata` objects, keyed by volume identifier.
+
+        The volume identifier will be either:
+        - The value supplied in the disks parameter, which can be either the AWS
+          assigned volume ID or a name which corresponds to a unique `Name` tag assigned
+          to a volume.
+        - The AWS assigned volume ID, if the disks parameter is unused.
+
+        If the optional disks parameter is supplied then this method returns metadata
+        for the disks in the supplied list only. If fail_on_missing is set to True then
+        a SnapshotBackupException is raised if any of the supplied disks are not found
+        to be attached to the instance.
+
+        If the disks parameter is not supplied then this method returns a
+        VolumeMetadata object for every non-root disk attached to this instance.
+
+        :param str instance_identifier: Either an instance ID or the name of the VM
+            instance to which the disks are attached.
+        :param list[str]|None disks: A list containing either the volume IDs or names
+            of disks backed up.
+        :param bool fail_on_missing: Fail with a SnapshotBackupException if any
+            specified disks are not attached to the instance.
+        :rtype: dict[str, VolumeMetadata]
+        :return: A dict where the key is the volume identifier and the value is the
+            device path for that disk on the specified instance.
+        """
+        instance_metadata = self._get_instance_metadata(instance_identifier)
+        requested_volumes = self._get_requested_volumes(instance_metadata, disks)
+
+        attached_volumes = {}
+        for requested_volume in requested_volumes:
+            attached_volumes[requested_volume["identifier"]] = AwsVolumeMetadata(
+                requested_volume["attachment_metadata"],
+                virtualization_type=instance_metadata["VirtualizationType"],
+            )
+
+        if disks is not None and fail_on_missing:
+            unattached_volumes = []
+            for disk_identifier in disks:
+                if disk_identifier not in attached_volumes:
+                    unattached_volumes.append(disk_identifier)
+            if len(unattached_volumes) > 0:
+                raise SnapshotBackupException(
+                    "Disks not attached to instance {}: {}".format(
+                        instance_identifier, ", ".join(unattached_volumes)
+                    )
+                )
+        return attached_volumes
+
+    def instance_exists(self, instance_identifier):
+        """
+        Determine whether the instance exists.
+
+        :param str instance_identifier: A string identifying the VM instance to be
+            checked. Can be either an instance ID or a name. If a name is provided
+            it is expected to match the value of a `Name` tag for a single EC2
+            instance.
+        :rtype: bool
+        :return: True if the named instance exists, False otherwise.
+        """
+        try:
+            self._get_instance_metadata(instance_identifier)
+        except SnapshotInstanceNotFoundException:
+            return False
+        return True
+
+
+class AwsVolumeMetadata(VolumeMetadata):
+    """
+    Specialization of VolumeMetadata for AWS EBS volumes.
+
+    This class uses the device name obtained from the AWS API together with the
+    virtualization type of the VM to which it is attached in order to resolve the
+    mount point and mount options for the volume.
+    """
+
+    def __init__(self, attachment_metadata=None, virtualization_type=None):
+        """
+        Creates an AwsVolumeMetadata instance using metadata obtained from the AWS API.
+
+        :param dict attachment_metadata: An `Attachments` entry in the describe_volumes
+            metadata for this volume.
+        :param str virtualization_type: The type of virtualzation used by the VM to
+            which this volume is attached - either "hvm" or "paravirtual".
+        """
+        super(AwsVolumeMetadata, self).__init__()
+        # The `id` property is used to store the volume ID so that we always have a
+        # reference to the canonical ID of the volume. This is essential when creating
+        # snapshots via the AWS API.
+        self.id = None
+        self._device_name = None
+        self._virtualization_type = virtualization_type
+        if attachment_metadata:
+            if "Device" in attachment_metadata:
+                self._device_name = attachment_metadata["Device"]
+            if "VolumeId" in attachment_metadata:
+                self.id = attachment_metadata["VolumeId"]
+
+    def resolve_mounted_volume(self, cmd):
+        """
+        Resolve the mount point and mount options using shell commands.
+
+        Uses `findmnt` to find the mount point and options for this volume by building
+        a list of candidate device names and checking each one. Candidate device names
+        are:
+
+        - The device name reported by the AWS API.
+        - A subsitution of the device name depending on virtualization type, with the
+          same trailing letter.
+
+        This is based on information provided by AWS about device renaming in EC2:
+            https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/device_naming.html
+
+        :param UnixLocalCommand cmd: An object which can be used to run shell commands
+            on a local (or remote, via the UnixRemoteCommand subclass) instance.
+        """
+        if self._device_name is None:
+            raise SnapshotBackupException(
+                "Cannot resolve mounted volume: device name unknown"
+            )
+        # Determine a list of candidate device names
+        device_names = [self._device_name]
+        device_prefix = "/dev/sd"
+        if self._virtualization_type == "hvm":
+            if self._device_name.startswith(device_prefix):
+                device_names.append(
+                    self._device_name.replace(device_prefix, "/dev/xvd")
+                )
+        elif self._virtualization_type == "paravirtual":
+            if self._device_name.startswith(device_prefix):
+                device_names.append(self._device_name.replace(device_prefix, "/dev/hd"))
+
+        # Try to find the device name reported by the EC2 API
+        for candidate_device in device_names:
+            try:
+                mount_point, mount_options = cmd.findmnt(candidate_device)
+                if mount_point is not None:
+                    self._mount_point = mount_point
+                    self._mount_options = mount_options
+                    return
+            except CommandException as e:
+                raise SnapshotBackupException(
+                    "Error finding mount point for device path %s: %s"
+                    % (self._device_name, e)
+                )
+        raise SnapshotBackupException(
+            "Could not find device %s at any mount point" % self._device_name
+        )
+
+    @property
+    def source_snapshot(self):
+        """
+        An identifier which can reference the snapshot via the cloud provider.
+
+        :rtype: str
+        :return: The snapshot short name.
+        """
+        raise NotImplementedError()
+
+
+class AwsSnapshotMetadata(SnapshotMetadata):
+    """
+    Specialization of SnapshotMetadata for AWS EBS snapshots.
+
+    Stores the device_name, snapshot_id and snapshot_name in the provider-specific
+    field.
+    """
+
+    _provider_fields = ("device_name", "snapshot_id", "snapshot_name")
+
+    def __init__(
+        self,
+        mount_options=None,
+        mount_point=None,
+        device_name=None,
+        snapshot_id=None,
+        snapshot_name=None,
+    ):
+        """
+        Constructor saves additional metadata for AWS snapshots.
+
+        :param str mount_options: The mount options used for the source disk at the
+            time of the backup.
+        :param str mount_point: The mount point of the source disk at the time of
+            the backup.
+        :param str device_name: The device name used in the AWS API.
+        :param str snapshot_id: The snapshot ID used in the AWS API.
+        :param str snapshot_name: The snapshot name stored in the `Name` tag.
+        :param str project: The AWS project name.
+        """
+        super(AwsSnapshotMetadata, self).__init__(mount_options, mount_point)
+        self.device_name = device_name
+        self.snapshot_id = snapshot_id
+        self.snapshot_name = snapshot_name
+
+    @property
+    def identifier(self):
+        """
+        An identifier which can reference the snapshot via the cloud provider.
+
+        :rtype: str
+        :return: The snapshot ID.
+        """
+        return self.snapshot_id
+
+
+class AwsSnapshotsInfo(SnapshotsInfo):
+    """
+    Represents the snapshots_info field for AWS EBS snapshots.
+    """
+
+    _provider_fields = (
+        "account_id",
+        "region",
+    )
+    _snapshot_metadata_cls = AwsSnapshotMetadata
+
+    def __init__(self, snapshots=None, account_id=None, region=None):
+        """
+        Constructor saves the list of snapshots if it is provided.
+
+        :param list[SnapshotMetadata] snapshots: A list of metadata objects for each
+            snapshot.
+        :param str account_id: The AWS account to which the snapshots belong, as
+            reported by the `OwnerId` field in the snapshots metadata returned by AWS
+            at snapshot creation time.
+        :param str region: The AWS region in which snapshot resources are located.
+        """
+        super(AwsSnapshotsInfo, self).__init__(snapshots)
+        self.provider = "aws"
+        self.account_id = account_id
+        self.region = region
