@@ -26,7 +26,8 @@ of PostgreSQL servers written in Python and maintained by EnterpriseDB.
 ```
 usage: barman-cloud-wal-restore [-V] [--help] [-v | -q] [-t]
                                 [--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}]
-                                [--endpoint-url ENDPOINT_URL] [-P PROFILE]
+                                [--endpoint-url ENDPOINT_URL] [-P AWS_PROFILE]
+                                [--profile AWS_PROFILE]
                                 [--read-timeout READ_TIMEOUT]
                                 [--azure-credential {azure-cli,managed-identity}]
                                 source_url server_name wal_name wal_dest
@@ -56,9 +57,11 @@ optional arguments:
 Extra options for the aws-s3 cloud provider:
   --endpoint-url ENDPOINT_URL
                         Override default S3 endpoint URL with the given one
-  -P PROFILE, --profile PROFILE
+  -P AWS_PROFILE, --aws-profile AWS_PROFILE
                         profile name (e.g. INI section in AWS credentials
                         file)
+  --profile AWS_PROFILE
+                        profile name (deprecated: replaced by --aws-profile)
   --read-timeout READ_TIMEOUT
                         the time in seconds until a timeout is raised when
                         waiting to read from a connection (defaults to 60
