@@ -92,6 +92,7 @@ The following additional prerequisites apply to snapshot backups on AWS:
 The following permissions are required:
 
 - `ec2:CreateSnapshot`
+- `ec2:DeleteSnapshot`
 - `ec2:DescribeSnapshots`
 - `ec2:DescribeInstances`
 - `ec2:DescribeVolumes`
@@ -105,8 +106,7 @@ backup_method = snapshot
 snapshot_provider = gcp
 ```
 
-Currently Google Cloud Platform (`gcp`) and Microsoft Azure (`azure`) are fully supported.
-Snapshot backups are supported using AWS however *support for deletion of AWS snapshot backups is not yet implemented*.
+Currently Google Cloud Platform (`gcp`), Microsoft Azure (`azure`) and AWS (`aws`) are supported.
 
 The following parameters must be set regardless of cloud provider:
 
