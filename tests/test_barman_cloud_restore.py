@@ -187,6 +187,21 @@ class TestCloudRestore(object):
                     "relocation rules cannot be used."
                 ),
             ],
+            [
+                "aws",
+                [
+                    "--snapshot-recovery-instance",
+                    "test_instance",
+                    "--aws-profile",
+                    "test_profile",
+                    "--tablespace",
+                    "tbs1:/path/to/tbs1",
+                ],
+                (
+                    "Backup {backup_id} is a snapshot backup therefore tablespace "
+                    "relocation rules cannot be used."
+                ),
+            ],
         ),
     )
     @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
@@ -241,6 +256,10 @@ class TestCloudRestore(object):
             (
                 "azure",
                 ["--azure-resource-group", "test_resource_group"],
+            ),
+            (
+                "aws",
+                ["--aws-region", "test_region"],
             ),
         ),
     )

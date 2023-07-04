@@ -657,10 +657,14 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
                         == instance_metadata["RootDeviceName"]
                     ):
                         continue
+                    snapshot_id = None
+                    if "SnapshotId" in volume and volume["SnapshotId"] != "":
+                        snapshot_id = volume["SnapshotId"]
                     requested_volumes.append(
                         {
                             "identifier": volume_identifier,
                             "attachment_metadata": attachment_metadata,
+                            "source_snapshot": snapshot_id,
                         }
                     )
         return requested_volumes
@@ -819,6 +823,7 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
             attached_volumes[requested_volume["identifier"]] = AwsVolumeMetadata(
                 requested_volume["attachment_metadata"],
                 virtualization_type=instance_metadata["VirtualizationType"],
+                source_snapshot=requested_volume["source_snapshot"],
             )
 
         if disks is not None and fail_on_missing:
@@ -861,7 +866,9 @@ class AwsVolumeMetadata(VolumeMetadata):
     mount point and mount options for the volume.
     """
 
-    def __init__(self, attachment_metadata=None, virtualization_type=None):
+    def __init__(
+        self, attachment_metadata=None, virtualization_type=None, source_snapshot=None
+    ):
         """
         Creates an AwsVolumeMetadata instance using metadata obtained from the AWS API.
 
@@ -869,6 +876,8 @@ class AwsVolumeMetadata(VolumeMetadata):
             metadata for this volume.
         :param str virtualization_type: The type of virtualzation used by the VM to
             which this volume is attached - either "hvm" or "paravirtual".
+        :param str source_snapshot: The snapshot ID of the source snapshot from which
+            volume was created.
         """
         super(AwsVolumeMetadata, self).__init__()
         # The `id` property is used to store the volume ID so that we always have a
@@ -877,6 +886,7 @@ class AwsVolumeMetadata(VolumeMetadata):
         self.id = None
         self._device_name = None
         self._virtualization_type = virtualization_type
+        self._source_snapshot = source_snapshot
         if attachment_metadata:
             if "Device" in attachment_metadata:
                 self._device_name = attachment_metadata["Device"]
@@ -940,9 +950,9 @@ class AwsVolumeMetadata(VolumeMetadata):
         An identifier which can reference the snapshot via the cloud provider.
 
         :rtype: str
-        :return: The snapshot short name.
+        :return: The snapshot ID
         """
-        raise NotImplementedError()
+        return self._source_snapshot
 
 
 class AwsSnapshotMetadata(SnapshotMetadata):

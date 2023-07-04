@@ -133,11 +133,12 @@ class TestGetSnapshotInterface(object):
     @pytest.mark.parametrize(
         ("snapshot_provider", "interface_cls"),
         [
-            ("aws", None),
+            ("aws", AwsCloudSnapshotInterface),
             ("azure", AzureCloudSnapshotInterface),
             ("gcp", GcpCloudSnapshotInterface),
         ],
     )
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     @mock.patch("barman.cloud_providers._get_azure_credential")
     @mock.patch("barman.cloud_providers.azure_blob_storage.import_azure_mgmt_compute")
     @mock.patch(
@@ -148,6 +149,7 @@ class TestGetSnapshotInterface(object):
         _mock_google_cloud_compute,
         _mock_azure_mgmt_compute,
         _mock_get_azure_credential,
+        _mock_boto3,
         snapshot_provider,
         interface_cls,
     ):
@@ -2991,6 +2993,40 @@ class TestAwsCloudSnapshotInterface(object):
         # AND the root volume was not included
         assert root_disk["id"] not in volumes
 
+    def test_get_attached_volumes_with_source_snapshots(self, mock_ec2_client):
+        """
+        Verify that attached volumes contain snapshot IDs when the AWS response
+        includes a snapshot ID for that volume.
+        """
+        # GIVEN a mock snapshots interface
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+        # AND a mock EC2 client which returns an instance with the required disks
+        # attached
+        mock_ec2_client.describe_instances.return_value = (
+            self._get_mock_describe_instances_resp(
+                self.aws_disks,
+            )
+        )
+        # AND the mock EC2 client returns describe_volume_responses for these disks
+        mock_ec2_client.describe_volumes.return_value = (
+            self._get_mock_describe_volumes_resp(self.aws_disks)
+        )
+        # AND one of those disks has a SnapshotId
+        mock_ec2_client.describe_volumes.return_value["Volumes"][0][
+            "SnapshotId"
+        ] = "snap-0123"
+
+        # WHEN get_attached_volumes is called
+        volumes = snapshot_interface.get_attached_volumes(self.aws_instance_id)
+
+        # THEN the source snapshot is set on the volume which had a SnapshotId
+        assert volumes[self.aws_disks[0]["id"]].source_snapshot == "snap-0123"
+
+        # AND the source snapshot is not set on the other volumes
+        assert all(
+            volumes[disk["id"]].source_snapshot is None for disk in self.aws_disks[1:]
+        )
+
     def test_get_attached_volumes_for_disks(self, mock_ec2_client):
         """
         Verify that the requested disks are returned as a dict keyed by the expected
@@ -3203,18 +3239,40 @@ class TestAwsVolumeMetadata(object):
         (
             "attachment_metadata",
             "virtualization_type",
+            "source_snapshot",
             "expected_virtualization_type",
+            "expected_source_snapshot",
             "expected_device_name",
             "expected_id",
         ),
         (
-            (None, None, None, None, None),
-            ({}, None, None, None, None),
-            ({}, "hvm", "hvm", None, None),
+            (None, None, None, None, None, None, None),
+            ({}, None, None, None, None, None, None),
+            ({}, "hvm", None, "hvm", None, None, None),
             (
                 {"Device": "/dev/xvdf", "VolumeId": "vol-0123"},
                 "hvm",
+                None,
                 "hvm",
+                None,
+                "/dev/xvdf",
+                "vol-0123",
+            ),
+            (
+                {"Device": "/dev/xvdf", "VolumeId": "vol-0123"},
+                None,
+                "snap-0123",
+                None,
+                "snap-0123",
+                "/dev/xvdf",
+                "vol-0123",
+            ),
+            (
+                {"Device": "/dev/xvdf", "VolumeId": "vol-0123"},
+                "hvm",
+                "snap-0123",
+                "hvm",
+                "snap-0123",
                 "/dev/xvdf",
                 "vol-0123",
             ),
@@ -3224,15 +3282,20 @@ class TestAwsVolumeMetadata(object):
         self,
         attachment_metadata,
         virtualization_type,
+        source_snapshot,
         expected_virtualization_type,
+        expected_source_snapshot,
         expected_device_name,
         expected_id,
     ):
         """Verify AwsVolumeMetadata is created from the supplied data."""
         # WHEN an AwsVolumeMetadata is created
-        volume = AwsVolumeMetadata(attachment_metadata, virtualization_type)
+        volume = AwsVolumeMetadata(
+            attachment_metadata, virtualization_type, source_snapshot
+        )
         # THEN the resulting objecth as the expected properties
         assert volume._virtualization_type == expected_virtualization_type
+        assert volume.source_snapshot == expected_source_snapshot
         assert volume._device_name == expected_device_name
         assert volume.id == expected_id
 

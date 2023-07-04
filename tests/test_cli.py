@@ -754,6 +754,7 @@ class TestCli(object):
         (
             ("gcp_zone", "snapshot_recovery_zone"),
             ("azure_resource_group", None),
+            ("aws_region", None),
         ),
     )
     @patch("barman.cli.parse_backup_id")

@@ -796,6 +796,11 @@ def rebuild_xlogdb(args):
             help="Azure resource group containing the instance and disks for recovery "
             "of a snapshot backup",
         ),
+        argument(
+            "--aws-region",
+            help="The name of the AWS region containing the EC2 VM and storage "
+            "volumes for recovery of a snapshot backup",
+        ),
     ]
 )
 def recover(args):
@@ -966,6 +971,7 @@ def recover(args):
             args.gcp_zone = args.snapshot_recovery_zone
         # Override provider-specific options in the config
         for arg in (
+            "aws_region",
             "azure_resource_group",
             "gcp_zone",
         ):
