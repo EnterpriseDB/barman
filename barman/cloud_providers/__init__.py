@@ -304,6 +304,15 @@ def get_snapshot_interface_from_backup_info(backup_info, config=None):
             resource_group=resource_group,
             credential=_get_azure_credential(config.azure_credential),
         )
+    elif backup_info.snapshots_info.provider == "aws":
+        from barman.cloud_providers.aws_s3 import AwsCloudSnapshotInterface
+
+        region = None
+        profile = None
+        if config is not None and hasattr(config, "aws_region"):
+            region = config.aws_region
+            profile = config.aws_profile
+        return AwsCloudSnapshotInterface(profile, region)
     else:
         raise CloudProviderUnsupported(
             "Unsupported snapshot provider in backup info: %s"

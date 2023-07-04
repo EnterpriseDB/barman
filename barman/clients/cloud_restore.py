@@ -131,7 +131,7 @@ def parse_arguments(args=None):
     :return: The options parsed
     """
 
-    parser, _, azure_arguments = create_argument_parser(
+    parser, s3_arguments, azure_arguments = create_argument_parser(
         description="This script can be used to download a backup "
         "previously made with barman-cloud-backup command."
         "Currently AWS S3, Azure Blob Storage and Google Cloud Storage are supported.",
@@ -156,6 +156,13 @@ def parse_arguments(args=None):
             "(deprecated: replaced by --gcp-zone)"
         ),
         dest="gcp_zone",
+    )
+    s3_arguments.add_argument(
+        "--aws-region",
+        help=(
+            "Name of the AWS region where the instance and disks for snapshot "
+            "recovery are located"
+        ),
     )
     gcs_arguments = parser.add_argument_group(
         "Extra options for google-cloud-storage cloud provider"

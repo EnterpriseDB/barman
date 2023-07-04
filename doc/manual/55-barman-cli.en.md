@@ -252,4 +252,8 @@ The following additional arguments are required with the `azure` provider:
 
 - `--azure-resource-group`
 
+The following additional argument is available with the `aws-s3` provider:
+
+- `--aws-region`
+
 The `--tablespace` option cannot be used with `barman-cloud-restore` when restoring a cloud snapshot backup:

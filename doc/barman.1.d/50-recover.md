@@ -131,3 +131,8 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
     :   Name of the Azure resource group containing the instance and disks for
         snapshot recovery. This option can be used to override the value of
         `azure_resource_group` in the Barman config.
+
+    --aws-region *REGION_NAME*
+    :   Name of the AWS region where the instance and disks for snapshot
+        recovery are located. This option can be used to override the value of
+        `aws_region` in the Barman config.

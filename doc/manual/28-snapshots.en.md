@@ -106,7 +106,7 @@ snapshot_provider = gcp
 ```
 
 Currently Google Cloud Platform (`gcp`) and Microsoft Azure (`azure`) are fully supported.
-Snapshot backups are supported using AWS however *support for recovery/restore and deletion of AWS snapshot backups is not yet implemented*.
+Snapshot backups are supported using AWS however *support for deletion of AWS snapshot backups is not yet implemented*.
 
 The following parameters must be set regardless of cloud provider:
 

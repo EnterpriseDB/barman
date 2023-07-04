@@ -1104,6 +1104,10 @@ The following additional `barman recover` arguments are available with the `azur
 
 - `--azure-resource-group`: The resource group to which the recovery instance belongs. If not provided then Barman will use the value of `azure_resource_group` set in the server config.
 
+The following additional `barman recover` arguments are available with the `aws` provider:
+
+- `--aws-region`: The AWS region in which the recovery instance is located. If not provided then Barman will use the value of `aws_region` set in the server config.
+
 Note the following `barman recover` arguments / config variables are unavailable when recovering snapshot backups:
 
 | **Command argument**      | **Config variable** .   |
@@ -1210,4 +1214,17 @@ The following fields are available in `snapshots_info/snapshots/*/provider`:
 
 - `location`: The Azure location of the disk from which the snapshot was taken.
 - `lun`: The LUN identifying the disk from which the snapshot was taken at the time of the backup.
+- `snapshot_name`: The name of the snapshot.
+
+#### AWS provider-specific metadata
+
+The following fields are available in `snapshots_info/provider_info`:
+
+- `account_id`: The ID of the AWS account which owns the resources used to make the backup.
+- `region`: The AWS region in which the resources involved in backup are located.
+
+The following fields are available in `snapshots_info/snapshots/*/provider`:
+
+- `device_name`: The device to which the source disk was mapped on the backup VM at the time of the backup.
+- `snapshot_id`: The ID of the snapshot as assigned by AWS.
 - `snapshot_name`: The name of the snapshot.
