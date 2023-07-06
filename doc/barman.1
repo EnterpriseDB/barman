@@ -632,10 +632,18 @@ This option is required when recovering backups made with
 .RE
 .TP
 .B \-\-gcp\-zone \f[I]ZONE_NAME\f[]
-Name of the availability zone where the instance and disks for snapshot
+Name of the GCP zone where the instance and disks for snapshot recovery
 are located.
-This option is required when recovering backups made with
-\f[C]backup_method\ =\ snapshot\f[].
+This option can be used to override the value of \f[C]gcp_zone\f[] in
+the Barman config.
+.RS
+.RE
+.TP
+.B \-\-azure\-resource\-group \f[I]RESOURCE_GROUP_NAME\f[]
+Name of the Azure resource group containing the instance and disks for
+snapshot recovery.
+This option can be used to override the value of
+\f[C]azure_resource_group\f[] in the Barman config.
 .RS
 .RE
 .RE

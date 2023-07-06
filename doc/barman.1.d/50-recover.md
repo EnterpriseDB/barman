@@ -123,6 +123,11 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
         `backup_method = snapshot`.
 
     --gcp-zone *ZONE_NAME*
-    :   Name of the availability zone where the instance and disks for snapshot
-        are located. This option is required when recovering backups made with
-        `backup_method = snapshot`.
+    :   Name of the GCP zone where the instance and disks for snapshot recovery
+        are located. This option can be used to override the value of `gcp_zone`
+        in the Barman config.
+
+    --azure-resource-group *RESOURCE_GROUP_NAME*
+    :   Name of the Azure resource group containing the instance and disks for
+        snapshot recovery. This option can be used to override the value of
+        `azure_resource_group` in the Barman config.
