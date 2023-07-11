@@ -786,7 +786,9 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
             error_code = exc.response["Error"]["Code"]
             # If the snapshot could not be found then deletion is considered successful
             # otherwise we raise a CloudProviderError
-            if error_code != "InvalidSnapshot.NotFound":
+            if error_code == "InvalidSnapshot.NotFound":
+                logging.warning("Snapshot {} could not be found".format(snapshot_id))
+            else:
                 raise CloudProviderError(
                     "Deletion of snapshot %s failed with error code %s: %s"
                     % (snapshot_id, error_code, exc.response["Error"])

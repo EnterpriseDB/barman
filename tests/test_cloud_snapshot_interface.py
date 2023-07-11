@@ -3269,6 +3269,8 @@ class TestAwsCloudSnapshotInterface(object):
         mock_ec2_client.delete_snapshot.assert_called_once_with(SnapshotId=snapshot_id)
         # AND a success message was logged
         assert "Snapshot {} deleted".format(snapshot_id) in caplog.text
+        # AND a warning message was logged
+        assert "Snapshot {} could not be found".format(snapshot_id) in caplog.text
 
     def test_delete_snapshot_failed(self, mock_ec2_client, caplog):
         """Verify that a failed deletion results in a CloudProviderError."""
