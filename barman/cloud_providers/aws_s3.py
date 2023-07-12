@@ -774,13 +774,40 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
             account_id=snapshot_resp["OwnerId"],
         )
 
+    def _delete_snapshot(self, snapshot_id):
+        """
+        Delete the specified snapshot.
+
+        :param str snapshot_id: The ID of the snapshot to be deleted.
+        """
+        try:
+            self.ec2_client.delete_snapshot(SnapshotId=snapshot_id)
+        except ClientError as exc:
+            error_code = exc.response["Error"]["Code"]
+            # If the snapshot could not be found then deletion is considered successful
+            # otherwise we raise a CloudProviderError
+            if error_code == "InvalidSnapshot.NotFound":
+                logging.warning("Snapshot {} could not be found".format(snapshot_id))
+            else:
+                raise CloudProviderError(
+                    "Deletion of snapshot %s failed with error code %s: %s"
+                    % (snapshot_id, error_code, exc.response["Error"])
+                )
+        logging.info("Snapshot %s deleted", snapshot_id)
+
     def delete_snapshot_backup(self, backup_info):
         """
         Delete all snapshots for the supplied backup.
 
         :param barman.infofile.LocalBackupInfo backup_info: Backup information.
         """
-        raise NotImplementedError()
+        for snapshot in backup_info.snapshots_info.snapshots:
+            logging.info(
+                "Deleting snapshot '%s' for backup %s",
+                snapshot.identifier,
+                backup_info.backup_id,
+            )
+            self._delete_snapshot(snapshot.identifier)
 
     def get_attached_volumes(
         self, instance_identifier, disks=None, fail_on_missing=True

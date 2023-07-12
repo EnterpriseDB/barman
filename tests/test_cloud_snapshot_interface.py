@@ -3231,6 +3231,99 @@ class TestAwsCloudSnapshotInterface(object):
         # THEN it returns False
         assert resp is False
 
+    def test_delete_snapshot(self, mock_ec2_client, caplog):
+        """Verify that a snapshot can be deleted successfully."""
+        # GIVEN a successful response from the delete snapshot request
+        mock_ec2_client.delete_snapshot.return_value = {}
+        # AND a mock snapshots interface
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+        # AND log level is info
+        caplog.set_level(logging.INFO)
+
+        # WHEN a snapshot is deleted
+        snapshot_id = "snap-0123"
+        snapshot_interface._delete_snapshot(snapshot_id)
+
+        # THEN delete was called on the client with the expected arguments
+        mock_ec2_client.delete_snapshot.assert_called_once_with(SnapshotId=snapshot_id)
+        # AND a success message was logged
+        assert "Snapshot {} deleted".format(snapshot_id) in caplog.text
+
+    def test_delete_snapshot_not_found(self, mock_ec2_client, caplog):
+        """Verify that a snapshot ID which can't be found is success."""
+        # GIVEN a successful response from the delete snapshot request
+        mock_ec2_client.delete_snapshot.side_effect = (
+            ClientError({"Error": {"Code": "InvalidSnapshot.NotFound"}}, "message"),
+        )
+        # AND a mock snapshots interface
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+        # AND log level is info
+        caplog.set_level(logging.INFO)
+
+        # WHEN a snapshot is deleted
+        # THEN no exceptions are raised
+        snapshot_id = "snap-0123"
+        snapshot_interface._delete_snapshot(snapshot_id)
+
+        # THEN delete was called on the client with the expected arguments
+        mock_ec2_client.delete_snapshot.assert_called_once_with(SnapshotId=snapshot_id)
+        # AND a success message was logged
+        assert "Snapshot {} deleted".format(snapshot_id) in caplog.text
+        # AND a warning message was logged
+        assert "Snapshot {} could not be found".format(snapshot_id) in caplog.text
+
+    def test_delete_snapshot_failed(self, mock_ec2_client, caplog):
+        """Verify that a failed deletion results in a CloudProviderError."""
+        # GIVEN an unexpected error from the delete snapshot request
+        mock_ec2_client.delete_snapshot.side_effect = (
+            ClientError({"Error": {"Code": "Something.Bad"}}, "message"),
+        )
+        # AND a mock snapshots interface
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+
+        # WHEN a snapshot is deleted
+        # THEN a CloudProviderError is raised
+        snapshot_id = "snap-0123"
+        with pytest.raises(CloudProviderError) as exc:
+            snapshot_interface._delete_snapshot(snapshot_id)
+
+        # AND the exception has the expected message
+        expected_message = "Deletion of snapshot {} failed with error code {}".format(
+            snapshot_id, "Something.Bad"
+        )
+        assert expected_message in str(exc.value)
+
+    @pytest.mark.parametrize(
+        "snapshots_list",
+        (
+            [],
+            [mock.Mock(identifier="snap-0123")],
+            [mock.Mock(identifier="snap-0123"), mock.Mock(identifier="snap0124")],
+        ),
+    )
+    def test_delete_snapshot_backup(self, snapshots_list, mock_ec2_client, caplog):
+        """Verify that all snapshots for a backup are deleted."""
+        # GIVEN a backup_info specifying zero or more snapshots
+        backup_info = mock.Mock(
+            backup_id=self.backup_id,
+            snapshots_info=mock.Mock(snapshots=snapshots_list),
+        )
+        # AND log level is info
+        caplog.set_level(logging.INFO)
+        # AND the snapshot delete requests are successful
+        mock_ec2_client.delete_snapshot.return_value = {}
+        # AND a new AwsCloudSnapshotInterface
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+
+        # WHEN delete_snapshot_backup is called
+        snapshot_interface.delete_snapshot_backup(backup_info)
+
+        # THEN delete_snapshot was called for each snapshot
+        expected_calls = [
+            mock.call(SnapshotId=snapshot.identifier) for snapshot in snapshots_list
+        ]
+        mock_ec2_client.delete_snapshot.assert_has_calls(expected_calls)
+
 
 class TestAwsVolumeMetadata(object):
     """Verify behaviour of AwsVolumeMetadata."""
