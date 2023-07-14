@@ -62,8 +62,11 @@ from barman.utils import (
     get_backup_info_from_name,
     human_readable_timedelta,
     pretty_size,
+    SHA256,
 )
 from barman.command_wrappers import PgVerifyBackup
+from barman.storage.local_file_manager import LocalFileManager
+from barman.backup_manifest import BackupManifest
 
 _logger = logging.getLogger(__name__)
 
@@ -717,6 +720,27 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 script = HookScriptRunner(self, "backup_script", "post")
                 script.env_from_backup_info(backup_info)
                 script.run()
+
+                # if the autogenerate_manifest functionality is active and the
+                # backup files copy is successfully completed using the rsync method,
+                # generate the backup manifest
+                if (
+                    isinstance(self.executor, RsyncBackupExecutor)
+                    and self.config.autogenerate_manifest
+                    and backup_info.status != BackupInfo.FAILED
+                ):
+                    local_file_manager = LocalFileManager()
+                    backup_manifest = BackupManifest(
+                        backup_info.get_data_directory(), local_file_manager, SHA256()
+                    )
+                    backup_manifest.create_backup_manifest()
+
+                    output.info(
+                        "Backup manifest for backup '%s' successfully "
+                        "generated for server %s",
+                        backup_info.backup_id,
+                        self.config.name,
+                    )
 
         output.result("backup", backup_info)
         return backup_info

@@ -155,6 +155,7 @@ class TestConfig(object):
         expected = testing_helpers.build_config_dictionary(
             {
                 "config": main.config,
+                "autogenerate_manifest": False,
                 "backup_compression": None,
                 "backup_compression_format": None,
                 "backup_compression_level": None,
@@ -185,6 +186,7 @@ class TestConfig(object):
         expected = testing_helpers.build_config_dictionary(
             {
                 "config": web.config,
+                "autogenerate_manifest": False,
                 "backup_directory": "/some/barman/home/web",
                 "basebackups_directory": "/some/barman/home/web/base",
                 "backup_compression": None,

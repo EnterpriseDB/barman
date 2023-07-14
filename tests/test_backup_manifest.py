@@ -16,12 +16,16 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-import pytest
+import datetime
 import os
-from mock import patch
-from barman.backup_manifest import FileIdentity, BackupManifest
+
+import pytest
+from mock import Mock, patch
+
+from barman.backup_manifest import BackupManifest, FileIdentity
 from barman.exceptions import BackupManifestException
 from barman.utils import SHA256
+from testing_helpers import build_backup_manager
 
 
 class TestFileIdentity:
@@ -190,3 +194,97 @@ class TestBackupManifest:
         with pytest.raises(BackupManifestException):
             backup_manifest.create_backup_manifest()
         file_manager.get_file_list.assert_not_called()
+
+    @patch("barman.backup_manifest.FileIdentity")
+    def test_auto_backup_manifest(self, file_identity, capsys, tmpdir):
+        backup_manager = build_backup_manager(
+            name="TestServer", global_conf={"barman_home": tmpdir.strpath}
+        )
+        backup_manager.executor.init = Mock()
+
+        def side_effect(x):
+            x.end_offset = 100
+            x.end_xlog = "000000010000000000000001"
+            x.end_wal = "000000010000000000000001"
+            data = tmpdir.mkdir("main/base/%s/data" % x.backup_id)
+            folder1 = data.mkdir("folder1")
+            f1 = data.join("file1")
+            f1.write("file1")
+            f2 = folder1.join("file2")
+            f2.write("file2")
+
+        backup_manager.executor.backup = Mock(side_effect=side_effect)
+        backup_manager.executor.copy_start_time = datetime.datetime.now()
+
+        backup_manager.server.postgres = Mock()
+        backup_manager.server.systemid = "123"
+        backup_manager.backup_fsync_and_set_sizes = Mock()
+        backup_manager.config.autogenerate_manifest = True
+        file_identity_instance = file_identity.return_value
+        file_identity_instance.get_value.side_effect = [
+            {
+                "Size": 7,
+                "Last-Modified": "2021-12-13 15:46:57",
+                "Checksum-Algorithm": "SHA256",
+                "Path": "file1",
+                "Checksum": "fakechecksum",
+            },
+            {
+                "Size": 351,
+                "Last-Modified": "2021-12-13 15:46:57",
+                "Checksum-Algorithm": "SHA256",
+                "Path": "folder1/file2",
+                "Checksum": "fakechecksum2",
+            },
+        ]
+        backup_manager.backup()
+        file_identity_instance.get_value.assert_called()
+        out, err = capsys.readouterr()
+        assert "Backup manifest for backup" in out
+
+    @patch("barman.backup_manifest.FileIdentity")
+    def test_auto_backup_manifest_disabled(self, file_identity, capsys, tmpdir):
+        backup_manager = build_backup_manager(
+            name="TestServer", global_conf={"barman_home": tmpdir.strpath}
+        )
+        backup_manager.executor.init = Mock()
+
+        def side_effect(x):
+            x.end_offset = 100
+            x.end_xlog = "000000010000000000000001"
+            x.end_wal = "000000010000000000000001"
+            data = tmpdir.mkdir("main/base/%s/data" % x.backup_id)
+            folder1 = data.mkdir("folder1")
+            f1 = data.join("file1")
+            f1.write("file1")
+            f2 = folder1.join("file2")
+            f2.write("file2")
+
+        backup_manager.executor.backup = Mock(side_effect=side_effect)
+        backup_manager.executor.copy_start_time = datetime.datetime.now()
+
+        backup_manager.server.postgres = Mock()
+        backup_manager.server.systemid = "123"
+        backup_manager.backup_fsync_and_set_sizes = Mock()
+        backup_manager.config.autogenerate_manifest = False
+        file_identity_instance = file_identity.return_value
+        file_identity_instance.get_value.side_effect = [
+            {
+                "Size": 7,
+                "Last-Modified": "2021-12-13 15:46:57",
+                "Checksum-Algorithm": "SHA256",
+                "Path": "file1",
+                "Checksum": "fakechecksum",
+            },
+            {
+                "Size": 351,
+                "Last-Modified": "2021-12-13 15:46:57",
+                "Checksum-Algorithm": "SHA256",
+                "Path": "folder1/file2",
+                "Checksum": "fakechecksum2",
+            },
+        ]
+        backup_manager.backup()
+        assert not file_identity_instance.get_value.called
+        out, err = capsys.readouterr()
+        assert "Backup manifest for backup" not in out
