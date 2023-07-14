@@ -74,3 +74,16 @@ backup *SERVER_NAME*
     --wait-timeout
     :   the time, in seconds, spent waiting for the required WAL
         files to be archived before timing out
+
+    --manifest
+    :   forces the creation of a backup manifest file at the end of a backup. 
+        Overrides value of the parameter `autogenerate_manifest`, 
+        from the configuration file. 
+        Works with rsync backup method and strategies only
+
+    --no-manifest
+    :   disables the automatic creation of a backup manifest file 
+        at the end of a backup. 
+        Overrides value of the parameter `autogenerate_manifest`, 
+        from the configuration file. 
+        Works with rsync backup method and strategies only
