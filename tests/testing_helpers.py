@@ -239,6 +239,7 @@ def build_config_dictionary(config_keys=None):
         "active": True,
         "archiver": True,
         "archiver_batch_size": 0,
+        "autogenerate_manifest": False,
         "aws_profile": None,
         "aws_region": None,
         "azure_credential": None,

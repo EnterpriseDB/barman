@@ -444,6 +444,22 @@ def backup_completer(prefix, parsed_args, **kwargs):
             default=None,
             type=check_backup_name,
         ),
+        argument(
+            "--manifest",
+            help="forces the creation of the backup manifest file for the "
+            "rsync backup method",
+            dest="automatic_manifest",
+            action="store_true",
+            default=SUPPRESS,
+        ),
+        argument(
+            "--no-manifest",
+            help="disables the creation of the backup manifest file for the "
+            "rsync backup method",
+            dest="automatic_manifest",
+            action="store_false",
+            default=SUPPRESS,
+        ),
     ]
 )
 def backup(args):
@@ -470,6 +486,11 @@ def backup(args):
             # postgres connection because it has already been set from the config
             server.config.immediate_checkpoint = args.immediate_checkpoint
             server.postgres.immediate_checkpoint = args.immediate_checkpoint
+        if hasattr(args, "automatic_manifest"):
+            # Override the set value for the autogenerate_manifest config option.
+            # The backup executor class will automatically ignore --manifest requests
+            # for backup methods different from rsync.
+            server.config.autogenerate_manifest = args.automatic_manifest
         if args.jobs is not None:
             server.config.parallel_jobs = args.jobs
         if args.jobs_start_batch_size is not None:
