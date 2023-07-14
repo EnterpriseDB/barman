@@ -92,6 +92,7 @@ The following additional prerequisites apply to snapshot backups on AWS:
 The following permissions are required:
 
 - `ec2:CreateSnapshot`
+- `ec2:CreateTags`
 - `ec2:DeleteSnapshot`
 - `ec2:DescribeSnapshots`
 - `ec2:DescribeInstances`
