@@ -207,7 +207,7 @@ class TestGetSnapshotInterface(object):
         mock_backup_info = mock.Mock(
             snapshots_info=mock.Mock(provider="azure", subscription_id=None)
         )
-        # WHEN get snapshot_interface_from_server_config is called
+        # WHEN get snapshot_interface_from_backup_info is called
         with pytest.raises(ConfigurationException) as exc:
             get_snapshot_interface_from_backup_info(mock_backup_info, mock_config)
         # THEN the expected exception is raised
@@ -2094,7 +2094,7 @@ class TestAzureCloudSnapshotInterface(object):
         expected_volumes = [d["name"] for d in disks[:-1]]
         assert set(attached_volumes.keys()) == set(expected_volumes)
 
-    def test_get_attached_volumes_disk_not_attaached(self):
+    def test_get_attached_volumes_disk_not_attached(self):
         """
         Verify that a SnapshotBackupException is raised if a disk is not attached
         to the instance.
@@ -2278,7 +2278,7 @@ class TestAzureVolumeMetadata(object):
             # If no attachment metadata or disk metadata is passed then we expect init
             # to succeed but the lun and location to be None.
             (None, None, None, None),
-            # If the lun is set in the attachment metadata then we eexpect it to be
+            # If the lun is set in the attachment metadata then we expect it to be
             # set in the VolumeMetadata instance.
             (
                 mock.Mock(lun="10"),
@@ -2286,7 +2286,7 @@ class TestAzureVolumeMetadata(object):
                 "10",
                 None,
             ),
-            # If the location is set in the attachment metadata then we eexpect it to
+            # If the location is set in the attachment metadata then we expect it to
             # be set in the VolumeMetadata instance.
             (None, mock.Mock(location="uksouth"), None, "uksouth"),
             # If lun and location are set in the attachment metadata then we expect
