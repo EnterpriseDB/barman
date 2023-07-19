@@ -217,6 +217,46 @@ class TestGetSnapshotInterface(object):
         )
 
     @pytest.mark.parametrize(
+        ("config_region", "backup_info_region", "expected_region"),
+        (
+            # If neither config nor backup_info have a region we expect None
+            (None, None, None),
+            # If the config has a region but backup_info does not then we expect the
+            # region in the config
+            ("config-region", None, "config-region"),
+            # If the backup_info has a region but the config does not then we expect
+            # the region in the backup_info
+            (None, "backup-info-region", "backup-info-region"),
+            # If both config and backup_info have a region we expect the region in the
+            # config
+            ("config-region", "backup-info-region", "config-region"),
+        ),
+    )
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_from_backup_info_aws_region(
+        self, mock_boto3, config_region, backup_info_region, expected_region
+    ):
+        """
+        Verify that the region is taken from the backup_info but can be overridden by
+        the config.
+        """
+        # GIVEN a server config with the aws snapshot provider and the specified region
+        mock_config = mock.Mock(snapshot_provider="aws", aws_region=config_region)
+        # AND a backup info with the specified region
+        mock_backup_info = mock.Mock(
+            snapshots_info=mock.Mock(provider="aws", region=backup_info_region)
+        )
+        # AND the session has no default region name
+        mock_boto3.Session.return_value.region_name = None
+
+        # WHEN get snapshot_interface_from_backup_info is called
+        snapshot_interface = get_snapshot_interface_from_backup_info(
+            mock_backup_info, mock_config
+        )
+        # THEN the snapshot interface has the expected region
+        assert snapshot_interface.region == expected_region
+
+    @pytest.mark.parametrize(
         ("cloud_provider", "interface_cls"),
         [
             ("aws-s3", AwsCloudSnapshotInterface),
