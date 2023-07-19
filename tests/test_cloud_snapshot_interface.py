@@ -61,6 +61,7 @@ class TestGetSnapshotInterface(object):
             ("aws", AwsCloudSnapshotInterface),
             ("azure", AzureCloudSnapshotInterface),
             ("gcp", GcpCloudSnapshotInterface),
+            ("unsupportedcloud", None),
         ],
     )
     @mock.patch("barman.cloud_providers._get_azure_credential")
@@ -136,6 +137,7 @@ class TestGetSnapshotInterface(object):
             ("aws", AwsCloudSnapshotInterface),
             ("azure", AzureCloudSnapshotInterface),
             ("gcp", GcpCloudSnapshotInterface),
+            ("unsupportedcloud", None),
         ],
     )
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
@@ -223,6 +225,7 @@ class TestGetSnapshotInterface(object):
                 AzureCloudSnapshotInterface,
             ),
             ("google-cloud-storage", GcpCloudSnapshotInterface),
+            ("unsupportedcloud", None),
         ],
     )
     @mock.patch("barman.cloud_providers._get_azure_credential")
