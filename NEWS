@@ -1,5 +1,28 @@
 Barman News - History of user-visible changes
 
+Version 3.7.0 - 25 July 2023
+
+- Support is added for snapshot backups on AWS using EBS volumes.
+
+- The `--profile` option in the `barman-cloud-*` scripts is renamed
+  `--aws-profile`. The old name is deprecated and will be removed in
+  a future release.
+
+- Backup manifests can now be generated automatically on completion
+  of a backup made with `backup_method = rsync`. This is enabled by
+  setting the `autogenerate_manifest` configuration variable and can
+  be overridden using the `--manifest` and `--no-manifest` CLI options.
+
+- Bug fixes:
+
+    - The `barman-cloud-*` scripts now correctly use continuation
+      tokens to page through objects in AWS S3-compatible object
+      stores. This fixes a bug where `barman-cloud-backup-delete`
+      would only delete the oldest 1000 eligible WALs after backup
+      deletion.
+
+    - Minor documentation fixes.
+
 Version 3.6.0 - 15 June 2023
 
 - PostgreSQL version 10 is no longer supported.
