@@ -1712,7 +1712,7 @@ class TestSnapshotBackupExecutor(object):
                 mock_resolve_mounted_volume, mock_volume, disk
             )
 
-        # WHEN find_missing_and_unmounted_disks is called for all expected disksts
+        # WHEN find_missing_and_unmounted_disks is called for all expected disks
         instance_name = "instance1"
         snapshot_disks = (
             expected_missing_disks + expected_unmounted_disks + expected_mounted_disks

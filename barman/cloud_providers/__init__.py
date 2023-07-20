@@ -307,11 +307,16 @@ def get_snapshot_interface_from_backup_info(backup_info, config=None):
     elif backup_info.snapshots_info.provider == "aws":
         from barman.cloud_providers.aws_s3 import AwsCloudSnapshotInterface
 
+        # When creating a snapshot interface for existing backups we use the region
+        # from the backup_info, unless a region is set in the config in which case the
+        # config region takes precedence.
         region = None
         profile = None
         if config is not None and hasattr(config, "aws_region"):
             region = config.aws_region
             profile = config.aws_profile
+        if region is None:
+            region = backup_info.snapshots_info.region
         return AwsCloudSnapshotInterface(profile, region)
     else:
         raise CloudProviderUnsupported(

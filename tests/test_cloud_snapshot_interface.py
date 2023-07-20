@@ -61,6 +61,7 @@ class TestGetSnapshotInterface(object):
             ("aws", AwsCloudSnapshotInterface),
             ("azure", AzureCloudSnapshotInterface),
             ("gcp", GcpCloudSnapshotInterface),
+            ("unsupportedcloud", None),
         ],
     )
     @mock.patch("barman.cloud_providers._get_azure_credential")
@@ -136,6 +137,7 @@ class TestGetSnapshotInterface(object):
             ("aws", AwsCloudSnapshotInterface),
             ("azure", AzureCloudSnapshotInterface),
             ("gcp", GcpCloudSnapshotInterface),
+            ("unsupportedcloud", None),
         ],
     )
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
@@ -205,7 +207,7 @@ class TestGetSnapshotInterface(object):
         mock_backup_info = mock.Mock(
             snapshots_info=mock.Mock(provider="azure", subscription_id=None)
         )
-        # WHEN get snapshot_interface_from_server_config is called
+        # WHEN get snapshot_interface_from_backup_info is called
         with pytest.raises(ConfigurationException) as exc:
             get_snapshot_interface_from_backup_info(mock_backup_info, mock_config)
         # THEN the expected exception is raised
@@ -213,6 +215,46 @@ class TestGetSnapshotInterface(object):
             "backup_info has snapshot provider 'azure' but subscription_id is not set"
             in str(exc.value)
         )
+
+    @pytest.mark.parametrize(
+        ("config_region", "backup_info_region", "expected_region"),
+        (
+            # If neither config nor backup_info have a region we expect None
+            (None, None, None),
+            # If the config has a region but backup_info does not then we expect the
+            # region in the config
+            ("config-region", None, "config-region"),
+            # If the backup_info has a region but the config does not then we expect
+            # the region in the backup_info
+            (None, "backup-info-region", "backup-info-region"),
+            # If both config and backup_info have a region we expect the region in the
+            # config
+            ("config-region", "backup-info-region", "config-region"),
+        ),
+    )
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_from_backup_info_aws_region(
+        self, mock_boto3, config_region, backup_info_region, expected_region
+    ):
+        """
+        Verify that the region is taken from the backup_info but can be overridden by
+        the config.
+        """
+        # GIVEN a server config with the aws snapshot provider and the specified region
+        mock_config = mock.Mock(snapshot_provider="aws", aws_region=config_region)
+        # AND a backup info with the specified region
+        mock_backup_info = mock.Mock(
+            snapshots_info=mock.Mock(provider="aws", region=backup_info_region)
+        )
+        # AND the session has no default region name
+        mock_boto3.Session.return_value.region_name = None
+
+        # WHEN get snapshot_interface_from_backup_info is called
+        snapshot_interface = get_snapshot_interface_from_backup_info(
+            mock_backup_info, mock_config
+        )
+        # THEN the snapshot interface has the expected region
+        assert snapshot_interface.region == expected_region
 
     @pytest.mark.parametrize(
         ("cloud_provider", "interface_cls"),
@@ -223,6 +265,7 @@ class TestGetSnapshotInterface(object):
                 AzureCloudSnapshotInterface,
             ),
             ("google-cloud-storage", GcpCloudSnapshotInterface),
+            ("unsupportedcloud", None),
         ],
     )
     @mock.patch("barman.cloud_providers._get_azure_credential")
@@ -2051,7 +2094,7 @@ class TestAzureCloudSnapshotInterface(object):
         expected_volumes = [d["name"] for d in disks[:-1]]
         assert set(attached_volumes.keys()) == set(expected_volumes)
 
-    def test_get_attached_volumes_disk_not_attaached(self):
+    def test_get_attached_volumes_disk_not_attached(self):
         """
         Verify that a SnapshotBackupException is raised if a disk is not attached
         to the instance.
@@ -2235,7 +2278,7 @@ class TestAzureVolumeMetadata(object):
             # If no attachment metadata or disk metadata is passed then we expect init
             # to succeed but the lun and location to be None.
             (None, None, None, None),
-            # If the lun is set in the attachment metadata then we eexpect it to be
+            # If the lun is set in the attachment metadata then we expect it to be
             # set in the VolumeMetadata instance.
             (
                 mock.Mock(lun="10"),
@@ -2243,7 +2286,7 @@ class TestAzureVolumeMetadata(object):
                 "10",
                 None,
             ),
-            # If the location is set in the attachment metadata then we eexpect it to
+            # If the location is set in the attachment metadata then we expect it to
             # be set in the VolumeMetadata instance.
             (None, mock.Mock(location="uksouth"), None, "uksouth"),
             # If lun and location are set in the attachment metadata then we expect

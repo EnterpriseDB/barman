@@ -92,6 +92,7 @@ The following additional prerequisites apply to snapshot backups on AWS:
 The following permissions are required:
 
 - `ec2:CreateSnapshot`
+- `ec2:CreateTags`
 - `ec2:DeleteSnapshot`
 - `ec2:DescribeSnapshots`
 - `ec2:DescribeInstances`
@@ -146,6 +147,10 @@ azure_resource_group = AZURE_RESOURCE_GROUP
 `azure_resource_group` should be set to the resource group to which the instance and disks belong.
 
 #### Configuration for AWS snapshots
+
+When specifying `snapshot_instance` or `snapshot_disks`, Barman will accept either the instance/volume ID which was assigned to the resource by AWS *or* a name.
+If a name is used then Barman will query AWS to find resources with a matching `Name` tag.
+If zero or multiple matching resources are found then Barman will exit with an error.
 
 The following optional parameters can be set when using AWS:
 
