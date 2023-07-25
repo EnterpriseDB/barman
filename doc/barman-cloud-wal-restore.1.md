@@ -1,6 +1,6 @@
-% BARMAN-CLOUD-WAL-RESTORE(1) Barman User manuals | Version 3.6.0
+% BARMAN-CLOUD-WAL-RESTORE(1) Barman User manuals | Version 3.7.0
 % EnterpriseDB <https://www.enterprisedb.com>
-% June 15, 2023
+% July 25, 2023
 
 # NAME
 
