@@ -1010,8 +1010,9 @@ class TestServer(object):
             server.delete_backup(backup_info_started)
             out, err = capsys.readouterr()
             assert (
-                "Cannot delete a running backup (%s %s)"
-                % (server.config.name, backup_info_started.backup_id)
+                "Another action is in progress for the backup %s"
+                " of server %s. Impossible to delete the backup."
+                % (backup_info_started.backup_id, server.config.name)
                 in err
             )
 
@@ -1024,8 +1025,9 @@ class TestServer(object):
             server.delete_backup(backup_info_empty)
             out, err = capsys.readouterr()
             assert (
-                "Cannot delete a running backup (%s %s)"
-                % (server.config.name, backup_info_started.backup_id)
+                "Another action is in progress for the backup %s"
+                " of server %s. Impossible to delete the backup."
+                % (backup_info_started.backup_id, server.config.name)
                 in err
             )
 

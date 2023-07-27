@@ -45,6 +45,7 @@ from barman.config import BackupOptions
 from barman.exceptions import (
     AbortedRetryHookScript,
     CompressionIncompatibility,
+    LockFileBusy,
     SshCommandException,
     UnknownBackupIdException,
     CommandFailedException,
@@ -52,7 +53,7 @@ from barman.exceptions import (
 from barman.fs import unix_command_factory
 from barman.hooks import HookScriptRunner, RetryHookScriptRunner
 from barman.infofile import BackupInfo, LocalBackupInfo, WalFileInfo
-from barman.lockfile import ServerBackupSyncLock
+from barman.lockfile import ServerBackupIdLock, ServerBackupSyncLock
 from barman.recovery_executor import recovery_executor_factory
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import (
@@ -856,13 +857,30 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             retention_status = self.config.retention_policy.report()
             for bid in sorted(retention_status.keys()):
                 if retention_status[bid] == BackupInfo.OBSOLETE:
-                    output.info(
-                        "Enforcing retention policy: removing backup %s for "
-                        "server %s" % (bid, self.config.name)
-                    )
-                    self.delete_backup(
-                        available_backups[bid], skip_wal_cleanup_if_standalone=False
-                    )
+                    try:
+                        # Lock acquisition: if you can acquire a ServerBackupLock
+                        # it means that no other processes like another delete operation
+                        # are running on that server for that backup id,
+                        # and the retention policy can be applied.
+                        with ServerBackupIdLock(
+                            self.config.barman_lock_directory, self.config.name, bid
+                        ):
+                            output.info(
+                                "Enforcing retention policy: removing backup %s for "
+                                "server %s" % (bid, self.config.name)
+                            )
+                            self.delete_backup(
+                                available_backups[bid],
+                                skip_wal_cleanup_if_standalone=False,
+                            )
+                    except LockFileBusy:
+                        # Another process is holding the backup lock, potentially
+                        # is being removed manually. Skip it and output a message
+                        output.warning(
+                            "Another action is in progress for the backup %s "
+                            "of server %s, skipping retention policy application"
+                            % (bid, self.config.name)
+                        )
 
     def delete_basebackup(self, backup):
         """

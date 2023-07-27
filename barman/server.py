@@ -1371,7 +1371,8 @@ class Server(RemoteStatusMixin):
         """
         try:
             # Lock acquisition: if you can acquire a ServerBackupLock
-            # it means that no backup process is running on that server,
+            # it means that no other processes like a backup or another delete
+            # are running on that server for that backup id,
             # so there is no need to check the backup status.
             # Simply proceed with the normal delete process.
             server_backup_lock = ServerBackupLock(
@@ -1396,8 +1397,9 @@ class Server(RemoteStatusMixin):
                 BackupInfo.EMPTY,
             ):
                 output.error(
-                    "Cannot delete a running backup (%s %s)"
-                    % (self.config.name, backup.backup_id)
+                    "Another action is in progress for the backup %s"
+                    " of server %s. Impossible to delete the backup."
+                    % (backup.backup_id, self.config.name)
                 )
                 return
 
