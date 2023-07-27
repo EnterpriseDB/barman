@@ -27,6 +27,7 @@ import mock
 import pytest
 from mock import Mock, patch
 from barman.backup import BackupManager
+from barman.lockfile import ServerBackupIdLock
 
 import barman.utils
 from barman.annotations import KeepManager
@@ -740,6 +741,45 @@ class TestBackup(object):
         delete_backup.assert_called_once_with(
             available_backups["obsolete_backup"], skip_wal_cleanup_if_standalone=False
         )
+
+    @patch("barman.backup.BackupManager.delete_backup")
+    @patch("barman.backup.BackupManager.get_available_backups")
+    def test_cron_retention_skip_OBSOLETE_backups_if_lock(
+        self, get_available_backups, delete_backup, tmpdir, capsys
+    ):
+        """
+        Verify only backups with retention status OBSOLETE is not deleted if
+        the ServerBackupIdLock is in place.
+        """
+        backup_manager = build_backup_manager()
+        backup_manager.server.config.name = "TestServer"
+        backup_manager.server.config.barman_lock_directory = tmpdir.strpath
+        backup_manager.server.config.backup_options = []
+        backup_manager.server.config.retention_policy = Mock()
+        backup_manager.config.retention_policy.report.return_value = {
+            "keep_full_backup": BackupInfo.KEEP_FULL,
+            "keep_standalone_backup": BackupInfo.KEEP_STANDALONE,
+            "valid_backup": BackupInfo.VALID,
+            "none_backup": BackupInfo.NONE,
+            "obsolete_backup": BackupInfo.OBSOLETE,
+            "potentially_obsolete_backup": BackupInfo.POTENTIALLY_OBSOLETE,
+        }
+        available_backups = dict(
+            (k, build_test_backup_info(server=backup_manager.server, backup_id=k))
+            for k in backup_manager.config.retention_policy.report.return_value
+        )
+        get_available_backups.return_value = available_backups
+        lock = ServerBackupIdLock(
+            backup_manager.config.barman_lock_directory,
+            backup_manager.config.name,
+            "obsolete_backup",
+        )
+        lock.acquire()
+        backup_manager.cron_retention_policy()
+        lock.release()
+        out, err = capsys.readouterr()
+        assert not delete_backup.called
+        assert "skipping retention policy application" in err
 
     @pytest.mark.parametrize("should_fail", (True, False))
     @patch("barman.backup.LocalBackupInfo.save")
