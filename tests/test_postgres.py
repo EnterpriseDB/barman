@@ -1902,6 +1902,58 @@ class TestStandbyPostgreSQLConnection(object):
         # THEN switch_wal is called on the primary exactly once
         assert mock_primary_conn.switch_wal.call_count == 1
 
+    @patch("barman.postgres.PostgreSQLConnection")
+    @patch("barman.postgres.super")
+    def test_switch_wal_in_background_calls_checkpoint(
+        self, _mock_super, mock_psql_conn, caplog
+    ):
+        """
+        Verify switch_wal_in_background runs the expected number of times and
+        then executes a checkpoint after `primary_checkpoint_timeout` value.
+        """
+        # GIVEN a connection to a standby PostgreSQL instance
+        main_proc_primary_conn = Mock()
+        child_proc_primary_conn = Mock()
+        mock_psql_conn.side_effect = [main_proc_primary_conn, child_proc_primary_conn]
+        standby = StandbyPostgreSQLConnection(
+            self._standby_conninfo, self._primary_conninfo
+        )
+
+        # WHEN switch_wal_in_background is called with times=2 AND primary_checkpoint_timeout
+        # is set to 5 seconds
+        standby.primary_checkpoint_timeout = 5
+        times = 2
+        start_time = datetime.datetime.now()
+        standby.switch_wal_in_background(Queue(), times, 0)
+        end_time = datetime.datetime.now()
+
+        # THEN switch_wal is called on the primary conn in the child process
+        # 3 times (2 before the timer and 1 after the checkpoint)
+        assert child_proc_primary_conn.switch_wal.call_count == times + 1
+
+        # AND switch_wal is not called on the primary conn in the parent process
+        assert main_proc_primary_conn.switch_wal.call_count == 0
+
+        # AND the checkpoint is called on the primary conn in the child process
+        assert child_proc_primary_conn.checkpoint.call_count == 1
+
+        # AND the duration between the start and end of the function is greater than
+        # the primary_checkpoint_timeout value
+        assert (end_time - start_time).total_seconds() > 5
+
+        # AND a warning is logged that the checkpoint was called
+        assert (
+            "Barman attempted to switch WALs %s times on the primary "
+            "server, but the backup has not yet completed. "
+            "A checkpoint will be forced on the primary server "
+            "in %s seconds to ensure the backup can complete."
+            % (times, standby.primary_checkpoint_timeout)
+            in caplog.text
+        )
+
+        # AND the child process primary conn was closed
+        child_proc_primary_conn.close.assert_called_once()
+
     @pytest.mark.parametrize(
         "stop_fun", ("stop_concurrent_backup", "stop_exclusive_backup")
     )

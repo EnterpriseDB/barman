@@ -324,6 +324,7 @@ def build_config_dictionary(config_keys=None):
         "parallel_jobs": 1,
         "create_slot": "manual",
         "forward_config_path": False,
+        "primary_checkpoint_timeout": 0,
         "primary_conninfo": None,
         "snapshot_disks": None,
         "snapshot_instance": None,

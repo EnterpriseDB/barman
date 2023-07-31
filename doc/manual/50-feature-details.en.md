@@ -100,7 +100,6 @@ tablespace in the above option. If found, the specified bandwidth
 limit will be enforced. If not, the default bandwidth limit for that
 server will be applied.
 
-
 ### Network Compression
 
 It is possible to reduce the size of transferred data using
@@ -118,8 +117,8 @@ Setting this option to `true` will enable data compression during
 network transfers (for both backup and recovery). By default it is set
 to `false`.
 
-
 ### Backup Compression
+
 Barman can use the compression features of pg_basebackup in order to
 compress the backup data during the backup process. This can be enabled
 using the `backup_compression` config option (global/per server):
@@ -128,9 +127,10 @@ using the `backup_compression` config option (global/per server):
 > in this section are not available with the `rsync` or `local-rsync`
 > backup methods. Only with `postgres` backup method.
 
-#### Compression algorithms 
+#### Compression algorithms
+
 Setting this option will cause pg_basebackup to compress the backup
-using the specified compression algorithm. Currently, supported 
+using the specified compression algorithm. Currently, supported
 algorithm in Barman are: `gzip` `lz4` and `zstd`.
 
 ``` ini
@@ -138,7 +138,7 @@ backup_compression = gzip|lz4|zstd
 ```
 
 Barman requires the CLI utility for the selected compression algorithm
-to be available on both the Barman server *and* the PostgreSQL server.
+to be available on both the Barman server _and_ the PostgreSQL server.
 The CLI utility is used to extract the backup label from the compressed
 backup and to decompress the backup on the PostgreSQL server during
 recovery. These can be installed through system packages named `gzip`,
@@ -161,23 +161,26 @@ recovery. These can be installed through system packages named `gzip`,
 > section for more information.
 
 #### Compression workers
-This optional parameter allows compression using multiple threads to increase compression speed (default being 0). 
+
+This optional parameter allows compression using multiple threads to increase compression speed (default being 0).
 
 ```ini
 backup_compression_workers = 2
 ```
 
 > **Note:** This option is only available with `zstd` compression.
- 
+
 > **Note:** `zstd` version must be 1.5.0 or higher. Or 1.4.4 or higher compiled with multithreading option.
 
 #### Compression level
+
 The compression level can be specified using the
 `backup_compression_level` option. This should be set to an integer
 value supported by the compression algorithm specified in
 `backup_compression`.
 
 #### Compression location
+
 When using Barman with PostgreSQL version 15 or higher it is possible
 to specify for compression to happen on the server (i.e. PostgreSQL
 will compress the backup) or on the client (i.e. pg_basebackup
@@ -201,6 +204,7 @@ in order to have pg_basebackup uncompress the data before writing it
 to disk:
 
 #### Compression format
+
 ``` ini
 backup_compression_format = plain|tar
 ```
@@ -209,20 +213,20 @@ If `backup_compression_format` is unset or has the value `tar` then
 the backup will be written to disk as compressed tarballs. A description
 of both the `plain` and `tar` formats can be found in the [pg_basebackup
 documentation][pg_basebackup-documentation].
-   
+
 > **IMPORTANT:** Barman uses external tools to manage compressed backups.
 > Depending on the `backup_compression` and `backup_compression_format`
-> You may need to install one or more tools on the Postgres server and 
+> You may need to install one or more tools on the Postgres server and
 > the Barman server.
 > The following table will help you choose according to your configuration.
 
-| **backup_compression** | **backup_compression_format** | **Postgres server** | **Barman server** | 
+| **backup_compression** | **backup_compression_format** | **Postgres server** | **Barman server** |
 |:---------:|:---------------------:|:-------------------------:|:----------------------:|
-| gzip | plain | **tar** | None | 
-| gzip |  tar  | **tar** | **tar** | 
-| lz4 | plain | **tar, lz4** | None | 
+| gzip | plain | **tar** | None |
+| gzip |  tar  | **tar** | **tar** |
+| lz4 | plain | **tar, lz4** | None |
 | lz4 |  tar  | **tar, lz4** | **tar, lz4** |
-| zstd | plain | **tar, zstd** | None | 
+| zstd | plain | **tar, zstd** | None |
 | zstd |  tar  | **tar, zstd** | **tar, zstd** |
 
 ### Concurrent backup
@@ -285,10 +289,19 @@ having to wait for a WAL switch to occur naturally.
 
 > **NOTE:** It is especially important that `primary_conninfo` is
 > set if the standby is to be backed up when there is little or no write
-> traffic on the primary. If `primary_conninfo` is not set then the
-> backup will still run however it will wait at the stop backup stage
-> until the current WAL semgent on the primary is newer than the latest
-> WAL required by the backup.
+> traffic on the primary.
+
+As of Barman 3.8.0, If `primary_conninfo` is set, is possible to add for a server a
+`primary_checkpoint_timeout` option, which is the maximum time (in seconds)
+for Barman to wait for a new WAL file to be produced
+before forcing the execution of a checkpoint on the primary.
+The `primary_checkpoint_timeout` option should be set to an amount of seconds
+greater of the value of the `archive_timeout` option set on the primary server.
+
+If `primary_conninfo` is not set then the
+backup will still run however it will wait at the stop backup stage
+until the current WAL segment on the primary is newer than the latest
+WAL required by the backup.
 
 Barman currently requires that WAL files and backup data come from the
 same PostgreSQL server. In the case that the standby is promoted to primary
@@ -380,6 +393,7 @@ backup_method = local-rsync
 ```
 
 ## Archiving features
+
 ### WAL compression
 
 The `barman cron` command will compress WAL files if the `compression`
@@ -397,7 +411,7 @@ values:
       - `custom_decompression_filter`: a decompression filter
       - `custom_compression_magic`: a hex string to identify a custom compressed wal file
 
-> *NOTE:* All methods but `pybzip2` and `pygzip` require `barman
+> _NOTE:_ All methods but `pybzip2` and `pygzip` require `barman
 > archive-wal` to fork a new process.
 
 ### Synchronous WAL streaming
@@ -416,7 +430,7 @@ First of all, you need to retrieve the application name of the Barman
 
 ``` bash
 barman@backup$ barman show-servers pg|grep streaming_archiver_name
-	streaming_archiver_name: barman_receive_wal
+ streaming_archiver_name: barman_receive_wal
 ```
 
 Then the application name should be added to the `postgresql.conf`
@@ -460,8 +474,8 @@ Status of streaming clients for server 'pg':
      Flush location  : 0/9000098 (diff: 0 B)
 ```
 
-
 ## Catalog management features
+
 ### Minimum redundancy safety
 
 You can define the minimum number of periodic backups for a PostgreSQL
@@ -478,7 +492,6 @@ This will protect you from accidental `barman delete` operations.
 > Make sure that your retention policy settings do not collide with
 > minimum redundancy requirements. Regularly check Barman's log for
 > messages on this topic.
-
 
 ### Retention policies
 
@@ -610,7 +623,6 @@ By default, `retention_policy` is empty (no retention enforced).
 Currently, the only allowed value for `wal_retention_policy` is the
 special value `main`, that maps the retention policy of archive logs
 to that of base backups.
-
 
 ## Hook scripts
 

@@ -177,6 +177,7 @@ class TestConfig(object):
                 "backup_method": "rsync",
                 "max_incoming_wals_queue": None,
                 "primary_conninfo": None,
+                "primary_checkpoint_timeout": 0,
             }
         )
         assert main.__dict__ == expected
@@ -214,6 +215,7 @@ class TestConfig(object):
                 "errors_directory": "/some/barman/home/web/errors",
                 "max_incoming_wals_queue": None,
                 "primary_conninfo": None,
+                "primary_checkpoint_timeout": 0,
             }
         )
         assert web.__dict__ == expected
