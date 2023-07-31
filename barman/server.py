@@ -295,6 +295,7 @@ class Server(RemoteStatusMixin):
                     config.primary_conninfo,
                     config.immediate_checkpoint,
                     config.slot_name,
+                    config.primary_checkpoint_timeout,
                 )
             else:
                 self.postgres = PostgreSQLConnection(

@@ -21,6 +21,7 @@ This module represents the interface towards a PostgreSQL server.
 """
 
 import atexit
+import datetime
 import logging
 from abc import ABCMeta
 from multiprocessing import Process, Queue
@@ -1581,6 +1582,7 @@ class StandbyPostgreSQLConnection(PostgreSQLConnection):
         primary_conninfo,
         immediate_checkpoint=False,
         slot_name=None,
+        primary_checkpoint_timeout=0,
         application_name="barman",
     ):
         """
@@ -1606,6 +1608,7 @@ class StandbyPostgreSQLConnection(PostgreSQLConnection):
         # The standby needs a connection to the primary so that it can
         # perform WAL switches itself when calling pg_backup_stop.
         self.primary = PostgreSQLConnection(self.primary_conninfo)
+        self.primary_checkpoint_timeout = primary_checkpoint_timeout
 
     def close(self):
         """Close the connection to PostgreSQL."""
@@ -1658,6 +1661,32 @@ class StandbyPostgreSQLConnection(PostgreSQLConnection):
                 except Empty:
                     # An empty queue just means we haven't yet been told to stop
                     pass
+            if self.primary_checkpoint_timeout:
+                _logger.warning(
+                    "Barman attempted to switch WALs %s times on the primary "
+                    "server, but the backup has not yet completed. "
+                    "A checkpoint will be forced on the primary server "
+                    "in %s seconds to ensure the backup can complete."
+                    % (times, self.primary_checkpoint_timeout)
+                )
+                sleep_time = datetime.datetime.now() + datetime.timedelta(
+                    seconds=self.primary_checkpoint_timeout
+                )
+                while True:
+                    try:
+                        # Always check if the queue is empty, so we know to stop
+                        # before the checkpoint execution
+                        if done_q.get(timeout=wait):
+                            return
+                    except Empty:
+                        # If the queue is empty, we can proceed to the checkpoint
+                        # if enough time has passed
+                        if sleep_time < datetime.datetime.now():
+                            self.primary.checkpoint()
+                            self.primary.switch_wal()
+                            break
+                            # break out of the loop after the checkpoint and wal switch
+                            # execution. The connection will be closed in the finally statement
         finally:
             # Close the connection since only this subprocess will ever use it
             self.primary.close()
