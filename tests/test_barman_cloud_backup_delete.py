@@ -38,8 +38,10 @@ class TestCloudBackupDeleteArguments(object):
 
         _, err = capsys.readouterr()
         assert (
-            "one of the arguments -b/--backup-id -r/--retention-policy is required"
-            in err
+            "one of the arguments "
+            "-b/--backup-id "
+            "-m/--minimum-redundancy "
+            "-r/--retention-policy is required" in err
         )
 
     @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
