@@ -395,6 +395,11 @@ def parse_arguments(args=None):
         help="The name of the AWS region containing the EC2 VM and storage volumes "
         "defined by the --snapshot-instance and --snapshot-disk arguments.",
     )
+    s3_arguments.add_argument(
+        "--managed-transfer",
+        help="Use a boto3 managed transfer to upload the backup data",
+        action="store_true",
+    )
     azure_arguments.add_argument(
         "--encryption-scope",
         help="The name of an encryption scope defined in the Azure Blob Storage "

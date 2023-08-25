@@ -43,7 +43,11 @@ def _update_kwargs(kwargs, config, args):
 
 
 def _make_s3_cloud_interface(config, cloud_interface_kwargs):
-    from barman.cloud_providers.aws_s3 import S3CloudInterface
+    from barman.cloud_providers.aws_s3 import S3CloudInterface, S3CloudInterface2
+
+    s3_cls = S3CloudInterface
+    if "managed_transfer" in config and config.managed_transfer:
+        s3_cls = S3CloudInterface2
 
     cloud_interface_kwargs.update(
         {
@@ -64,7 +68,7 @@ def _make_s3_cloud_interface(config, cloud_interface_kwargs):
                 'Encryption type must be "aws:kms" if SSE KMS Key ID is specified'
             )
         cloud_interface_kwargs["sse_kms_key_id"] = config.sse_kms_key_id
-    return S3CloudInterface(**cloud_interface_kwargs)
+    return s3_cls(**cloud_interface_kwargs)
 
 
 def _get_azure_credential(credential_type):
