@@ -1,5 +1,25 @@
 Barman News - History of user-visible changes
 
+Version 3.8.0 - 31 August 2023
+
+- Clarify package installation. barman is packaged with default python version
+  for each operating system.
+
+- The `minimum-redundancy` option is added to `barman-cloud-backup-delete`.
+  It allows to set the minimum number of backups that should always be available.
+
+- Add a new `primary_checkpoint_timeout` configuration option. Allows define
+  the amount of seconds that Barman will wait at the end of a backup if no
+  new WAL files are produced, before forcing a checkpoint on the primary server.
+
+- Bug fixes:
+
+    - Fix race condition in barman retention policies application. Backup
+      deletions will now raise a warning if another deletion is in progress
+      for the requested backup.
+
+    - Fix `barman-cloud-backup-show` man page installation.
+
 Version 3.7.0 - 25 July 2023
 
 - Support is added for snapshot backups on AWS using EBS volumes.
