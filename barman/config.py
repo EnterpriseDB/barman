@@ -420,6 +420,22 @@ def parse_create_slot(value):
     )
 
 
+def parse_cluster_hosts(value):
+    """
+    Parse the cluster hosts.
+
+    Accepts a comma separated list of colon separated key value pairs and converts
+    them into a dict.
+    """
+    cluster_host_kv_pairs = value.split(",")
+    # TODO verify stuff
+    cluster_hosts = {}
+    for kv in cluster_host_kv_pairs:
+        alias, hostname = kv.split(":")
+        cluster_hosts[alias] = hostname
+    return cluster_hosts
+
+
 class ServerConfig(object):
     """
     This class represents the configuration for a specific Server instance.
@@ -448,6 +464,10 @@ class ServerConfig(object):
         "basebackup_retry_times",
         "basebackups_directory",
         "check_timeout",
+        "cluster_hosts",
+        "cluster_primary",
+        "cluster_backup_source",
+        "cluster_wal_source",
         "compression",
         "conninfo",
         "custom_compression_filter",
@@ -649,6 +669,7 @@ class ServerConfig(object):
         "basebackup_retry_sleep": int,
         "basebackup_retry_times": int,
         "check_timeout": int,
+        "cluster_hosts": parse_cluster_hosts,
         "disabled": parse_boolean,
         "forward_config_path": parse_boolean,
         "immediate_checkpoint": parse_boolean,
