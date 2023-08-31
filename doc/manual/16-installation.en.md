@@ -5,6 +5,9 @@
 Official packages for Barman are distributed by EnterpriseDB through repositories
 listed on the [Barman downloads page][barman-downloads].
 
+These packages use the default python3 version provided by the target operating system.
+If an alternative python3 version is required then you will need to install Barman from source.
+
 > **IMPORTANT:**
 > The recommended way to install Barman is by using the available
 > packages for your GNU/Linux distribution.
