@@ -263,6 +263,8 @@ class Server(RemoteStatusMixin):
 
         # Postgres configuration is available only if node is not passive
         if not self.passive_node:
+            # Initialize cluster related configuration
+            self._init_cluster_config()
             self._init_postgres(config)
 
         # Initialize the backup manager
@@ -279,6 +281,22 @@ class Server(RemoteStatusMixin):
 
         # Initialise retention policies
         self._init_retention_policies()
+
+    def _init_cluster_config(self):
+        """Initialize any configuration related to the cluster."""
+        if self.config.cluster_hosts is None:
+            # Nothing to do because this server is not part of a cluster
+            return
+        backup_host = self.config.cluster_hosts[self.config.cluster_backup_source]
+        wal_host = self.config.cluster_hosts[self.config.cluster_wal_source]
+        original_conninfo = self.config.conninfo
+        self.config.conninfo = original_conninfo + f" host={backup_host}"
+        self.config.ssh_command += backup_host
+        self.config.streaming_conninfo += f" host={wal_host}"
+        # Set primary_conninfo if we are not backing up from the primary
+        primary_host = self.config.cluster_hosts[self.config.cluster_primary]
+        if backup_host != primary_host:
+            self.config.primary_conninfo = original_conninfo + f" host={primary_host}"
 
     def _init_postgres(self, config):
         # Initialize the main PostgreSQL connection
