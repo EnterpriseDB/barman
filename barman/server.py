@@ -727,7 +727,7 @@ class Server(RemoteStatusMixin):
             )
             check_strategy.result(self.config.name, False, hint=msg)
 
-    def check_postgres(self, check_strategy):
+    def check_postgres(self, check_strategy, skip_replication_check=False):
         """
         Checks PostgreSQL connection
 
@@ -802,7 +802,7 @@ class Server(RemoteStatusMixin):
             check_strategy.init_check("replication slot")
             slot = remote_status["replication_slot"]
             # The streaming_archiver is enabled
-            if self.config.streaming_archiver is True:
+            if self.config.streaming_archiver is True and not skip_replication_check:
                 # Replication slots are supported
                 # The slot is not present
                 if slot is None:
@@ -1453,21 +1453,7 @@ class Server(RemoteStatusMixin):
         :param str|None backup_name: a friendly name by which this backup can
             be referenced in the future
         """
-        # The 'backup' command is not available on a passive node.
-        # We assume that if we get here the node is not passive
-        assert not self.passive_node
-
         try:
-            # Default strategy for check in backup is CheckStrategy
-            # This strategy does not print any output - it only logs checks
-            strategy = CheckStrategy()
-            self.check(strategy)
-            if strategy.has_error:
-                output.error(
-                    "Impossible to start the backup. Check the log "
-                    "for more details, or run 'barman check %s'" % self.config.name
-                )
-                return
             # check required backup directories exist
             self._make_directories()
         except OSError as e:

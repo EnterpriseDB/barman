@@ -2016,15 +2016,15 @@ def get_server_list(
             server_object = Cluster(conf)
             # Skip inactive servers, if requested
             if skip_inactive and not server_object.config.active:
-                output.info("Skipping inactive server '%s'" % conf.name)
+                output.info("Skipping inactive server '%s'" % server_name)
                 continue
             # Skip disabled servers, if requested
             if skip_disabled and server_object.config.disabled:
-                output.info("Skipping temporarily disabled server '%s'" % conf.name)
+                output.info("Skipping temporarily disabled server '%s'" % server_name)
                 continue
             # Skip passive nodes, if requested
             if skip_passive and server_object.passive_node:
-                output.info("Skipping passive server '%s'", conf.name)
+                output.info("Skipping passive server '%s'", server_name)
                 continue
             server_dict[server_name] = server_object
 

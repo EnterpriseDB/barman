@@ -467,7 +467,6 @@ class ServerConfig(object):
         "cluster_hosts",
         "cluster_primary",
         "cluster_backup_source",
-        "cluster_wal_source",
         "compression",
         "conninfo",
         "custom_compression_filter",
