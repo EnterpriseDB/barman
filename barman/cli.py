@@ -26,6 +26,8 @@ import os
 import sys
 from argparse import SUPPRESS, ArgumentTypeError, ArgumentParser, HelpFormatter
 
+from barman.cluster import Cluster
+
 if sys.version_info.major < 3:
     from argparse import Action, _SubParsersAction, _ActionsContainer
 import argcomplete
@@ -2011,7 +2013,7 @@ def get_server_list(
             # Unknown server
             server_dict[server_name] = None
         else:
-            server_object = Server(conf)
+            server_object = Cluster(conf)
             # Skip inactive servers, if requested
             if skip_inactive and not server_object.config.active:
                 output.info("Skipping inactive server '%s'" % conf.name)
