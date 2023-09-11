@@ -19,23 +19,62 @@
 
 set -eu
 
+DOCKER=false
+DATE=false
 BASE="$(dirname $(cd $(dirname "$0"); pwd))"
+
+usage()
+{
+    echo "Usage: set-version.sh  [ -r ] Release version to create in X.Y.Z format.
+               [ -d ] Specify the date in YYYY-MM-DD format. If not provided, current date will be used.
+               [ -D ] Use docker image to generate the documentation (must exist to run).
+               [ -h | --help  ] Displays usage."
+    exit 1
+}
+
+while getopts ":r:d:D" opt; do
+  case $opt in
+     r)
+       RELEASE=${OPTARG}
+       echo "Release version to create in X.Y.Z format: $OPTARG" >&2
+       ;;
+     d)
+       DATE=$OPTARG
+       echo "Specify the date in YYYY-MM-DD format. If not provided, current date will be used  $OPTARG" >&2
+       ;;
+     D)
+       DOCKER=true
+       echo "Use docker image to generate the documentation (must exist to run) " >&2
+       ;;
+     *)
+       echo "invalid command: no parameter included with argument -$OPTARG"
+       usage
+       ;;
+  esac
+done
+
+get_date() {
+    if [ "$(uname -s)" = "Darwin" ]
+    then
+        date_cmd="gdate"
+    else
+        date_cmd="date"
+    fi
+    if [ "$1" == false ]
+        then
+        # use current day
+        release_date=$(LANG=C ${date_cmd} +"%B %-d, %Y")
+    else
+        release_date=$(LANG=C ${date_cmd} +"%B %-d, %Y" -d "$1")
+    fi
+    echo $release_date
+}
+
+
 cd "$BASE"
+release_version=$RELEASE
+release_date=$(get_date $DATE)
 
-if [ "$(uname -s)" = "Darwin" ]
-then
-    date_cmd="gdate"
-else
-    date_cmd="date"
-fi
-
-release_version=$1
-if [ -n "${2:-}" ]
-then
-    release_date=$(LANG=C ${date_cmd} +"%B %-d, %Y" -d "$2")
-else
-    release_date="Month DD, YYYY"
-fi
 
 require_clean_work_tree () {
     git rev-parse --verify HEAD >/dev/null || exit 1
@@ -96,7 +135,12 @@ sed -i -e "3s/^%.*/% ${release_date} (${release_version})/" \
 sed -i -e "s/__version__ = .*/__version__ = \"${release_version}\"/" \
     barman/version.py
 
-make -C doc
+if [ "$DOCKER" == true ]
+  then
+    make -C doc create-all
+else
+    make -C doc
+fi
 
 git add doc/barman.1.d/00-header.md \
     doc/barman.5.d/00-header.md \
