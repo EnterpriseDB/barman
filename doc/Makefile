@@ -69,6 +69,12 @@ clean:
 		$(MAKE) -C $$dir clean; \
 	done
 
+build-image:
+	docker build . -t ghcr.io/enterprisedb/barman/barman-pandoc:master
+
+create-all:
+	docker run --rm --volume "`pwd`:/data" -w="/data" --user `id -u`:`id -g` ghcr.io/enterprisedb/barman/barman-pandoc:master make clean all
+
 help:
 	@echo "Usage:"
 	@echo "    $$ make"
