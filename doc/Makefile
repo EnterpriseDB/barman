@@ -1,3 +1,7 @@
+ifndef DIMAGE
+override DIMAGE =  barman-pandoc
+endif
+
 MANPAGES=barman.1 barman.5 \
 		barman-wal-archive.1 barman-wal-restore.1 \
     barman-cloud-backup.1 \
@@ -68,6 +72,12 @@ clean:
 	for dir in $(SUBDIRS); do \
 		$(MAKE) -C $$dir clean; \
 	done
+
+build-image:
+	docker build . -t $(DIMAGE)
+
+create-all:
+	docker run --rm --volume "`pwd`:/data" -w="/data" --user `id -u`:`id -g` $(DIMAGE) make clean all
 
 help:
 	@echo "Usage:"
