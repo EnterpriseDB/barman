@@ -41,6 +41,22 @@ from barman.exceptions import CommandFailedException, CommandMaxRetryExceeded
 _logger = logging.getLogger(__name__)
 
 
+class Handler:
+    def __init__(self, logger, level, prefix=None):
+        self.class_logger = logger
+        self.level = level
+        self.prefix = prefix
+
+    def run(self, line):
+        if line:
+            if self.prefix:
+                self.class_logger.log(self.level, "%s%s", self.prefix, line)
+            else:
+                self.class_logger.log(self.level, "%s", line)
+
+    __call__ = run
+
+
 class StreamLineProcessor(object):
     """
     Class deputed to reading lines from a file object, using a buffered read.
@@ -526,7 +542,7 @@ class Command(object):
         """
         Build a handler function that logs every line it receives.
 
-        The resulting function logs its input at the specified level
+        The resulting callable object logs its input at the specified level
         with an optional prefix.
 
         :param level: The log level to use
@@ -535,14 +551,7 @@ class Command(object):
         """
         class_logger = logging.getLogger(cls.__name__)
 
-        def handler(line):
-            if line:
-                if prefix:
-                    class_logger.log(level, "%s%s", prefix, line)
-                else:
-                    class_logger.log(level, "%s", line)
-
-        return handler
+        return Handler(class_logger, level, prefix)
 
     @staticmethod
     def make_output_handler(prefix=None):
