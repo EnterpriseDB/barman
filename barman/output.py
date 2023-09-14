@@ -717,6 +717,18 @@ class ConsoleOutputWriter(object):
         output_fun(row.format("Server Name", backup_info["server_name"]))
         if backup_info["systemid"]:
             output_fun(row.format("System Id", backup_info["systemid"]))
+        if (
+            "cluster_primary" in backup_info
+            and backup_info["cluster_primary"] is not None
+        ):
+            output_fun(row.format("Primary", backup_info["cluster_primary"]))
+        if (
+            "cluster_backup_source" in backup_info
+            and backup_info["cluster_backup_source"] is not None
+        ):
+            output_fun(
+                row.format("Backup source", backup_info["cluster_backup_source"])
+            )
         output_fun(row.format("Status", backup_info["status"]))
         if backup_info["status"] in BackupInfo.STATUS_COPY_DONE:
             output_fun(row.format("PostgreSQL Version", backup_info["version"]))
@@ -1523,6 +1535,13 @@ class JsonOutputWriter(ConsoleOutputWriter):
         output = self.json_output[server_name] = dict(
             backup_id=data["backup_id"], status=data["status"]
         )
+        if "cluster_primary" in data and data["cluster_primary"] is not None:
+            output.update({"primary": data["cluster_primary"]})
+        if (
+            "cluster_backup_source" in data
+            and data["cluster_backup_source"] is not None
+        ):
+            output.update({"backup_source": data["cluster_backup_source"]})
 
         if "backup_name" in data and data["backup_name"] is not None:
             output.update({"backup_name": data["backup_name"]})
