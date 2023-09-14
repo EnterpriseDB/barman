@@ -124,6 +124,12 @@ class Cluster(object):
     def archive_wal(self, verbose=True):
         return self.backup_server.archive_wal(verbose)
 
+    def get_backup(self, backup_id):
+        return self.backup_server.get_backup(backup_id)
+
+    def show_backup(self, backup_id):
+        return self.backup_server.show_backup(backup_id)
+
     # Functions which used to live in the Server but live in the Cluster now
     def _check(self, check_strategy):
         # Only one server so just do the regular check
