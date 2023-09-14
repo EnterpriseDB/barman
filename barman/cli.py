@@ -1789,6 +1789,31 @@ def check_wal_archive(args):
             output.close_and_exit()
 
 
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command",
+        ),
+        argument(
+            "node_alias",
+            help="the alias of the node from which backups should be taken",
+        ),
+    ]
+)
+def set_backup_source(args):
+    """
+    Set the source node for backups.
+    """
+    server = get_server(args)
+    # TODO
+    # - check if already set to desired value
+    # - check for ongoing backups using ServerBackupLock and handle --force option
+    server.config.cluster_backup_source = args.node_alias
+    server.write_autoconf()
+
+
 def pretty_args(args):
     """
     Prettify the given argparse namespace to be human readable

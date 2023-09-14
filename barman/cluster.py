@@ -183,3 +183,7 @@ class Cluster(object):
                 hint="barman check command timed out",
                 check="check timeout",
             )
+
+    # New functions for updating config on disk
+    def write_autoconf(self):
+        self.config.write_autoconf()
