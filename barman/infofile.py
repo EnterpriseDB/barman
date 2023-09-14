@@ -496,10 +496,17 @@ class BackupInfo(FieldListFile):
     snapshots_info = Field(
         "snapshots_info", load=load_snapshots_info, dump=output_snapshots_info
     )
+    cluster_primary = Field("cluster_primary")
+    cluster_backup_source = Field("cluster_backup_source")
 
     __slots__ = "backup_id", "backup_version"
 
-    _hide_if_null = ("backup_name", "snapshots_info")
+    _hide_if_null = (
+        "backup_name",
+        "snapshots_info",
+        "cluster_primary",
+        "cluster_backup_source",
+    )
 
     def __init__(self, backup_id, **kwargs):
         """

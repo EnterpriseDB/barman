@@ -604,6 +604,14 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 backup_name=name,
             )
             backup_info.set_attribute("systemid", self.server.systemid)
+            if hasattr(self.server.config, "cluster_primary"):
+                backup_info.set_attribute(
+                    "cluster_primary", self.server.config.cluster_primary
+                )
+            if hasattr(self.server.config, "cluster_backup_source"):
+                backup_info.set_attribute(
+                    "cluster_backup_source", self.server.config.cluster_backup_source
+                )
 
             backup_info.save()
             self.backup_cache_add(backup_info)
