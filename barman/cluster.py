@@ -106,6 +106,13 @@ class Cluster(object):
     def drop_repslot(self):
         return self.wal_server.drop_repslot()
 
+    def show(self):
+        # This retrieves the server status including: System ID, PostgreSQL version and
+        # PGDATA directory, along with local config data.
+        # Should we get this from the primary? Or the backup source? Or show the details
+        # for each?
+        return self.primary_server.show()
+
     # Functions which must be carried out on the primary
     def switch_wal(self, force=False, archive=None, archive_timeout=None):
         return self.primary_server.switch_wal(force, archive, archive_timeout)
