@@ -275,6 +275,12 @@ class BackupFunctionsAccessRequired(PostgresException):
     """
 
 
+class PostgresCheckpointPrivilegesRequired(PostgresException):
+    """
+    Superuser or role 'pg_checkpoint' is required
+    """
+
+
 class PostgresIsInRecovery(PostgresException):
     """
     PostgreSQL is in recovery, so no write operations are allowed

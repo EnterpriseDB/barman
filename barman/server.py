@@ -59,6 +59,7 @@ from barman.exceptions import (
     PostgresReplicationSlotInUse,
     PostgresReplicationSlotsFull,
     PostgresSuperuserRequired,
+    PostgresCheckpointPrivilegesRequired,
     PostgresUnsupportedFeature,
     SyncError,
     SyncNothingToDo,
@@ -2910,9 +2911,10 @@ class Server(RemoteStatusMixin):
                 "No switch performed because server '%s' "
                 "is a standby." % self.config.name
             )
-        except PostgresSuperuserRequired:
+        except PostgresCheckpointPrivilegesRequired:
             # Superuser rights are required to perform the switch_wal
-            output.error("Barman switch-wal requires superuser rights")
+            output.error("Barman switch-wal --force requires superuser rights or "
+                         "the 'pg_checkpoint' role")
             return
 
         # If the user has asked to wait for a WAL file to be archived,
