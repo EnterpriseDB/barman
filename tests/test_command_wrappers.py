@@ -1229,6 +1229,7 @@ class TestPgBaseBackup(object):
     @pytest.mark.parametrize(
         ("compression_config", "expected_args", "unexpected_args"),
         [
+            # `gzip` compression before pg15
             # If no compression is provided then no compression args are expected
             (None, [], ["--gzip", "--compress", "--format"]),
             # If gzip compression is provided with no level then we expect only
@@ -1241,13 +1242,35 @@ class TestPgBaseBackup(object):
             # If gzip compression is provided with level then we expect the --gzip,
             # --format=tar and --compress=level arguments
             (
+                mock.Mock(type="gzip", format=None, level=0),
+                ["--gzip", "--format=tar", "--compress=0"],
+                [],
+            ),
+            (
                 mock.Mock(type="gzip", format=None, level=5),
                 ["--gzip", "--format=tar", "--compress=5"],
                 [],
             ),
+            # `none` compression before pg15
+            # If none compression is provided with no level then we expect
+            # --format=tar and --compress=0 arguments
+            (
+                mock.Mock(type="none", format=None, level=None),
+                ["--format=tar", "--compress=0"],
+                [],
+            ),
+            # If none compression is provided with level 0  then we expect
+            # --format=tar and --compress=0 arguments
+            (
+                mock.Mock(type="none", format=None, level=0),
+                ["--format=tar", "--compress=0"],
+                [],
+            ),
         ],
     )
-    def test_compression_gzip(self, compression_config, expected_args, unexpected_args):
+    def test_compression_pre_15(
+        self, compression_config, expected_args, unexpected_args
+    ):
         """
         Verifies the expected pg_basebackup options are added for the specified
         compression. Only cares whether the correct arguments are created and does
@@ -1380,6 +1403,21 @@ class TestPgBaseBackup(object):
                     type="zstd", format="tar", level=7, location="server", workers=3
                 ),
                 ["--compress=server-zstd:level=7,workers=3", "--format=tar"],
+                [],
+            ),
+            # none compression tests
+            (
+                mock.Mock(
+                    type="none", format="tar", level=0, location="server", workers=None
+                ),
+                ["--compress=server-none:level=0", "--format=tar"],
+                [],
+            ),
+            (
+                mock.Mock(
+                    type="none", format="tar", level=None, location=None, workers=None
+                ),
+                ["--compress=none", "--format=tar"],
                 [],
             ),
         ],

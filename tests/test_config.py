@@ -77,6 +77,7 @@ backup_directory =  /some/barman/home/main
 basebackups_directory = /some/barman/home/main/base
 wals_directory = wals
 incoming_wals_directory = /some/barman/home/main/incoming
+backup_compression = "none"
 custom_compression_filter = bzip2 -c -9
 custom_compression_magic = 0x425a68
 custom_decompression_filter = bzip2 -c -d
@@ -156,7 +157,7 @@ class TestConfig(object):
             {
                 "config": main.config,
                 "autogenerate_manifest": False,
-                "backup_compression": None,
+                "backup_compression": "none",
                 "backup_compression_format": None,
                 "backup_compression_level": None,
                 "backup_compression_location": None,
@@ -518,6 +519,7 @@ class TestConfig(object):
             ("gzip", True),
             ("lz4", True),
             ("zstd", True),
+            ("none", True),
             ("lizard", False),
             ("1", False),
         ),

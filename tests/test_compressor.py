@@ -41,6 +41,8 @@ from barman.compression import (
     LZ4Compression,
     ZSTDPgBaseBackupCompressionOption,
     ZSTDCompression,
+    NonePgBaseBackupCompressionOption,
+    NoneCompression,
 )
 from barman.exceptions import (
     CompressionException,
@@ -426,6 +428,13 @@ class TestPgBaseBackupCompression(object):
                 ZSTDPgBaseBackupCompressionOption,
                 ZSTDCompression,
             ),
+            # Test no compression scenario
+            (
+                "none",
+                PgBaseBackupCompression,
+                NonePgBaseBackupCompressionOption,
+                NoneCompression,
+            ),
         ],
     )
     def test_get_pg_basebackup_compression(
@@ -608,23 +617,74 @@ class TestPgBaseBackupCompressionOption:
 
 class TestGZipPgBaseBackupCompressionOption(object):
     @pytest.mark.parametrize(
-        ("compression_options", "expected_errors"),
+        ("client_version", "server_version", "compression_options", "expected_errors"),
         [
-            ({"backup_compression": "gzip", "backup_compression_level": 1}, []),
-            ({"backup_compression": "gzip", "backup_compression_level": 9}, []),
+            # before pg15
             (
-                {"backup_compression": "gzip", "backup_compression_level": 0},
-                [
-                    "backup_compression_level 0 unsupported by pg_basebackup compression gzip"
-                ],
+                "13",
+                14000,
+                {"backup_compression": "gzip", "backup_compression_level": 1},
+                [],
             ),
             (
+                "13",
+                14000,
+                {"backup_compression": "gzip", "backup_compression_level": -1},
+                [],
+            ),
+            # compress=0 accepted before pg15
+            (
+                "13",
+                14000,
+                {"backup_compression": "gzip", "backup_compression_level": 0},
+                [],
+            ),
+            (
+                "13",
+                14000,
                 {"backup_compression": "gzip", "backup_compression_level": 10},
                 [
-                    "backup_compression_level 10 unsupported by pg_basebackup compression gzip"
+                    "backup_compression_level 10 unsupported by compression algorithm. gzip expects a compression level between -1 and 9 (-1 will use default compression level)."
+                ],
+            ),
+            # Since pg15
+            (
+                "15",
+                15000,
+                {"backup_compression": "gzip", "backup_compression_level": 1},
+                [],
+            ),
+            (
+                "15",
+                15000,
+                {"backup_compression": "gzip", "backup_compression_level": -1},
+                [],
+            ),
+            (
+                "15",
+                15000,
+                {"backup_compression": "gzip", "backup_compression_level": 9},
+                [],
+            ),
+            (
+                "15",
+                15000,
+                {"backup_compression": "gzip", "backup_compression_level": 0},
+                [
+                    "backup_compression_level 0 unsupported by compression algorithm. gzip expects a compression level between 1 and 9 (-1 will use default compression level).\nIf you need to create an archive not compressed, you should set `backup_compression = none`."
                 ],
             ),
             (
+                "15",
+                15000,
+                {"backup_compression": "gzip", "backup_compression_level": 10},
+                [
+                    "backup_compression_level 10 unsupported by compression algorithm. gzip expects a compression level between 1 and 9 (-1 will use default compression level)."
+                ],
+            ),
+            (
+                "15",
+                15000,
                 {
                     "backup_compression": "gzip",
                     "backup_compression_level": 9,
@@ -634,15 +694,15 @@ class TestGZipPgBaseBackupCompressionOption(object):
             ),
         ],
     )
-    def test_validate(self, compression_options, expected_errors):
+    def test_validate(
+        self, client_version, server_version, compression_options, expected_errors
+    ):
         """Verifies supported config options pass validation."""
         # GIVEN compression options
         compression_config = get_compression_config(compression_options)
         compression_option = GZipPgBaseBackupCompressionOption(compression_config)
         # AND a remote_status object
-        remote_status = mock.Mock()
-        # AND a Server version
-        server_version = mock.Mock()
+        remote_status = {"pg_basebackup_version": client_version}
         # WHEN the compression is validated
         validation_issues = compression_option.validate(server_version, remote_status)
         # THEN issues should match expected ones if any
@@ -670,8 +730,14 @@ class TestLZ4PgBaseBackupCompressionOption(object):
                 "15",
                 15000,
                 {"backup_compression": "lz4", "backup_compression_level": 0},
+                [],
+            ),
+            (
+                "15",
+                15000,
+                {"backup_compression": "lz4", "backup_compression_level": -1},
                 [
-                    "backup_compression_level 0 unsupported by pg_basebackup compression lz4"
+                    "backup_compression_level -1 unsupported by compression algorithm. lz4 expects a compression level between 1 and 12 (0 will use default compression level)."
                 ],
             ),
             (
@@ -679,7 +745,7 @@ class TestLZ4PgBaseBackupCompressionOption(object):
                 15000,
                 {"backup_compression": "lz4", "backup_compression_level": 13},
                 [
-                    "backup_compression_level 13 unsupported by pg_basebackup compression lz4"
+                    "backup_compression_level 13 unsupported by compression algorithm. lz4 expects a compression level between 1 and 12 (0 will use default compression level)."
                 ],
             ),
             (
@@ -688,7 +754,7 @@ class TestLZ4PgBaseBackupCompressionOption(object):
                 {"backup_compression": "lz4", "backup_compression_level": 14},
                 [
                     "backup_compression = lz4 requires pg_basebackup 15 or greater",
-                    "backup_compression_level 14 unsupported by pg_basebackup compression lz4",
+                    "backup_compression_level 14 unsupported by compression algorithm. lz4 expects a compression level between 1 and 12 (0 will use default compression level).",
                 ],
             ),
             (
@@ -699,7 +765,7 @@ class TestLZ4PgBaseBackupCompressionOption(object):
                     "backup_compression_level": 9,
                     "backup_compression_workers": 2,
                 },
-                ["backup_compression_workers is not compatible with compression lz4"],
+                ["backup_compression_workers is not compatible with compression lz4."],
             ),
         ],
     )
@@ -749,16 +815,14 @@ class TestZSTDPgBaseBackupCompressionOption(object):
                 "15",
                 15000,
                 {"backup_compression": "zstd", "backup_compression_level": 0},
-                [
-                    "backup_compression_level 0 unsupported by pg_basebackup compression zstd"
-                ],
+                [],
             ),
             (
                 "15",
                 15000,
                 {"backup_compression": "zstd", "backup_compression_level": 23},
                 [
-                    "backup_compression_level 23 unsupported by pg_basebackup compression zstd"
+                    "backup_compression_level 23 unsupported by compression algorithm. 'zstd' expects a compression level between -131072 and 22 (3 will use default compression level)."
                 ],
             ),
             (
@@ -767,7 +831,7 @@ class TestZSTDPgBaseBackupCompressionOption(object):
                 {"backup_compression": "zstd", "backup_compression_level": 23},
                 [
                     "backup_compression = zstd requires pg_basebackup 15 or greater",
-                    "backup_compression_level 23 unsupported by pg_basebackup compression zstd",
+                    "backup_compression_level 23 unsupported by compression algorithm. 'zstd' expects a compression level between -131072 and 22 (3 will use default compression level).",
                 ],
             ),
             (
@@ -780,8 +844,8 @@ class TestZSTDPgBaseBackupCompressionOption(object):
                 },
                 [
                     "backup_compression = zstd requires pg_basebackup 15 or greater",
-                    "backup_compression_level 23 unsupported by pg_basebackup compression zstd",
-                    "backup_compression_workers should be a positive integer: '-1' is invalid",
+                    "backup_compression_level 23 unsupported by compression algorithm. 'zstd' expects a compression level between -131072 and 22 (3 will use default compression level).",
+                    "backup_compression_workers should be a positive integer: '-1' is invalid.",
                 ],
             ),
         ],
@@ -793,6 +857,58 @@ class TestZSTDPgBaseBackupCompressionOption(object):
         # GIVEN compression options
         compression_config = get_compression_config(compression_options)
         compression_option = ZSTDPgBaseBackupCompressionOption(compression_config)
+        # AND a remote_status object
+        remote_status = {"pg_basebackup_version": client_version}
+        # WHEN the compression is validated
+        validation_issues = compression_option.validate(server_version, remote_status)
+        # THEN issues should match expected ones if any
+        assert len(validation_issues) == len(expected_errors)
+        assert sorted(validation_issues) == sorted(expected_errors)
+
+
+class TestNonePgBaseBackupCompressionOption(object):
+    @pytest.mark.parametrize(
+        ("client_version", "server_version", "compression_options", "expected_errors"),
+        [
+            (
+                "15",
+                15000,
+                {"backup_compression": "none", "backup_compression_level": 0},
+                [],
+            ),
+            (
+                "15",
+                15000,
+                {"backup_compression": "none", "backup_compression_level": None},
+                [],
+            ),
+            (
+                "14",
+                14000,
+                {"backup_compression": "none", "backup_compression_level": 0},
+                [],
+            ),
+            (
+                "14",
+                14000,
+                {"backup_compression": "none", "backup_compression_level": 2},
+                ["backup_compression none only supports backup_compression_level 0."],
+            ),
+            (
+                "14",
+                14000,
+                {"backup_compression": "none", "backup_compression_level": None},
+                [],
+            ),
+        ],
+    )
+    def test_validate(
+        self, client_version, server_version, compression_options, expected_errors
+    ):
+        """Verifies supported config options pass validation."""
+        # GIVEN compression options
+        compression_config = get_compression_config(compression_options)
+        compression_option = NonePgBaseBackupCompressionOption(compression_config)
         # AND a remote_status object
         remote_status = {"pg_basebackup_version": client_version}
         # WHEN the compression is validated
@@ -1250,4 +1366,135 @@ class TestZSTDCompression(object):
         # SHOULD Raise an exception
         with pytest.raises(FileNotFoundException) as exc:
             zstd_compression.get_file_content(label_file_path_in_archive, archive_path)
+        assert expected_exception_message == str(exc.value)
+
+
+class TestNoneCompression:
+    @pytest.mark.parametrize(*COMMON_UNCOMPRESS_ARGS)
+    def test_uncompress(self, src, dst, exclude, include, expected_error):
+        # GIVEN a NoneCompression object
+        command = mock.Mock()
+        command.cmd.return_value = 0
+        command.get_last_output.return_value = ("all good", "")
+        none_compression = NoneCompression(command)
+
+        # WHEN uncompress is called with the source and destination
+        # THEN the command is called once
+        # AND if we expect an error, that error is raised
+        if expected_error is not None:
+            with pytest.raises(ValueError):
+                none_compression.uncompress(
+                    src, dst, exclude=exclude, include_args=include
+                )
+            # THEN command.cmd was not called
+            command.cmd.assert_not_called()
+        # OR if we don't expect an error
+        else:
+            none_compression.uncompress(src, dst, exclude=exclude, include_args=include)
+            # THEN command.cmd was called
+            command.cmd.assert_called_once()
+            # AND the first argument was "tar"
+            assert command.cmd.call_args_list[0][0][0] == "tar"
+            # AND the basic arguments are present
+            assert command.cmd.call_args_list[0][1]["args"][:4] == [
+                "-xf",
+                src,
+                "--directory",
+                dst,
+            ]
+            # AND if we expected exclude args they are present
+            remaining_args = " ".join(command.cmd.call_args_list[0][1]["args"][4:])
+            if exclude is not None:
+                for exclude_arg in exclude:
+                    assert "--exclude %s" % exclude_arg in remaining_args
+            # AND if we expected include args they are present
+            if include is not None:
+                for include_arg in include:
+                    assert include_arg in remaining_args
+
+    def test_tar_failure_raises_exception(self):
+        """Verify a nonzero return code from tar raises an exception"""
+        # GIVEN a NoneCompression object
+        # AND a tar command which returns status 2 and an error
+        command = mock.Mock()
+        command.cmd.return_value = 2
+        command.get_last_output.return_value = ("", "some error")
+        none_compression = NoneCompression(command)
+
+        # WHEN uncompress is called
+        # THEN a CommandFailedException is raised
+        with pytest.raises(CommandFailedException) as exc:
+            none_compression.uncompress("/path/to/src", "/path/to/dst")
+
+        # AND the exception message contains the command stderr
+        assert "some error" in str(exc.value)
+
+    def test_get_file_content(self):
+        # Given a tar compressed archive on disk containing specified files
+        archive_path = "/path/to/archive"
+        label_file_name = "label"
+        label_file_path_in_archive = os.path.join("label/file/path", label_file_name)
+        file_label_content = "expected file label content"
+
+        # AND a Mock Command
+        command = mock.Mock()
+        command.cmd.return_value = 0
+        command.get_last_output.return_value = (file_label_content, "")
+        # THEN getting a specific file content format the archive with a GZipCompression instance
+        none_compression = NoneCompression(command)
+        read_content = none_compression.get_file_content(
+            label_file_path_in_archive, archive_path
+        )
+        # SHOULD retrieve the expected content
+        assert file_label_content == read_content
+
+        # AND command.cmd was called
+        args = [
+            "-xf",
+            archive_path + ".tar",
+            "-O",
+            label_file_path_in_archive,
+            "--occurrence",
+        ]
+
+        command.cmd.assert_called_once()
+        command.cmd.assert_called_once_with("tar", args=args)
+
+    def test_get_file_content_file_not_found(self):
+        """
+        Verifies an exception is thrown if get_file_content is called on a file which does
+        not exist.
+        """
+        # Given a tar compressed archive on disk containing specified files
+        archive_path = "/path/to/archive"
+        missing_file_name = "label"
+        label_file_path_in_archive = os.path.join("label/file/path", missing_file_name)
+
+        # AND a Mock Command that simulates tar response in case of missing file.
+        command = mock.Mock()
+        command.cmd.return_value = 1
+        expected_exception_message = (
+            "tar: base/%s: Not found in archive\n"
+            "tar: Error exit delayed from previous errors.\n"
+            "archive name: %s.tar"
+            % (
+                missing_file_name,
+                archive_path,
+            )
+        )
+        tar_error_message = (
+            "tar: base/%s: Not found in archive\n"
+            "tar: Error exit delayed from previous errors.\n" % missing_file_name
+        )
+        command.get_last_output.return_value = (
+            "",
+            tar_error_message,
+        )
+        # AND getting a specific file content format the archive with a NoneCompression instance
+        none_compression = NoneCompression(command)
+
+        # THEN getting missing file content
+        # SHOULD Raise an exception
+        with pytest.raises(FileNotFoundException) as exc:
+            none_compression.get_file_content(label_file_path_in_archive, archive_path)
         assert expected_exception_message == str(exc.value)

@@ -1019,9 +1019,16 @@ class PgBaseBackup(PostgreSQLClient):
                 compression_args.append(compress_arg)
             # For clients < 15 we use the old style argument format
             else:
-                compression_args.append("--%s" % compression.config.type)
-                if compression.config.level:
-                    compression_args.append("--compress=%d" % compression.config.level)
+                if compression.config.type == "none":
+                    compression_args.append("--compress=0")
+                else:
+                    if compression.config.level is not None:
+                        compression_args.append(
+                            "--compress=%d" % compression.config.level
+                        )
+                    # --gzip must be positioned after --compress when compression level=0
+                    # so `base.tar.gz` can be created. Otherwise `.gz` won't be added.
+                    compression_args.append("--%s" % compression.config.type)
         return compression_args
 
 
