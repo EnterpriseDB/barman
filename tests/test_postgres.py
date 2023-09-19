@@ -37,7 +37,7 @@ from barman.exceptions import (
     PostgresIsInRecovery,
     BackupFunctionsAccessRequired,
     PostgresObsoleteFeature,
-    PostgresSuperuserRequired,
+    PostgresCheckpointPrivilegesRequired,
     PostgresUnsupportedFeature,
 )
 from barman.postgres import (
@@ -1059,12 +1059,64 @@ class TestPostgres(object):
 
     @patch("barman.postgres.PostgreSQLConnection.connect")
     @patch(
+        "barman.postgres.PostgreSQLConnection.is_superuser", new_callable=PropertyMock
+    )
+    @patch(
+        "barman.postgres.PostgreSQLConnection.server_version", new_callable=PropertyMock
+    )
+    def test_has_checkpoint_privileges(
+            self,
+            server_version_mock,
+            is_su_mock,
+            conn_mock
+    ):
+        server = build_real_server()
+        cursor_mock = conn_mock.return_value.cursor.return_value
+
+        # test PostgreSQL 13 and below
+        server_version_mock.return_value = 139999
+        is_su_mock.return_value = False
+        assert not server.postgres.has_checkpoint_privileges
+        is_su_mock.return_value = True
+        assert server.postgres.has_checkpoint_privileges
+
+        # test PostgreSQL 14 and above
+        server_version_mock.return_value = 140000
+
+        # no superuser, no pg_checkpoint -> False
+        is_su_mock.return_value = False
+        cursor_mock.fetchone.side_effect = [(False,)]
+        assert not server.postgres.has_checkpoint_privileges
+        cursor_mock.execute.assert_called_with("select pg_has_role(CURRENT_USER ,'pg_checkpoint', 'MEMBER');")
+
+        # no superuser, pg_checkpoint -> True
+        cursor_mock.reset_mock()
+        is_su_mock.return_value = False
+        cursor_mock.fetchone.side_effect = [(True,)]
+        assert server.postgres.has_checkpoint_privileges
+        cursor_mock.execute.assert_called_with("select pg_has_role(CURRENT_USER ,'pg_checkpoint', 'MEMBER');")
+
+        # superuser, no pg_checkpoint -> True
+        cursor_mock.reset_mock()
+        is_su_mock.return_value = True
+        cursor_mock.fetchone.side_effect = [(False,)]
+        assert server.postgres.has_checkpoint_privileges
+
+        # superuser, pg_checkpoint -> True
+        cursor_mock.reset_mock()
+        is_su_mock.return_value = True
+        cursor_mock.fetchone.side_effect = [(True,)]
+        assert server.postgres.has_checkpoint_privileges
+
+    @patch("barman.postgres.PostgreSQLConnection.connect")
+    @patch(
         "barman.postgres.PostgreSQLConnection.is_in_recovery", new_callable=PropertyMock
     )
     @patch(
-        "barman.postgres.PostgreSQLConnection.is_superuser", new_callable=PropertyMock
+        "barman.postgres.PostgreSQLConnection.has_checkpoint_privileges",
+        new_callable=PropertyMock
     )
-    def test_checkpoint(self, is_superuser_mock, is_in_recovery_mock, conn_mock):
+    def test_checkpoint(self, has_cp_priv_mock, is_in_recovery_mock, conn_mock):
         """
         Simple test for the execution of a checkpoint on a given server
         """
@@ -1072,7 +1124,7 @@ class TestPostgres(object):
         server = build_real_server()
         cursor_mock = conn_mock.return_value.cursor.return_value
         is_in_recovery_mock.return_value = False
-        is_superuser_mock.return_value = True
+        has_cp_priv_mock.return_value = True
         # Execute the checkpoint method
         server.postgres.checkpoint()
         # Check for the right invocation
@@ -1081,8 +1133,8 @@ class TestPostgres(object):
         cursor_mock.reset_mock()
         # Missing required permissions
         is_in_recovery_mock.return_value = False
-        is_superuser_mock.return_value = False
-        with pytest.raises(PostgresSuperuserRequired):
+        has_cp_priv_mock.return_value = False
+        with pytest.raises(PostgresCheckpointPrivilegesRequired):
             server.postgres.checkpoint()
         assert not cursor_mock.execute.called
 
