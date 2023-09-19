@@ -71,7 +71,7 @@ BACKUP_METHOD_VALUES = ["rsync", "postgres", "local-rsync", "snapshot"]
 CREATE_SLOT_VALUES = ["manual", "auto"]
 
 # Config values relating to pg_basebackup compression
-BASEBACKUP_COMPRESSIONS = ["gzip", "lz4", "zstd"]
+BASEBACKUP_COMPRESSIONS = ["gzip", "lz4", "zstd", "none"]
 
 
 class CsvOption(set):
@@ -294,8 +294,6 @@ def parse_backup_compression(value):
     """
     Parse a string to a valid backup_compression value.
 
-    Valid values are contained in compression.basebackup_compressions list
-
     :param str value: backup_compression value
     :raises ValueError: if the value is invalid
     """
@@ -304,7 +302,7 @@ def parse_backup_compression(value):
     if value.lower() in BASEBACKUP_COMPRESSIONS:
         return value.lower()
     raise ValueError(
-        "Invalid value (must be one in: '%s')" % ("', '".join(BASEBACKUP_COMPRESSIONS))
+        "Invalid value '%s'(must be one in: %s)" % (value, BASEBACKUP_COMPRESSIONS)
     )
 
 
@@ -862,7 +860,7 @@ class Config(object):
             return None
         try:
             value = self._config.get(section, option, raw=False, vars=defaults)
-            if value.lower() == "none":
+            if value == "None":
                 value = none_value
             if value is not None:
                 value = self._QUOTE_RE.sub(lambda m: m.group(2), value)

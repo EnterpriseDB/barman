@@ -131,10 +131,11 @@ using the `backup_compression` config option (global/per server):
 
 Setting this option will cause pg_basebackup to compress the backup
 using the specified compression algorithm. Currently, supported
-algorithm in Barman are: `gzip` `lz4` and `zstd`.
+algorithm in Barman are: `gzip`, `lz4`,`zstd` and `none`. `none` compression
+algorithm will create an uncompressed archive.
 
 ``` ini
-backup_compression = gzip|lz4|zstd
+backup_compression = gzip|lz4|zstd|none
 ```
 
 Barman requires the CLI utility for the selected compression algorithm
@@ -178,6 +179,15 @@ The compression level can be specified using the
 `backup_compression_level` option. This should be set to an integer
 value supported by the compression algorithm specified in
 `backup_compression`.
+If not defined, compression algorithm default value will be used.
+
+`none` compression only supports `backup_compression_level=0`.
+
+> **Note:** `backup_compression_level` available and default values depends on the compression algorithm used. 
+> Please check the compression algorithm documentation for more details.
+
+> **Note:** On PostgreSQL version prior to 15, `gzip` support `backup_compression_level=0`.
+> It results using default compression level
 
 #### Compression location
 
@@ -228,6 +238,7 @@ documentation][pg_basebackup-documentation].
 | lz4 |  tar  | **tar, lz4** | **tar, lz4** |
 | zstd | plain | **tar, zstd** | None |
 | zstd |  tar  | **tar, zstd** | **tar, zstd** |
+| none |  tar  | **tar** | **tar** |
 
 ### Concurrent backup
 

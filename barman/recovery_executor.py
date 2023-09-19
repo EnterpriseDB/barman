@@ -52,7 +52,12 @@ from barman.exceptions import (
     RecoveryPreconditionException,
     SnapshotBackupException,
 )
-from barman.compression import GZipCompression, LZ4Compression, ZSTDCompression
+from barman.compression import (
+    GZipCompression,
+    LZ4Compression,
+    ZSTDCompression,
+    NoneCompression,
+)
 import barman.fs as fs
 from barman.infofile import BackupInfo, LocalBackupInfo
 from barman.utils import force_str, mkpath
@@ -1803,7 +1808,8 @@ def recovery_executor_factory(backup_manager, command, backup_info):
         return TarballRecoveryExecutor(backup_manager, LZ4Compression(command))
     if compression == ZSTDCompression.name:
         return TarballRecoveryExecutor(backup_manager, ZSTDCompression(command))
-
+    if compression == NoneCompression.name:
+        return TarballRecoveryExecutor(backup_manager, NoneCompression(command))
     raise AttributeError("Unexpected compression format: %s" % compression)
 
 
