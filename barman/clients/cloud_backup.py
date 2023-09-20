@@ -257,7 +257,7 @@ def parse_arguments(args=None):
     compression.add_argument(
         "-z",
         "--gzip",
-        help="gzip-compress the WAL while uploading to the cloud",
+        help="gzip-compress the backup while uploading to the cloud",
         action="store_const",
         const="gz",
         dest="compression",
@@ -265,14 +265,14 @@ def parse_arguments(args=None):
     compression.add_argument(
         "-j",
         "--bzip2",
-        help="bzip2-compress the WAL while uploading to the cloud",
+        help="bzip2-compress the backup while uploading to the cloud",
         action="store_const",
         const="bz2",
         dest="compression",
     )
     compression.add_argument(
         "--snappy",
-        help="snappy-compress the WAL while uploading to the cloud ",
+        help="snappy-compress the backup while uploading to the cloud ",
         action="store_const",
         const="snappy",
         dest="compression",
