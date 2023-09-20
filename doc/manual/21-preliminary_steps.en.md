@@ -49,8 +49,14 @@ GRANT EXECUTE ON FUNCTION pg_backup_start(text, boolean) to barman;
 GRANT EXECUTE ON FUNCTION pg_backup_stop(boolean) to barman;
 ```
 
-It is worth noting that without a real superuser, the `--force` option
-of the `barman switch-wal` command will not work.
+It is worth noting that with PostgreSQL version 13 and below without a real 
+superuser, the `--force` option of the `barman switch-wal` command will not work.  
+If you are running PostgreSQL version 14 or above, you can grant the `pg_checkpoint` 
+role, so you can use this feature without a superuser:
+
+``` sql
+GRANT pg_checkpoint TO barman;
+```
 
 > **IMPORTANT:** The above `createuser` command will prompt for a password,
 > which you are then advised to add to the `~barman/.pgpass` file

@@ -48,7 +48,7 @@ from barman.exceptions import (
     PostgresReplicationSlotInUse,
     PostgresReplicationSlotsFull,
     BackupFunctionsAccessRequired,
-    PostgresSuperuserRequired,
+    PostgresCheckpointPrivilegesRequired,
     PostgresUnsupportedFeature,
 )
 from barman.infofile import Tablespace
@@ -637,6 +637,31 @@ class PostgreSQLConnection(PostgreSQL):
                 force_str(e).strip(),
             )
             return None
+
+    @property
+    def has_checkpoint_privileges(self):
+        """
+        Returns true if the current user is a superuser or if,
+        for PostgreSQL 14 and above, the user has the "pg_checkpoint" role.
+        """
+
+        if self.server_version < 140000:
+            return self.is_superuser
+
+        if self.is_superuser:
+            return True
+        else:
+            role_check_query = "select pg_has_role(CURRENT_USER ,'pg_checkpoint', 'MEMBER');"
+            try:
+                cur = self._cursor()
+                cur.execute(role_check_query)
+                return cur.fetchone()[0]
+            except (PostgresConnectionError, psycopg2.Error) as e:
+                _logger.warning(
+                    "Error checking privileges for functions needed for creating checkpoints: %s",
+                    force_str(e).strip(),
+                )
+                return None
 
     @property
     def current_xlog_info(self):
@@ -1351,8 +1376,8 @@ class PostgreSQLConnection(PostgreSQL):
             conn = self.connect()
 
             # Requires superuser privilege
-            if not self.is_superuser:
-                raise PostgresSuperuserRequired()
+            if not self.has_checkpoint_privileges:
+                raise PostgresCheckpointPrivilegesRequired()
 
             cur = conn.cursor()
             cur.execute("CHECKPOINT")
