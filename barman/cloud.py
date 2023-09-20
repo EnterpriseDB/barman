@@ -253,7 +253,14 @@ class CloudTarUploader(object):
 
 
 class CloudUploadController(object):
-    def __init__(self, cloud_interface, key_prefix, max_archive_size, compression):
+    def __init__(
+        self,
+        cloud_interface,
+        key_prefix,
+        max_archive_size,
+        compression,
+        min_chunk_size=None,
+    ):
         """
         Create a new controller that upload the backup in cloud storage
 
@@ -261,6 +268,7 @@ class CloudUploadController(object):
         :param str|None key_prefix: path inside the bucket
         :param int max_archive_size: the maximum size of an archive
         :param str|None compression: required compression
+        :param int|None min_chunk_size: the minimum size of a single upload part
         """
 
         self.cloud_interface = cloud_interface
@@ -275,10 +283,17 @@ class CloudUploadController(object):
                 pretty_size(self.cloud_interface.MAX_ARCHIVE_SIZE),
             )
             self.max_archive_size = self.cloud_interface.MAX_ARCHIVE_SIZE
-        # We aim to a maximum of MAX_CHUNKS_PER_FILE / 2 chinks per file
-        self.chunk_size = 2 * int(
+        # We aim to a maximum of MAX_CHUNKS_PER_FILE / 2 chunks per file
+        calculated_chunk_size = 2 * int(
             max_archive_size / self.cloud_interface.MAX_CHUNKS_PER_FILE
         )
+        # Use whichever is higher - the calculated chunk_size or the requested
+        # min_chunk_size. Note that if the cloud interface has a MIN_CHUNK_SIZE
+        # higher than CloudUploadController.chunk_size then it will be used instead.
+        if min_chunk_size is not None:
+            self.chunk_size = max(calculated_chunk_size, min_chunk_size)
+        else:
+            self.chunk_size = calculated_chunk_size
         self.compression = compression
         self.tar_list = {}
 
@@ -1469,6 +1484,7 @@ class CloudBackupUploader(CloudBackup):
         postgres,
         compression=None,
         backup_name=None,
+        min_chunk_size=None,
     ):
         """
         Base constructor.
@@ -1482,6 +1498,7 @@ class CloudBackupUploader(CloudBackup):
         :param str compression: Compression algorithm to use
         :param str|None backup_name: A friendly name which can be used to reference
             this backup in the future.
+        :param int min_chunk_size: the minimum size of a single upload part
         """
         super(CloudBackupUploader, self).__init__(
             server_name,
@@ -1492,6 +1509,7 @@ class CloudBackupUploader(CloudBackup):
 
         self.compression = compression
         self.max_archive_size = max_archive_size
+        self.min_chunk_size = min_chunk_size
 
         # Object properties set at backup time
         self.controller = None
@@ -1531,6 +1549,7 @@ class CloudBackupUploader(CloudBackup):
             key_prefix,
             self.max_archive_size,
             self.compression,
+            self.min_chunk_size,
         )
 
     def _backup_data_files(

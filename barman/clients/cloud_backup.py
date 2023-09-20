@@ -158,6 +158,7 @@ def main(args=None):
                 "server_name": config.server_name,
                 "compression": config.compression,
                 "max_archive_size": config.max_archive_size,
+                "min_chunk_size": config.min_chunk_size,
                 "cloud_interface": cloud_interface,
             }
             if __is_hook_script():
@@ -312,6 +313,14 @@ def parse_arguments(args=None):
         help="maximum size of an archive when uploading to cloud storage "
         "(default: 100GB)",
         default="100GB",
+    )
+    parser.add_argument(
+        "--min-chunk-size",
+        type=check_size,
+        help="minimum size of an individual chunk when uploading to cloud storage "
+        "(default: 5MB for aws-s3, 64KB for azure-blob-storage, not applicable for "
+        "google-cloud-storage)",
+        default=None,  # Defer to the cloud interface if nothing is specified
     )
     parser.add_argument(
         "-d",
