@@ -3352,7 +3352,6 @@ class TestCloudTarUploader(object):
         the bytes passed to async_upload_part represent a valid tar file.
         """
         # GIVEN a cloud interface
-        mock_cloud_interface.MIN_CHUNK_SIZE = 5 << 20
         # AND a source directory containing one file
         src_file = "arbitrary_file_name"
         content = "arbitrary strong representing file content"
@@ -3360,7 +3359,10 @@ class TestCloudTarUploader(object):
         with open(os.path.join(str(tmpdir), src_file), "w") as f:
             f.write(content)
         # AND a CloudTarUploader using the configured compression
-        uploader = CloudTarUploader(mock_cloud_interface, key, compression=compression)
+        chunk_size = 5 << 20
+        uploader = CloudTarUploader(
+            mock_cloud_interface, key, chunk_size=chunk_size, compression=compression
+        )
 
         # WHEN the file is added to the tar uploader
         uploader.tar.add(
@@ -3394,6 +3396,8 @@ class TestCloudTarUploader(object):
                 tf.extractall(path=dest_path)
                 with open(os.path.join(dest_path, src_file), "r") as result:
                     assert result.read() == content
+        # AND the supplied chunk_size was set
+        assert uploader.chunk_size == chunk_size
 
 
 class TestCloudBackupUploader(object):
