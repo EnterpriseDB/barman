@@ -651,7 +651,9 @@ class PostgreSQLConnection(PostgreSQL):
         if self.is_superuser:
             return True
         else:
-            role_check_query = "select pg_has_role(CURRENT_USER ,'pg_checkpoint', 'MEMBER');"
+            role_check_query = (
+                "select pg_has_role(CURRENT_USER ,'pg_checkpoint', 'MEMBER');"
+            )
             try:
                 cur = self._cursor()
                 cur.execute(role_check_query)

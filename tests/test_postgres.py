@@ -1065,10 +1065,7 @@ class TestPostgres(object):
         "barman.postgres.PostgreSQLConnection.server_version", new_callable=PropertyMock
     )
     def test_has_checkpoint_privileges(
-            self,
-            server_version_mock,
-            is_su_mock,
-            conn_mock
+        self, server_version_mock, is_su_mock, conn_mock
     ):
         server = build_real_server()
         cursor_mock = conn_mock.return_value.cursor.return_value
@@ -1087,14 +1084,18 @@ class TestPostgres(object):
         is_su_mock.return_value = False
         cursor_mock.fetchone.side_effect = [(False,)]
         assert not server.postgres.has_checkpoint_privileges
-        cursor_mock.execute.assert_called_with("select pg_has_role(CURRENT_USER ,'pg_checkpoint', 'MEMBER');")
+        cursor_mock.execute.assert_called_with(
+            "select pg_has_role(CURRENT_USER ,'pg_checkpoint', 'MEMBER');"
+        )
 
         # no superuser, pg_checkpoint -> True
         cursor_mock.reset_mock()
         is_su_mock.return_value = False
         cursor_mock.fetchone.side_effect = [(True,)]
         assert server.postgres.has_checkpoint_privileges
-        cursor_mock.execute.assert_called_with("select pg_has_role(CURRENT_USER ,'pg_checkpoint', 'MEMBER');")
+        cursor_mock.execute.assert_called_with(
+            "select pg_has_role(CURRENT_USER ,'pg_checkpoint', 'MEMBER');"
+        )
 
         # superuser, no pg_checkpoint -> True
         cursor_mock.reset_mock()
@@ -1114,7 +1115,7 @@ class TestPostgres(object):
     )
     @patch(
         "barman.postgres.PostgreSQLConnection.has_checkpoint_privileges",
-        new_callable=PropertyMock
+        new_callable=PropertyMock,
     )
     def test_checkpoint(self, has_cp_priv_mock, is_in_recovery_mock, conn_mock):
         """

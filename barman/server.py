@@ -2913,8 +2913,10 @@ class Server(RemoteStatusMixin):
             )
         except PostgresCheckpointPrivilegesRequired:
             # Superuser rights are required to perform the switch_wal
-            output.error("Barman switch-wal --force requires superuser rights or "
-                         "the 'pg_checkpoint' role")
+            output.error(
+                "Barman switch-wal --force requires superuser rights or "
+                "the 'pg_checkpoint' role"
+            )
             return
 
         # If the user has asked to wait for a WAL file to be archived,

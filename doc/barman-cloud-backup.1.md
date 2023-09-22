@@ -79,9 +79,9 @@ optional arguments:
   -t, --test            Test cloud connectivity and exit
   --cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}
                         The cloud provider to use as a storage backend
-  -z, --gzip            gzip-compress the WAL while uploading to the cloud
-  -j, --bzip2           bzip2-compress the WAL while uploading to the cloud
-  --snappy              snappy-compress the WAL while uploading to the cloud
+  -z, --gzip            gzip-compress the backup while uploading to the cloud
+  -j, --bzip2           bzip2-compress the backup while uploading to the cloud
+  --snappy              snappy-compress the backup while uploading to the cloud
   -h HOST, --host HOST  host or Unix socket for PostgreSQL connection
                         (default: libpq settings)
   -p PORT, --port PORT  port for PostgreSQL connection (default: libpq
