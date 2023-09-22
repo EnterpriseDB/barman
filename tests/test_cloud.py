@@ -53,6 +53,7 @@ from barman.cloud import (
     CloudBackupUploaderBarman,
     CloudProviderError,
     CloudTarUploader,
+    CloudUploadController,
     CloudUploadingError,
     FileUploadStatistics,
     DEFAULT_DELIMITER,
@@ -3398,6 +3399,90 @@ class TestCloudTarUploader(object):
                     assert result.read() == content
         # AND the supplied chunk_size was set
         assert uploader.chunk_size == chunk_size
+
+
+class TestCloudUploadController(object):
+    """Tests for the CloudUploadController class."""
+
+    @pytest.mark.parametrize(
+        ("max_archive_size_arg", "max_archive_size_property"),
+        ((100, 1000), (100, 1000)),
+    )
+    @mock.patch("barman.cloud.CloudInterface")
+    def test_init_max_archive_size(
+        self, mock_cloud_interface, max_archive_size_arg, max_archive_size_property
+    ):
+        """Test creation of CloudUploadController with max_archive_size values."""
+        # GIVEN a mock cloud interface with the specified MAX_ARCHIVE_SIZE value
+        # and an arbitrary MIN_CHUNK_SIZE value
+        mock_cloud_interface.MAX_ARCHIVE_SIZE = max_archive_size_property
+        mock_cloud_interface.MIN_CHUNK_SIZE = 5 << 20
+
+        # WHEN a CloudUploadController is created with the requested max_archive_size
+        controller = CloudUploadController(
+            mock_cloud_interface, "prefix", max_archive_size_arg, None
+        )
+
+        # THEN the max_archive_size is set to the lower of requested max_archive_size
+        # and the cloud interface MAX_ARCHIVE_SIZE
+        assert controller.max_archive_size == min(
+            max_archive_size_arg, max_archive_size_property
+        )
+
+    @pytest.mark.parametrize(
+        (
+            "min_chunk_size_arg",
+            "min_chunk_size_property",
+            "max_archive_size",
+            "expected_chunk_size",
+        ),
+        (
+            # When the supplied min_chunk_size is larger than
+            # CloudInterface.MIN_CHUNK_SIZE and larger than the chunk size calculated
+            # from max_archive_size and CloudInterface.MAX_CHUNKS_PER_FILE then we
+            # expect CloudUploadController.chunk_size to be min_chunk_size.
+            (10 << 20, 5 << 20, 1 << 30, 10 << 20),
+            # When CloudInterface.MIN_CHUNK_SIZE is larger than the supplied
+            # min_chunk_size and larger than the chunk size calculated from
+            # max_archive_size and CloudInterface.MAX_CHUNKS_PER_FILE then we
+            # expect CloudUploadController.chunk_size to be
+            # CloudInterface.MIN_CHUNK_SIZE.
+            (5 << 20, 10 << 20, 1 << 30, 10 << 20),
+            # When the chunk size calculated from max_archive_size and
+            # CloudInterface.MAX_CHUNKS_PER_FILE is larger than the supplied
+            # min_chunk_size and CloudInterface.MIN_CHUNK_SIZE then we
+            # expect CloudUploadController.chunk_size to be the calculated
+            # value.
+            (5 << 10, 5 << 10, 1 << 30, 214748),
+        ),
+    )
+    @mock.patch("barman.cloud.CloudInterface")
+    def test_init_min_chunk_size(
+        self,
+        mock_cloud_interface,
+        min_chunk_size_arg,
+        min_chunk_size_property,
+        max_archive_size,
+        expected_chunk_size,
+    ):
+        """Test creation of CloudUploadController with max_archive_size values."""
+        # GIVEN a CloudInterface with a specified MIN_CHUNK_SIZE and MAX_ARCHIVE_SIZE
+        # and a fixed MAX_CHUNKS_PER_FILE value of 10000
+        mock_cloud_interface.MIN_CHUNK_SIZE = min_chunk_size_property
+        mock_cloud_interface.MAX_ARCHIVE_SIZE = max_archive_size
+        mock_cloud_interface.MAX_CHUNKS_PER_FILE = 10000
+
+        # WHEN a CloudUploadController is created with the requested min_chunk_size
+        controller = CloudUploadController(
+            mock_cloud_interface,
+            "prefix",
+            max_archive_size,
+            None,
+            min_chunk_size=min_chunk_size_arg,
+        )
+
+        # THEN the chunk_size is set to the expected value
+        assert controller.chunk_size == expected_chunk_size
 
 
 class TestCloudBackupUploader(object):
