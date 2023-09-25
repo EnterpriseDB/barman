@@ -182,6 +182,12 @@ def compress(wal_file, compression):
         snappy.stream_compress(wal_file, in_mem_snappy)
         in_mem_snappy.seek(0)
         return in_mem_snappy
+    elif compression == "zstd":
+        in_mem_zstd = BytesIO()
+        zstandard = _try_import_zstandard()
+        zstandard.ZstdCompressor().copy_stream(wal_file, in_mem_zstd)
+        in_mem_zstd.seek(0)
+        return in_mem_zstd
     elif compression == "gzip":
         # Create a BytesIO for in memory compression
         in_mem_gzip = BytesIO()
@@ -233,6 +239,10 @@ def decompress_to_file(blob, dest_file, compression):
     if compression == "snappy":
         snappy = _try_import_snappy()
         snappy.stream_decompress(blob, dest_file)
+        return
+    if compression == "zstd":
+        zstandard = _try_import_zstandard()
+        zstandard.ZstdDecompressor().copy_stream(blob, dest_file)
         return
     elif compression == "gzip":
         source_file = gzip.GzipFile(fileobj=blob, mode="rb")
