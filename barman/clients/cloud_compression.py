@@ -33,6 +33,14 @@ def _try_import_snappy():
     return snappy
 
 
+def _try_import_zstandard():
+    try:
+        import zstandard
+    except ImportError:
+        raise SystemExit("Missing required python module: python-snappy")
+    return zstandard
+
+
 class ChunkedCompressor(with_metaclass(ABCMeta, object)):
     """
     Base class for all ChunkedCompressors
@@ -80,6 +88,53 @@ class SnappyCompressor(ChunkedCompressor):
         """
         return self.compressor.add_chunk(data)
 
+    def flush(self):
+        return b""
+
+    def finish(self):
+        return b""
+
+    def decompress(self, data):
+        """
+        Decompresses the supplied chunk of data and returns at least part of the
+        uncompressed data.
+
+        :param bytes data: The chunk of data to be decompressed
+        :return: The decompressed data
+        :rtype: bytes
+        """
+        return self.decompressor.decompress(data)
+
+
+class ZstdCompressor(ChunkedCompressor):
+    """
+    A ChunkedCompressor implementation based on python-snappy
+    """
+
+    def __init__(self):
+        zstandard = _try_import_zstandard()
+        self.compressor = zstandard.ZstdCompressor().chunker()
+        self.decompressor = zstandard.ZstdDecompressor().decompressobj()
+
+    def add_chunk(self, data):
+        """
+        Compresses the supplied data and returns all the compressed bytes.
+
+        :param bytes data: The chunk of data to be compressed
+        :return: The compressed data
+        :rtype: bytes
+        """
+        compressed = self.compressor.compress(data)
+        # TODO not optimal - we should be calling flush() and finish() in the
+        # right places
+        return b"".join(compressed)
+
+    def flush(self):
+        return b"".join(self.compressor.flush())
+
+    def finish(self):
+        return b"".join(self.compressor.finish())
+
     def decompress(self, data):
         """
         Decompresses the supplied chunk of data and returns at least part of the
@@ -106,6 +161,8 @@ def get_compressor(compression):
     """
     if compression == "snappy":
         return SnappyCompressor()
+    elif compression == "zstd":
+        return ZstdCompressor()
     return None
 
 
@@ -155,7 +212,7 @@ def get_streaming_tar_mode(mode, compression):
     :return: The full filemode for a streaming tar file
     :rtype: str
     """
-    if compression == "snappy" or compression is None:
+    if compression == "snappy" or compression == "zstd" or compression is None:
         return "%s|" % mode
     else:
         return "%s|%s" % (mode, compression)

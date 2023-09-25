@@ -71,7 +71,12 @@ BUFSIZE = 16 * 1024
 LOGGING_FORMAT = "%(asctime)s [%(process)s] %(levelname)s: %(message)s"
 
 # Allowed compression algorithms
-ALLOWED_COMPRESSIONS = {".gz": "gzip", ".bz2": "bzip2", ".snappy": "snappy"}
+ALLOWED_COMPRESSIONS = {
+    ".gz": "gzip",
+    ".bz2": "bzip2",
+    ".snappy": "snappy",
+    ".zst": "zstd",
+}
 
 DEFAULT_DELIMITER = "/"
 
@@ -222,11 +227,20 @@ class CloudTarUploader(object):
             self.buffer.write(buf)
             self.size += len(buf)
 
-    def flush(self):
+    def flush(self, finish=False):
         if not self.upload_metadata:
             self.upload_metadata = self.cloud_interface.create_multipart_upload(
                 self.key
             )
+
+        # Flush anything still hanging around in the compressor
+        if self.compressor:
+            if finish:
+                compressed_buf = self.compressor.finish()
+            else:
+                compressed_buf = self.compressor.flush()
+            self.buffer.write(compressed_buf)
+            self.size += len(compressed_buf)
 
         self.buffer.flush()
         self.buffer.seek(0, os.SEEK_SET)
@@ -243,7 +257,7 @@ class CloudTarUploader(object):
     def close(self):
         if self.tar:
             self.tar.close()
-        self.flush()
+        self.flush(finish=True)
         self.cloud_interface.async_complete_multipart_upload(
             upload_metadata=self.upload_metadata,
             key=self.key,
@@ -308,6 +322,8 @@ class CloudUploadController(object):
             components.append(".bz2")
         elif self.compression == "snappy":
             components.append(".snappy")
+        elif self.compression == "zstd":
+            components.append(".zst")
         return "".join(components)
 
     def _get_tar(self, name):
@@ -1014,7 +1030,13 @@ class CloudInterface(with_metaclass(ABCMeta)):
           be extracted
         """
         extension = os.path.splitext(key)[-1]
-        compression = "" if extension == ".tar" else extension[1:]
+        compression = (
+            # Needing to look up in ALLOWED_COMPRESSIONS is kind of a bug - we just
+            # got away with it because .snappy and snappy were the same
+            ""
+            if extension == ".tar"
+            else ALLOWED_COMPRESSIONS["." + extension[1:]]
+        )
         tar_mode = cloud_compression.get_streaming_tar_mode("r", compression)
         fileobj = self.remote_open(key, cloud_compression.get_compressor(compression))
         with tarfile.open(fileobj=fileobj, mode=tar_mode) as tf:
@@ -2210,6 +2232,8 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
                         info.compression = "bzip2"
                     elif ext == "tar.snappy":
                         info.compression = "snappy"
+                    elif ext == "tar.zst":
+                        info.compression = "zstd"
                     else:
                         logging.warning("Skipping unknown extension: %s", ext)
                         continue

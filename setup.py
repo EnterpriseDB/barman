@@ -112,6 +112,7 @@ setup(
             "grpcio",
             "google-cloud-compute",  # requires minimum python3.7
         ],
+        "zstd": ["zstandard"],
     },
     platforms=["Linux", "Mac OS X"],
     classifiers=[
