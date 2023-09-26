@@ -76,6 +76,7 @@ ALLOWED_COMPRESSIONS = {
     ".bz2": "bzip2",
     ".snappy": "snappy",
     ".zst": "zstd",
+    ".lz4": "lz4",
 }
 
 DEFAULT_DELIMITER = "/"
@@ -324,6 +325,8 @@ class CloudUploadController(object):
             components.append(".snappy")
         elif self.compression == "zstd":
             components.append(".zst")
+        elif self.compression == "lz4":
+            components.append(".lz4")
         return "".join(components)
 
     def _get_tar(self, name):
@@ -2234,6 +2237,8 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
                         info.compression = "snappy"
                     elif ext == "tar.zst":
                         info.compression = "zstd"
+                    elif ext == "tar.lz4":
+                        info.compression = "lz4"
                     else:
                         logging.warning("Skipping unknown extension: %s", ext)
                         continue

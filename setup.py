@@ -113,6 +113,7 @@ setup(
             "google-cloud-compute",  # requires minimum python3.7
         ],
         "zstd": ["zstandard"],
+        "lz4": ["lz4"],
     },
     platforms=["Linux", "Mac OS X"],
     classifiers=[

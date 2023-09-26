@@ -41,6 +41,14 @@ def _try_import_zstandard():
     return zstandard
 
 
+def _try_import_lz4():
+    try:
+        import lz4.frame
+    except ImportError:
+        raise SystemExit("Missing required python module: lz4")
+    return lz4.frame
+
+
 class ChunkedCompressor(with_metaclass(ABCMeta, object)):
     """
     Base class for all ChunkedCompressors
@@ -147,6 +155,53 @@ class ZstdCompressor(ChunkedCompressor):
         return self.decompressor.decompress(data)
 
 
+class LZ4Compressor(ChunkedCompressor):
+    """
+    A ChunkedCompressor implementation based on lz4
+    """
+
+    def __init__(self):
+        self.lz4_frame = _try_import_lz4()
+        self.compressor = None
+        self.decompressor = None
+
+    def add_chunk(self, data):
+        """
+        Compresses the supplied data and returns all the compressed bytes.
+
+        :param bytes data: The chunk of data to be compressed
+        :return: The compressed data
+        :rtype: bytes
+        """
+        compressed = b""
+        if self.compressor is None:
+            self.compressor = self.lz4_frame.LZ4FrameCompressor()
+            compressed += self.compressor.begin()
+        compressed += self.compressor.compress(data)
+        return compressed
+
+    def flush(self):
+        return b""
+
+    def finish(self):
+        # flushing an lz4 compressor also renders it finished, so we flush in self.finish
+        # and don't flush in self.flush
+        return self.compressor.flush()
+
+    def decompress(self, data):
+        """
+        Decompresses the supplied chunk of data and returns at least part of the
+        uncompressed data.
+
+        :param bytes data: The chunk of data to be decompressed
+        :return: The decompressed data
+        :rtype: bytes
+        """
+        if self.decompressor is None:
+            self.decompressor = self.lz4_frame.LZ4FrameDecompressor()
+        return self.decompressor.decompress(data)
+
+
 def get_compressor(compression):
     """
     Helper function which returns a ChunkedCompressor for the specified compression
@@ -163,6 +218,8 @@ def get_compressor(compression):
         return SnappyCompressor()
     elif compression == "zstd":
         return ZstdCompressor()
+    elif compression == "lz4":
+        return LZ4Compressor()
     return None
 
 
@@ -188,6 +245,13 @@ def compress(wal_file, compression):
         zstandard.ZstdCompressor().copy_stream(wal_file, in_mem_zstd)
         in_mem_zstd.seek(0)
         return in_mem_zstd
+    elif compression == "lz4":
+        in_mem_lz4 = BytesIO()
+        lz4_frame = _try_import_lz4()
+        with lz4_frame.LZ4FrameFile(in_mem_lz4, mode="wb") as compressed:
+            shutil.copyfileobj(wal_file, compressed)
+        in_mem_lz4.seek(0)
+        return in_mem_lz4
     elif compression == "gzip":
         # Create a BytesIO for in memory compression
         in_mem_gzip = BytesIO()
@@ -218,7 +282,7 @@ def get_streaming_tar_mode(mode, compression):
     :return: The full filemode for a streaming tar file
     :rtype: str
     """
-    if compression == "snappy" or compression == "zstd" or compression is None:
+    if compression in ("snappy", "zstd", "lz4") or compression is None:
         return "%s|" % mode
     else:
         return "%s|%s" % (mode, compression)
@@ -244,6 +308,9 @@ def decompress_to_file(blob, dest_file, compression):
         zstandard = _try_import_zstandard()
         zstandard.ZstdDecompressor().copy_stream(blob, dest_file)
         return
+    if compression == "lz4":
+        lz4_frame = _try_import_lz4()
+        source_file = lz4_frame.LZ4FrameFile(blob, mode="rb")
     elif compression == "gzip":
         source_file = gzip.GzipFile(fileobj=blob, mode="rb")
     elif compression == "bzip2":
