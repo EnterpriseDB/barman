@@ -171,7 +171,7 @@ class CloudTarUploader(object):
         NamedTemporaryFile, delete=False, prefix="barman-upload-", suffix=".part"
     )
 
-    def __init__(self, cloud_interface, key, compression=None, chunk_size=None):
+    def __init__(self, cloud_interface, key, chunk_size, compression=None):
         """
         A tar archive that resides on cloud storage
 
@@ -182,11 +182,8 @@ class CloudTarUploader(object):
         """
         self.cloud_interface = cloud_interface
         self.key = key
+        self.chunk_size = chunk_size
         self.upload_metadata = None
-        if chunk_size is None:
-            self.chunk_size = cloud_interface.MIN_CHUNK_SIZE
-        else:
-            self.chunk_size = max(chunk_size, cloud_interface.MIN_CHUNK_SIZE)
         self.buffer = None
         self.counter = 0
         self.compressor = None
@@ -253,7 +250,14 @@ class CloudTarUploader(object):
 
 
 class CloudUploadController(object):
-    def __init__(self, cloud_interface, key_prefix, max_archive_size, compression):
+    def __init__(
+        self,
+        cloud_interface,
+        key_prefix,
+        max_archive_size,
+        compression,
+        min_chunk_size=None,
+    ):
         """
         Create a new controller that upload the backup in cloud storage
 
@@ -261,6 +265,7 @@ class CloudUploadController(object):
         :param str|None key_prefix: path inside the bucket
         :param int max_archive_size: the maximum size of an archive
         :param str|None compression: required compression
+        :param int|None min_chunk_size: the minimum size of a single upload part
         """
 
         self.cloud_interface = cloud_interface
@@ -275,10 +280,19 @@ class CloudUploadController(object):
                 pretty_size(self.cloud_interface.MAX_ARCHIVE_SIZE),
             )
             self.max_archive_size = self.cloud_interface.MAX_ARCHIVE_SIZE
-        # We aim to a maximum of MAX_CHUNKS_PER_FILE / 2 chinks per file
-        self.chunk_size = 2 * int(
+        # We aim to a maximum of MAX_CHUNKS_PER_FILE / 2 chunks per file
+        calculated_chunk_size = 2 * int(
             max_archive_size / self.cloud_interface.MAX_CHUNKS_PER_FILE
         )
+        # Use whichever is higher - the calculated chunk_size, the requested
+        # min_chunk_size or the cloud interface MIN_CHUNK_SIZE.
+        possible_min_chunk_sizes = [
+            calculated_chunk_size,
+            cloud_interface.MIN_CHUNK_SIZE,
+        ]
+        if min_chunk_size is not None:
+            possible_min_chunk_sizes.append(min_chunk_size)
+        self.chunk_size = max(possible_min_chunk_sizes)
         self.compression = compression
         self.tar_list = {}
 
@@ -322,8 +336,8 @@ class CloudUploadController(object):
                 CloudTarUploader(
                     cloud_interface=self.cloud_interface,
                     key=os.path.join(self.key_prefix, self._build_dest_name(name)),
-                    compression=self.compression,
                     chunk_size=self.chunk_size,
+                    compression=self.compression,
                 )
             ]
         # If the current uploading file size is over DEFAULT_MAX_TAR_SIZE
@@ -337,8 +351,8 @@ class CloudUploadController(object):
                     self.key_prefix,
                     self._build_dest_name(name, len(self.tar_list[name])),
                 ),
-                compression=self.compression,
                 chunk_size=self.chunk_size,
+                compression=self.compression,
             )
             self.tar_list[name].append(uploader)
         return uploader.tar
@@ -1469,6 +1483,7 @@ class CloudBackupUploader(CloudBackup):
         postgres,
         compression=None,
         backup_name=None,
+        min_chunk_size=None,
     ):
         """
         Base constructor.
@@ -1482,6 +1497,7 @@ class CloudBackupUploader(CloudBackup):
         :param str compression: Compression algorithm to use
         :param str|None backup_name: A friendly name which can be used to reference
             this backup in the future.
+        :param int min_chunk_size: the minimum size of a single upload part
         """
         super(CloudBackupUploader, self).__init__(
             server_name,
@@ -1492,6 +1508,7 @@ class CloudBackupUploader(CloudBackup):
 
         self.compression = compression
         self.max_archive_size = max_archive_size
+        self.min_chunk_size = min_chunk_size
 
         # Object properties set at backup time
         self.controller = None
@@ -1531,6 +1548,7 @@ class CloudBackupUploader(CloudBackup):
             key_prefix,
             self.max_archive_size,
             self.compression,
+            self.min_chunk_size,
         )
 
     def _backup_data_files(
@@ -1726,6 +1744,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
         backup_dir,
         backup_id,
         compression=None,
+        min_chunk_size=None,
     ):
         """
         Create the cloud storage upload client for a backup in the specified
@@ -1739,6 +1758,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
           be uploaded
         :param str backup_id: The id of the backup to upload
         :param str compression: Compression algorithm to use
+        :param int min_chunk_size: the minimum size of a single upload part
         """
         super(CloudBackupUploaderBarman, self).__init__(
             server_name,
@@ -1746,6 +1766,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
             max_archive_size,
             compression=compression,
             postgres=None,
+            min_chunk_size=None,
         )
         self.backup_dir = backup_dir
         self.backup_id = backup_id

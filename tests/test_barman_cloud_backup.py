@@ -33,6 +33,15 @@ class TestCloudBackup(object):
     Test that we get the intended behaviour when called directly
     """
 
+    @pytest.mark.parametrize(
+        ("barman_cloud_args", "expected_max_archive_size", "expected_min_chunk_size"),
+        (
+            ([], 100 << 30, None),
+            (["--max-archive-size=10GB"], 10 << 30, None),
+            (["--min-chunk-size=50MB"], 100 << 30, 50 << 20),
+            (["--max-archive-size=10GB", "--min-chunk-size=50MB"], 10 << 30, 50 << 20),
+        ),
+    )
     @mock.patch.dict(
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
@@ -46,9 +55,12 @@ class TestCloudBackup(object):
         postgres_connection,
         _rmtree_mock,
         _tempfile_mock,
+        barman_cloud_args,
+        expected_max_archive_size,
+        expected_min_chunk_size,
     ):
         uploader = uploader_mock.return_value
-        cloud_backup.main(["cloud_storage_url", "test_server"])
+        cloud_backup.main(["cloud_storage_url", "test_server"] + barman_cloud_args)
         postgres_connection.assert_called_once()
         cloud_interface_mock.assert_called_once()
         uploader_mock.assert_called_once_with(
@@ -56,7 +68,8 @@ class TestCloudBackup(object):
             compression=None,
             backup_name=None,
             postgres=postgres_connection.return_value,
-            max_archive_size=107374182400,
+            max_archive_size=expected_max_archive_size,
+            min_chunk_size=expected_min_chunk_size,
             cloud_interface=cloud_interface_mock.return_value,
         )
         uploader.backup.assert_called_once()
@@ -410,6 +423,15 @@ class TestCloudBackupHookScript(object):
     Test that we get the intended behaviour when called as a hook script
     """
 
+    @pytest.mark.parametrize(
+        ("barman_cloud_args", "expected_max_archive_size", "expected_min_chunk_size"),
+        (
+            ([], 100 << 30, None),
+            (["--max-archive-size=10GB"], 10 << 30, None),
+            (["--min-chunk-size=50MB"], 100 << 30, 50 << 20),
+            (["--max-archive-size=10GB", "--min-chunk-size=50MB"], 10 << 30, 50 << 20),
+        ),
+    )
     @mock.patch.dict(
         os.environ,
         {
@@ -429,14 +451,18 @@ class TestCloudBackupHookScript(object):
         cloud_interface_mock,
         rmtree_mock,
         tempfile_mock,
+        barman_cloud_args,
+        expected_max_archive_size,
+        expected_min_chunk_size,
     ):
         uploader = uploader_mock.return_value
-        cloud_backup.main(["cloud_storage_url", "test_server"])
+        cloud_backup.main(["cloud_storage_url", "test_server"] + barman_cloud_args)
         cloud_interface_mock.assert_called_once()
         uploader_mock.assert_called_once_with(
             server_name="test_server",
             compression=None,
-            max_archive_size=107374182400,
+            max_archive_size=expected_max_archive_size,
+            min_chunk_size=expected_min_chunk_size,
             cloud_interface=cloud_interface_mock.return_value,
             backup_dir=EXAMPLE_BACKUP_DIR,
             backup_id=EXAMPLE_BACKUP_ID,
@@ -470,6 +496,7 @@ class TestCloudBackupHookScript(object):
             server_name="test_server",
             compression=None,
             max_archive_size=107374182400,
+            min_chunk_size=None,
             cloud_interface=cloud_interface_mock.return_value,
             backup_dir=EXAMPLE_BACKUP_DIR,
             backup_id=EXAMPLE_BACKUP_ID,
