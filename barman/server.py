@@ -624,7 +624,7 @@ class Server(RemoteStatusMixin):
         except TimeoutError:
             # The check timed out.
             # Add a failed entry to the check strategy for this.
-            _logger.debug(
+            _logger.info(
                 "Check command timed out executing '%s' check"
                 % check_strategy.running_check
             )
