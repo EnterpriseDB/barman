@@ -57,6 +57,7 @@ class TestCloudBackup(object):
             backup_name=None,
             postgres=postgres_connection.return_value,
             max_archive_size=107374182400,
+            min_chunk_size=None,
             cloud_interface=cloud_interface_mock.return_value,
         )
         uploader.backup.assert_called_once()
@@ -437,6 +438,7 @@ class TestCloudBackupHookScript(object):
             server_name="test_server",
             compression=None,
             max_archive_size=107374182400,
+            min_chunk_size=None,
             cloud_interface=cloud_interface_mock.return_value,
             backup_dir=EXAMPLE_BACKUP_DIR,
             backup_id=EXAMPLE_BACKUP_ID,
@@ -470,6 +472,7 @@ class TestCloudBackupHookScript(object):
             server_name="test_server",
             compression=None,
             max_archive_size=107374182400,
+            min_chunk_size=None,
             cloud_interface=cloud_interface_mock.return_value,
             backup_dir=EXAMPLE_BACKUP_DIR,
             backup_id=EXAMPLE_BACKUP_ID,
