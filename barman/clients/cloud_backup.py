@@ -183,7 +183,7 @@ def main(args=None):
                 uploader = CloudBackupUploaderBarman(
                     backup_dir=os.getenv("BARMAN_BACKUP_DIR"),
                     backup_id=os.getenv("BARMAN_BACKUP_ID"),
-                    **uploader_kwargs
+                    **uploader_kwargs,
                 )
                 uploader.backup()
             else:
@@ -217,11 +217,18 @@ def main(args=None):
                         snapshot_backup.backup()
                     # Otherwise upload everything to the object store
                     else:
-                        uploader = CloudBackupUploader(
-                            postgres=postgres,
-                            backup_name=config.backup_name,
-                            **uploader_kwargs
-                        )
+                        if config.cloud_provider == "kopia":
+                            uploader = CloudBackupKopia(
+                                postgrs=postgres,
+                                backup_name=config.backup_name,
+                                **uploader_kwargs,
+                            )
+                        else:
+                            uploader = CloudBackupUploader(
+                                postgres=postgres,
+                                backup_name=config.backup_name,
+                                **uploader_kwargs,
+                            )
                         uploader.backup()
 
     except KeyboardInterrupt as exc:

@@ -132,6 +132,12 @@ def _make_google_cloud_interface(config, cloud_interface_kwargs):
     return GoogleCloudInterface(**cloud_interface_kwargs)
 
 
+def _make_kopia_cloud_interface(config, cloud_interface_kwargs):
+    from barman.cloud_providers.kopia import KopiaCloudInterface
+
+    return KopiaCloudInterface(**cloud_interface_kwargs)
+
+
 def get_cloud_interface(config):
     """
     Factory function that creates CloudInterface for the specified cloud_provider
@@ -153,6 +159,8 @@ def get_cloud_interface(config):
         return _make_azure_cloud_interface(config, cloud_interface_kwargs)
     elif config.cloud_provider == "google-cloud-storage":
         return _make_google_cloud_interface(config, cloud_interface_kwargs)
+    elif config.cloud_provider == "kopia":
+        return _make_kopia_cloud_interface(config, cloud_interface_kwargs)
     else:
         raise CloudProviderUnsupported(
             "Unsupported cloud provider: %s" % config.cloud_provider
