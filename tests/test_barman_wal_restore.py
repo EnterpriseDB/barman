@@ -15,6 +15,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
+import os
 import subprocess
 
 import mock
@@ -105,6 +106,8 @@ class TestRemoteGetWal(object):
             ],
             stdout=mock.ANY,
         )
+        # Clean created file
+        os.remove("test_wal_dest")
 
     @mock.patch("barman.clients.walrestore.RemoteGetWal")
     def test_ssh_connectivity_error(self, remote_get_wal_mock, capsys, tmpdir):
