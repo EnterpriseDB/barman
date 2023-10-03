@@ -11,9 +11,10 @@ Version 3.9.0 - 3 October 2023
   with either S3 or Azure Blob Storage can now be specified using the
   `--min-chunk-size` option.
 
-- For PostgreSQL 15 and later: `backup_compression = none` is now
-  supported and the allowed `backup_compression_level` values for
-  `zstd` and `lz4` have been updated to match those allowed by
+- `backup_compression = none` is supported when using `pg_basebackup`.
+
+- For PostgreSQL 15 and later: the allowed `backup_compression_level`
+  values for `zstd` and `lz4` have been updated to match those allowed by
   `pg_basebackup`.
 
 - For PostgreSQL versions earlier than 15: `backup_compression_level = 0`
