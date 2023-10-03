@@ -1,5 +1,30 @@
 Barman News - History of user-visible changes
 
+Version 3.9.0 - 3 October 2023
+
+- Allow `barman switch-wal --force` to be run against PG>=14 if the
+  user has the `pg_checkpoint` role (thanks to toydarian for this patch).
+
+- Log the current check at `info` level when a check timeout occurs.
+
+- The minimum size of an upload chunk when using `barman-cloud-backup`
+  with either S3 or Azure Blob Storage can now be specified using the
+  `--min-chunk-size` option.
+
+- `backup_compression = none` is supported when using `pg_basebackup`.
+
+- For PostgreSQL 15 and later: the allowed `backup_compression_level`
+  values for `zstd` and `lz4` have been updated to match those allowed by
+  `pg_basebackup`.
+
+- For PostgreSQL versions earlier than 15: `backup_compression_level = 0`
+  can now be used with `backup_compression = gzip`.
+
+- Bug fixes:
+
+    - Fix `barman recover` on platforms where Multiprocessing uses spawn by
+      default when starting new processes.
+
 Version 3.8.0 - 31 August 2023
 
 - Clarify package installation. barman is packaged with default python version
