@@ -34,12 +34,33 @@ class TestCloudBackup(object):
     """
 
     @pytest.mark.parametrize(
-        ("barman_cloud_args", "expected_max_archive_size", "expected_min_chunk_size"),
         (
-            ([], 100 << 30, None),
-            (["--max-archive-size=10GB"], 10 << 30, None),
-            (["--min-chunk-size=50MB"], 100 << 30, 50 << 20),
-            (["--max-archive-size=10GB", "--min-chunk-size=50MB"], 10 << 30, 50 << 20),
+            "barman_cloud_args",
+            "expected_max_archive_size",
+            "expected_min_chunk_size",
+            "expected_max_bandwidth",
+        ),
+        (
+            ([], 100 << 30, None, None),
+            (["--max-archive-size=10GB"], 10 << 30, None, None),
+            (["--min-chunk-size=50MB"], 100 << 30, 50 << 20, None),
+            (
+                ["--max-archive-size=10GB", "--min-chunk-size=50MB"],
+                10 << 30,
+                50 << 20,
+                None,
+            ),
+            (["--max-bandwidth=80MB"], 100 << 30, None, 80 << 20),
+            (
+                [
+                    "--max-archive-size=10GB",
+                    "--min-chunk-size=50MB",
+                    "--max-bandwidth=80MB",
+                ],
+                10 << 30,
+                50 << 20,
+                80 << 20,
+            ),
         ),
     )
     @mock.patch.dict(
@@ -58,6 +79,7 @@ class TestCloudBackup(object):
         barman_cloud_args,
         expected_max_archive_size,
         expected_min_chunk_size,
+        expected_max_bandwidth,
     ):
         uploader = uploader_mock.return_value
         cloud_backup.main(["cloud_storage_url", "test_server"] + barman_cloud_args)
@@ -70,6 +92,7 @@ class TestCloudBackup(object):
             postgres=postgres_connection.return_value,
             max_archive_size=expected_max_archive_size,
             min_chunk_size=expected_min_chunk_size,
+            max_bandwidth=expected_max_bandwidth,
             cloud_interface=cloud_interface_mock.return_value,
         )
         uploader.backup.assert_called_once()
@@ -424,12 +447,33 @@ class TestCloudBackupHookScript(object):
     """
 
     @pytest.mark.parametrize(
-        ("barman_cloud_args", "expected_max_archive_size", "expected_min_chunk_size"),
         (
-            ([], 100 << 30, None),
-            (["--max-archive-size=10GB"], 10 << 30, None),
-            (["--min-chunk-size=50MB"], 100 << 30, 50 << 20),
-            (["--max-archive-size=10GB", "--min-chunk-size=50MB"], 10 << 30, 50 << 20),
+            "barman_cloud_args",
+            "expected_max_archive_size",
+            "expected_min_chunk_size",
+            "expected_max_bandwidth",
+        ),
+        (
+            ([], 100 << 30, None, None),
+            (["--max-archive-size=10GB"], 10 << 30, None, None),
+            (["--min-chunk-size=50MB"], 100 << 30, 50 << 20, None),
+            (
+                ["--max-archive-size=10GB", "--min-chunk-size=50MB"],
+                10 << 30,
+                50 << 20,
+                None,
+            ),
+            (["--max-bandwidth=80MB"], 100 << 30, None, 80 << 20),
+            (
+                [
+                    "--max-archive-size=10GB",
+                    "--min-chunk-size=50MB",
+                    "--max-bandwidth=80MB",
+                ],
+                10 << 30,
+                50 << 20,
+                80 << 20,
+            ),
         ),
     )
     @mock.patch.dict(
@@ -454,6 +498,7 @@ class TestCloudBackupHookScript(object):
         barman_cloud_args,
         expected_max_archive_size,
         expected_min_chunk_size,
+        expected_max_bandwidth,
     ):
         uploader = uploader_mock.return_value
         cloud_backup.main(["cloud_storage_url", "test_server"] + barman_cloud_args)
@@ -463,6 +508,7 @@ class TestCloudBackupHookScript(object):
             compression=None,
             max_archive_size=expected_max_archive_size,
             min_chunk_size=expected_min_chunk_size,
+            max_bandwidth=expected_max_bandwidth,
             cloud_interface=cloud_interface_mock.return_value,
             backup_dir=EXAMPLE_BACKUP_DIR,
             backup_id=EXAMPLE_BACKUP_ID,
@@ -497,6 +543,7 @@ class TestCloudBackupHookScript(object):
             compression=None,
             max_archive_size=107374182400,
             min_chunk_size=None,
+            max_bandwidth=None,
             cloud_interface=cloud_interface_mock.return_value,
             backup_dir=EXAMPLE_BACKUP_DIR,
             backup_id=EXAMPLE_BACKUP_ID,

@@ -19,6 +19,7 @@
 import bz2
 import datetime
 import gzip
+import logging
 import os
 import shutil
 import sys
@@ -1322,7 +1323,7 @@ class TestAzureCloudInterface(object):
             credential=credential,
             container_name=container_name,
             session=mock_session.return_value,
-            **default_azure_client_args
+            **default_azure_client_args,
         )
 
     @mock.patch.dict(
@@ -1353,7 +1354,7 @@ class TestAzureCloudInterface(object):
             credential=os.environ["AZURE_STORAGE_SAS_TOKEN"],
             container_name=container_name,
             session=mock_session.return_value,
-            **default_azure_client_args
+            **default_azure_client_args,
         )
 
     @mock.patch.dict(
@@ -1382,7 +1383,7 @@ class TestAzureCloudInterface(object):
             credential=os.environ["AZURE_STORAGE_KEY"],
             container_name=container_name,
             session=mock_session.return_value,
-            **default_azure_client_args
+            **default_azure_client_args,
         )
 
     @mock.patch("azure.identity.DefaultAzureCredential")
@@ -1411,7 +1412,7 @@ class TestAzureCloudInterface(object):
             credential=default_azure_credential.return_value,
             container_name=container_name,
             session=mock_session.return_value,
-            **default_azure_client_args
+            **default_azure_client_args,
         )
 
     @mock.patch.dict(
@@ -2730,7 +2731,7 @@ class TestGetCloudInterface(object):
             profile_name=None,
             endpoint_url=None,
             read_timeout=None,
-            **extra_args
+            **extra_args,
         )
 
     @pytest.mark.parametrize(
@@ -3400,6 +3401,182 @@ class TestCloudTarUploader(object):
         # AND the supplied chunk_size was set
         assert uploader.chunk_size == chunk_size
 
+    @pytest.mark.parametrize(
+        (
+            "max_bandwidth",
+            "time_of_last_upload",
+            "size_of_last_upload",
+            "expected_wait_time",
+        ),
+        (
+            # 10GB/s bandwidth limit, last uploaded 5GB 0.25s ago: wait for 0.25s
+            (
+                10 << 30,
+                datetime.datetime(2023, 10, 9, 16, 43, 59, 750000),
+                5 << 30,
+                0.25,
+            ),
+            # 100MB/s bandwidth limit, last uploaded 200MB 1.5s ago: wait for 0.5s
+            (
+                100 << 20,
+                datetime.datetime(2023, 10, 9, 16, 43, 58, 500000),
+                200 << 20,
+                0.5,
+            ),
+        ),
+    )
+    @mock.patch("barman.cloud.time")
+    def test_throttle_upload(
+        self,
+        mock_time,
+        max_bandwidth,
+        time_of_last_upload,
+        size_of_last_upload,
+        expected_wait_time,
+        caplog,
+    ):
+        """
+        Verifies that throttle will wait for the correct length of time for the
+        size and time of the last upload and the specified max_bandwidth.
+        """
+        # GIVEN two fixed points in time at a half second interval
+        mock_times = [
+            datetime.datetime(2023, 10, 9, 16, 44, 0, 0),
+            datetime.datetime(2023, 10, 9, 16, 44, 0, 500000),
+        ]
+        # AND a CloudTarUploader with the specified max_bandwidth
+        uploader = CloudTarUploader(
+            None,
+            None,
+            None,
+            None,
+            max_bandwidth,
+        )
+        # AND the CloudTarUploader last uploaded at the specified time
+        uploader.time_of_last_upload = time_of_last_upload
+        # AND the CloudTarUploader last uploaded a part of the specified size
+        uploader.size_of_last_upload = size_of_last_upload
+        # AND with info lvel logging
+        caplog.set_level(logging.INFO)
+
+        # WHEN _throttle_upload is called with a given part size
+        with mock.patch("barman.cloud.datetime.datetime") as mock_datetime:
+            mock_datetime.now.side_effect = mock_times
+            part_size = 10 << 30
+            uploader._throttle_upload(part_size)
+
+        # THEN time.sleep was called with the expected wait time
+        mock_time.sleep.assert_called_once_with(expected_wait_time)
+        # AND the expected log messages occurred
+        assert (
+            f"Uploaded {size_of_last_upload} bytes "
+            f"{(mock_times[0] - time_of_last_upload).total_seconds()} seconds ago "
+            f"which exceeds limit of {max_bandwidth} bytes/s"
+        ) in caplog.text
+        assert (
+            f"Throttling upload by waiting for {expected_wait_time} seconds"
+        ) in caplog.text
+        # AND size_of_last_upload is set to the new part size
+        assert uploader.size_of_last_upload == part_size
+        # AND time_of_last_upload is set to the most recent datetime returned
+        assert uploader.time_of_last_upload == mock_times[-1]
+
+    @pytest.mark.parametrize(
+        (
+            "max_bandwidth",
+            "time_of_last_upload",
+            "size_of_last_upload",
+        ),
+        (
+            # No time or size of last upload so we do not wait
+            (10 << 30, None, None),
+            # No time of last upload so we do not wait
+            (10 << 20, None, 5 << 20),
+            # No size of last upload so we do not wait
+            (10 << 30, datetime.datetime(2023, 10, 9, 16, 43, 59, 75000), None),
+            # 100MB/s bandwidth limit, last uploaded 100MB 1.5s ago: do not wait
+            (
+                100 << 20,
+                datetime.datetime(2023, 10, 9, 16, 43, 58, 500000),
+                100 << 20,
+            ),
+            # 100MB/s bandwidth limit, last uploaded 10MB 0.9s ago: do not wait
+            (
+                100 << 20,
+                datetime.datetime(2023, 10, 9, 16, 43, 59, 100000),
+                10 << 20,
+            ),
+        ),
+    )
+    @mock.patch("barman.cloud.time")
+    def test_throttle_upload_no_wait(
+        self,
+        mock_time,
+        max_bandwidth,
+        time_of_last_upload,
+        size_of_last_upload,
+        caplog,
+    ):
+        """
+        Verifies that throttle will wait for the correct length of time for the
+        size and time of the last upload and the specified max_bandwidth.
+        """
+        # GIVEN one fixed datetime
+        mock_next_time = datetime.datetime(2023, 10, 9, 16, 44, 0, 0)
+        # AND a CloudTarUploader with the specified max_bandwidth
+        uploader = CloudTarUploader(
+            None,
+            None,
+            None,
+            None,
+            max_bandwidth,
+        )
+        # AND the CloudTarUploader last uploaded at the specified time
+        uploader.time_of_last_upload = time_of_last_upload
+        # AND the CloudTarUploader last uploaded a part of the specified size
+        uploader.size_of_last_upload = size_of_last_upload
+
+        # WHEN _throttle_upload is called with a given part size
+        with mock.patch("barman.cloud.datetime.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_next_time
+            part_size = 10 << 30
+            uploader._throttle_upload(part_size)
+
+        # THEN time.sleep was not called
+        mock_time.sleep.assert_not_called()
+        # AND the log output is empty
+        assert caplog.text == ""
+
+        # AND size_of_last_upload is set to the new part size
+        assert uploader.size_of_last_upload == part_size
+        # AND time_of_last_upload is set to the latest returned datetime
+        assert uploader.time_of_last_upload == mock_next_time
+
+    @pytest.mark.parametrize("max_bandwidth", (10 << 20, None))
+    @mock.patch("barman.cloud.CloudInterface")
+    def test_flush_max_bandwidth(self, mock_cloud_interface, max_bandwidth):
+        """Verifies behaviour of flush w.r.t max_bandwidth."""
+        # GIVEN a CloudTarUploader with a given max_bandwidth
+        uploader = CloudTarUploader(
+            mock_cloud_interface,
+            None,
+            None,
+            None,
+            max_bandwidth,
+        )
+        uploader.buffer = MagicMock()
+        # WHEN flush is called
+        with mock.patch(
+            "barman.cloud.CloudTarUploader._throttle_upload"
+        ) as mock_throttle:
+            uploader.flush()
+            # THEN _throttle was not called for a None max_bandwidth
+            if max_bandwidth is None:
+                mock_throttle.assert_not_called()
+            # AND _throttle was called when max_bandwidth was set
+            else:
+                mock_throttle.assert_called_once()
+
 
 class TestCloudUploadController(object):
     """Tests for the CloudUploadController class."""
@@ -3502,15 +3679,23 @@ class TestCloudBackupUploader(object):
         _mock_os_stat,
     ):
         """Test the happy path for backups."""
-        # GIVEN a CloudBackupUploader
-        mock_cloud_interface = MagicMock(MAX_ARCHIVE_SIZE=99999, MIN_CHUNK_SIZE=2)
+        # GIVEN a CloudBackupUploademock_backup_info.r
+        mock_cloud_interface = MagicMock(
+            MAX_ARCHIVE_SIZE=99999, MIN_CHUNK_SIZE=2, path="/"
+        )
         mock_postgres = MagicMock(server_major_version=150000)
         mock_backup_info.return_value.backup_label = "backup_label"
+        mock_backup_info.return_value.backup_id = "backup_id"
+        expected_max_archive_size = 99999
+        expected_min_chunk_size = 111
+        expected_max_bandwidth = 222
         uploader = CloudBackupUploader(
             self.server_name,
             mock_cloud_interface,
-            99999,
+            expected_max_archive_size,
             mock_postgres,
+            min_chunk_size=expected_min_chunk_size,
+            max_bandwidth=expected_max_bandwidth,
         )
 
         # AND the backup_info file returns a single config file outside of pgdata
@@ -3556,6 +3741,20 @@ class TestCloudBackupUploader(object):
         )
         mock_backup_strategy.return_value.stop_backup.assert_called_once_with(
             mock_backup_info.return_value
+        )
+        # AND both max_archive_size and min_chunk_size were set on the uploader
+        assert uploader.max_archive_size == expected_max_archive_size
+        assert uploader.min_chunk_size == expected_min_chunk_size
+        # AND max_bandwidth was set on the uploader
+        assert uploader.max_bandwidth == expected_max_bandwidth
+        # AND The upload controller was created with the expected args
+        mock_cloud_upload_controller.assert_called_once_with(
+            mock_cloud_interface,
+            "/{}/base/backup_id".format(self.server_name),
+            expected_max_archive_size,
+            None,
+            expected_min_chunk_size,
+            expected_max_bandwidth,
         )
 
     @pytest.mark.parametrize("backup_should_fail", (False, True))
@@ -3661,11 +3860,14 @@ class TestCloudBackupUploaderBarman(object):
     ):
         """Test the happy path for backups."""
         # GIVEN a CloudBackupUploaderBarman
-        mock_cloud_interface = MagicMock(MAX_ARCHIVE_SIZE=99999, MIN_CHUNK_SIZE=2)
+        mock_cloud_interface = MagicMock(
+            MAX_ARCHIVE_SIZE=99999, MIN_CHUNK_SIZE=2, path="/"
+        )
         backup_id = "backup_id"
         backup_dir = "/path/to/{}/{}".format(self.server_name, backup_id)
         expected_max_archive_size = 99999
         expected_min_chunk_size = 111
+        expected_max_bandwidth = 222
         uploader = CloudBackupUploaderBarman(
             self.server_name,
             mock_cloud_interface,
@@ -3673,6 +3875,7 @@ class TestCloudBackupUploaderBarman(object):
             backup_dir,
             backup_id,
             min_chunk_size=expected_min_chunk_size,
+            max_bandwidth=expected_max_bandwidth,
         )
         # AND the backup.info has tablespace information
         mock_backup_info.return_value.pgdata = "/path/to/pgdata"
@@ -3700,6 +3903,17 @@ class TestCloudBackupUploaderBarman(object):
         # AND both max_archive_size and min_chunk_size were set on the uploader
         assert uploader.max_archive_size == expected_max_archive_size
         assert uploader.min_chunk_size == expected_min_chunk_size
+        # AND max_bandwidth was set on the uploader
+        assert uploader.max_bandwidth == expected_max_bandwidth
+        # AND The upload controller was created with the expected args
+        mock_cloud_upload_controller.assert_called_once_with(
+            mock_cloud_interface,
+            "/{}/base/{}".format(self.server_name, backup_id),
+            expected_max_archive_size,
+            None,
+            expected_min_chunk_size,
+            expected_max_bandwidth,
+        )
 
 
 class TestCloudBackupSnapshot(object):

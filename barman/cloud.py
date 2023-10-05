@@ -28,6 +28,7 @@ import os
 import shutil
 import signal
 import tarfile
+import time
 from abc import ABCMeta, abstractmethod, abstractproperty
 from functools import partial
 from io import BytesIO, RawIOBase
@@ -171,7 +172,9 @@ class CloudTarUploader(object):
         NamedTemporaryFile, delete=False, prefix="barman-upload-", suffix=".part"
     )
 
-    def __init__(self, cloud_interface, key, chunk_size, compression=None):
+    def __init__(
+        self, cloud_interface, key, chunk_size, compression=None, max_bandwidth=None
+    ):
         """
         A tar archive that resides on cloud storage
 
@@ -179,10 +182,13 @@ class CloudTarUploader(object):
         :param str key: path inside the bucket
         :param str compression: required compression
         :param int chunk_size: the upload chunk size
+        :param int max_bandwidth: the maximum amount of data per second that
+          should be uploaded by this tar uploader
         """
         self.cloud_interface = cloud_interface
         self.key = key
         self.chunk_size = chunk_size
+        self.max_bandwidth = max_bandwidth
         self.upload_metadata = None
         self.buffer = None
         self.counter = 0
@@ -201,6 +207,8 @@ class CloudTarUploader(object):
         )
         self.size = 0
         self.stats = None
+        self.time_of_last_upload = None
+        self.size_of_last_upload = None
 
     def write(self, buf):
         if self.buffer and self.buffer.tell() > self.chunk_size:
@@ -219,15 +227,47 @@ class CloudTarUploader(object):
             self.buffer.write(buf)
             self.size += len(buf)
 
+    def _throttle_upload(self, part_size):
+        """
+        Throttles the upload according to the value of `self.max_bandwidth`.
+
+        Waits until enough time has passed since the last upload that a new part can
+        be uploaded without exceeding `self.max_bandwidth`. If sufficient time has
+        already passed then this function will return without waiting.
+
+        :param int part_size: Size in bytes of the part which is to be uplaoded.
+        """
+        if (self.time_of_last_upload and self.size_of_last_upload) is not None:
+            min_time_to_next_upload = self.size_of_last_upload / self.max_bandwidth
+            seconds_since_last_upload = (
+                datetime.datetime.now() - self.time_of_last_upload
+            ).total_seconds()
+            if seconds_since_last_upload < min_time_to_next_upload:
+                logging.info(
+                    f"Uploaded {self.size_of_last_upload} bytes "
+                    f"{seconds_since_last_upload} seconds ago which exceeds "
+                    f"limit of {self.max_bandwidth} bytes/s"
+                )
+                time_to_wait = min_time_to_next_upload - seconds_since_last_upload
+                logging.info(f"Throttling upload by waiting for {time_to_wait} seconds")
+                time.sleep(time_to_wait)
+        self.time_of_last_upload = datetime.datetime.now()
+        self.size_of_last_upload = part_size
+
     def flush(self):
         if not self.upload_metadata:
             self.upload_metadata = self.cloud_interface.create_multipart_upload(
                 self.key
             )
 
+        part_size = self.buffer.tell()
         self.buffer.flush()
         self.buffer.seek(0, os.SEEK_SET)
         self.counter += 1
+        if self.max_bandwidth:
+            # Upload throttling is applied just before uploading the next part so that
+            # compression and flushing have already happened before we start waiting.
+            self._throttle_upload(part_size)
         self.cloud_interface.async_upload_part(
             upload_metadata=self.upload_metadata,
             key=self.key,
@@ -257,6 +297,7 @@ class CloudUploadController(object):
         max_archive_size,
         compression,
         min_chunk_size=None,
+        max_bandwidth=None,
     ):
         """
         Create a new controller that upload the backup in cloud storage
@@ -266,6 +307,8 @@ class CloudUploadController(object):
         :param int max_archive_size: the maximum size of an archive
         :param str|None compression: required compression
         :param int|None min_chunk_size: the minimum size of a single upload part
+        :param int|None max_bandwidth: the maximum amount of data per second that
+          should be uploaded during the backup
         """
 
         self.cloud_interface = cloud_interface
@@ -294,6 +337,7 @@ class CloudUploadController(object):
             possible_min_chunk_sizes.append(min_chunk_size)
         self.chunk_size = max(possible_min_chunk_sizes)
         self.compression = compression
+        self.max_bandwidth = max_bandwidth
         self.tar_list = {}
 
         self.upload_stats = {}
@@ -338,6 +382,7 @@ class CloudUploadController(object):
                     key=os.path.join(self.key_prefix, self._build_dest_name(name)),
                     chunk_size=self.chunk_size,
                     compression=self.compression,
+                    max_bandwidth=self.max_bandwidth,
                 )
             ]
         # If the current uploading file size is over DEFAULT_MAX_TAR_SIZE
@@ -353,6 +398,7 @@ class CloudUploadController(object):
                 ),
                 chunk_size=self.chunk_size,
                 compression=self.compression,
+                max_bandwidth=self.max_bandwidth,
             )
             self.tar_list[name].append(uploader)
         return uploader.tar
@@ -1484,6 +1530,7 @@ class CloudBackupUploader(CloudBackup):
         compression=None,
         backup_name=None,
         min_chunk_size=None,
+        max_bandwidth=None,
     ):
         """
         Base constructor.
@@ -1498,6 +1545,8 @@ class CloudBackupUploader(CloudBackup):
         :param str|None backup_name: A friendly name which can be used to reference
             this backup in the future.
         :param int min_chunk_size: the minimum size of a single upload part
+        :param int max_bandwidth: the maximum amount of data per second that should
+          be uploaded during the backup
         """
         super(CloudBackupUploader, self).__init__(
             server_name,
@@ -1509,6 +1558,7 @@ class CloudBackupUploader(CloudBackup):
         self.compression = compression
         self.max_archive_size = max_archive_size
         self.min_chunk_size = min_chunk_size
+        self.max_bandwidth = max_bandwidth
 
         # Object properties set at backup time
         self.controller = None
@@ -1549,6 +1599,7 @@ class CloudBackupUploader(CloudBackup):
             self.max_archive_size,
             self.compression,
             self.min_chunk_size,
+            self.max_bandwidth,
         )
 
     def _backup_data_files(
@@ -1745,6 +1796,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
         backup_id,
         compression=None,
         min_chunk_size=None,
+        max_bandwidth=None,
     ):
         """
         Create the cloud storage upload client for a backup in the specified
@@ -1759,6 +1811,8 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
         :param str backup_id: The id of the backup to upload
         :param str compression: Compression algorithm to use
         :param int min_chunk_size: the minimum size of a single upload part
+        :param int max_bandwidth: the maximum amount of data per second that
+          should be uploaded during the backup
         """
         super(CloudBackupUploaderBarman, self).__init__(
             server_name,
@@ -1767,6 +1821,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
             compression=compression,
             postgres=None,
             min_chunk_size=min_chunk_size,
+            max_bandwidth=max_bandwidth,
         )
         self.backup_dir = backup_dir
         self.backup_id = backup_id

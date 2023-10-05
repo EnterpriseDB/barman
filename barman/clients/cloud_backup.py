@@ -159,6 +159,7 @@ def main(args=None):
                 "compression": config.compression,
                 "max_archive_size": config.max_archive_size,
                 "min_chunk_size": config.min_chunk_size,
+                "max_bandwidth": config.max_bandwidth,
                 "cloud_interface": cloud_interface,
             }
             if __is_hook_script():
@@ -321,6 +322,13 @@ def parse_arguments(args=None):
         "(default: 5MB for aws-s3, 64KB for azure-blob-storage, not applicable for "
         "google-cloud-storage)",
         default=None,  # Defer to the cloud interface if nothing is specified
+    )
+    parser.add_argument(
+        "--max-bandwidth",
+        type=check_size,
+        help="the maximum amount of data to be uploaded per second when backing up to "
+        "either AWS S3 or Azure Blob Storage (default: no limit)",
+        default=None,
     )
     parser.add_argument(
         "-d",
