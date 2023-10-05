@@ -1766,7 +1766,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
             max_archive_size,
             compression=compression,
             postgres=None,
-            min_chunk_size=None,
+            min_chunk_size=min_chunk_size,
         )
         self.backup_dir = backup_dir
         self.backup_id = backup_id
