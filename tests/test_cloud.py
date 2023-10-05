@@ -3664,12 +3664,15 @@ class TestCloudBackupUploaderBarman(object):
         mock_cloud_interface = MagicMock(MAX_ARCHIVE_SIZE=99999, MIN_CHUNK_SIZE=2)
         backup_id = "backup_id"
         backup_dir = "/path/to/{}/{}".format(self.server_name, backup_id)
+        expected_max_archive_size = 99999
+        expected_min_chunk_size = 111
         uploader = CloudBackupUploaderBarman(
             self.server_name,
             mock_cloud_interface,
-            99999,
+            expected_max_archive_size,
             backup_dir,
             backup_id,
+            min_chunk_size=expected_min_chunk_size,
         )
         # AND the backup.info has tablespace information
         mock_backup_info.return_value.pgdata = "/path/to/pgdata"
@@ -3694,6 +3697,9 @@ class TestCloudBackupUploaderBarman(object):
         # AND the backup strategy was not called
         mock_backup_strategy.return_value.start_backup.assert_not_called()
         mock_backup_strategy.return_value.stop_backup.assert_not_called()
+        # AND both max_archive_size and min_chunk_size were set on the uploader
+        assert uploader.max_archive_size == expected_max_archive_size
+        assert uploader.min_chunk_size == expected_min_chunk_size
 
 
 class TestCloudBackupSnapshot(object):
