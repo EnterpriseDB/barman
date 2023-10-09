@@ -96,7 +96,7 @@ in order to authenticate via Azure Active Directory.
 ## Installation
 
 Barman client utilities for the Cloud need to be installed on those PostgreSQL
-servers that you want to direcly backup to a cloud provider, bypassing Barman.
+servers that you want to directly backup to a cloud provider, bypassing Barman.
 
 In case you want to use `barman-cloud-backup` and/or `barman-cloud-wal-archive`
 as hook scripts, you can install the `barman-cli-cloud` package on the Barman
