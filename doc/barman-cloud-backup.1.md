@@ -48,7 +48,9 @@ usage: barman-cloud-backup [-V] [--help] [-v | -q] [-t]
                            [--azure-credential {azure-cli,managed-identity}]
                            [-z | -j | --snappy] [-h HOST] [-p PORT] [-U USER]
                            [--immediate-checkpoint] [-J JOBS]
-                           [-S MAX_ARCHIVE_SIZE] [-d DBNAME] [-n BACKUP_NAME]
+                           [-S MAX_ARCHIVE_SIZE]
+                           [--min-chunk-size MIN_CHUNK_SIZE]
+                           [-d DBNAME] [-n BACKUP_NAME]
                            [--snapshot-instance SNAPSHOT_INSTANCE]
                            [--snapshot-disk NAME] [--snapshot-zone GCP_ZONE]
                            [--snapshot-gcp-project GCP_PROJECT]
@@ -96,6 +98,11 @@ optional arguments:
   -S MAX_ARCHIVE_SIZE, --max-archive-size MAX_ARCHIVE_SIZE
                         maximum size of an archive when uploading to cloud
                         storage (default: 100GB)
+  --min-chunk-size MIN_CHUNK_SIZE
+                        minimum size of an individual chunk when uploading to
+                        cloud storage (default: 5MB for aws-s3, 64KB for
+                        azure-blob-storage, not applicable for google-cloud-
+                        storage)
   -d DBNAME, --dbname DBNAME
                         Database name or conninfo string for Postgres
                         connection (default: postgres)
