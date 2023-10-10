@@ -57,7 +57,6 @@ important that you verify that WAL archiving (whether via streaming
 or `archive_command`) is properly working before executing a backup
 operation - especially when backing up from a standby server.
 
-
 ## `delete`
 
 You can delete a given backup with:
@@ -79,10 +78,10 @@ barman keep <server_name> <backup_id> [--target TARGET, --status, --release]
 
 Possible values for `TARGET` are:
 
-- `full`: The backup can always be used to recover to the latest point in
+* `full`: The backup can always be used to recover to the latest point in
   time. To achieve this, Barman will retain all WALs needed to ensure
   consistency of the backup and all subsequent WALs.
-- `standalone`: The backup can only be used to recover the server to its
+* `standalone`: The backup can only be used to recover the server to its
   state at the time the backup was taken. Barman will only retain the WALs
   needed to ensure consistency of the backup.
 
@@ -98,10 +97,10 @@ available for deletion, either directly or by retention policy.
 Once a backup has been flagged as an archival backup, the behaviour of
 Barman will change as follows:
 
-- Attempts to delete that backup by ID using `barman delete` will fail.
-- Retention policies will never consider that backup as `OBSOLETE` and
+* Attempts to delete that backup by ID using `barman delete` will fail.
+* Retention policies will never consider that backup as `OBSOLETE` and
   therefore `barman cron` will never delete that backup.
-- The WALs required by that backup will be retained forever. If the
+* The WALs required by that backup will be retained forever. If the
   specified recovery target is `full` then *all* subsequent WALs will also
   be retained.
 
@@ -130,12 +129,12 @@ content of the list for a given backup.
 
 Possible values for `TARGET_TYPE` are:
 
-- `data`: lists the data files
-- `standalone`: lists the base backup files, including required WAL
+* `data`: lists the data files
+* `standalone`: lists the base backup files, including required WAL
   files
-- `wal`: lists all WAL files from the beginning of the base backup to
+* `wal`: lists all WAL files from the beginning of the base backup to
   the start of the following one (or until the end of the log)
-- `full`: same as `data` + `wal`
+* `full`: same as `data` + `wal`
 
 The default value for `TARGET_TYPE` is `standalone`.
 
@@ -247,7 +246,7 @@ the following mutually exclusive options:
                  (that is the end of the base backup process)
 
 > **IMPORTANT:**
-> Recovery target via _time_, _XID_ and LSN **must be** subsequent to the
+> Recovery target via *time*, *XID* and LSN **must be** subsequent to the
 > end of the backup. If you want to recover to a point in time between
 > the start and the end of a backup, you must recover from the
 > previous backup in the catalogue.
@@ -262,7 +261,7 @@ in the WAL archive) and `current` (to recover to the timeline which was current
 when the backup was taken). If this option is omitted then PostgreSQL versions 12
 and above will recover to the `latest` timeline and PostgreSQL versions below 12
 will recover to the `current` timeline. You can find more details about timelines
-in the PostgreSQL documentation as mentioned in the _"Before you start"_ section.
+in the PostgreSQL documentation as mentioned in the *"Before you start"* section.
 
 Barman 2.4 introduces support for `--target-action` option, accepting
 the following values:
@@ -278,15 +277,29 @@ the following values:
 > The `--target-action` option requires a Point In Time Recovery target
 > to be specified.
 
-
 For more detailed information on the above settings, please consult
 the [PostgreSQL documentation on recovery target settings][target].
 
 Barman 2.4 also adds the `--standby-mode` option for the `recover`
 command which, if specified, properly configures the recovered instance
-as a standby by creating a `standby.signal` file (from PostgreSQL 12)
+as a standby by creating a `standby.signal` file
+(from PostgreSQL versions lower than 12),
 or by adding `standby_mode = on` to the generated recovery configuration.
-Further information on _standby mode_ is available in the PostgreSQL documentation.
+
+Further information on Postgresql *standby mode* is available in the official documentation:
+
+* For Postgres 11 and lower versions [in the standby section of PostgreSQL documentation](https://www.postgresql.org/docs/11/standby-settings.html).
+* For PostgreSQL 12 and greater versions [in the replication section of PostgreSQL documentation](https://www.postgresql.org/docs/current/runtime-config-replication.html#RUNTIME-CONFIG-REPLICATION-STANDBY).
+
+> **IMPORTANT**
+> When `--standby-mode` is used during recovery is necessary for the
+> user to modify the configuration of the recovered instance, allowing
+> the recovered server to connect to the primary once the WAL files replication
+> from Barman is successfully completed.
+> If the recovered instance version is 11 or lower this is achieved by
+> adding the `primary_conninfo` parameter to the `recovery.conf` file.
+> If the recovered instance version is 12 or greater, the `primary_conninfo`
+> parameter needs to be added to the `postgresql.conf` file.
 
 ### Fetching WALs from the Barman server
 
