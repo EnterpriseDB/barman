@@ -2,8 +2,8 @@
 
 The backup over `rsync` was the only available method before 2.0, and
 is currently the only backup method that supports the incremental
-backup feature. Please consult the _"Features in detail"_ section for
-more information.
+backup feature. Please consult the _["Features in detail"](#features-in-detail)_
+section for more information.
 
 To take a backup using `rsync` you need to put these parameters inside
 the Barman server configuration file:

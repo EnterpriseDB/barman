@@ -262,7 +262,8 @@ in the WAL archive) and `current` (to recover to the timeline which was current
 when the backup was taken). If this option is omitted then PostgreSQL versions 12
 and above will recover to the `latest` timeline and PostgreSQL versions below 12
 will recover to the `current` timeline. You can find more details about timelines
-in the PostgreSQL documentation as mentioned in the _"Before you start"_ section.
+in the PostgreSQL documentation as mentioned in the _["Before you start"](#before-you-start)_
+section.
 
 Barman 2.4 introduces support for `--target-action` option, accepting
 the following values:

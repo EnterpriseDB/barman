@@ -46,7 +46,7 @@ Remember that no decision is forever. You can start this way and adapt over time
 
 Another relevant feature that was first introduced by Barman is support for multiple servers. Barman can store backup data coming from multiple PostgreSQL instances, even with different versions, in a centralised way. [^recver]
 
-  [^recver]: The same [requirements for PostgreSQL's PITR][requirements_recovery] apply for recovery, as detailed in the section _"Requirements for recovery"_.
+  [^recver]: The same [requirements for PostgreSQL's PITR][requirements_recovery] apply for recovery, as detailed in the section _["Requirements for recovery"](#requirements-for-recovery)_.
 
 As a result, you can model complex disaster recovery architectures, forming a "star schema", where PostgreSQL servers rotate around a central Barman server.
 
@@ -70,7 +70,7 @@ Backup using `rsync`/SSH is recommended in all cases where `pg_basebackup` limit
 
 The reason why we recommend streaming backup is that, based on our experience, it is easier to setup than the traditional one. Also, streaming backup allows you to backup a PostgreSQL server on Windows[^windows], and makes life easier when working with Docker.
 
-  [^windows]: Backup of a PostgreSQL server on Windows is possible, but it is still experimental because it is not yet part of our continuous integration system. See section _"How to setup a Windows based server"_ for details.
+  [^windows]: Backup of a PostgreSQL server on Windows is possible, but it is still experimental because it is not yet part of our continuous integration system. See section _["How to setup a Windows based server"](#how-to-setup-a-windows-based-server)_ for details.
 
 ## The Barman WAL archive
 

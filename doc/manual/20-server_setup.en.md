@@ -2,8 +2,8 @@
 
 # Setup of a new server in Barman
 
-As mentioned in the _"Design and architecture"_ section, we will use the
-following conventions:
+As mentioned in the _["Design and architecture"](#design-and-architecture)_
+section, we will use the following conventions:
 
 - `pg` as server ID and host name where PostgreSQL is installed
 - `backup` as host name where Barman is located
