@@ -792,6 +792,43 @@ class ServerConfig(object):
         self.msg_list.extend(msg_list)
         self.disabled = True
 
+    def write_autoconf(self, keys):
+        """
+        Write the config variable overrides which Barman uses.
+        """
+        # The autoconf file lives in the configuration_files_directory
+        config_files_directory = self.config.get(
+            "barman", "configuration_files_directory"
+        )
+        # Use barman.auto.conf for all automated config changes
+        autoconf_path = os.path.join(config_files_directory, f"barman.auto.conf")
+        autoconf_tmp_path = ".".join((autoconf_path, "new"))
+
+        # Read current autoconf
+        autoconf = ConfigParser()
+        try:
+            with open(autoconf_path, "r") as autoconf_file:
+                autoconf.read_file(autoconf_file)
+        except FileNotFoundError:
+            pass
+
+        # Make sure there's a section for this server
+        if not autoconf.has_section(self.name):
+            autoconf.add_section(self.name)
+
+        # Scan the server config for keys we care about
+        for option in keys:
+            autoconf.set(self.name, option, getattr(self, option))
+
+        # Write a new version of the file safely
+        # This is not safe at all though - we need to use locking to prevent writes
+        # from other places since we read the file.
+        with open(autoconf_tmp_path, "w") as new_autoconf:
+            autoconf.write(new_autoconf)
+
+        # Rename new file into place
+        os.rename(autoconf_tmp_path, autoconf_path)
+
 
 class Config(object):
     """This class represents the barman configuration.

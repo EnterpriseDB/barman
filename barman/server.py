@@ -4018,3 +4018,7 @@ class Server(RemoteStatusMixin):
                 "Cannot open %s file for server %s: %s"
                 % (PRIMARY_INFO_FILE, self.config.name, e)
             )
+
+    # New functions for updating config on disk
+    def write_autoconf(self, keys):
+        self.config.write_autoconf(keys)

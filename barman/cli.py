@@ -1787,6 +1787,43 @@ def check_wal_archive(args):
             output.close_and_exit()
 
 
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command",
+        ),
+        argument(
+            "model_name",
+            completer=server_completer,
+            help="specifies the name of the model from which new values should be "
+            "obtained",
+        ),
+    ]
+)
+def config_switch(args):
+    """
+    Perform operations on the Barman configuration.
+    """
+    server = get_server(args)
+    # Get the model without validating that it exists or belongs to the right cluster
+    model = [
+        s for s in barman.__config__.servers() if s.model and s.name == args.model_name
+    ][0]
+    # Update server values without validating the model values are limited to sensible things
+    new_keys = []
+    # This will be defined somewhere else, probably
+    model_options = ("conninfo", "streaming_conninfo")
+    for k in model_options:
+        v = getattr(model, k)
+        if v is not None:
+            setattr(server.config, k, v)
+            new_keys.append(k)
+    # Write to autoconf
+    server.write_autoconf(new_keys)
+
+
 def pretty_args(args):
     """
     Prettify the given argparse namespace to be human readable
