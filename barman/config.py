@@ -464,6 +464,7 @@ class ServerConfig(object):
         "last_wal_maximum_age",
         "max_incoming_wals_queue",
         "minimum_redundancy",
+        "model",
         "network_compression",
         "parallel_jobs",
         "parallel_jobs_start_batch_period",

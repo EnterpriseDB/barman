@@ -2010,6 +2010,9 @@ def get_server_list(
         if conf is None:
             # Unknown server
             server_dict[server_name] = None
+        elif conf.model:
+            # Configuration model - do not add to the server list
+            continue
         else:
             server_object = Server(conf)
             # Skip inactive servers, if requested
