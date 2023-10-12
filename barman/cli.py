@@ -37,7 +37,7 @@ import barman.config
 import barman.diagnose
 from barman import output
 from barman.annotations import KeepManager
-from barman.config import RecoveryOptions, parse_recovery_staging_path
+from barman.config import RecoveryOptions, ServerConfig, parse_recovery_staging_path
 from barman.exceptions import (
     BadXlogSegmentName,
     RecoveryException,
@@ -1822,6 +1822,58 @@ def config_switch(args):
             new_keys.append(k)
     # Write to autoconf
     server.write_autoconf(new_keys)
+
+
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command",
+        ),
+        argument(
+            "model_name",
+            completer=server_completer,
+            help="specifies the name of the model from which new values should be "
+            "obtained",
+        ),
+        argument("model_json", help="JSON object specifying the model values"),
+    ]
+)
+def config_model(args):
+    """
+    Update a configuration model.
+    """
+    # Parse the model JSON and don't bother validating for now
+    parsed_model = json.loads(args.model_json)
+
+    try:
+        model = [
+            s
+            for s in barman.__config__.servers()
+            if s.model and s.name == args.model_name
+        ][0]
+    except IndexError:
+        # Use the server config when creating a ServerConfig for the new model
+        server = get_server(args)
+        # This is a hack - existing code expects a section to exist when creating a
+        # ServerConfig
+        server.config.config._config.add_section(args.model_name)
+        model = ServerConfig(server.config.config, args.model_name)
+        # Make sure new models have model = true in their config
+        parsed_model["model"] = True
+
+    # Update model values without validating
+    new_keys = []
+    # This will be defined somewhere else, probably
+    model_options = ("conninfo", "streaming_conninfo", "model")
+    for k in model_options:
+        v = parsed_model.get(k, None)
+        if v is not None:
+            setattr(model, k, json.dumps(v))
+            new_keys.append(k)
+    # Write to autoconf
+    model.write_autoconf(new_keys)
 
 
 def pretty_args(args):
