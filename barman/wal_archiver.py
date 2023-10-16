@@ -683,8 +683,8 @@ class StreamingWalArchiver(WalArchiver):
 
         # Retrieve the PostgreSQL version
         pg_version = None
-        if self.server.streaming is not None:
-            pg_version = self.server.streaming.server_major_version
+        if self.server.streaming_wal is not None:
+            pg_version = self.server.streaming_wal.server_major_version
 
         # If one of the version is unknown we cannot compare them
         if pgreceivexlog_version is None or pg_version is None:
@@ -735,7 +735,7 @@ class StreamingWalArchiver(WalArchiver):
         mkpath(self.config.streaming_wals_directory)
 
         # Execute basic sanity checks on PostgreSQL connection
-        streaming_status = self.server.streaming.get_remote_status()
+        streaming_status = self.server.streaming_wal.get_remote_status()
         if streaming_status["streaming_supported"] is None:
             raise ArchiverFailure(
                 "failed opening the PostgreSQL streaming connection "
@@ -744,11 +744,11 @@ class StreamingWalArchiver(WalArchiver):
         elif not streaming_status["streaming_supported"]:
             raise ArchiverFailure(
                 "PostgreSQL version too old (%s < 9.2)"
-                % self.server.streaming.server_txt_version
+                % self.server.streaming_wal.server_txt_version
             )
         # Execute basic sanity checks on pg_receivexlog
         command = "pg_receivewal"
-        if self.server.streaming.server_version < 100000:
+        if self.server.streaming_wal.server_version < 100000:
             command = "pg_receivexlog"
         remote_status = self.get_remote_status()
         if not remote_status["pg_receivexlog_installed"]:
@@ -759,14 +759,14 @@ class StreamingWalArchiver(WalArchiver):
             )
 
         # Execute sanity check on replication slot usage
-        postgres_status = self.server.postgres.get_remote_status()
+        postgres_status = self.server.postgres_wal.get_remote_status()
         if self.config.slot_name:
             # Check if slots are supported
             if not remote_status["pg_receivexlog_supports_slots"]:
                 raise ArchiverFailure(
                     "Physical replication slot not supported by %s "
                     "(9.4 or higher is required)"
-                    % self.server.streaming.server_txt_version
+                    % self.server.streaming_wal.server_txt_version
                 )
             # Check if the required slot exists
             if postgres_status["replication_slot"] is None:
@@ -804,7 +804,7 @@ class StreamingWalArchiver(WalArchiver):
         try:
             output_handler = PgReceiveXlog.make_output_handler(self.config.name + ": ")
             receive = PgReceiveXlog(
-                connection=self.server.streaming,
+                connection=self.server.streaming_wal,
                 destination=self.config.streaming_wals_directory,
                 command=remote_status["pg_receivexlog_path"],
                 version=remote_status["pg_receivexlog_version"],

@@ -260,6 +260,8 @@ class Server(RemoteStatusMixin):
         self.enforce_retention_policies = False
         self.postgres = None
         self.streaming = None
+        self.postgres_wal = None
+        self.streaming_wal = None
         self.archivers = []
 
         # Postgres configuration is available only if node is not passive
@@ -310,7 +312,7 @@ class Server(RemoteStatusMixin):
 
         # Initialize the streaming PostgreSQL connection only when
         # backup_method is postgres or the streaming_archiver is in use
-        if config.backup_method == "postgres" or config.streaming_archiver:
+        if config.backup_method == "postgres":
             try:
                 if config.streaming_conninfo is None:
                     raise ConninfoException(
@@ -318,6 +320,37 @@ class Server(RemoteStatusMixin):
                         "server '%s'" % config.name
                     )
                 self.streaming = StreamingConnection(config.streaming_conninfo)
+            # If the StreamingConnection creation fails, disable the server
+            except ConninfoException as e:
+                self.config.update_msg_list_and_disable_server(
+                    "Streaming connection: " + force_str(e).strip()
+                )
+        # Create the necessary connections for WALs, falling back to the
+        # conninfo/streaming_conninfo connections if no WAL-specific connections
+        # are required
+        if config.streaming_archiver:
+            try:
+                if config.wal_streaming_conninfo is None:
+                    self.streaming_wal = self.streaming
+                else:
+                    self.streaming_wal = StreamingConnection(
+                        config.wal_streaming_conninfo
+                    )
+            # If the StreamingConnection creation fails, disable the server
+            except ConninfoException as e:
+                self.config.update_msg_list_and_disable_server(
+                    "Streaming connection: " + force_str(e).strip()
+                )
+
+            try:
+                if config.wal_conninfo is None:
+                    self.postgres_wal = self.postgres
+                else:
+                    self.postgres_wal = PostgreSQLConnection(
+                        config.wal_conninfo,
+                        config.immediate_checkpoint,
+                        config.slot_name,
+                    )
             # If the StreamingConnection creation fails, disable the server
             except ConninfoException as e:
                 self.config.update_msg_list_and_disable_server(
@@ -796,6 +829,15 @@ class Server(RemoteStatusMixin):
                     False,
                     hint="please set it to a higher level than 'minimal'",
                 )
+
+        # TODO the following check will use the replication_slot from the wal_conninfo
+        # which is the right thing to do, however some of the above checks should also
+        # happen on wal_conninfo: wal_level, server_txt_version and version_supported.
+        # has_backup_privileges is not needed for wal_conninfo streaming_supported
+        # is always True because we do not support any PG version which doesn't
+        # support streaming.
+        # We should also make sure self.streaming_wal gets the same checks as
+        # self.streaming.
 
         # Check the presence and the status of the configured replication slot
         # This check will be skipped if `slot_name` is undefined
@@ -1321,6 +1363,14 @@ class Server(RemoteStatusMixin):
         # Merge status for a streaming connection
         if self.streaming:
             result.update(self.streaming.get_remote_status())
+        # TODO The replication_slot status now comes from the postgres_wal connection
+        # We do not worry about getting streaming_status for the WAL connection because
+        # this is always True now and streaming_status should just be removed.
+        if self.postgres_wal and self.postgres_wal is not self.postgres:
+            postgres_wal_status = self.postgres_wal.get_remote_status()
+            result.update(
+                {"replication_slot": postgres_wal_status.get("replication_slot", None)}
+            )
         # Merge status for each archiver
         for archiver in self.archivers:
             result.update(archiver.get_remote_status())
@@ -1482,6 +1532,7 @@ class Server(RemoteStatusMixin):
         # connection that may have been opened by the self.check() call
         if self.streaming:
             self.streaming.close()
+            # TODO what about streaming_wal here?
 
         try:
             # lock acquisition and backup execution
@@ -2516,7 +2567,7 @@ class Server(RemoteStatusMixin):
         """
         Create a physical replication slot using the streaming connection
         """
-        if not self.streaming:
+        if not self.streaming_wal:
             output.error(
                 "Unable to create a physical replication slot: "
                 "streaming connection not configured"
@@ -2525,11 +2576,12 @@ class Server(RemoteStatusMixin):
 
         # Replication slots are not supported by PostgreSQL < 9.4
         try:
-            if self.streaming.server_version < 90400:
+            if self.streaming_wal.server_version < 90400:
                 output.error(
                     "Unable to create a physical replication slot: "
                     "not supported by '%s' "
-                    "(9.4 or higher is required)" % self.streaming.server_major_version
+                    "(9.4 or higher is required)"
+                    % self.streaming_wal.server_major_version
                 )
                 return
         except PostgresException as exc:
@@ -2552,7 +2604,7 @@ class Server(RemoteStatusMixin):
         )
 
         try:
-            self.streaming.create_physical_repslot(self.config.slot_name)
+            self.streaming_wal.create_physical_repslot(self.config.slot_name)
             output.info("Replication slot '%s' created", self.config.slot_name)
         except PostgresDuplicateReplicationSlot:
             output.error("Replication slot '%s' already exists", self.config.slot_name)
@@ -2575,7 +2627,7 @@ class Server(RemoteStatusMixin):
         """
         Drop a replication slot using the streaming connection
         """
-        if not self.streaming:
+        if not self.streaming_wal:
             output.error(
                 "Unable to drop a physical replication slot: "
                 "streaming connection not configured"
@@ -2584,11 +2636,11 @@ class Server(RemoteStatusMixin):
 
         # Replication slots are not supported by PostgreSQL < 9.4
         try:
-            if self.streaming.server_version < 90400:
+            if self.streaming_wal.server_version < 90400:
                 output.error(
                     "Unable to drop a physical replication slot: "
                     "not supported by '%s' (9.4 or higher is "
-                    "required)" % self.streaming.server_major_version
+                    "required)" % self.streaming_wal.server_major_version
                 )
                 return
         except PostgresException as exc:
@@ -2611,7 +2663,7 @@ class Server(RemoteStatusMixin):
         )
 
         try:
-            self.streaming.drop_repslot(self.config.slot_name)
+            self.streaming_wal.drop_repslot(self.config.slot_name)
             output.info("Replication slot '%s' dropped", self.config.slot_name)
         except PostgresInvalidReplicationSlot:
             output.error("Replication slot '%s' does not exist", self.config.slot_name)
