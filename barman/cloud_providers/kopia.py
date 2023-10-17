@@ -38,13 +38,22 @@ class CloudBackupKopia(CloudBackup):
         """
         Take a kopia snapshot including PGDATA and all tablespaces.
         """
-        # TODO add tablespaces
+        paths_to_backup = [self.backup_info.pgdata]
+        for tablespace in self.backup_info.tablespaces:
+            if tablespace.location.startswith(self.backup_info.pgdata + "/"):
+                # We can't exclude the tablespace from the copy if they're in PGDATA
+                # but we can avoid adding it to the snapshot a second time.
+                continue
+            # The symlinks in pg_tblspc will be copied as symlinks so we don't
+            # need to exclude them.
+            paths_to_backup += [tablespace.location]
+
         kopia_cmd = Kopia(
             "kopia",
             "snapshot",
             [
                 "create",
-                self.backup_info.pgdata,
+                *paths_to_backup,
                 "--tags",
                 f"backup_id:{self.backup_info.backup_id}",
             ],
