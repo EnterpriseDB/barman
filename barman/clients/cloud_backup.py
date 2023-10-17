@@ -38,6 +38,7 @@ from barman.cloud import (
     configure_logging,
 )
 from barman.cloud_providers import get_cloud_interface, get_snapshot_interface
+from barman.cloud_providers.kopia import CloudBackupKopia
 from barman.exceptions import (
     BarmanException,
     ConfigurationException,
@@ -219,7 +220,7 @@ def main(args=None):
                     else:
                         if config.cloud_provider == "kopia":
                             uploader = CloudBackupKopia(
-                                postgrs=postgres,
+                                postgres=postgres,
                                 backup_name=config.backup_name,
                                 **uploader_kwargs,
                             )
