@@ -30,6 +30,7 @@ from barman.clients.cloud_cli import (
 )
 from barman.cloud import CloudBackupCatalog, configure_logging
 from barman.cloud_providers import get_cloud_interface
+from barman.cloud_providers.kopia import KopiaBackupCatalog
 from barman.output import ConsoleOutputWriter
 from barman.utils import force_str
 
@@ -48,9 +49,7 @@ def main(args=None):
         cloud_interface = get_cloud_interface(config)
 
         with closing(cloud_interface):
-            catalog = CloudBackupCatalog(
-                cloud_interface=cloud_interface, server_name=config.server_name
-            )
+            catalog = KopiaBackupCatalog(server_name=config.server_name)
 
             if not cloud_interface.test_connectivity():
                 raise NetworkErrorExit()

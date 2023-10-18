@@ -5,6 +5,7 @@ import tempfile
 from barman.cloud import CloudBackup
 from barman.command_wrappers import Command
 from barman.infofile import BackupInfo
+from barman.utils import get_backup_info_from_name, is_backup_id
 
 
 class KopiaCloudInterface(object):
@@ -188,10 +189,61 @@ class KopiaBackupCatalog(object):
             self._backup_list = backup_list
         return self._backup_list
 
+    # TODO this is common code with CloudBackupCatalog
+    def _get_backup_info_from_name(self, backup_name):
+        """
+        Get the backup metadata for the named backup.
+
+        :param str backup_name: The name of the backup for which the backup metadata
+            should be retrieved
+        :return BackupInfo|None: The backup metadata for the named backup
+        """
+        available_backups = self.get_backup_list().values()
+        return get_backup_info_from_name(available_backups, backup_name)
+
+    def parse_backup_id(self, backup_id):
+        """
+        Parse a backup identifier and return the matching backup ID. If the identifier
+        is a backup ID it is returned, otherwise it is assumed to be a name.
+
+        :param str backup_id: The backup identifier to be parsed
+        :return str: The matching backup ID for the supplied identifier
+        """
+        if not is_backup_id(backup_id):
+            backup_info = self._get_backup_info_from_name(backup_id)
+            if backup_info is not None:
+                return backup_info.backup_id
+            else:
+                raise ValueError(
+                    "Unknown backup '%s' for server '%s'"
+                    % (backup_id, self.server_name)
+                )
+        else:
+            return backup_id
+
+    # TODO end of common CloudBackupCatalog code
+
     def get_backup_info(self, backup_id, snapshot_id=None):
         if not snapshot_id:
             # TODO Find backup metadata from its tag
-            pass
+            kopia_cmd = Kopia(
+                "kopia",
+                "snapshot",
+                [
+                    "ls",
+                    "--tags",
+                    f"server:{self.server_name}",
+                    "--tags",
+                    f"backup_id:{backup_id}",
+                    "--tags",
+                    "type:metadata",
+                ],
+            )
+            kopia_cmd()
+            out, _err = kopia_cmd.get_output()
+            backups = json.loads(out)
+            assert len(backups) == 1
+            snapshot_id = backups[0]["rootEntry"]["obj"]
         kopia_cmd = Kopia("kopia", "show", [f"{snapshot_id}/backup.info"], json=False)
         kopia_cmd()
         out, _err = kopia_cmd.get_output()
