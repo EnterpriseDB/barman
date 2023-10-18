@@ -1,7 +1,10 @@
+import io
+import json
 import os
 import tempfile
 from barman.cloud import CloudBackup
 from barman.command_wrappers import Command
+from barman.infofile import BackupInfo
 
 
 class KopiaCloudInterface(object):
@@ -15,6 +18,9 @@ class KopiaCloudInterface(object):
         pass
 
     def setup_bucket(self):
+        pass
+
+    def bucket_exists(self):
         pass
 
 
@@ -114,7 +120,12 @@ class CloudBackupKopia(CloudBackup):
         self._check_postgres_version()
 
         # Figure out the tags for use later in the process
-        self._tags_args = ["--tags", f"backup_id:{self.backup_info.backup_id}"]
+        self._tags_args = [
+            "--tags",
+            f"backup_id:{self.backup_info.backup_id}",
+            "--tags",
+            f"server:{self.server_name}",
+        ]
         if self.backup_name is not None:
             self._tags_args.extend(["--tags", f"backup_name:{self.backup_name}"])
 
@@ -132,10 +143,62 @@ class Kopia(Command):
         subcommand=None,
         args=None,
         path=None,
+        json=True,
     ):
         options = []
         if subcommand is not None:
             options += [subcommand]
         if args is not None:
             options += args
+        if json:
+            options.append("--json")
         super(Kopia, self).__init__(kopia, args=options, path=path)
+
+
+class KopiaBackupCatalog(object):
+    """Reimplmentation of barman.cloud.CloudBackupCatalog but for kopia."""
+
+    def __init__(self, server_name):
+        self.server_name = server_name
+        self._backup_list = None
+
+    def get_backup_list(self):
+        if self._backup_list is None:
+            # Get all snapshots of type:metadata for this server
+            kopia_cmd = Kopia(
+                "kopia",
+                "snapshot",
+                [
+                    "list",
+                    "--tags",
+                    "type:metadata",
+                    "--tags",
+                    f"server:{self.server_name}",
+                ],
+            )
+            kopia_cmd()
+            out, _err = kopia_cmd.get_output()
+            backups = json.loads(out)
+            backup_list = {}
+            for backup in backups:
+                backup_id = backup["tags"]["tag:backup_id"]
+                snapshot_id = backup["rootEntry"]["obj"]  # *not* "id"
+                backup_info = self.get_backup_info(backup_id, snapshot_id)
+                backup_list[backup_id] = backup_info
+            self._backup_list = backup_list
+        return self._backup_list
+
+    def get_backup_info(self, backup_id, snapshot_id=None):
+        if not snapshot_id:
+            # TODO Find backup metadata from its tag
+            pass
+        kopia_cmd = Kopia("kopia", "show", [f"{snapshot_id}/backup.info"], json=False)
+        kopia_cmd()
+        out, _err = kopia_cmd.get_output()
+        backup_info = BackupInfo(backup_id)
+        backup_info.load(file_object=io.BytesIO(bytes(out, "utf-8")))
+        return backup_info
+
+    # TODO probably need another mixin to support keep annotations in kopia but for now here be stubs
+    def get_keep_target(self, backup_id, use_cache=True):
+        return
