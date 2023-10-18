@@ -40,7 +40,7 @@ class CloudBackupKopia(CloudBackup):
         """
         Take a kopia snapshot including PGDATA and all tablespaces.
         """
-        paths_to_backup = [self.backup_info.pgdata]
+        tablespaces = []
         for tablespace in self.backup_info.tablespaces:
             if tablespace.location.startswith(self.backup_info.pgdata + "/"):
                 # We can't exclude the tablespace from the copy if they're in PGDATA
@@ -48,16 +48,26 @@ class CloudBackupKopia(CloudBackup):
                 continue
             # The symlinks in pg_tblspc will be copied as symlinks so we don't
             # need to exclude them.
-            paths_to_backup += [tablespace.location]
+            tablespaces.append(tablespace.location)
 
         kopia_cmd = Kopia(
             "kopia",
             "snapshot",
             [
                 "create",
-                *paths_to_backup,
-                "--tags",
-                f"backup_id:{self.backup_info.backup_id}",
+                self.backup_info.pgdata,
+                *(self._tags_args + ["--tags", "type:pgdata"]),
+            ],
+        )
+        kopia_cmd()
+
+        kopia_cmd = Kopia(
+            "kopia",
+            "snapshot",
+            [
+                "create",
+                *tablespaces,
+                *(self._tags_args + ["--tags", "type:tablespace"]),
             ],
         )
         kopia_cmd()
@@ -86,7 +96,11 @@ class CloudBackupKopia(CloudBackup):
         kopia_cmd = Kopia(
             "kopia",
             "snapshot",
-            ["create", tempdir, "--tags", f"backup_id:{self.backup_info.backup_id}"],
+            [
+                "create",
+                tempdir,
+                *(self._tags_args + ["--tags", "type:metadata"]),
+            ],
         )
         kopia_cmd()
 
@@ -98,6 +112,11 @@ class CloudBackupKopia(CloudBackup):
         self.backup_info = self._get_backup_info(server_name)
 
         self._check_postgres_version()
+
+        # Figure out the tags for use later in the process
+        self._tags_args = ["--tags", f"backup_id:{self.backup_info.backup_id}"]
+        if self.backup_name is not None:
+            self._tags_args.extend(["--tags", f"backup_name:{self.backup_name}"])
 
         self._coordinate_backup()
 
