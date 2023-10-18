@@ -1,3 +1,5 @@
+import os
+import tempfile
 from barman.cloud import CloudBackup
 from barman.command_wrappers import Command
 
@@ -75,8 +77,18 @@ class CloudBackupKopia(CloudBackup):
     def _upload_backup_info(self):
         """Create a separate kopia snapshot with just the metadata."""
         # Write both the backup label and backup info to a staging location
+        tempdir = tempfile.mkdtemp(prefix="backup-metadata")
+        if self.backup_info.backup_label is not None:
+            with open(os.path.join(tempdir, "backup_label"), "w") as backup_label:
+                backup_label.write(self.backup_info.backup_label)
+        self.backup_info.save(filename=os.path.join(tempdir, "backup.info"))
         # Create a kopia snapshot of that location and tag accordingly
-        # TODO create a new snapshot with backup label and backup.info here
+        kopia_cmd = Kopia(
+            "kopia",
+            "snapshot",
+            ["create", tempdir, "--tags", f"backup_id:{self.backup_info.backup_id}"],
+        )
+        kopia_cmd()
 
     def backup(self):
         """
