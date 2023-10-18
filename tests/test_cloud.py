@@ -150,8 +150,10 @@ class TestCloudInterface(object):
         assert interface.result_queue is not None
         assert interface.errors_queue is not None
         assert len(interface.worker_processes) == jobs_count
-        assert mp.JoinableQueue.call_count == 1
-        assert mp.Queue.call_count == 3
+        manager = mp.Manager.return_value
+        assert mp.Manager.call_count == 1
+        assert manager.JoinableQueue.call_count == 1
+        assert manager.Queue.call_count == 3
         assert mp.Process.call_count == jobs_count
         mp.reset_mock()
 
