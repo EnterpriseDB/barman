@@ -261,12 +261,7 @@ class KopiaBackupCatalog(object):
 
     # TODO end of mixin stubs
 
-    def delete_backup(self, backup_id, dry_run=False):
-        """Why not do this in the catalog"""
-        # TODO ideally we would delete everything but the metadata first, then delete the metadata
-        # but for now, just delete everything
-        # Also, we'd probably want to put the kopia snapshot IDs and root object IDs in the backup.info
-        # to minimise number of times we need to hit storage
+    def get_snapshots(self, backup_id):
         kopia_cmd = Kopia(
             "kopia",
             "snapshot",
@@ -280,7 +275,15 @@ class KopiaBackupCatalog(object):
         )
         kopia_cmd()
         out, _err = kopia_cmd.get_output()
-        snapshots = json.loads(out)
+        return json.loads(out)
+
+    def delete_backup(self, backup_id, dry_run=False):
+        """Why not do this in the catalog"""
+        # TODO ideally we would delete everything but the metadata first, then delete the metadata
+        # but for now, just delete everything
+        # Also, we'd probably want to put the kopia snapshot IDs and root object IDs in the backup.info
+        # to minimise number of times we need to hit storage
+        snapshots = self.get_snapshots(backup_id)
         for snapshot in snapshots:
             if dry_run:
                 print(f"Skipping {snapshot['id']}")

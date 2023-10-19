@@ -32,6 +32,7 @@ from barman.cloud_providers import (
     get_cloud_interface,
     get_snapshot_interface_from_backup_info,
 )
+from barman.cloud_providers.kopia import Kopia, KopiaBackupCatalog
 from barman.exceptions import ConfigurationException
 from barman.fs import UnixLocalCommand
 from barman.recovery_executor import SnapshotRecoveryExecutor
@@ -79,7 +80,7 @@ def main(args=None):
                 logging.error("Bucket %s does not exist", cloud_interface.bucket_name)
                 raise OperationErrorExit()
 
-            catalog = CloudBackupCatalog(cloud_interface, config.server_name)
+            catalog = KopiaBackupCatalog(config.server_name)
             backup_id = catalog.parse_backup_id(config.backup_id)
 
             backup_info = catalog.get_backup_info(backup_id)
@@ -107,7 +108,12 @@ def main(args=None):
                     config.snapshot_recovery_instance,
                 )
             else:
-                downloader = CloudBackupDownloaderObjectStore(cloud_interface, catalog)
+                if config.cloud_provider == "kopia":
+                    downloader = CloudBackupDownloaderKopia(cloud_interface, catalog)
+                else:
+                    downloader = CloudBackupDownloaderObjectStore(
+                        cloud_interface, catalog
+                    )
                 downloader.download_backup(
                     backup_info,
                     config.recovery_dir,
@@ -223,6 +229,38 @@ class CloudBackupDownloader(with_metaclass(ABCMeta)):
         :param str backup_id: The backup id to restore
         :param str destination_dir: Path to the destination directory
         """
+
+
+class CloudBackupDownloaderKopia(CloudBackupDownloader):
+    def __init__(self, cloud_interface, catalog):
+        super(CloudBackupDownloaderKopia, self).__init__(cloud_interface, catalog)
+
+    def download_backup(self, backup_info, destination_dir, tablespaces):
+        # TODO eventually snapshot IDs will be in backup_info but for now we
+        # query kopia directly
+        snapshots = self.catalog.get_snapshots(backup_info.backup_id)
+        pgdata_snapshot = [s for s in snapshots if s["tags"]["tag:type"] == "pgdata"][0]
+        tablespace_snapshots = [
+            s for s in snapshots if s["tags"]["tag:type"] == "tablespace"
+        ]
+        # Restore PGDATA into destination_dir
+        kopia_cmd = Kopia(
+            "kopia",
+            "snapshot",
+            ["restore", pgdata_snapshot["id"], destination_dir],
+            json=False,
+        )
+        kopia_cmd()
+        # Restore tablespaces into required locations
+        for snapshot in tablespace_snapshots:
+            # TODO add tablespace remapping support
+            # This will require us to have a link between the tablespace oid and the
+            # snapshot ID - either in the backup.info or as a tag in the snapshot
+            dest = snapshot["source"]["path"]
+            kopia_cmd = Kopia(
+                "kopia", "snapshot", ["restore", snapshot["id"], dest], json=False
+            )
+            kopia_cmd()
 
 
 class CloudBackupDownloaderObjectStore(CloudBackupDownloader):
