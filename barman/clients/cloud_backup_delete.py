@@ -34,6 +34,7 @@ from barman.cloud_providers import (
     get_cloud_interface,
     get_snapshot_interface_from_backup_info,
 )
+from barman.cloud_providers.kopia import KopiaBackupCatalog
 from barman.exceptions import BadXlogPrefix, InvalidRetentionPolicy
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import check_non_negative, force_str
@@ -319,9 +320,7 @@ def main(args=None):
                 logging.error("Bucket %s does not exist", cloud_interface.bucket_name)
                 raise OperationErrorExit()
 
-            catalog = CloudBackupCatalog(
-                cloud_interface=cloud_interface, server_name=config.server_name
-            )
+            catalog = KopiaBackupCatalog(server_name=config.server_name)
             # Call catalog.get_backup_list now so we know we can read the whole catalog
             # (the results are cached so this does not result in extra calls to cloud
             # storage)
@@ -360,7 +359,9 @@ def main(args=None):
                             len(catalog.get_backup_list()),
                         )
                         raise OperationErrorExit()
-                _delete_backup(cloud_interface, catalog, backup_id, config)
+                # _delete_backup(cloud_interface, catalog, backup_id, config)
+                # Only KopiaBackupCatalog can do this
+                catalog.delete_backup(backup_id, dry_run=config.dry_run)
             elif config.retention_policy:
                 try:
                     retention_policy = RetentionPolicyFactory.create(
@@ -388,13 +389,8 @@ def main(args=None):
                     ]
                 )
                 for backup_id in backups_to_delete:
-                    _delete_backup(
-                        cloud_interface,
-                        catalog,
-                        backup_id,
-                        config,
-                        skip_wal_cleanup_if_standalone=False,
-                    )
+                    # Only KopiaBackupCatalog can do this
+                    catalog.delete_backup(backup_id, dry_run=config.dry_run)
     except Exception as exc:
         logging.error("Barman cloud backup delete exception: %s", force_str(exc))
         logging.debug("Exception details:", exc_info=exc)

@@ -162,6 +162,7 @@ class KopiaBackupCatalog(object):
     def __init__(self, server_name):
         self.server_name = server_name
         self._backup_list = None
+        self.unreadable_backups = []
 
     def get_backup_list(self):
         if self._backup_list is None:
@@ -254,3 +255,39 @@ class KopiaBackupCatalog(object):
     # TODO probably need another mixin to support keep annotations in kopia but for now here be stubs
     def get_keep_target(self, backup_id, use_cache=True):
         return
+
+    def should_keep_backup(self, backup_id, use_cache=True):
+        return False
+
+    # TODO end of mixin stubs
+
+    def delete_backup(self, backup_id, dry_run=False):
+        """Why not do this in the catalog"""
+        # TODO ideally we would delete everything but the metadata first, then delete the metadata
+        # but for now, just delete everything
+        # Also, we'd probably want to put the kopia snapshot IDs and root object IDs in the backup.info
+        # to minimise number of times we need to hit storage
+        kopia_cmd = Kopia(
+            "kopia",
+            "snapshot",
+            [
+                "ls",
+                "--tags",
+                f"server:{self.server_name}",
+                "--tags",
+                f"backup_id:{backup_id}",
+            ],
+        )
+        kopia_cmd()
+        out, _err = kopia_cmd.get_output()
+        snapshots = json.loads(out)
+        for snapshot in snapshots:
+            if dry_run:
+                print(f"Skipping {snapshot['id']}")
+                continue
+            kopia_cmd = Kopia(
+                "kopia", "snapshot", ["delete", snapshot["id"], "--delete"], json=False
+            )
+            print(f"Deleting {snapshot['id']}")
+            status = kopia_cmd()
+            assert status == 0
