@@ -29,8 +29,12 @@ from dateutil import tz
 import mock
 import pytest
 from distutils.version import LooseVersion
+from barman.lockfile import LockFile
 
 import barman.utils
+
+
+LOGFILE_NAME = "logfile.log"
 
 
 # noinspection PyMethodMayBeStatic
@@ -826,6 +830,58 @@ class TestCheckSize(object):
 
     def test_none(self):
         assert barman.utils.check_size(None) is None
+
+
+class TestLocksCleanup(object):
+    def test_locks_cleanup(self, caplog, tmpdir):
+        # Configure logging
+        log_file = tmpdir.join(LOGFILE_NAME)
+        log_file.ensure
+        test_level = logging.DEBUG
+        barman.utils.configure_logging(log_file=log_file.strpath, log_level=test_level)
+        # Case 1: delete the lockfile after acquisition
+        # Create a lockfile directory
+        lockfile_directory = tmpdir.mkdir("lock_dir")
+        # Create a fake lock
+        lock_file_path = lockfile_directory.join(".test_lock_file1.lock")
+        lock_file_path.ensure()
+        # Invoke the cleanup method on the fake lockfile
+        barman.utils.lock_files_cleanup(lockfile_directory, True)
+        assert "%s deleted" % lock_file_path.strpath in caplog.text
+
+    def test_busy_lock_skip(self, caplog, tmpdir):
+        # Configure logging
+        log_file = tmpdir.join(LOGFILE_NAME)
+        log_file.ensure
+        test_level = logging.DEBUG
+        barman.utils.configure_logging(log_file=log_file.strpath, log_level=test_level)
+        # Case 2: check that an acquired lockfile is correctly skipped
+        lockfile_directory = tmpdir.mkdir("lock_dir")
+        lock_file_path2 = lockfile_directory.join(".test_lock_file2.lock")
+        # Acquire the lock and keep it locked, run the method,
+        # expect it to be skipped.
+        lock = LockFile(lock_file_path2.strpath)
+        with lock as locked:
+            if locked:
+                barman.utils.lock_files_cleanup(lockfile_directory, True)
+        # check log for skip message
+        assert (
+            "%s file lock already acquired, skipping removal" % lock_file_path2.strpath
+        ) in caplog.text
+
+    def test_auto_clean_disabled(self, caplog, tmpdir):
+        # Configure logging
+        log_file = tmpdir.join(LOGFILE_NAME)
+        log_file.ensure
+        test_level = logging.DEBUG
+        barman.utils.configure_logging(log_file=log_file.strpath, log_level=test_level)
+        # Case 2: check that an acquired lockfile is correctly skipped
+        # Acquire the lock and keep it locked, run the method,
+        # expect it to be skipped.
+        fakepath = "/fake/lockdir/"
+        barman.utils.lock_files_cleanup(fakepath, False)
+        # check log for skip message
+        assert ("Auto-cleanup of '%s' directory disabled" % fakepath) in caplog.text
 
 
 class TestCheckTli(object):

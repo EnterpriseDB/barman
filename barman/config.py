@@ -46,6 +46,7 @@ _logger = logging.getLogger(__name__)
 FORBIDDEN_SERVER_NAMES = ["all"]
 
 DEFAULT_USER = "barman"
+DEFAULT_CLEANUP = "true"
 DEFAULT_LOG_LEVEL = logging.INFO
 DEFAULT_LOG_FORMAT = "%(asctime)s [%(process)s] %(name)s %(levelname)s: %(message)s"
 
@@ -720,6 +721,7 @@ class ServerConfig(object):
         self.name = name
         self.barman_home = config.barman_home
         self.barman_lock_directory = config.barman_lock_directory
+        self.lock_directory_cleanup = config.lock_directory_cleanup
         config.validate_server_config(self.name)
         for key in ServerConfig.KEYS:
             value = None
@@ -875,6 +877,9 @@ class Config(object):
         self.barman_home = self.get("barman", "barman_home")
         self.barman_lock_directory = (
             self.get("barman", "barman_lock_directory") or self.barman_home
+        )
+        self.lock_directory_cleanup = parse_boolean(
+            self.get("barman", "lock_directory_cleanup") or DEFAULT_CLEANUP
         )
         self.user = self.get("barman", "barman_user") or DEFAULT_USER
         self.log_file = self.get("barman", "log_file")
@@ -1090,6 +1095,7 @@ class Config(object):
             "barman_home",
             "barman_lock_directory",
             "barman_user",
+            "lock_directory_cleanup",
             "log_file",
             "log_level",
             "configuration_files_directory",

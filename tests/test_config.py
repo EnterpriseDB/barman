@@ -166,6 +166,7 @@ class TestConfig(object):
                 "last_backup_maximum_age": timedelta(1),
                 "last_backup_minimum_size": 1048576,
                 "last_wal_maximum_age": timedelta(hours=1),
+                "lock_directory_cleanup": True,
                 "retention_policy": "redundancy 3",
                 "reuse_backup": "link",
                 "description": "Main PostgreSQL Database",
@@ -209,6 +210,7 @@ class TestConfig(object):
                 "last_backup_maximum_age": timedelta(1),
                 "last_backup_minimum_size": 1048576,
                 "last_wal_maximum_age": timedelta(hours=1),
+                "lock_directory_cleanup": True,
                 "ssh_command": "ssh -I ~/.ssh/web01_rsa -c arcfour "
                 "-p 22 postgres@web01",
                 "streaming_conninfo": "host=web01 user=postgres port=5432",
