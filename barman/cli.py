@@ -35,6 +35,7 @@ from contextlib import closing
 
 import barman.config
 import barman.diagnose
+import barman.utils
 from barman import output
 from barman.annotations import KeepManager
 from barman.config import RecoveryOptions, parse_recovery_staging_path
@@ -305,7 +306,20 @@ def cron(args):
                 "please look in the barman log file for more details.",
                 name,
             )
+    # Lockfile directory cleanup
+    barman.utils.lock_files_cleanup(
+        barman.__config__.barman_lock_directory,
+        barman.__config__.lock_directory_cleanup,
+    )
+    output.close_and_exit()
 
+
+@command(cmd_aliases=["lock-directory-cleanup"])
+def lock_directory_cleanup(args=None):
+    """
+    Cleanup command for the lock directory, takes care of leftover lock files.
+    """
+    barman.utils.lock_files_cleanup(barman.__config__.barman_lock_directory, True)
     output.close_and_exit()
 
 

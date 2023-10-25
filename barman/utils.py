@@ -23,6 +23,7 @@ This module contains utility functions used in Barman.
 import datetime
 import decimal
 import errno
+from glob import glob
 import grp
 import hashlib
 import json
@@ -39,6 +40,7 @@ from contextlib import contextmanager
 from dateutil import tz
 
 from distutils.version import Version
+from barman import lockfile
 
 from barman.exceptions import TimeoutError
 
@@ -866,3 +868,37 @@ def get_backup_id_using_shortcut(server, shortcut, BackupInfo):
         backup_id = shortcut
 
     return backup_id
+
+
+def lock_files_cleanup(lock_dir, lock_directory_cleanup):
+    """
+    Get all the lock files in the lock directory
+    and try to acquire every single one.
+    If the file is not locked, remove it.
+
+    This method is part of cron and should help
+    keeping clean the lockfile directory.
+    """
+    if not lock_directory_cleanup:
+        # Auto cleanup of lockfile directory disabled.
+        # Log for debug only and return
+        _logger.debug("Auto-cleanup of '%s' directory disabled" % lock_dir)
+        return
+    _logger.info("Cleaning up lockfiles directory.")
+    for filename in glob(os.path.join(lock_dir, ".*.lock")):
+        lock = lockfile.LockFile(filename, raise_if_fail=False, wait=False)
+        with lock as locked:
+            # if we have the lock we can remove the file
+            if locked:
+                try:
+                    _logger.debug("deleting %s" % filename)
+                    os.unlink(filename)
+                    _logger.debug("%s deleted" % filename)
+                except FileNotFoundError:
+                    # IF we are trying to remove an already removed file, is not
+                    # a big deal, just pass.
+                    pass
+            else:
+                _logger.debug(
+                    "%s file lock already acquired, skipping removal" % filename
+                )
