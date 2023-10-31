@@ -18,7 +18,7 @@
 
 import json
 
-from mock import patch
+from mock import Mock, patch
 
 import barman
 from barman.cli import diagnose
@@ -57,7 +57,17 @@ class TestDiagnose(object):
     @patch("barman.diagnose.output.info")
     def test_diagnose_json(self, info_mock_output, close_exit_mock, monkeypatch):
         monkeypatch.setattr(barman, "__config__", self.test_config)
-        diagnose()
+        mock_args = Mock(show_config_source=False)
+        diagnose(mock_args)
+        info_mock_output.assert_called_once()
+        json_output = info_mock_output.call_args[0][0]
+
+        # Assert that the JSON output syntax is correct
+        json.loads(json_output)
+
+        mock_args = Mock(show_config_source=True)
+        info_mock_output.reset_mock()
+        diagnose(mock_args)
         info_mock_output.assert_called_once()
         json_output = info_mock_output.call_args[0][0]
 
@@ -70,7 +80,8 @@ class TestDiagnose(object):
         self, info_mock_output, close_exit_mock, monkeypatch
     ):
         monkeypatch.setattr(barman, "__config__", self.test_config_with_pwd)
-        diagnose()
+        mock_args = Mock(show_config_source=False)
+        diagnose(mock_args)
         info_mock_output.assert_called_once()
         json_output = info_mock_output.call_args[0][0]
         json_output = redact_passwords(json_output)
@@ -82,14 +93,15 @@ class TestDiagnose(object):
     @patch("barman.diagnose.output.info")
     def test_diagnose_rerun(self, info_mock_output, close_exit_mock, monkeypatch):
         monkeypatch.setattr(barman, "__config__", self.test_config)
-        diagnose()
+        mock_args = Mock(show_config_source=False)
+        diagnose(mock_args)
         info_mock_output.assert_called_once()
         json_output = info_mock_output.call_args[0][0]
 
         # Assert that the JSON output syntax is correct
         json.loads(json_output)
 
-        diagnose()
+        diagnose(mock_args)
         json_output2 = info_mock_output.call_args[0][0]
 
         # Assert that the JSON output syntax is correct

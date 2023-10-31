@@ -911,6 +911,7 @@ class ConfigMapping(ConfigParser):
 
         return source or "default"
 
+
 class Config(object):
     """This class represents the barman configuration.
 
