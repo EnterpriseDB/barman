@@ -749,13 +749,34 @@ class ServerConfig(object):
                 value = None
             setattr(self, key, value)
 
-    def to_json(self):
+    def to_json(self, with_source=False):
         """
         Return an equivalent dictionary that can be encoded in json
+
+        :param with_source: if we should include the source file that provides
+            the effective value for each configuration option.
+
+        :return: a dictionary. The structure depends on *with_source* argument:
+
+            * If ``False``: key is the option name, value is its value;
+            * If ``True``: key is the option name, value is a dict with a
+              couple keys:
+
+              * ``value``: the value of the option;
+              * ``source``: the file which provides the effective value, if
+                the option has been configured by the user, otherwise ``None``.
         """
         json_dict = dict(vars(self))
         # remove the reference to main Config object
         del json_dict["config"]
+
+        if with_source:
+            for option, value in json_dict.items():
+                json_dict[option] = {
+                    "value": value,
+                    "source": self.config.get_config_source(self.name, option),
+                }
+
         return json_dict
 
     def get_bwlimit(self, tablespace=None):
@@ -792,6 +813,104 @@ class ServerConfig(object):
         self.disabled = True
 
 
+class ConfigMapping(ConfigParser):
+    """Wrapper for :class:`ConfigParser`.
+
+    Extend the facilities provided by a :class:`ConfigParser` object, and
+    additionally keep track of the source file for each configuration option.
+
+    This is very useful as Barman allows the user to provide configuration
+    options spread over multiple files in the system, so one can know which
+    file provides the value for a configuration option in use.
+
+    .. note::
+        When using this class you are expected to use :meth:`read_config`
+        instead of any ``read*`` method exposed by :class:`ConfigParser`.
+    """
+
+    def __init__(self, *args, **kwargs):
+        """Create a new instance of :class:`ConfigMapping`.
+
+        .. note::
+            We save *args* and *kwargs* so we can instantiate a temporary
+            :class:`ConfigParser` with similar options on :meth:`read_config`.
+
+        :param args: positional arguments to be passed down to
+            :class:`ConfigParser`.
+
+        :param kwargs: keyword arguments to be passed down to
+            :class:`ConfigParser`.
+        """
+        self._args = args
+        self._kwargs = kwargs
+        self._mapping = {}
+        super().__init__(*args, **kwargs)
+
+    def read_config(self, filename):
+        """
+        Read and merge configuration options from *filename*.
+
+        :param filename: path to a configuration file or its file descriptor
+            in reading mode.
+
+        :return: a list of file names which were able to be parsed, so we are
+            compliant with the return value of :meth:`ConfigParser.read`. In
+            practice the list will always contain at most one item. If
+            *filename* is a descriptor with no ``name`` attribute, the
+            corresponding entry in the list will be ``None``.
+        """
+        filenames = []
+        tmp_parser = ConfigParser(*self._args, **self._kwargs)
+
+        # A file descriptor
+        if hasattr(filename, "read"):
+            try:
+                # Python 3.x
+                tmp_parser.read_file(filename)
+            except AttributeError:
+                # Python 2.x
+                tmp_parser.readfp(filename)
+            if hasattr(filename, "name"):
+                filenames.append(filename.name)
+            else:
+                filenames.append(None)
+        # A file path
+        else:
+            for name in tmp_parser.read(filename):
+                filenames.append(name)
+
+        # Merge configuration options from the temporary parser into the global
+        # parser, and update the mapping of options
+        for section in tmp_parser.sections():
+            if not self.has_section(section):
+                self.add_section(section)
+                self._mapping[section] = {}
+
+            for option, value in tmp_parser[section].items():
+                self.set(section, option, value)
+                self._mapping[section][option] = filenames[0]
+
+        return filenames
+
+    def get_config_source(self, section, option):
+        """Get the source INI file from which a config value comes from.
+
+        :param section: the section of the configuration option.
+        :param option: the name of the configuraion option.
+
+        :return: the file that provides the effective value for *section* ->
+            *option*. If no such configuration exists in the mapping, we assume
+            it has a default value and return the ``default`` string.
+        """
+        source = self._mapping.get(section, {}).get(option, None)
+
+        # The config was not defined on the server section, but maybe under
+        # `barman` section?
+        if source is None and section != "barman":
+            source = self._mapping.get("barman", {}).get(option, None)
+
+        return source or "default"
+
 class Config(object):
     """This class represents the barman configuration.
 
@@ -814,29 +933,26 @@ class Config(object):
         #  explicitly building it passing strict=False.
         try:
             # Python 3.x
-            self._config = ConfigParser(strict=False)
+            self._config = ConfigMapping(strict=False)
         except TypeError:
             # Python 2.x
-            self._config = ConfigParser()
+            self._config = ConfigMapping()
         if filename:
+            # If it is a file descriptor
             if hasattr(filename, "read"):
-                try:
-                    # Python 3.x
-                    self._config.read_file(filename)
-                except AttributeError:
-                    # Python 2.x
-                    self._config.readfp(filename)
+                self._config.read_config(filename)
+            # If it is a path
             else:
                 # check for the existence of the user defined file
                 if not os.path.exists(filename):
                     sys.exit("Configuration file '%s' does not exist" % filename)
-                self._config.read(os.path.expanduser(filename))
+                self._config.read_config(os.path.expanduser(filename))
         else:
             # Check for the presence of configuration files
             # inside default directories
             for path in self.CONFIG_FILES:
                 full_path = os.path.expanduser(path)
-                if os.path.exists(full_path) and full_path in self._config.read(
+                if os.path.exists(full_path) and full_path in self._config.read_config(
                     full_path
                 ):
                     filename = full_path
@@ -868,6 +984,15 @@ class Config(object):
         except NoOptionError:
             return None
 
+    def get_config_source(self, section, option):
+        """Get the source INI file from which a config value comes from.
+
+        .. seealso:
+            See :meth:`ConfigMapping.get_config_source` for details on the
+            interface as this method is just a wrapper for that.
+        """
+        return self._config.get_config_source(section, option)
+
     def _parse_global_config(self):
         """
         This method parses the global [barman] section
@@ -883,6 +1008,34 @@ class Config(object):
         # save the raw barman section to be compared later in
         # _is_global_config_changed() method
         self._global_config = set(self._config.items("barman"))
+
+    def global_config_to_json(self, with_source=False):
+        """
+        Return an equivalent dictionary that can be encoded in json
+
+        :param with_source: if we should include the source file that provides
+            the effective value for each configuration option.
+
+        :return: a dictionary. The structure depends on *with_source* argument:
+
+            * If ``False``: key is the option name, value is its value;
+            * If ``True``: key is the option name, value is a dict with a
+              couple keys:
+
+              * ``value``: the value of the option;
+              * ``source``: the file which provides the effective value, if
+                the option has been configured by the user, otherwise ``None``.
+        """
+        json_dict = dict(self._global_config)
+
+        if with_source:
+            for option, value in json_dict.items():
+                json_dict[option] = {
+                    "value": value,
+                    "source": self.get_config_source("barman", option),
+                }
+
+        return json_dict
 
     def _is_global_config_changed(self):
         """Return true if something has changed in global configuration"""
@@ -914,7 +1067,7 @@ class Config(object):
             if os.path.isfile(cfile):
                 # Load a file
                 _logger.debug("Including configuration file: %s", filename)
-                self._config.read(cfile)
+                self._config.read_config(cfile)
                 if self._is_global_config_changed():
                     msg = (
                         "the configuration file %s contains a not empty ["
@@ -1163,7 +1316,10 @@ def _main():
     for section in r._config.sections():
         print("Section: %s" % section)
         for option in r._config.options(section):
-            print("\t%s = %s " % (option, r.get(section, option)))
+            print(
+                "\t%s = %s (from %s)"
+                % (option, r.get(section, option), r.get_config_source(section, option))
+            )
 
 
 if __name__ == "__main__":

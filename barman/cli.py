@@ -1175,7 +1175,16 @@ def check(args):
     output.close_and_exit()
 
 
-@command()
+@command(
+    [
+        argument(
+            "--show-config-source",
+            help="Include the source file which provides the effective value "
+            "for each configuration option",
+            action="store_true",
+        )
+    ],
+)
 def diagnose(args=None):
     """
     Diagnostic command (for support and problems detection purpose)
@@ -1184,7 +1193,7 @@ def diagnose(args=None):
     servers = get_server_list(on_error_stop=False, suppress_error=True)
     # errors list with duplicate paths between servers
     errors_list = barman.__config__.servers_msg_list
-    barman.diagnose.exec_diagnose(servers, errors_list)
+    barman.diagnose.exec_diagnose(servers, errors_list, args.show_config_source)
     output.close_and_exit()
 
 
