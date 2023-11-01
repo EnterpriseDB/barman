@@ -2577,7 +2577,7 @@ class Server(RemoteStatusMixin):
         """
         Create a physical replication slot using the streaming connection
         """
-        if not self.streaming:
+        if not self.wal_streaming:
             output.error(
                 "Unable to create a physical replication slot: "
                 "streaming connection not configured"
@@ -2586,11 +2586,12 @@ class Server(RemoteStatusMixin):
 
         # Replication slots are not supported by PostgreSQL < 9.4
         try:
-            if self.streaming.server_version < 90400:
+            if self.wal_streaming.server_version < 90400:
                 output.error(
                     "Unable to create a physical replication slot: "
                     "not supported by '%s' "
-                    "(9.4 or higher is required)" % self.streaming.server_major_version
+                    "(9.4 or higher is required)"
+                    % self.wal_streaming.server_major_version
                 )
                 return
         except PostgresException as exc:
@@ -2613,7 +2614,7 @@ class Server(RemoteStatusMixin):
         )
 
         try:
-            self.streaming.create_physical_repslot(self.config.slot_name)
+            self.wal_streaming.create_physical_repslot(self.config.slot_name)
             output.info("Replication slot '%s' created", self.config.slot_name)
         except PostgresDuplicateReplicationSlot:
             output.error("Replication slot '%s' already exists", self.config.slot_name)
@@ -2636,7 +2637,7 @@ class Server(RemoteStatusMixin):
         """
         Drop a replication slot using the streaming connection
         """
-        if not self.streaming:
+        if not self.wal_streaming:
             output.error(
                 "Unable to drop a physical replication slot: "
                 "streaming connection not configured"
@@ -2645,11 +2646,11 @@ class Server(RemoteStatusMixin):
 
         # Replication slots are not supported by PostgreSQL < 9.4
         try:
-            if self.streaming.server_version < 90400:
+            if self.wal_streaming.server_version < 90400:
                 output.error(
                     "Unable to drop a physical replication slot: "
                     "not supported by '%s' (9.4 or higher is "
-                    "required)" % self.streaming.server_major_version
+                    "required)" % self.wal_streaming.server_major_version
                 )
                 return
         except PostgresException as exc:
@@ -2672,7 +2673,7 @@ class Server(RemoteStatusMixin):
         )
 
         try:
-            self.streaming.drop_repslot(self.config.slot_name)
+            self.wal_streaming.drop_repslot(self.config.slot_name)
             output.info("Replication slot '%s' dropped", self.config.slot_name)
         except PostgresInvalidReplicationSlot:
             output.error("Replication slot '%s' does not exist", self.config.slot_name)
