@@ -639,6 +639,10 @@ class Server(RemoteStatusMixin):
             self.postgres.close()
         if self.streaming:
             self.streaming.close()
+        if self.wal_postgres != self.postgres:
+            self.wal_postgres.close()
+        if self.wal_streaming != self.streaming:
+            self.streaming.close()
 
     def check(self, check_strategy=__default_check_strategy):
         """
@@ -1543,6 +1547,8 @@ class Server(RemoteStatusMixin):
         # connection that may have been opened by the self.check() call
         if self.streaming:
             self.streaming.close()
+            if self.wal_streaming != self.streaming:
+                self.wal_streaming.close()
 
         try:
             # lock acquisition and backup execution
