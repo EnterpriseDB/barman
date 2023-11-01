@@ -260,6 +260,8 @@ class Server(RemoteStatusMixin):
         self.enforce_retention_policies = False
         self.postgres = None
         self.streaming = None
+        self.wal_postgres = None
+        self.wal_streaming = None
         self.archivers = []
 
         # Postgres configuration is available only if node is not passive
@@ -309,8 +311,8 @@ class Server(RemoteStatusMixin):
             )
 
         # Initialize the streaming PostgreSQL connection only when
-        # backup_method is postgres or the streaming_archiver is in use
-        if config.backup_method == "postgres" or config.streaming_archiver:
+        # backup_method is postgres
+        if config.backup_method == "postgres":
             try:
                 if config.streaming_conninfo is None:
                     raise ConninfoException(
@@ -323,6 +325,49 @@ class Server(RemoteStatusMixin):
                 self.config.update_msg_list_and_disable_server(
                     "Streaming connection: " + force_str(e).strip()
                 )
+
+        # Initialize the WAL-specific PostgreSQL connections only
+        # when streaming_archiver is in use
+        if config.streaming_archiver:
+            # If the wal_conninfo is the same as config.conninfo then the same
+            # connection can be used for managing PostgreSQL backups and replication
+            if config.wal_conninfo == config.conninfo:
+                self.wal_postgres = self.postgres
+            else:
+                # Otherwise, create a new connection using wal_conninfo
+                try:
+                    self.wal_postgres = PostgreSQLConnection(
+                        config.wal_conninfo,
+                        config.immediate_checkpoint,
+                        config.slot_name,
+                    )
+                # If the PostgreSQLConnection creation fails, disable the Server
+                except ConninfoException as e:
+                    self.config.update_msg_list_and_disable_server(
+                        "WAL PostgreSQL connection: " + force_str(e).strip()
+                    )
+            # If the wal_streaming_conninfo is the same as config.streaming_conninfo
+            # then the same connection can be used for managing PostgreSQL backups and
+            # replication
+            if config.wal_streaming_conninfo == config.streaming_conninfo:
+                self.wal_streaming = self.streaming
+            else:
+                # Otherwise, create a new streaming connection using
+                # wal_streaming_conninfo
+                try:
+                    if config.wal_streaming_conninfo is None:
+                        raise ConninfoException(
+                            "Missing 'wal_streaming_conninfo' parameter for "
+                            "server '%s'" % config.name
+                        )
+                    self.wal_streaming = StreamingConnection(
+                        config.wal_streaming_conninfo
+                    )
+                # If the StreamingConnection creation fails, disable the server
+                except ConninfoException as e:
+                    self.config.update_msg_list_and_disable_server(
+                        "WAL streaming connection: " + force_str(e).strip()
+                    )
 
     def _init_archivers(self):
         # Initialize the StreamingWalArchiver

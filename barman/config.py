@@ -513,7 +513,9 @@ class ServerConfig(object):
         "streaming_conninfo",
         "streaming_wals_directory",
         "tablespace_bandwidth_limit",
+        "wal_conninfo",
         "wal_retention_policy",
+        "wal_streaming_conninfo",
         "wals_directory",
     ]
 
@@ -625,7 +627,9 @@ class ServerConfig(object):
         "streaming_backup_name": "barman_streaming_backup",
         "streaming_conninfo": "%(conninfo)s",
         "streaming_wals_directory": "%(backup_directory)s/streaming",
+        "wal_conninfo": "%(conninfo)s",
         "wal_retention_policy": "main",
+        "wal_streaming_conninfo": "%(wal_conninfo)s",
         "wals_directory": "%(backup_directory)s/wals",
     }
 
