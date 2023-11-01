@@ -849,11 +849,26 @@ class Server(RemoteStatusMixin):
             check_strategy.result(
                 self.config.name, remote_status.get("streaming"), hint=hint
             )
+            if "wal_server" in remote_status:
+                status = remote_status["wal_server"]
+                check_strategy.init_check("PostgreSQL streaming (WALs)")
+                hint = None
+                # If a streaming connection is available,
+                # add its status to the output of the check
+                if status["streaming_supported"] is None:
+                    hint = status["connection_error"]
+                check_strategy.result(
+                    self.config.name, status.get("streaming"), hint=hint
+                )
         # Check wal_level parameter: must be different from 'minimal'
         # the parameter has been introduced in postgres >= 9.0
-        if "wal_level" in remote_status:
+        status = remote_status
+        if "wal_server" in remote_status:
+            # Check the wal_level on the WAL-source server if there is one
+            status = remote_status["wal_server"]
+        if "wal_level" in status:
             check_strategy.init_check("wal_level")
-            if remote_status["wal_level"] != "minimal":
+            if status["wal_level"] != "minimal":
                 check_strategy.result(self.config.name, True)
             else:
                 check_strategy.result(
@@ -865,8 +880,12 @@ class Server(RemoteStatusMixin):
         # Check the presence and the status of the configured replication slot
         # This check will be skipped if `slot_name` is undefined
         if self.config.slot_name:
+            status = remote_status
+            if "wal_server" in remote_status:
+                # Check the replication slot on the WAL-source server if there is one
+                status = remote_status["wal_server"]
             check_strategy.init_check("replication slot")
-            slot = remote_status["replication_slot"]
+            slot = status["replication_slot"]
             # The streaming_archiver is enabled
             if self.config.streaming_archiver is True:
                 # Replication slots are supported
@@ -1386,6 +1405,12 @@ class Server(RemoteStatusMixin):
         # Merge status for a streaming connection
         if self.streaming:
             result.update(self.streaming.get_remote_status())
+        # Nest status for WAL postgres connection
+        if self.wal_postgres != self.postgres:
+            result["wal_server"] = self.wal_postgres.get_remote_status()
+        # Update nested status with WAL streaming connection status
+        if self.wal_streaming != self.streaming:
+            result["wal_server"].update(self.wal_streaming.get_remote_status())
         # Merge status for each archiver
         for archiver in self.archivers:
             result.update(archiver.get_remote_status())
