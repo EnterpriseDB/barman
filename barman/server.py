@@ -1250,6 +1250,28 @@ class Server(RemoteStatusMixin):
             check_strategy.result(self.config.name, True, hint="no system Id available")
             return
 
+        # If we have a separate server for WAL streaming then check the system IDs
+        if remote_status.get("wal_server"):
+            status = remote_status.get("wal_server")
+            systemid_from_wal_streaming = status.get("streaming_systemid")
+            systemid_from_wal_postgres = status.get("postgres_systemid")
+            if systemid_from_wal_streaming != systemid_from_server:
+                check_strategy.result(
+                    self.config.name,
+                    systemid_from_wal_streaming == systemid_from_server,
+                    hint="is wal_streaming_conninfo pointing to node in the same "
+                    "cluster as the node defined by streaming_conninfo?",
+                )
+                return
+            if systemid_from_wal_postgres != systemid_from_server:
+                check_strategy.result(
+                    self.config.name,
+                    systemid_from_wal_postgres == systemid_from_server,
+                    hint="is wal_conninfo pointing to node in the same "
+                    "cluster as the node defined by conninfo?",
+                )
+                return
+
         # Retrieves the content on disk and matches it with the live ID
         file_path = self.get_identity_file_path()
         if not os.path.exists(file_path):
