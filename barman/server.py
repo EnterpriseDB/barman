@@ -838,6 +838,22 @@ class Server(RemoteStatusMixin):
                     check="no access to backup functions",
                 )
 
+        # If there is a separate WAL connection, check it has monitoring privileges
+        if remote_status.get("wal_server"):
+            check_strategy.init_check(
+                "Connection to WAL server has monitoring privileges"
+            )
+            if remote_status["wal_server"].get("has_monitoring_privileges"):
+                check_strategy.result(self.config.name, True)
+            else:
+                check_strategy.result(
+                    self.config.name,
+                    False,
+                    hint="privileges for PostgreSQL monitoring functions are "
+                    "required (see documentation)",
+                    check="no access to monitoring functions",
+                )
+
         if "streaming_supported" in remote_status:
             check_strategy.init_check("PostgreSQL streaming")
             hint = None
