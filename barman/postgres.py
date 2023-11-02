@@ -1431,7 +1431,7 @@ class PostgreSQLConnection(PostgreSQL):
         try:
             cur = self._cursor(cursor_factory=NamedTupleCursor)
 
-            if not self.has_backup_privileges:
+            if not self.has_monitoring_privileges:
                 raise BackupFunctionsAccessRequired(
                     "Postgres user '%s' is missing required privileges "
                     '(see "Preliminary steps" in the Barman manual)'

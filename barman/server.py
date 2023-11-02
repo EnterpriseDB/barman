@@ -3120,7 +3120,7 @@ class Server(RemoteStatusMixin):
                     "A WAL file has not been received in %s seconds", archive_timeout
                 )
 
-    def replication_status(self, target="all"):
+    def replication_status(self, target="all", source="backup-host"):
         """
         Implements the 'replication-status' command.
         """
@@ -3130,8 +3130,13 @@ class Server(RemoteStatusMixin):
             client_type = PostgreSQLConnection.WALSTREAMER
         else:
             client_type = PostgreSQLConnection.ANY_STREAMING_CLIENT
+        if source == "wal-host":
+            postgres = self.wal_postgres
+        else:
+            postgres = self.postgres
         try:
-            standby_info = self.postgres.get_replication_stats(client_type)
+            standby_info = postgres.get_replication_stats(client_type)
+
             if standby_info is None:
                 output.error("Unable to connect to server %s" % self.config.name)
             else:
@@ -3139,7 +3144,7 @@ class Server(RemoteStatusMixin):
                     "replication_status",
                     self.config.name,
                     target,
-                    self.postgres.current_xlog_location,
+                    postgres.current_xlog_location,
                     standby_info,
                 )
         except PostgresUnsupportedFeature as e:

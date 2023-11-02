@@ -602,6 +602,15 @@ def status(args):
                         'wal-streamer' (only WAL streaming clients, such as pg_receivewal),
                         'all' (any of them). Defaults to %(default)s""",
         ),
+        argument(
+            "--source",
+            choices=("backup-host", "wal-host"),
+            default="backup-host",
+            help="""
+                        Possible values are: 'backup-host' (only show replications
+                        running on the backup host) or 'wal-host' (only show repliations
+                        running on the wal host). Defaults to %(default)s""",
+        ),
     ]
 )
 def replication_status(args):
@@ -618,7 +627,7 @@ def replication_status(args):
 
         with closing(server):
             output.init("replication_status", name, minimal=args.minimal)
-            server.replication_status(args.target)
+            server.replication_status(args.target, source=args.source)
     output.close_and_exit()
 
 
