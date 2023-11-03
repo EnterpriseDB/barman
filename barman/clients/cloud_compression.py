@@ -18,16 +18,19 @@
 
 import bz2
 import gzip
+import struct
 import shutil
 from abc import ABCMeta, abstractmethod
 from io import BytesIO
+
+from crc32c import crc32c
 
 from barman.utils import with_metaclass
 
 
 def _try_import_snappy():
     try:
-        import snappy
+        from cramjam import snappy
     except ImportError:
         raise SystemExit("Missing required python module: python-snappy")
     return snappy
@@ -60,6 +63,111 @@ class ChunkedCompressor(with_metaclass(ABCMeta, object)):
         """
 
 
+def _masked_crc32c(data):
+    # see the framing format specification
+    crc = crc32c(data)
+    return (((crc >> 15) | (crc << 17)) + 0xA282EAD8) & 0xFFFFFFFF
+
+
+class UncompressError(Exception):
+    pass
+
+
+_STREAM_IDENTIFIER = b"sNaPpY"
+_COMPRESSED_CHUNK = 0x00
+_UNCOMPRESSED_CHUNK = 0x01
+_IDENTIFIER_CHUNK = 0xFF
+_RESERVED_UNSKIPPABLE = (0x02, 0x80)  # chunk ranges are [inclusive, exclusive)
+_RESERVED_SKIPPABLE = (0x80, 0xFF)
+
+
+class SnappyDecompressor(object):
+    """
+    A mashup of the python-snappy StreamDecompressor, which breaks the incoming
+    data into chunks (which cramjam will not do for us) and then uses cramjam
+    to actually decompress the chunks.
+    """
+
+    __slots__ = ["_buf", "_header_found", "_decompressor"]
+
+    def __init__(self, snappy):
+        self._buf = bytearray()
+        self._header_found = False
+        self._decompressor = snappy
+
+    @staticmethod
+    def check_format(data):
+        """Checks that the given data starts with snappy framing format
+        stream identifier.
+        Raises UncompressError if it doesn't start with the identifier.
+        :return: None
+        """
+        if len(data) < 6:
+            raise UncompressError("Too short data length")
+        chunk_type = struct.unpack("<L", data[:4])[0]
+        size = chunk_type >> 8
+        chunk_type &= 0xFF
+        if chunk_type != _IDENTIFIER_CHUNK or size != len(_STREAM_IDENTIFIER):
+            raise UncompressError("stream missing snappy identifier")
+        chunk = data[4 : 4 + size]
+        if chunk != _STREAM_IDENTIFIER:
+            raise UncompressError("stream has invalid snappy identifier")
+
+    def decompress(self, data):
+        """Decompress 'data', returning a string containing the uncompressed
+        data corresponding to at least part of the data in string. This data
+        should be concatenated to the output produced by any preceding calls to
+        the decompress() method. Some of the input data may be preserved in
+        internal buffers for later processing.
+        """
+        self._buf.extend(data)
+        uncompressed = bytearray()
+        while True:
+            if len(self._buf) < 4:
+                return bytes(uncompressed)
+            chunk_type = struct.unpack("<L", self._buf[:4])[0]
+            size = chunk_type >> 8
+            chunk_type &= 0xFF
+            if not self._header_found:
+                if chunk_type != _IDENTIFIER_CHUNK or size != len(_STREAM_IDENTIFIER):
+                    raise UncompressError("stream missing snappy identifier")
+                self._header_found = True
+            if (
+                _RESERVED_UNSKIPPABLE[0] <= chunk_type
+                and chunk_type < _RESERVED_UNSKIPPABLE[1]
+            ):
+                raise UncompressError("stream received unskippable but unknown chunk")
+            if len(self._buf) < 4 + size:
+                return bytes(uncompressed)
+            chunk, self._buf = self._buf[4 : 4 + size], self._buf[4 + size :]
+            if chunk_type == _IDENTIFIER_CHUNK:
+                if chunk != _STREAM_IDENTIFIER:
+                    raise UncompressError("stream has invalid snappy identifier")
+                continue
+            if (
+                _RESERVED_SKIPPABLE[0] <= chunk_type
+                and chunk_type < _RESERVED_SKIPPABLE[1]
+            ):
+                continue
+            assert chunk_type in (_COMPRESSED_CHUNK, _UNCOMPRESSED_CHUNK)
+            crc, chunk = chunk[:4], chunk[4:]
+            if chunk_type == _COMPRESSED_CHUNK:
+                chunk = self._decompressor.decompress_raw(chunk)
+            if struct.pack("<L", _masked_crc32c(chunk)) != crc:
+                raise UncompressError("crc mismatch")
+            uncompressed += chunk
+
+    def flush(self):
+        """All pending input is processed, and a string containing the
+        remaining uncompressed output is returned. After calling flush(), the
+        decompress() method cannot be called again; the only realistic action
+        is to delete the object.
+        """
+        if self._buf != b"":
+            raise UncompressError("chunk truncated")
+        return b""
+
+
 class SnappyCompressor(ChunkedCompressor):
     """
     A ChunkedCompressor implementation based on python-snappy
@@ -67,8 +175,8 @@ class SnappyCompressor(ChunkedCompressor):
 
     def __init__(self):
         snappy = _try_import_snappy()
-        self.compressor = snappy.StreamCompressor()
-        self.decompressor = snappy.StreamDecompressor()
+        self.compressor = snappy.Compressor()
+        self.decompressor = SnappyDecompressor(snappy)
 
     def add_chunk(self, data):
         """
@@ -78,7 +186,9 @@ class SnappyCompressor(ChunkedCompressor):
         :return: The compressed data
         :rtype: bytes
         """
-        return self.compressor.add_chunk(data)
+        self.compressor.compress(data)
+        # TODO also finish() at some point
+        return self.compressor.flush()
 
     def decompress(self, data):
         """
