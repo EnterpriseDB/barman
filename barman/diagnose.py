@@ -34,7 +34,7 @@ from barman.utils import BarmanEncoderV2
 _logger = logging.getLogger(__name__)
 
 
-def exec_diagnose(servers, errors_list):
+def exec_diagnose(servers, errors_list, show_config_source):
     """
     Diagnostic command: gathers information from backup server
     and from all the configured servers.
@@ -43,11 +43,15 @@ def exec_diagnose(servers, errors_list):
 
     :param dict(str,barman.server.Server) servers: list of configured servers
     :param list errors_list: list of global errors
+    :param show_config_source: if we should include the configuration file that
+        provides the effective value for each configuration option.
     """
     # global section. info about barman server
     diagnosis = {"global": {}, "servers": {}}
     # barman global config
-    diagnosis["global"]["config"] = dict(barman.__config__._global_config)
+    diagnosis["global"]["config"] = dict(
+        barman.__config__.global_config_to_json(show_config_source)
+    )
     diagnosis["global"]["config"]["errors_list"] = errors_list
     try:
         command = fs.UnixLocalCommand()
@@ -67,9 +71,7 @@ def exec_diagnose(servers, errors_list):
             continue
         # server configuration
         diagnosis["servers"][name] = {}
-        diagnosis["servers"][name]["config"] = vars(server.config)
-        if "config" in diagnosis["servers"][name]["config"]:
-            del diagnosis["servers"][name]["config"]["config"]
+        diagnosis["servers"][name]["config"] = server.config.to_json(show_config_source)
         # server system info
         if server.config.ssh_command:
             try:

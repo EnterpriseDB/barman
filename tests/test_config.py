@@ -20,10 +20,11 @@ from datetime import timedelta
 
 import mock
 import pytest
-from mock import patch
+from mock import MagicMock, Mock, mock_open, patch
 
 from barman.config import (
     BackupOptions,
+    ConfigMapping,
     Config,
     RecoveryOptions,
     parse_backup_compression,
@@ -58,7 +59,7 @@ ssh_command = ssh -c "arcfour" -p 22 postgres@pg01.nowhere
 conninfo = host=pg01.nowhere user=postgres port=5432
 """
 
-TEST_CONFIG = """
+TEST_CONFIG_BARMAN = """
 [barman]
 barman_home = /some/barman/home
 barman_user = {USER}
@@ -67,6 +68,9 @@ log_file = /some/barman/home/log/barman.log
 log_level = INFO
 retention_policy = redundancy 2
 wal_retention_policy = base
+"""
+
+TEST_CONFIG_MAIN = """
 [main]
 active = true
 archiver = on
@@ -87,6 +91,9 @@ wal_retention_policy = base
 last_backup_maximum_age = '1 day'
 last_backup_minimum_size = '1 Mi'
 last_wal_maximum_age = '1 hour'
+"""
+
+TEST_CONFIG_WEB = """
 [web]
 active = true
 archiver = on
@@ -98,6 +105,177 @@ last_backup_maximum_age = '1 day'
 last_backup_minimum_size = '1 Mi'
 last_wal_maximum_age = '1 hour'
 """
+
+TEST_CONFIG = TEST_CONFIG_BARMAN + TEST_CONFIG_MAIN + TEST_CONFIG_WEB
+
+
+class TestConfigMapping(object):
+    """
+    Test class for :class:`ConfigMapping:`.
+    """
+
+    def setup_method(self):
+        self.cm = ConfigMapping(strict=False)
+
+    @patch("barman.config.ConfigParser")
+    def test_read_config_config_parser(self, mock_parser):
+        """
+        Test :meth:`ConfigMapping.read_config` with several input values.
+
+        Make sure the correct :class:`ConfigParser` methods are according to
+        the arguments of :meth:`ConfigMapping.read_config`.
+        """
+
+        # First round: test interface with `ConfigParser`
+        # file descriptor with `read` method and `name` attribute -- Python 3
+        filename = Mock()
+        mock_parser.return_value = MagicMock()
+        assert self.cm.read_config(filename) == [filename.name]
+        mock_parser.assert_called_once_with(strict=False)
+        mock_parser.return_value.read_file.assert_called_once_with(filename)
+        mock_parser.return_value.readfp.assert_not_called()
+        mock_parser.return_value.read.assert_not_called()
+
+        # file descriptor with `read` method and `name` attribute -- Python 2
+        filename = Mock()
+        mock_parser.reset_mock()
+        mock_parser.return_value = MagicMock()
+        delattr(mock_parser.return_value, "read_file")
+        assert self.cm.read_config(filename) == [filename.name]
+        mock_parser.assert_called_once_with(strict=False)
+        mock_parser.return_value.readfp.assert_called_once_with(filename)
+        mock_parser.return_value.read.assert_not_called()
+
+        # file descriptor with `read` method but no `name` attribute -- Python 3
+        filename = Mock()
+        mock_parser.reset_mock()
+        delattr(filename, "name")
+        mock_parser.return_value = MagicMock()
+        assert self.cm.read_config(filename) == [None]
+        mock_parser.assert_called_once_with(strict=False)
+        mock_parser.return_value.read_file.assert_called_once_with(filename)
+        mock_parser.return_value.readfp.assert_not_called()
+        mock_parser.return_value.read.assert_not_called()
+
+        # file descriptor with `read` method but no `name` attribute -- Python 2
+        filename = Mock()
+        mock_parser.reset_mock()
+        delattr(filename, "name")
+        mock_parser.return_value = MagicMock()
+        delattr(mock_parser.return_value, "read_file")
+        assert self.cm.read_config(filename) == [None]
+        mock_parser.assert_called_once_with(strict=False)
+        mock_parser.return_value.readfp.assert_called_once_with(filename)
+        mock_parser.return_value.read.assert_not_called()
+
+        # file path
+        filename = "/some/path"
+        mock_parser.reset_mock()
+        mock_parser.return_value = MagicMock()
+        mock_parser.return_value.read.return_value = ["/some/path"]
+        assert self.cm.read_config(filename) == [filename]
+        mock_parser.return_value.read_file.assert_not_called()
+        mock_parser.return_value.readfp.assert_not_called()
+        mock_parser.return_value.read.assert_called_once_with(filename)
+
+    # @patch("barman.config.ConfigParser", MagicMock)
+    def test_read_config_mapping(self):
+        """
+        Test mappping of a :meth:`ConfigMapping.read_config`.
+
+        Make sure the mapping of configuration options to files performed by
+        :meth:`ConfigMapping.read_config` occurs as expected.
+
+        Also check if :meth:`ConfigMapping.get_config_source` returns the
+        expected values based on the mapping that was built.
+        """
+        # Start with global config
+        expected = {
+            "barman": {
+                "barman_home": "/etc/barman.conf",
+                "barman_user": "/etc/barman.conf",
+                "compression": "/etc/barman.conf",
+                "log_file": "/etc/barman.conf",
+                "log_level": "/etc/barman.conf",
+                "retention_policy": "/etc/barman.conf",
+                "wal_retention_policy": "/etc/barman.conf",
+            }
+        }
+
+        with patch("builtins.open", mock_open(read_data=TEST_CONFIG_BARMAN)):
+            assert self.cm.read_config("/etc/barman.conf") == ["/etc/barman.conf"]
+
+        assert self.cm._mapping == expected
+
+        # Add config of `main` server
+        expected["main"] = {
+            "active": "/etc/barman.d/main.conf",
+            "archiver": "/etc/barman.d/main.conf",
+            "description": "/etc/barman.d/main.conf",
+            "ssh_command": "/etc/barman.d/main.conf",
+            "conninfo": "/etc/barman.d/main.conf",
+            "backup_directory": "/etc/barman.d/main.conf",
+            "basebackups_directory": "/etc/barman.d/main.conf",
+            "wals_directory": "/etc/barman.d/main.conf",
+            "incoming_wals_directory": "/etc/barman.d/main.conf",
+            "backup_compression": "/etc/barman.d/main.conf",
+            "custom_compression_filter": "/etc/barman.d/main.conf",
+            "custom_compression_magic": "/etc/barman.d/main.conf",
+            "custom_decompression_filter": "/etc/barman.d/main.conf",
+            "reuse_backup": "/etc/barman.d/main.conf",
+            "retention_policy": "/etc/barman.d/main.conf",
+            "wal_retention_policy": "/etc/barman.d/main.conf",
+            "last_backup_maximum_age": "/etc/barman.d/main.conf",
+            "last_backup_minimum_size": "/etc/barman.d/main.conf",
+            "last_wal_maximum_age": "/etc/barman.d/main.conf",
+        }
+
+        with patch("builtins.open", mock_open(read_data=TEST_CONFIG_MAIN)):
+            assert self.cm.read_config("/etc/barman.d/main.conf") == [
+                "/etc/barman.d/main.conf"
+            ]
+
+        assert self.cm._mapping == expected
+
+        # Add config of `web` server
+        expected["web"] = {
+            "active": "/etc/barman.d/web.conf",
+            "archiver": "/etc/barman.d/web.conf",
+            "description": "/etc/barman.d/web.conf",
+            "ssh_command": "/etc/barman.d/web.conf",
+            "conninfo": "/etc/barman.d/web.conf",
+            "compression": "/etc/barman.d/web.conf",
+            "last_backup_maximum_age": "/etc/barman.d/web.conf",
+            "last_backup_minimum_size": "/etc/barman.d/web.conf",
+            "last_wal_maximum_age": "/etc/barman.d/web.conf",
+        }
+
+        with patch("builtins.open", mock_open(read_data=TEST_CONFIG_WEB)):
+            assert self.cm.read_config("/etc/barman.d/web.conf") == [
+                "/etc/barman.d/web.conf"
+            ]
+
+        assert self.cm._mapping == expected
+
+        # Override config of `web` server
+        expected["web"]["active"] = "/etc/barman.d/web-override.conf"
+
+        with patch("builtins.open", mock_open(read_data="[web]\nactive=false")):
+            assert self.cm.read_config("/etc/barman.d/web-override.conf") == [
+                "/etc/barman.d/web-override.conf"
+            ]
+
+        assert self.cm._mapping == expected
+
+        # Get mapping of an invalid server
+        assert self.cm.get_config_source("random", "active") == "default"
+        # Get mapping of an invalid option
+        assert self.cm.get_config_source("main", "random") == "default"
+        # Get mapping of a valid server and option
+        assert self.cm.get_config_source("main", "active") == "/etc/barman.d/main.conf"
+        # Get mapping of a valid server and option, but which is defined in the
+        # global `barman` section instead of on the server section
+        assert self.cm.get_config_source("main", "log_level") == "/etc/barman.conf"
 
 
 # noinspection PyMethodMayBeStatic
@@ -574,6 +752,59 @@ class TestConfig(object):
             with pytest.raises(ValueError):
                 parse_backup_compression(format)
 
+    def test_global_config_to_json(self):
+        """Check :meth:`Config.global_config_to_json` returns expected results.
+
+        Make sure it works as expected both when ``with_source`` argument is
+        ``True`` or ``False``.
+        """
+        global_conf = {
+            "barman_home": "/some/barman/home",
+            "barman_user": "barman",
+            "compression": "gzip",
+            "log_file": "/some/barman/home/log/barman.log",
+            "log_level": "INFO",
+            "retention_policy": "redundancy 2",
+            "wal_retention_policy": "base",
+        }
+        c = testing_helpers.build_config_from_dicts(global_conf=global_conf)
+
+        # Check result when `with_source` is `False`
+        expected = {
+            "barman_home": "/some/barman/home",
+            "log_level": "INFO",
+            "wal_retention_policy": "base",
+            "retention_policy": "redundancy 2",
+            "compression": "gzip",
+            "barman_user": "barman",
+            "log_file": "/some/barman/home/log/barman.log",
+            "archiver": "True",
+        }
+        assert c.global_config_to_json(False) == expected
+
+        # Check result when `with_source` is `True`
+        for config in c._config._mapping["barman"]:
+            c._config._mapping["barman"][config] = "/etc/barman.conf"
+
+        for key, value in expected.items():
+            expected[key] = {
+                "source": "/etc/barman.conf",
+                "value": value,
+            }
+
+        assert c.global_config_to_json(True) == expected
+
+    def test_get_config_source(self):
+        """Check :meth:`Config.get_config_source` calls the expected method.
+
+        It is basically a wrapper for :meth:`ConfigMapping.get_config_source`.
+        """
+        c = testing_helpers.build_config_from_dicts()
+
+        with patch.object(ConfigMapping, "get_config_source") as mock:
+            c.get_config_source("section", "option")
+            mock.assert_called_once_with("section", "option")
+
 
 class TestServerConfig(object):
     def test_update_msg_list_and_disable_server(self):
@@ -602,6 +833,89 @@ class TestServerConfig(object):
         main.update_msg_list_and_disable_server([msg3, msg4])
         assert main.msg_list == [msg1, msg2, msg3, msg4]
         assert main.disabled is True
+
+    def test_to_json(self):
+        """
+        Check if :meth:`ServerConfig.to_json` returns the expected results.
+
+        We check both when ``with_source`` argument is ``True`` and ``False``.
+        """
+        global_conf = {
+            "barman_home": "/some/barman/home",
+            "barman_user": "barman",
+            "compression": "gzip",
+            "log_file": "/some/barman/home/log/barman.log",
+            "log_level": "INFO",
+            "retention_policy": "redundancy 2",
+            "wal_retention_policy": "base",
+        }
+        main_conf = {
+            "active": "true",
+            "archiver": "on",
+            "description": "Main PostgreSQL Database",
+            "ssh_command": "ssh -c arcfour -p 22 postgres@pg01.nowhere",
+            "conninfo": "host=pg01.nowhere user=postgres port=5432",
+            "backup_directory": "/some/barman/home/main",
+            "basebackups_directory": "/some/barman/home/main/base",
+            "wals_directory": "wals",
+            "incoming_wals_directory": "/some/barman/home/main/incoming",
+            "backup_compression": '"none"',
+            "custom_compression_filter": "bzip2 -c -9",
+            "custom_compression_magic": "0x425a68",
+            "custom_decompression_filter": "bzip2 -c -d",
+            "reuse_backup": "link",
+            "retention_policy": "redundancy 3",
+            "wal_retention_policy": "base",
+            "last_backup_maximum_age": "'1 day'",
+            "last_backup_minimum_size": "'1 Mi'",
+            "last_wal_maximum_age": "'1 hour'",
+        }
+        c = testing_helpers.build_config_from_dicts(
+            global_conf=global_conf,
+            main_conf=main_conf,
+        )
+        main = c.get_server("main")
+
+        # Check `to_json(with_source=False)` works as expected
+        expected_override = {
+            "last_wal_maximum_age": timedelta(seconds=3600),
+            "description": "Main PostgreSQL Database",
+            "custom_compression_filter": "bzip2 -c -9",
+            "custom_decompression_filter": "bzip2 -c -d",
+            "ssh_command": "ssh -c arcfour -p 22 postgres@pg01.nowhere",
+            "custom_compression_magic": "0x425a68",
+            "reuse_backup": "link",
+            "last_backup_maximum_age": timedelta(days=1),
+            "wal_retention_policy": "base",
+            "retention_policy": "redundancy 3",
+            "compression": "gzip",
+            "backup_compression": "none",
+            "wals_directory": "wals",
+            "last_backup_minimum_size": 1048576,
+        }
+        expected = testing_helpers.build_config_dictionary(expected_override)
+        del expected["config"]
+        assert main.to_json(False) == expected
+
+        # Check `to_json(with_source=True)` works as expected
+        for key, value in expected.items():
+            source = "default"
+
+            if key in global_conf:
+                source = "/etc/barman.conf"
+
+            if key in main_conf:
+                source = "/etc/barman.d/main.conf"
+
+            expected[key] = {"source": source, "value": value}
+
+        for config in main.config._config._mapping["barman"]:
+            main.config._config._mapping["barman"][config] = "/etc/barman.conf"
+
+        for config in main.config._config._mapping["main"]:
+            main.config._config._mapping["main"][config] = "/etc/barman.d/main.conf"
+
+        assert main.to_json(True) == expected
 
 
 # noinspection PyMethodMayBeStatic
