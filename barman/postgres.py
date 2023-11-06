@@ -666,6 +666,42 @@ class PostgreSQLConnection(PostgreSQL):
                 return None
 
     @property
+    def has_monitoring_privileges(self):
+        """
+        Check whether the current user can access monitoring information.
+
+        Returns ``True`` if the current user is a superuser or if the user has the
+        necessary privileges to monitor system status.
+
+        :rtype: bool
+        :return: ``True`` if the current user can access monitoring information.
+        """
+        if self.is_superuser:
+            return True
+        else:
+            monitoring_check_query = """
+            SELECT
+            (
+                pg_has_role(CURRENT_USER, 'pg_monitor', 'MEMBER')
+                OR
+                (
+                    pg_has_role(CURRENT_USER, 'pg_read_all_settings', 'MEMBER')
+                    AND pg_has_role(CURRENT_USER, 'pg_read_all_stats', 'MEMBER')
+                )
+            )
+            """
+            try:
+                cur = self._cursor()
+                cur.execute(monitoring_check_query)
+                return cur.fetchone()[0]
+            except (PostgresConnectionError, psycopg2.Error) as e:
+                _logger.debug(
+                    "Error checking privileges for functions needed for monitoring: %s",
+                    force_str(e).strip(),
+                )
+                return None
+
+    @property
     def current_xlog_info(self):
         """
         Get detailed information about the current WAL position in PostgreSQL.
@@ -938,6 +974,7 @@ class PostgreSQLConnection(PostgreSQL):
 
             result["is_superuser"] = self.is_superuser
             result["has_backup_privileges"] = self.has_backup_privileges
+            result["has_monitoring_privileges"] = self.has_monitoring_privileges
             result["is_in_recovery"] = self.is_in_recovery
             result["server_txt_version"] = self.server_txt_version
             result["version_supported"] = self.is_minimal_postgres_version()
@@ -1393,7 +1430,7 @@ class PostgreSQLConnection(PostgreSQL):
         try:
             cur = self._cursor(cursor_factory=NamedTupleCursor)
 
-            if not self.has_backup_privileges:
+            if not self.has_monitoring_privileges:
                 raise BackupFunctionsAccessRequired(
                     "Postgres user '%s' is missing required privileges "
                     '(see "Preliminary steps" in the Barman manual)'

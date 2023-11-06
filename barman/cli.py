@@ -286,7 +286,9 @@ def cron(args):
     Run maintenance tasks (global command)
     """
     # Skip inactive and temporarily disabled servers
-    servers = get_server_list(skip_inactive=True, skip_disabled=True)
+    servers = get_server_list(
+        skip_inactive=True, skip_disabled=True, wal_streaming=True
+    )
     for name in sorted(servers):
         server = servers[name]
 
@@ -602,13 +604,25 @@ def status(args):
                         'wal-streamer' (only WAL streaming clients, such as pg_receivewal),
                         'all' (any of them). Defaults to %(default)s""",
         ),
+        argument(
+            "--source",
+            choices=("backup-host", "wal-host"),
+            default="backup-host",
+            help="""
+                        Possible values are: 'backup-host' (only show replications
+                        running on the backup host) or 'wal-host' (only show replications
+                        running on the wal host). Defaults to %(default)s""",
+        ),
     ]
 )
 def replication_status(args):
     """
     Shows live information and status of any streaming client
     """
-    servers = get_server_list(args, skip_inactive=True, skip_passive=True)
+    wal_streaming = args.source == "wal-host"
+    servers = get_server_list(
+        args, skip_inactive=True, skip_passive=True, wal_streaming=wal_streaming
+    )
     for name in sorted(servers):
         server = servers[name]
 
@@ -1602,7 +1616,8 @@ def receive_wal(args):
     should_skip_inactive = not (
         args.create_slot or args.drop_slot or args.stop or args.reset
     )
-    server = get_server(args, skip_inactive=should_skip_inactive)
+    server = get_server(args, skip_inactive=should_skip_inactive, wal_streaming=True)
+
     if args.stop and args.reset:
         output.error("--stop and --reset options are not compatible")
     # If the caller requested to shutdown the receive-wal process deliver the
@@ -1941,6 +1956,7 @@ def get_server(
     inactive_is_error=False,
     on_error_stop=True,
     suppress_error=False,
+    wal_streaming=False,
 ):
     """
     Get a single server retrieving its configuration (wraps get_server_list())
@@ -1959,6 +1975,8 @@ def get_server(
     :param bool inactive_is_error: treat inactive server as error
     :param bool on_error_stop: stop if an error is found
     :param bool suppress_error: suppress display of errors (e.g. diagnose)
+    :param bool wal_streaming: create the :class:`barman.server.Server` using
+        WAL streaming conninfo (if available in the configuration)
     :rtype: Server|None
     """
     # This function must to be called with in a single-server context
@@ -1982,7 +2000,13 @@ def get_server(
 
     # Retrieve the requested server
     servers = get_server_list(
-        args, skip_inactive, skip_disabled, skip_passive, on_error_stop, suppress_error
+        args,
+        skip_inactive,
+        skip_disabled,
+        skip_passive,
+        on_error_stop,
+        suppress_error,
+        wal_streaming,
     )
 
     # The requested server has been excluded from get_server_list result
@@ -2020,6 +2044,7 @@ def get_server_list(
     skip_passive=False,
     on_error_stop=True,
     suppress_error=False,
+    wal_streaming=False,
 ):
     """
     Get the server list from the configuration
@@ -2033,6 +2058,8 @@ def get_server_list(
     :param bool skip_passive: skip passive servers when 'all' is required
     :param bool on_error_stop: stop if an error is found
     :param bool suppress_error: suppress display of errors (e.g. diagnose)
+    :param bool wal_streaming: create :class:`barman.server.Server` objects using
+        WAL streaming conninfo (if available in the configuration)
     :rtype: dict[str,Server]
     """
     server_dict = {}
@@ -2079,6 +2106,8 @@ def get_server_list(
             # Unknown server
             server_dict[server_name] = None
         else:
+            if wal_streaming:
+                conf.streaming_conninfo, conf.conninfo = conf.get_wal_conninfo()
             server_object = Server(conf)
             # Skip inactive servers, if requested
             if skip_inactive and not server_object.config.active:
