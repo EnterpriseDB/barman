@@ -572,7 +572,9 @@ class ServerConfig(BaseConfig):
         "streaming_conninfo",
         "streaming_wals_directory",
         "tablespace_bandwidth_limit",
+        "wal_conninfo",
         "wal_retention_policy",
+        "wal_streaming_conninfo",
         "wals_directory",
     ]
 
@@ -920,6 +922,34 @@ class ServerConfig(BaseConfig):
 
         self.msg_list.extend(msg_list)
         self.disabled = True
+
+    def get_wal_conninfo(self):
+        """
+        Return WAL-specific conninfo strings for this server.
+
+        Returns the value of ``wal_streaming_conninfo`` and ``wal_conninfo`` if they
+        are set in the configuration. If ``wal_conninfo`` is unset then it will
+        be given the value of ``wal_streaming_conninfo``. If ``wal_streaming_conninfo``
+        is unset then fall back to ``streaming_conninfo`` and ``conninfo``.
+
+        :rtype: (str,str)
+        :return: Tuple consisting of the ``wal_streaming_conninfo`` and
+            ``wal_conninfo`` defined in the configuration if ``wal_streaming_conninfo``
+            is set, a tuple of ``streaming_conninfo`` and ``conninfo`` otherwise.
+        """
+        wal_streaming_conninfo, wal_conninfo = None, None
+        if self.wal_streaming_conninfo is not None:
+            wal_streaming_conninfo = self.wal_streaming_conninfo
+            if self.wal_conninfo is not None:
+                wal_conninfo = self.wal_conninfo
+            else:
+                wal_conninfo = self.wal_streaming_conninfo
+        else:
+            # If wal_streaming_conninfo is not set then return the original
+            # streaming_conninfo and conninfo parameters
+            wal_streaming_conninfo = self.streaming_conninfo
+            wal_conninfo = self.conninfo
+        return wal_streaming_conninfo, wal_conninfo
 
 
 class ModelConfig(BaseConfig):
