@@ -598,6 +598,7 @@ class Server(RemoteStatusMixin):
                 # Postgres configuration is not available on passive nodes
                 if not self.passive_node:
                     self.check_postgres(check_strategy)
+                    self.check_wal_streaming(check_strategy)
                 # Check barman directories from barman configuration
                 self.check_directories(check_strategy)
                 # Check retention policies
@@ -773,8 +774,29 @@ class Server(RemoteStatusMixin):
                     check="no access to backup functions",
                 )
 
+        self._check_streaming_supported(check_strategy, remote_status)
+
+        self._check_wal_level(check_strategy, remote_status)
+
+        if self.config.primary_conninfo is not None:
+            self._check_standby(check_strategy)
+
+    def _check_streaming_supported(self, check_strategy, remote_status, suffix=None):
+        """
+        Check whether the remote status indicates streaming is possible.
+
+        :param CheckStrategy check_strategy: The strategy for the management
+            of the result of this check
+        :param dict[str, None|str] remote_status: Remote status information used
+            by this check
+        :param str|None suffix: A suffix to be appended to the check name
+        """
         if "streaming_supported" in remote_status:
-            check_strategy.init_check("PostgreSQL streaming")
+            check_name = "PostgreSQL streaming" + (
+                "" if suffix is None else f" ({suffix})"
+            )
+
+            check_strategy.init_check(check_name)
             hint = None
 
             # If a streaming connection is available,
@@ -784,10 +806,22 @@ class Server(RemoteStatusMixin):
             check_strategy.result(
                 self.config.name, remote_status.get("streaming"), hint=hint
             )
+
+    def _check_wal_level(self, check_strategy, remote_status, suffix=None):
+        """
+        Check whether the remote status indicates ``wal_level`` is correct.
+
+        :param CheckStrategy check_strategy: The strategy for the management
+            of the result of this check
+        :param dict[str, None|str] remote_status: Remote status information used
+            by this check
+        :param str|None suffix: A suffix to be appended to the check name
+        """
         # Check wal_level parameter: must be different from 'minimal'
         # the parameter has been introduced in postgres >= 9.0
         if "wal_level" in remote_status:
-            check_strategy.init_check("wal_level")
+            check_name = "wal_level" + ("" if suffix is None else f" ({suffix})")
+            check_strategy.init_check(check_name)
             if remote_status["wal_level"] != "minimal":
                 check_strategy.result(self.config.name, True)
             else:
@@ -797,10 +831,107 @@ class Server(RemoteStatusMixin):
                     hint="please set it to a higher level than 'minimal'",
                 )
 
+    def _check_has_monitoring_privileges(
+        self, check_strategy, remote_status, suffix=None
+    ):
+        """
+        Check whether the remote status indicates monitoring information can be read.
+
+        :param CheckStrategy check_strategy: The strategy for the management
+            of the result of this check
+        :param dict[str, None|str] remote_status: Remote status information used
+            by this check
+        :param str|None suffix: A suffix to be appended to the check name
+        """
+        check_name = "has monitoring privileges" + (
+            "" if suffix is None else f" ({suffix})"
+        )
+        check_strategy.init_check(check_name)
+        if remote_status.get("has_monitoring_privileges"):
+            check_strategy.result(self.config.name, True)
+        else:
+            check_strategy.result(
+                self.config.name,
+                False,
+                hint="privileges for PostgreSQL monitoring functions are "
+                "required (see documentation)",
+                check="no access to monitoring functions",
+            )
+
+    def check_wal_streaming(self, check_strategy):
+        """
+        Perform checks related to the streaming of WALs only (not backups).
+
+        If no WAL-specific connection information is defined then this check will
+        call :meth:`_check_replication_slot` for the existing streaming connection,
+        since that is the connection which will be used when streaming WALs.
+
+        If WAL-specific connection information *is* defined then this check will:
+          1. Create these connections.
+          2. Fetch the remote status of these connections.
+          3. Use the remote status information to run the
+             :meth:`_check_streaming_supported`, :meth:`_check_wal_level` and
+             :meth:`check_identity` checks, as we need to know the WAL-specific conninfo
+             points to a PostgreSQL instance which passes these checks.
+          4. Run an additional :meth:`_has_monitoring_privileges` check, which validates
+             the WAL-specific conninfo connects with a user than can read monitoring
+             information.
+          5. Run the :meth:`_check_replication_slot` check with the WAL-specific
+             connection.
+
+        :param CheckStrategy check_strategy: The strategy for the management
+            of the result of this check
+        :param dict[str, None|str] remote_status: Remote status information used
+            by this check
+        :param str|None suffix: A suffix to be appended to the check name
+        """
+        # If we have wal-specific conninfo then we must use those to get
+        # the remote status information for the check
+        streaming_conninfo, conninfo = self.config.get_wal_conninfo()
+        if streaming_conninfo != self.config.streaming_conninfo:
+            with closing(StreamingConnection(streaming_conninfo)) as streaming, closing(
+                PostgreSQLConnection(conninfo, slot_name=self.config.slot_name)
+            ) as postgres:
+                remote_status = postgres.get_remote_status()
+                remote_status.update(streaming.get_remote_status())
+
+                self._check_has_monitoring_privileges(
+                    check_strategy, remote_status, "WAL streaming"
+                )
+                self._check_streaming_supported(
+                    check_strategy, remote_status, "WAL streaming"
+                )
+                self._check_wal_level(check_strategy, remote_status, "WAL streaming")
+                self.check_identity(check_strategy, remote_status, "WAL streaming")
+                self._check_replication_slot(
+                    check_strategy, remote_status, "WAL streaming"
+                )
+        else:
+            # Use the status for the existing postgres connections
+            remote_status = self.get_remote_status()
+            self._check_replication_slot(check_strategy, remote_status)
+
+    def _check_replication_slot(self, check_strategy, remote_status, suffix=None):
+        """
+        Check the replication slot used for WAL streaming.
+
+        If ``streaming_archiver`` is enabled, checks that the replication slot specified
+        in the configuration exists, is initialised and is active.
+
+        If ``streaming_archiver`` is disabled, checks that the replication slot does not
+        exist.
+
+        :param CheckStrategy check_strategy: The strategy for the management
+            of the result of this check
+        :param dict[str, None|str] remote_status: Remote status information used
+            by this check
+        :param str|None suffix: A suffix to be appended to the check name
+        """
         # Check the presence and the status of the configured replication slot
         # This check will be skipped if `slot_name` is undefined
         if self.config.slot_name:
-            check_strategy.init_check("replication slot")
+            check_name = "replication slot" + ("" if suffix is None else f" ({suffix})")
+            check_strategy.init_check(check_name)
             slot = remote_status["replication_slot"]
             # The streaming_archiver is enabled
             if self.config.streaming_archiver is True:
@@ -855,9 +986,6 @@ class Server(RemoteStatusMixin):
                             "by the current config"
                             % (self.config.slot_name, slot_status),
                         )
-
-        if self.config.primary_conninfo is not None:
-            self._check_standby(check_strategy)
 
     def _check_standby(self, check_strategy):
         """
@@ -1117,18 +1245,23 @@ class Server(RemoteStatusMixin):
             hint=WalArchiver.summarise_error_files(errors),
         )
 
-    def check_identity(self, check_strategy):
+    def check_identity(self, check_strategy, remote_status=None, suffix=None):
         """
         Check the systemid retrieved from the streaming connection
         is the same that is retrieved from the standard connection,
         and then verifies it matches the one stored on disk.
 
-        :param CheckStrategy check_strategy: the strategy for the management
-             of the results of the various checks
+        :param CheckStrategy check_strategy: The strategy for the management
+            of the result of this check
+        :param dict[str, None|str] remote_status: Remote status information used
+            by this check
+        :param str|None suffix: A suffix to be appended to the check name
         """
-        check_strategy.init_check("systemid coherence")
+        check_name = "systemid coherence" + ("" if suffix is None else f" ({suffix})")
+        check_strategy.init_check(check_name)
 
-        remote_status = self.get_remote_status()
+        if remote_status is None:
+            remote_status = self.get_remote_status()
 
         # Get system identifier from streaming and standard connections
         systemid_from_streaming = remote_status.get("streaming_systemid")
