@@ -609,9 +609,10 @@ def status(args):
             choices=("backup-host", "wal-host"),
             default="backup-host",
             help="""
-                        Possible values are: 'backup-host' (only show replications
-                        running on the backup host) or 'wal-host' (only show replications
-                        running on the wal host). Defaults to %(default)s""",
+                        Possible values are: 'backup-host' (list clients using the
+                        backup conninfo for a server) or `wal-host` (list clients using
+                        the WAL streaming conninfo for a server). Defaults to
+                        %(default)s""",
         ),
     ]
 )
