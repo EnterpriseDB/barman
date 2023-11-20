@@ -13,3 +13,11 @@ replication-status *\[OPTIONS\]* *SERVER_NAME*
          - *wal-streamer*: lists only WAL streaming clients, such as
                           pg_receivewal
          - *all*: any streaming client (default)
+
+    --source *SOURCE_TYPE*
+    :    Possible values for SOURCE_TYPE are:
+
+         - *backup-host*: list clients using the backup conninfo for
+                          a server (default)
+         - *wal-host*: list clients using the WAL streaming conninfo
+                       for a server

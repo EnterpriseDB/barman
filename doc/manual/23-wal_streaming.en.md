@@ -104,6 +104,48 @@ create the replication slot by setting:
 create_slot = auto
 ```
 
+### Streaming WALs and backups from different hosts (Barman 3.10.0 and later)
+
+Barman uses the connection info defined in `streaming_conninfo` when creating
+`pg_receivewal` processes to stream WAL segments and uses `conninfo` when
+checking the status of replication slots. Because `conninfo` and
+`streaming_conninfo` are also used when taking backups this default
+configuration forces Barman to stream WALs and take backups from the same host.
+
+If an alternative configuration is required, such as backups being sourced from
+a standby with WALs being streamed from the primary, then this can be achieved
+using the following options:
+
+- `wal_streaming_conninfo`: A connection string which Barman will use instead
+   of `streaming_conninfo` when receiving WAL segments via the streaming
+  replication protocol and when checking the status of the replication slot
+  used for receiving WALs.
+- `wal_conninfo`: An optional connection string specifically for monitoring
+  WAL streaming status and performing related checks. If set, Barman will use
+  this instead of `wal_streaming_conninfo` when checking the status of the
+  replication slot.
+
+The following restrictions apply and are enforced by Barman during checks:
+
+- Connections defined by `wal_streaming_conninfo` and `wal_conninfo` must reach
+  a PostgreSQL instance which belongs to the same cluster reached by the
+  `streaming_conninfo` and `conninfo` connections.
+- The `wal_streaming_conninfo` connection string must be able to create
+  streaming replication connections.
+- Either `wal_streaming_conninfo` *or* `wal_conninfo` (if it is set) must have
+  sufficient permissions to read settings and check replication slot status.
+  The required permissions are one of:
+    - The `pg_monitor` role.
+    - Both the `pg_read_all_settings` and `pg_read_all_stats` roles.
+    - The `superuser` role.
+
+> **IMPORTANT:**
+> While it is possible to stream WALs from *any* PostgreSQL instance in a
+> cluster there is a risk that WAL segments can be lost when streaming WALs
+> from a standby, if such a standby is unable to keep up with its own upstream
+> source. For this reason it is *strongly recommended* that WALs are always
+> streamed directly from the primary.
+
 ### Limitations of partial WAL files with recovery
 
 The standard behaviour of `pg_receivewal` is to write transactional
