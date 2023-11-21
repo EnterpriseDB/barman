@@ -1391,7 +1391,9 @@ class TestModelConfig:
             "streaming_backup_name": None,
             "streaming_conninfo": "SOME_STREAMING_CONNINFO",
             "tablespace_bandwidth_limit": None,
+            "wal_conninfo": None,
             "wal_retention_policy": None,
+            "wal_streaming_conninfo": None,
         }
         assert model_config.to_json() == expected
 
@@ -1484,7 +1486,9 @@ class TestModelConfig:
                 "value": "SOME_STREAMING_CONNINFO",
             },
             "tablespace_bandwidth_limit": {"source": "SOME_SOURCE", "value": None},
+            "wal_conninfo": {"source": "SOME_SOURCE", "value": None},
             "wal_retention_policy": {"source": "SOME_SOURCE", "value": None},
+            "wal_streaming_conninfo": {"source": "SOME_SOURCE", "value": None},
         }
         assert model_config.to_json(True) == expected
 

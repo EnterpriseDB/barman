@@ -355,6 +355,8 @@ def build_config_dictionary(config_keys=None):
         "snapshot_provider": None,
         "snapshot_zone": None,
         "snapshot_gcp_project": None,
+        "wal_conninfo": None,
+        "wal_streaming_conninfo": None,
     }
     # Check for overriding keys
     if config_keys is not None:
