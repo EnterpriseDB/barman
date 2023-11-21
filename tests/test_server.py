@@ -770,8 +770,7 @@ class TestServer(object):
             # OR if we didn't expect an error the has_error status is False
             assert strategy.has_error is False
 
-    @patch("barman.server.Server.get_remote_status")
-    def test_check_replication_slot(self, postgres_mock, capsys):
+    def test_check_replication_slot(self, capsys):
         """
         Extension of the check_postgres test.
         Tests the replication_slot check
@@ -779,7 +778,7 @@ class TestServer(object):
         :param postgres_mock: mock get_remote_status function
         :param capsys: retrieve output from console
         """
-        postgres_mock.return_value = {
+        mock_remote_status = {
             "current_xlog": None,
             "archive_command": "wal to archive",
             "server_txt_version": "9.3.1",
@@ -795,7 +794,7 @@ class TestServer(object):
 
         # Case: Postgres version < 9.4
         strategy = CheckOutputStrategy()
-        server.check_postgres(strategy)
+        server._check_replication_slot(strategy, mock_remote_status)
         (out, err) = capsys.readouterr()
         assert "\treplication slot:" not in out
 
@@ -805,7 +804,7 @@ class TestServer(object):
         rep_slot.slot_name = "test"
         rep_slot.active = True
         rep_slot.restart_lsn = "aaaBB"
-        postgres_mock.return_value = {
+        mock_remote_status = {
             "server_txt_version": "9.4.1",
             "replication_slot_support": True,
             "replication_slot": rep_slot,
@@ -813,7 +812,7 @@ class TestServer(object):
         server = build_real_server()
         server.config.streaming_archiver = True
         server.config.slot_name = "test"
-        server.check_postgres(strategy)
+        server._check_replication_slot(strategy, mock_remote_status)
         (out, err) = capsys.readouterr()
 
         # Everything is ok
@@ -821,7 +820,7 @@ class TestServer(object):
 
         rep_slot.active = False
         rep_slot.restart_lsn = None
-        postgres_mock.return_value = {
+        mock_remote_status = {
             "server_txt_version": "9.4.1",
             "replication_slot_support": True,
             "replication_slot": rep_slot,
@@ -831,7 +830,7 @@ class TestServer(object):
         server = build_real_server()
         server.config.slot_name = "test"
         server.config.streaming_archiver = True
-        server.check_postgres(strategy)
+        server._check_replication_slot(strategy, mock_remote_status)
         (out, err) = capsys.readouterr()
         # Everything is ok
         assert (
@@ -842,7 +841,7 @@ class TestServer(object):
         rep_slot.reset_mock()
         rep_slot.active = False
         rep_slot.restart_lsn = "Test"
-        postgres_mock.return_value = {
+        mock_remote_status = {
             "server_txt_version": "9.4.1",
             "replication_slot_support": True,
             "replication_slot": rep_slot,
@@ -852,7 +851,7 @@ class TestServer(object):
         server = build_real_server()
         server.config.slot_name = "test"
         server.config.streaming_archiver = True
-        server.check_postgres(strategy)
+        server._check_replication_slot(strategy, mock_remote_status)
         (out, err) = capsys.readouterr()
         # Everything is ok
         assert (
@@ -863,7 +862,7 @@ class TestServer(object):
         rep_slot.reset_mock()
         rep_slot.active = False
         rep_slot.restart_lsn = "Test"
-        postgres_mock.return_value = {
+        mock_remote_status = {
             "server_txt_version": "PostgreSQL 9.4.1",
             "replication_slot_support": True,
             "replication_slot": rep_slot,
@@ -873,7 +872,7 @@ class TestServer(object):
         server = build_real_server()
         server.config.slot_name = "test"
         server.config.streaming_archiver = False
-        server.check_postgres(strategy)
+        server._check_replication_slot(strategy, mock_remote_status)
         (out, err) = capsys.readouterr()
         # Everything is ok
         assert (
@@ -884,7 +883,7 @@ class TestServer(object):
         rep_slot.reset_mock()
         rep_slot.active = True
         rep_slot.restart_lsn = "Test"
-        postgres_mock.return_value = {
+        mock_remote_status = {
             "server_txt_version": "PostgreSQL 9.4.1",
             "replication_slot_support": True,
             "replication_slot": rep_slot,
@@ -894,7 +893,7 @@ class TestServer(object):
         server = build_real_server()
         server.config.slot_name = "test"
         server.config.streaming_archiver = False
-        server.check_postgres(strategy)
+        server._check_replication_slot(strategy, mock_remote_status)
         (out, err) = capsys.readouterr()
         # Everything is ok
         assert (

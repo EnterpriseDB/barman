@@ -963,6 +963,7 @@ class TestPostgres(object):
             "wal_compression": "a wal_compression value",
             "xlog_segment_size": 8388608,
             "postgres_systemid": 6721602258895701769,
+            "has_monitoring_privileges": True,
         }
 
         # Test PostgreSQL 9.6
@@ -994,6 +995,7 @@ class TestPostgres(object):
             "wal_compression": "a wal_compression value",
             "xlog_segment_size": 8388608,
             "postgres_systemid": 6721602258895701769,
+            "has_monitoring_privileges": True,
         }
 
         # Test PostgreSQL 13
@@ -1025,6 +1027,7 @@ class TestPostgres(object):
             "wal_compression": "a wal_compression value",
             "xlog_segment_size": 8388608,
             "postgres_systemid": 6721602258895701769,
+            "has_monitoring_privileges": True,
         }
 
         # Test error management
@@ -1229,11 +1232,11 @@ class TestPostgres(object):
         "barman.postgres.PostgreSQLConnection.server_version", new_callable=PropertyMock
     )
     @patch(
-        "barman.postgres.PostgreSQLConnection.has_backup_privileges",
+        "barman.postgres.PostgreSQLConnection.has_monitoring_privileges",
         new_callable=PropertyMock,
     )
     def test_get_replication_stats(
-        self, has_backup_privileges_mock, server_version_mock, conn_mock
+        self, has_monitoring_privileges_mock, server_version_mock, conn_mock
     ):
         """
         Simple test for the execution of get_replication_stats on a server
@@ -1241,7 +1244,7 @@ class TestPostgres(object):
         # Build a server
         server = build_real_server()
         cursor_mock = conn_mock.return_value.cursor.return_value
-        has_backup_privileges_mock.return_value = True
+        has_monitoring_privileges_mock.return_value = True
 
         # 10 ALL
         cursor_mock.reset_mock()
@@ -1334,7 +1337,7 @@ class TestPostgres(object):
 
         cursor_mock.reset_mock()
         # Missing required permissions
-        has_backup_privileges_mock.return_value = False
+        has_monitoring_privileges_mock.return_value = False
         with pytest.raises(BackupFunctionsAccessRequired):
             server.postgres.get_replication_stats(
                 PostgreSQLConnection.ANY_STREAMING_CLIENT
