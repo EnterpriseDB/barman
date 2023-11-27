@@ -1666,6 +1666,88 @@ class TestPostgres(object):
             == "pg_last_wal_receive_lsn"
         )
 
+    @pytest.mark.parametrize(
+        ("is_superuser", "query_response", "expected_has_monitoring"),
+        (
+            # If we are a superuser then has_monitoring_privileges should always
+            # return True
+            (True, [False], True),
+            (True, [True], True),
+            # If the query returns False then has_monitoring_privileges should return
+            # False
+            (False, [False], False),
+            # If the query returns True then has_monitoring_privileges should return
+            # True
+            (False, [True], True),
+        ),
+    )
+    @patch(
+        "barman.postgres.PostgreSQLConnection.is_superuser", new_callable=PropertyMock
+    )
+    @patch("barman.postgres.PostgreSQLConnection.connect")
+    def test_has_monitoring_privileges(
+        self,
+        conn_mock,
+        mock_is_superuser,
+        is_superuser,
+        query_response,
+        expected_has_monitoring,
+    ):
+        """
+        Verify that has_monitoring_privileges executes the expected query and returns
+        the correct result.
+        """
+        # GIVEN a server managed by Barman
+        server = build_real_server()
+        cursor_mock = conn_mock.return_value.cursor.return_value
+        # AND is_superuser is set to the specified value
+        mock_is_superuser.return_value = is_superuser
+        # AND the permissions check returns the specified result
+        cursor_mock.fetchone.side_effect = [query_response]
+
+        # WHEN has_monitoring_privileges is called
+        has_monitoring = server.postgres.has_monitoring_privileges
+
+        # THEN the correct query was executed if we weren't a superuser
+        if not is_superuser:
+            cursor_mock.execute.assert_called_once_with(
+                """
+            SELECT
+            (
+                pg_has_role(CURRENT_USER, 'pg_monitor', 'MEMBER')
+                OR
+                (
+                    pg_has_role(CURRENT_USER, 'pg_read_all_settings', 'MEMBER')
+                    AND pg_has_role(CURRENT_USER, 'pg_read_all_stats', 'MEMBER')
+                )
+            )
+            """
+            )
+
+        # AND the expected response is returned
+        assert has_monitoring == expected_has_monitoring
+
+    @patch(
+        "barman.postgres.PostgreSQLConnection.is_superuser", new_callable=PropertyMock
+    )
+    @patch("barman.postgres.PostgreSQLConnection.connect")
+    def test_has_monitoring_privileges_exception(self, conn_mock, mock_is_superuser):
+        """
+        Verify that a connection error results in a None return value.
+        """
+        # GIVEN a server managed by Barman
+        server = build_real_server()
+        cursor_mock = conn_mock.return_value.cursor.return_value
+        # AND we are not a superuser
+        mock_is_superuser.return_value = False
+
+        # WHEN a PostgresConnectionError is raised during the query
+        cursor_mock.fetchone.side_effect = PostgresConnectionError
+        has_monitoring = server.postgres.has_monitoring_privileges
+
+        # THEN a None value was returned
+        assert has_monitoring is None
+
 
 # noinspection PyMethodMayBeStatic
 class TestStreamingConnection(object):

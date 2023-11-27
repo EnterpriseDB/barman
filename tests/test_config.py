@@ -1498,6 +1498,50 @@ class TestModelConfig:
             any_order=True,
         )
 
+    @pytest.mark.parametrize(
+        ("wal_streaming_conninfo", "wal_conninfo", "expected_response"),
+        (
+            # If neither wal_streaming_conninfo nor wal_conninfo are set then we expect
+            # the regular conninfo to be returned
+            (None, None, ("s_conninfo", "conninfo")),
+            # If wal_streaming_conninfo is not set we expect the regular conninfo to be
+            # returned
+            (None, "w_conninfo", ("s_conninfo", "conninfo")),
+            # If wal_streaming_conninfo is set and wal_conninfo is not then we expect
+            # wal_streaming_conninfo to be returned for both
+            ("ws_conninfo", None, ("ws_conninfo", "ws_conninfo")),
+            # If wal_streaming_conninfo  and wal_conninfo are set then we expect the
+            # values to be returned
+            ("ws_conninfo", "w_conninfo", ("ws_conninfo", "w_conninfo")),
+        ),
+    )
+    def test_get_wal_conninfo(
+        self, wal_streaming_conninfo, wal_conninfo, expected_response
+    ):
+        """
+        Verify that wal_streaming_conninfo and wal_conninfo are returned by
+        get_wal_conninfo with the expected values or defaults.
+        """
+        # GIVEN a server config with the specified wal_conninfo and
+        # wal_streaming_conninfo strings
+        c = testing_helpers.build_config_from_dicts(
+            global_conf={
+                "archiver": "on",
+                "backup_options": BackupOptions.EXCLUSIVE_BACKUP,
+            },
+            main_conf={
+                "backup_options": "",
+                "conninfo": "conninfo",
+                "streaming_conninfo": "s_conninfo",
+                "wal_conninfo": wal_conninfo,
+                "wal_streaming_conninfo": wal_streaming_conninfo,
+            },
+        )
+        # WHEN a ServerConfig is created
+        server_config = c.get_server("main")
+        # THEN the ServerConfig's get_wal_conninfo returns the expected values
+        assert server_config.get_wal_conninfo() == expected_response
+
 
 # noinspection PyMethodMayBeStatic
 class TestCsvParsing(object):

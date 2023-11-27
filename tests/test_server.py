@@ -681,6 +681,165 @@ class TestServer(object):
             "than 'minimal')\n"
         )
 
+    @patch("barman.server.Server._check_replication_slot")
+    @patch("barman.server.Server.get_remote_status")
+    def test_check_wal_streaming(self, mock_remote_status, mock_get_replication_slot):
+        """
+        Verify that check_wal_streaming calls _check_replication_slot using the
+        remote_status information for the server.
+        """
+        # GIVEN a server which is configured for WALs to be streamed using the same
+        # connections as for backups
+        server = build_real_server(
+            main_conf={
+                "streaming_archiver": "on",
+                "conninfo": "backup_conninfo",
+                "streaming_conninfo": "backup_streaming_conninfo",
+            }
+        )
+        # AND a check output strategy
+        strategy = CheckOutputStrategy()
+
+        # WHEN check_wal_streaming is called
+        server.check_wal_streaming(strategy)
+
+        # THEN the replication slot check was carried out with the server remote_status
+        mock_get_replication_slot.assert_called_once_with(
+            strategy, mock_remote_status.return_value
+        )
+
+    @pytest.mark.parametrize(
+        ("pg_remote_status", "streaming_remote_status", "expected_failure"),
+        (
+            # If all required status is present then there should be no failure
+            ({}, {}, None),
+            # Monitoring privileges failure
+            (
+                {"has_monitoring_privileges": False},
+                {},
+                (
+                    "no access to monitoring functions: FAILED (privileges for "
+                    "PostgreSQL monitoring functions are required (see documentation))"
+                ),
+            ),
+            # Streaming supported failures
+            (
+                {},
+                {"streaming": False},
+                "PostgreSQL streaming (WAL streaming): FAILED",
+            ),
+            (
+                {},
+                {
+                    "connection_error": "test error",
+                    "streaming": False,
+                    "streaming_supported": None,
+                },
+                "PostgreSQL streaming (WAL streaming): FAILED (test error)",
+            ),
+            # WAL level failure
+            (
+                {"wal_level": "minimal"},
+                {},
+                (
+                    "wal_level (WAL streaming): FAILED (please set it to a higher level"
+                    " than 'minimal')"
+                ),
+            ),
+            # Identity failures
+            (
+                {"postgres_systemid": "12345678"},
+                {},
+                (
+                    "systemid coherence (WAL streaming): FAILED (is the streaming DSN "
+                    "targeting the same server of the PostgreSQL connection string?)"
+                ),
+            ),
+            (
+                {},
+                {"streaming_systemid": "12345678"},
+                (
+                    "systemid coherence (WAL streaming): FAILED (is the streaming DSN "
+                    "targeting the same server of the PostgreSQL connection string?)"
+                ),
+            ),
+            # Replication slot failures
+            (
+                {"replication_slot": Mock(restart_lsn=None, active=True)},
+                {},
+                (
+                    "replication slot (WAL streaming): FAILED (slot 'test_slot' not "
+                    "initialised: is 'receive-wal' running?)"
+                ),
+            ),
+            (
+                {"replication_slot": Mock(restart_lsn="mock_lsn", active=False)},
+                {},
+                (
+                    "replication slot (WAL streaming): FAILED (slot 'test_slot' not "
+                    "active: is 'receive-wal' running?)"
+                ),
+            ),
+        ),
+    )
+    @patch("barman.server.PostgreSQLConnection")
+    @patch("barman.server.StreamingConnection")
+    @patch("barman.server.Server.get_remote_status")
+    def test_check_wal_streaming_with_different_connections(
+        self,
+        mock_get_remote_status,
+        mock_conn,
+        mock_streaming_conn,
+        pg_remote_status,
+        streaming_remote_status,
+        expected_failure,
+        capsys,
+    ):
+        # GIVEN a server with a remote status which does not meet any of the
+        # requirements for passing WAL streaming checks
+        server = build_real_server(
+            main_conf={
+                "slot_name": "test_slot",
+                "streaming_archiver": "on",
+                "conninfo": "backup_conninfo",
+                "streaming_conninfo": "backup_streaming_conninfo",
+                "wal_conninfo": "wal_conninfo",
+                "wal_streaming_conninfo": "wal_streaming_conninfo",
+            }
+        )
+        mock_get_remote_status.return_value = {}
+        # AND a remote status for the WAL connections which does meet the requirements
+        # for passing WAL streaming checks
+        mock_conn.return_value.get_remote_status.return_value = {
+            "has_monitoring_privileges": True,
+            "postgres_systemid": "01234567",
+            "replication_slot": Mock(restart_lsn="mock_lsn", active=True),
+            "wal_level": "replica",
+        }
+        mock_streaming_conn.return_value.get_remote_status.return_value = {
+            "streaming": True,
+            "streaming_supported": True,
+            "streaming_systemid": "01234567",
+        }
+
+        # AND the specified remote status fields are overridden
+        mock_conn.return_value.get_remote_status.return_value.update(pg_remote_status)
+        mock_streaming_conn.return_value.get_remote_status.return_value.update(
+            streaming_remote_status
+        )
+
+        # WHEN check_wal_streaming is called
+        server.check_wal_streaming(CheckOutputStrategy())
+
+        # THEN only the expected failure occurs
+        out, _err = capsys.readouterr()
+        if expected_failure is not None:
+            assert out.count("FAILED") == 1
+            assert expected_failure in out
+        else:
+            # OR if no failure was expected, no failures occurred
+            assert "FAILED" not in out
+
     @pytest.mark.parametrize(
         (
             "primary_conninfo",
