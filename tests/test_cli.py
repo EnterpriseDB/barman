@@ -152,6 +152,67 @@ class TestCli(object):
         args.server_name = "main"
         assert get_server(args, skip_inactive=False) is not None
 
+    @pytest.mark.parametrize(
+        (
+            "with_wal_streaming",
+            "wal_streaming_conninfo",
+            "wal_conninfo",
+            "expected_streaming_conninfo",
+            "expected_conninfo",
+        ),
+        (
+            # If wal_streaming = False, regular conninfo and streaming_conninfo
+            (False, "ws_conninfo", "w_conninfo", "s_conninfo", "conninfo"),
+            # If wal_streaming_conninfo is not set then regular conninfo and
+            # streaming_conninfo
+            (True, None, None, "s_conninfo", "conninfo"),
+            # If wal_streaming_conninfo is set then conninfo and streaming_conninfo
+            # are overridden
+            (True, "ws_conninfo", "w_conninfo", "ws_conninfo", "w_conninfo"),
+            # If wal_streaming_conninfo is set and wal_conninfo is unset then
+            # wal_streaming_conninfo is used for conninfo
+            (True, "ws_conninfo", None, "ws_conninfo", "ws_conninfo"),
+            # If wal_streaming_conninfo is not set then conninfo and streaming_conninfo
+            # are not overridden even if wal_conninfo is set
+            (True, None, "w_conninfo", "s_conninfo", "conninfo"),
+        ),
+    )
+    @patch("barman.cli.manage_server_command")
+    def test_get_server_wal_streaming(
+        self,
+        _manage_server_command,
+        with_wal_streaming,
+        wal_streaming_conninfo,
+        wal_conninfo,
+        expected_streaming_conninfo,
+        expected_conninfo,
+        monkeypatch,
+    ):
+        """
+        Test that get_server will return servers configured for WAL streaming
+        purposes, that is the streaming_conninfo and conninfo values are replaced
+        with WAL-specifc versions.
+        """
+        # GIVEN a server with the specified conninfo strings
+        monkeypatch.setattr(
+            barman,
+            "__config__",
+            build_config_from_dicts(
+                global_conf=None,
+                main_conf={
+                    "streaming_conninfo": "s_conninfo",
+                    "conninfo": "conninfo",
+                    "wal_streaming_conninfo": wal_streaming_conninfo,
+                    "wal_conninfo": wal_conninfo,
+                },
+            ),
+        )
+        # WHEN we create the server via barman.cli.get_server
+        server = get_server(Mock(server_name="main"), wal_streaming=with_wal_streaming)
+        # THEN the configuration has the expected streaming_conninfo and conninfo values
+        assert server.config.streaming_conninfo == expected_streaming_conninfo
+        assert server.config.conninfo == expected_conninfo
+
     def test_manage_server_command(self, monkeypatch, capsys):
         """
         Test manage_server_command method checking
@@ -328,6 +389,67 @@ class TestCli(object):
         # Check for the presence of global errors
         assert global_error_list
         assert len(global_error_list) == 6
+
+    @pytest.mark.parametrize(
+        (
+            "with_wal_streaming",
+            "wal_streaming_conninfo",
+            "wal_conninfo",
+            "expected_streaming_conninfo",
+            "expected_conninfo",
+        ),
+        (
+            # If wal_streaming = False, regular conninfo and streaming_conninfo
+            (False, "ws_conninfo", "w_conninfo", "s_conninfo", "conninfo"),
+            # If wal_streaming_conninfo is not set then regular conninfo and
+            # streaming_conninfo
+            (True, None, None, "s_conninfo", "conninfo"),
+            # If wal_streaming_conninfo is set then conninfo and streaming_conninfo
+            # are overridden
+            (True, "ws_conninfo", "w_conninfo", "ws_conninfo", "w_conninfo"),
+            # If wal_streaming_conninfo is set and wal_conninfo is unset then
+            # wal_streaming_conninfo is used for conninfo
+            (True, "ws_conninfo", None, "ws_conninfo", "ws_conninfo"),
+            # If wal_streaming_conninfo is not set then conninfo and streaming_conninfo
+            # are not overridden even if wal_conninfo is set
+            (True, None, "w_conninfo", "s_conninfo", "conninfo"),
+        ),
+    )
+    def test_get_server_list_wal_streaming(
+        self,
+        with_wal_streaming,
+        wal_streaming_conninfo,
+        wal_conninfo,
+        expected_streaming_conninfo,
+        expected_conninfo,
+        monkeypatch,
+    ):
+        """
+        Test that get_server_list will return servers configured for WAL streaming
+        purposes, that is the streaming_conninfo and conninfo values are replaced
+        with WAL-specifc versions.
+        """
+        # GIVEN a server with the specified conninfo strings
+        monkeypatch.setattr(
+            barman,
+            "__config__",
+            build_config_from_dicts(
+                global_conf=None,
+                main_conf={
+                    "streaming_conninfo": "s_conninfo",
+                    "conninfo": "conninfo",
+                    "wal_streaming_conninfo": wal_streaming_conninfo,
+                    "wal_conninfo": wal_conninfo,
+                },
+            ),
+        )
+        # WHEN we create the server via barman.cli.get_server_list
+        server_dict = get_server_list(wal_streaming=with_wal_streaming)
+        # THEN the configuration has the expected streaming_conninfo and conninfo values
+        assert (
+            server_dict["main"].config.streaming_conninfo == expected_streaming_conninfo
+        )
+        assert server_dict["main"].config.conninfo == expected_conninfo
 
     def test_get_model(self, monkeypatch):
         """
@@ -1162,6 +1284,40 @@ class TestCli(object):
         # Ensure there is an output and main is skipped
         assert out
         assert out.strip() == "Skipping passive server 'main'"
+
+    @pytest.mark.parametrize(
+        ("source", "wal_streaming_arg"),
+        (
+            # If the source is "backup-host" then we expect the server was fetched
+            # without wal_streaming
+            ("backup-host", False),
+            # If the source is "wal-host" then we expect the server was fetched
+            # with wal_streaming
+            ("wal-host", True),
+        ),
+    )
+    @patch("barman.cli.get_server_list")
+    @patch("barman.server.Server.replication_status")
+    def test_replication_status_source(
+        self, _replication_status_mock, get_server_list_mock, source, wal_streaming_arg
+    ):
+        """
+        Verify that the server is retrieved with either WAL conninfo strings or non-WAL
+        conninfo strings depending on the value of the source argument.
+        """
+        # WHEN replication_status is called with the specified source arg
+        args = MagicMock()
+        args.server_name = ["main"]
+        args.source = source
+        with pytest.raises(SystemExit):
+            replication_status(args)
+        # THEN get_server_list was called with the expected wal_streaming argument
+        get_server_list_mock.assert_called_once_with(
+            args,
+            skip_inactive=True,
+            skip_passive=True,
+            wal_streaming=wal_streaming_arg,
+        )
 
 
 class TestKeepCli(object):
