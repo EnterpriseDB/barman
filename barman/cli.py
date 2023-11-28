@@ -1810,6 +1810,41 @@ def check_wal_archive(args):
             output.close_and_exit()
 
 
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command ",
+        ),
+        argument(
+            "model_name",
+            help="specifies the model name for the command ",
+        ),
+    ]
+)
+def config_switch(args):
+    """
+    Switch a Barman server configuration by applying some model on top of it.
+    """
+    server = get_server(
+        args, skip_inactive=False, on_error_stop=False, suppress_error=True
+    )
+
+    if server:
+        if server.config.active_model == args.model_name:
+            output.info(
+                "Model '%s' is already active for server '%s', "
+                "skipping..." % (args.model_name, args.server_name)
+            )
+            return
+
+        try:
+            server.config.apply_model(args.model_name, output_changes=True)
+        except KeyError as exc:
+            output.error(str(exc))
+
+
 def pretty_args(args):
     """
     Prettify the given argparse namespace to be human readable

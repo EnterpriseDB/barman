@@ -797,10 +797,16 @@ class ServerConfig(BaseConfig):
         """Apply config from a model named *name*.
 
         :param name: name of the model to be applied.
+        :param output_changes: if changes should be written to the console as
+            ``INFO`` messages.
 
         :raises:
             :exc:`KeyError`: if the model named *name* does not exist.
         """
+        # No need to apply the same model twice
+        if name == self.active_model:
+            return
+
         try:
             model = self.models[name]
         except KeyError as exc:
