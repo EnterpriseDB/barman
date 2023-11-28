@@ -419,7 +419,64 @@ def parse_create_slot(value):
     )
 
 
-class ServerConfig(object):
+class BaseConfig(object):
+    """
+    Contains basic methods for handling configuration of Servers and Models.
+
+    You are expected to inherit from this class and define at least the
+    :cvar:`PARSERS` dictionary with a mapping of parsers for each suported
+    configuration option.
+    """
+
+    PARSERS = {}
+
+    def invoke_parser(self, key, source, value, new_value):
+        """
+        Function used for parsing configuration values.
+        If needed, it uses special parsers from the PARSERS map,
+        and handles parsing exceptions.
+
+        Uses two values (value and new_value) to manage
+        configuration hierarchy (server config overwrites global config).
+
+        :param str key: the name of the configuration option
+        :param str source: the section that contains the configuration option
+        :param value: the old value of the option if present.
+        :param str new_value: the new value that needs to be parsed
+        :return: the parsed value of a configuration option
+        """
+        # If the new value is None, returns the old value
+        if new_value is None:
+            return value
+        # If we have a parser for the current key, use it to obtain the
+        # actual value. If an exception is thrown, print a warning and
+        # ignore the value.
+        # noinspection PyBroadException
+        if key in self.PARSERS:
+            parser = self.PARSERS[key]
+            try:
+                # If the parser is a subclass of the CsvOption class
+                # we need a different invocation, which passes not only
+                # the value to the parser, but also the key name
+                # and the section that contains the configuration
+                if inspect.isclass(parser) and issubclass(parser, CsvOption):
+                    value = parser(new_value, key, source)
+                else:
+                    value = parser(new_value)
+            except Exception as e:
+                output.warning(
+                    "Ignoring invalid configuration value '%s' for key %s in %s: %s",
+                    new_value,
+                    key,
+                    source,
+                    e,
+                )
+        else:
+            value = new_value
+        return value
+
+
+class ServerConfig(BaseConfig):
     """
     This class represents the configuration for a specific Server instance.
     """
@@ -447,6 +504,7 @@ class ServerConfig(object):
         "basebackup_retry_times",
         "basebackups_directory",
         "check_timeout",
+        "cluster",
         "compression",
         "conninfo",
         "custom_compression_filter",
@@ -605,6 +663,7 @@ class ServerConfig(object):
         "basebackup_retry_times": "0",
         "basebackups_directory": "%(backup_directory)s/base",
         "check_timeout": "30",
+        "cluster": "%(name)s",
         "disabled": "false",
         "errors_directory": "%(backup_directory)s/errors",
         "forward_config_path": "false",
@@ -670,51 +729,6 @@ class ServerConfig(object):
         "slot_name": parse_slot_name,
     }
 
-    def invoke_parser(self, key, source, value, new_value):
-        """
-        Function used for parsing configuration values.
-        If needed, it uses special parsers from the PARSERS map,
-        and handles parsing exceptions.
-
-        Uses two values (value and new_value) to manage
-        configuration hierarchy (server config overwrites global config).
-
-        :param str key: the name of the configuration option
-        :param str source: the section that contains the configuration option
-        :param value: the old value of the option if present.
-        :param str new_value: the new value that needs to be parsed
-        :return: the parsed value of a configuration option
-        """
-        # If the new value is None, returns the old value
-        if new_value is None:
-            return value
-        # If we have a parser for the current key, use it to obtain the
-        # actual value. If an exception is thrown, print a warning and
-        # ignore the value.
-        # noinspection PyBroadException
-        if key in self.PARSERS:
-            parser = self.PARSERS[key]
-            try:
-                # If the parser is a subclass of the CsvOption class
-                # we need a different invocation, which passes not only
-                # the value to the parser, but also the key name
-                # and the section that contains the configuration
-                if inspect.isclass(parser) and issubclass(parser, CsvOption):
-                    value = parser(new_value, key, source)
-                else:
-                    value = parser(new_value)
-            except Exception as e:
-                output.warning(
-                    "Ignoring invalid configuration value '%s' for key %s in %s: %s",
-                    new_value,
-                    key,
-                    source,
-                    e,
-                )
-        else:
-            value = new_value
-        return value
-
     def __init__(self, config, name):
         self.msg_list = []
         self.config = config
@@ -750,6 +764,73 @@ class ServerConfig(object):
             if value is not None and value == "" or value == "None":
                 value = None
             setattr(self, key, value)
+        self._active_model_file = os.path.join(
+            self.backup_directory, ".active-model.auto.conf"
+        )
+        self.active_model = None
+        self.models = {}
+
+    def add_model(self, model):
+        """
+        Add *model* to the models of this server.
+
+        .. note::
+            If a model with the same name already exists in this server, it will
+            be overwritten.
+
+        :param model: a :class:`ModelConfig` instance.
+        """
+        if self.cluster != model.cluster:
+            output.error(
+                "Model '%s' has 'cluster=%s', which is not compatible with "
+                "'cluster=%s' from server '%s'",
+                model.name,
+                model.cluster,
+                self.cluster,
+                self.name,
+            )
+            return
+
+        self.models[model.name] = model
+
+    def apply_model(self, name, output_changes=False):
+        """Apply config from a model named *name*.
+
+        :param name: name of the model to be applied.
+
+        :raises:
+            :exc:`KeyError`: if the model named *name* does not exist.
+        """
+        try:
+            model = self.models[name]
+        except KeyError as exc:
+            raise KeyError(
+                "Cannot apply model: there is no model '%s' for server '%s'"
+                % (name, self.name)
+            ) from exc
+
+        _logger.debug("Applying model '%s' to server '%s'" % (model.name, self.name))
+
+        for option, value in model.get_override_options():
+            old_value = getattr(self, option)
+
+            if old_value != value:
+                message = (
+                    "Changing value of option '%s' for server '%s' "
+                    "from '%s' to '%s' through the model '%s'"
+                ) % (option, self.name, old_value, value, model.name)
+
+                _logger.debug(message)
+
+                if output_changes:
+                    output.info(message, log=False)
+
+                setattr(self, option, value)
+
+        with open(self._active_model_file, "w") as f:
+            f.write(name)
+
+        self.active_model = model.name
 
     def to_json(self, with_source=False):
         """
@@ -772,11 +853,29 @@ class ServerConfig(object):
         # remove the reference to main Config object
         del json_dict["config"]
 
+        # options that are override by the model
+        override_options = set()
+
+        if self.active_model:
+            override_options = {
+                option
+                for option, _ in self.models[self.active_model].get_override_options()
+            }
+
+        # adjust models so they become json serializable
+        for name, model in json_dict["models"].items():
+            json_dict["models"][name] = model.to_json(with_source)
+
         if with_source:
             for option, value in json_dict.items():
+                name = self.name
+
+                if option in override_options:
+                    name = self.active_model
+
                 json_dict[option] = {
                     "value": value,
-                    "source": self.config.get_config_source(self.name, option),
+                    "source": self.config.get_config_source(name, option),
                 }
 
         return json_dict
@@ -813,6 +912,88 @@ class ServerConfig(object):
 
         self.msg_list.extend(msg_list)
         self.disabled = True
+
+
+class ModelConfig(BaseConfig):
+    """
+    This class represents the configuration for a specific model of a server.
+    """
+
+    KEYS = [
+        "cluster",
+        "conninfo",
+        "model",
+        "primary_conninfo",
+        "streaming_conninfo",
+    ]
+
+    REQUIRED_KEYS = [
+        "cluster",
+        "model",
+    ]
+
+    PARSERS = {
+        "model": parse_boolean,
+    }
+
+    def __init__(self, config, name):
+        self.config = config
+        self.name = name
+        config.validate_model_config(self.name)
+        for key in ModelConfig.KEYS:
+            value = None
+            # Get the setting from the [name] section of config file
+            # A literal None value is converted to an empty string
+            new_value = config.get(name, key, self.__dict__, none_value="")
+            source = "[%s] section" % name
+            value = self.invoke_parser(key, source, value, new_value)
+            # An empty string is a None value
+            if value is not None and value == "" or value == "None":
+                value = None
+            setattr(self, key, value)
+
+    def get_override_options(self):
+        """
+        Get a list of options which values in the server should be override.
+
+        :yield: tuples os option name and value which should override the value
+            specified in the server with the value specified in the model.
+        """
+        for option in set(self.KEYS) - {"cluster", "model"}:
+            value = getattr(self, option)
+
+            if value is not None:
+                yield option, value
+
+    def to_json(self, with_source=False):
+        """
+        Return an equivalent dictionary that can be encoded in json
+
+        :param with_source: if we should include the source file that provides
+            the effective value for each configuration option.
+
+        :return: a dictionary. The structure depends on *with_source* argument:
+
+            * If ``False``: key is the option name, value is its value;
+            * If ``True``: key is the option name, value is a dict with a
+              couple keys:
+
+              * ``value``: the value of the option;
+              * ``source``: the file which provides the effective value, if
+                the option has been configured by the user, otherwise ``None``.
+        """
+        json_dict = dict(vars(self))
+        # remove the reference to main Config object
+        del json_dict["config"]
+
+        if with_source:
+            for option, value in json_dict.items():
+                json_dict[option] = {
+                    "value": value,
+                    "source": self.config.get_config_source(self.name, option),
+                }
+
+        return json_dict
 
 
 class ConfigMapping(ConfigParser):
@@ -1085,6 +1266,27 @@ class Config(object):
                 # Add an info that a file has been discarded
                 _logger.warn("Discarding configuration file: %s (not a file)", filename)
 
+    def _is_model(self, name):
+        """
+        Check if section *name* is a model.
+
+        :param name: name of the config section.
+
+        :return: ``True`` if section *name* is a model, ``False`` otherwise.
+
+        :raises:
+            :exc:`ValueError`: re-raised if thrown by :func:`parse_boolean`.
+        """
+        try:
+            value = self._config.get(name, "model")
+        except NoOptionError:
+            return False
+
+        try:
+            return parse_boolean(value)
+        except ValueError as exc:
+            raise exc
+
     def _populate_servers(self):
         """
         Populate server list from configuration file
@@ -1094,12 +1296,17 @@ class Config(object):
         a single server, that server is disabled.
         If two or more directory paths overlap between
         different servers an error is raised.
+
+        Also check for cluster name overlaps among
+        different servers, and raise errors in that
+        case.
         """
 
         # Populate servers
         if self._servers is not None:
             return
         self._servers = {}
+        models = {}
         # Cycle all the available configurations sections
         for section in self._config.sections():
             if section == "barman":
@@ -1113,11 +1320,40 @@ class Config(object):
                 )
                 _logger.fatal(msg)
                 raise SystemExit("FATAL: %s" % msg)
-            # Create a ServerConfig object
-            self._servers[section] = ServerConfig(self, section)
+            if self._is_model(section):
+                # Create a ModelConfig object
+                models[section] = ModelConfig(self, section)
+            else:
+                # Create a ServerConfig object
+                self._servers[section] = ServerConfig(self, section)
 
         # Check for conflicting paths in Barman configuration
         self._check_conflicting_paths()
+
+        # Check for conflicting clusters in Barman configuration
+        self._check_conflicting_clusters()
+
+        # Associate models with their servers
+        # We need to do that here, after parsing all servers config and making
+        # sure they are conflict free in terms of cluster name, so we can check
+        # for dangling models
+        for name, model in models.items():
+            server = self.get_server_by_cluster_name(model.cluster)
+
+            if server is None:
+                self.servers_msg_list.append(
+                    "Model '%s' has 'cluster=%s', but no server exists with such 'cluster' config"
+                    % (
+                        name,
+                        model.cluster,
+                    )
+                )
+                continue
+
+            server.add_model(model)
+
+        # Apply models if the hidden files say so
+        self._apply_models()
 
     def _check_conflicting_paths(self):
         """
@@ -1130,11 +1366,7 @@ class Config(object):
         self.servers_msg_list = []
 
         # Cycle all the available configurations sections
-        for section in sorted(self._config.sections()):
-            if section == "barman":
-                # skip global settings
-                continue
-
+        for section in sorted(self.server_names()):
             # Paths map
             section_conf = self._servers[section]
             config_paths = {
@@ -1215,6 +1447,60 @@ class Config(object):
                                 )
                             )
 
+    def _check_conflicting_clusters(self):
+        """
+        Look for conflicting cluster names among servers
+        """
+        # All cluster names in configuration
+        cluster_names = {}
+
+        # Cycle all the available configurations sections
+        for section in sorted(self.server_names()):
+            server = self.get_server(section)
+
+            if server.cluster in cluster_names:
+                self.servers_msg_list.append(
+                    "Conflicting cluster name: "
+                    "'cluster=%s' for server '%s' conflicts with "
+                    "cluster name for server '%s'"
+                    % (
+                        server.cluster,
+                        server.name,
+                        cluster_names[server.cluster],
+                    )
+                )
+            else:
+                cluster_names[server.cluster] = server.name
+
+    def _apply_models(self):
+        """
+        For each Barman server, check for a pre-existing active model.
+
+        If a hidden file with an pre-existing active model file exists, apply
+        that on top of the server configuration.
+        """
+        for server in self.servers():
+            active_model = None
+
+            try:
+                with open(server._active_model_file, "r") as f:
+                    active_model = f.read().strip()
+            except FileNotFoundError:
+                # If a file does not exist, even if the server has models
+                # defined, none of them has ever been applied
+                continue
+
+            if active_model.strip() == "":
+                # Try to protect itself from a bogus file
+                continue
+
+            try:
+                server.apply_model(active_model)
+            except KeyError as exc:
+                # The model used to exist, but it's no longer avaialble for
+                # some reason
+                server.update_msg_list_and_disable_server([str(exc)])
+
     def server_names(self):
         """This method returns a list of server names"""
         self._populate_servers()
@@ -1233,6 +1519,20 @@ class Config(object):
         """
         self._populate_servers()
         return self._servers.get(name, None)
+
+    def get_server_by_cluster_name(self, name):
+        """
+        Get the configuration of a Barman server based on its cluster name.
+
+        :param str name: the cluster name.
+
+        :return: :class:`ServerConfig` of the server which cluster name is
+            *name*, if any, ``None`` otherwise.
+        """
+        for server in self.servers():
+            if server.cluster == name:
+                return server
+        return None
 
     def validate_global_config(self):
         """
@@ -1266,6 +1566,20 @@ class Config(object):
         # Check for the existence of unexpected parameters in the
         # server section of the configuration file
         self._validate_with_keys(self._config.items(server), ServerConfig.KEYS, server)
+
+    def validate_model_config(self, model):
+        """
+        Validate configuration parameters for a specified model.
+
+        :param model: the model name.
+        """
+        # Check for the existence of unexpected parameters in the
+        # model section of the configuration file
+        self._validate_with_keys(self._config.items(model), ModelConfig.KEYS, model)
+        # Check for keys that are missing, but which are required
+        self._detect_missing_keys(
+            self._config.items(model), ModelConfig.REQUIRED_KEYS, model
+        )
 
     @staticmethod
     def _detect_missing_keys(config_items, required_keys, section):
