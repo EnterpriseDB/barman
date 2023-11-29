@@ -44,7 +44,6 @@ except ImportError:
 
 try:
     from azure.storage.blob import (
-        BlobPrefix,
         ContainerClient,
         PartialBatchErrorException,
     )
