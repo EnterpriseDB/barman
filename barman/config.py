@@ -856,8 +856,15 @@ class ServerConfig(BaseConfig):
                 the option has been configured by the user, otherwise ``None``.
         """
         json_dict = dict(vars(self))
-        # remove the reference to main Config object
-        del json_dict["config"]
+
+        # remove references that should not go inside the
+        # `servers -> SERVER -> config` key in the barman diagnose output
+        # ideally we should change this later so we only consider configuration
+        # options, as things like `msg_list` are going to the `config` key,
+        # i.e. we might be interested in considering only `ServerConfig.KEYS`
+        # here instead of `vars(self)`
+        for key in ["config", "_active_model_file", "active_model", "models"]:
+            del json_dict[key]
 
         # options that are override by the model
         override_options = set()
@@ -867,10 +874,6 @@ class ServerConfig(BaseConfig):
                 option
                 for option, _ in self.models[self.active_model].get_override_options()
             }
-
-        # adjust models so they become json serializable
-        for name, model in json_dict["models"].items():
-            json_dict["models"][name] = model.to_json(with_source)
 
         if with_source:
             for option, value in json_dict.items():
@@ -988,16 +991,18 @@ class ModelConfig(BaseConfig):
               * ``source``: the file which provides the effective value, if
                 the option has been configured by the user, otherwise ``None``.
         """
-        json_dict = dict(vars(self))
-        # remove the reference to main Config object
-        del json_dict["config"]
+        json_dict = {}
 
-        if with_source:
-            for option, value in json_dict.items():
-                json_dict[option] = {
+        for option in self.KEYS:
+            value = getattr(self, option)
+
+            if with_source:
+                value = {
                     "value": value,
                     "source": self.config.get_config_source(self.name, option),
                 }
+
+            json_dict[option] = value
 
         return json_dict
 
