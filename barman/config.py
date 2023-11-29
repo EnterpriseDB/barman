@@ -765,7 +765,7 @@ class ServerConfig(BaseConfig):
                 value = None
             setattr(self, key, value)
         self._active_model_file = os.path.join(
-            self.backup_directory, ".active-model.auto.conf"
+            self.backup_directory, ".active-model.auto"
         )
         self.active_model = None
         self.models = {}
