@@ -16,16 +16,20 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+from configparser import NoOptionError
 from datetime import timedelta
 
 import mock
 import pytest
-from mock import MagicMock, Mock, mock_open, patch
+from mock import MagicMock, Mock, call, mock_open, patch
 
 from barman.config import (
     BackupOptions,
+    BaseConfig,
     ConfigMapping,
     Config,
+    CsvOption,
+    ModelConfig,
     RecoveryOptions,
     parse_backup_compression,
     parse_backup_compression_format,
@@ -366,6 +370,7 @@ class TestConfig(object):
         # create the expected dictionary
         expected = testing_helpers.build_config_dictionary(
             {
+                "_active_model_file": "/some/barman/home/web/.active-model.auto",
                 "config": web.config,
                 "autogenerate_manifest": False,
                 "backup_directory": "/some/barman/home/web",
@@ -375,6 +380,7 @@ class TestConfig(object):
                 "backup_compression_level": None,
                 "backup_compression_location": None,
                 "backup_compression_workers": None,
+                "cluster": "web",
                 "compression": None,
                 "conninfo": "host=web01 user=postgres port=5432",
                 "description": "Web applications database",
@@ -805,6 +811,320 @@ class TestConfig(object):
             c.get_config_source("section", "option")
             mock.assert_called_once_with("section", "option")
 
+    def test__is_model_missing_model(self):
+        """Test :meth:`Config._is_model`.
+
+        Ensure ``False`` is returned if there is no ``model`` option configured.
+        """
+        fp = StringIO(
+            """
+            [barman]
+            barman_home = /some/barman/home
+            barman_user = barman
+            log_file = %(barman_home)s/log/barman.log
+
+            [SOME_MODEL]
+        """
+        )
+        c = Config(fp)
+        assert c._is_model("SOME_MODEL") is False
+
+    def test__is_model_not_model(self):
+        """Test :meth:`Config._is_model`.
+
+        Ensure ``False`` is returned if there ``model = false`` is found.
+        """
+        fp = StringIO(
+            """
+            [barman]
+            barman_home = /some/barman/home
+            barman_user = barman
+            log_file = %(barman_home)s/log/barman.log
+
+            [SOME_MODEL]
+            model = false
+        """
+        )
+        c = Config(fp)
+        assert c._is_model("SOME_MODEL") is False
+
+    def test__is_model_ok(self):
+        """Test :meth:`Config._is_model`.
+
+        Ensure ``True`` is returned if there ``model = true`` is found.
+        """
+        fp = StringIO(
+            """
+            [barman]
+            barman_home = /some/barman/home
+            barman_user = barman
+            log_file = %(barman_home)s/log/barman.log
+
+            [SOME_MODEL]
+            model = true
+        """
+        )
+        c = Config(fp)
+        assert c._is_model("SOME_MODEL") is True
+
+    @patch("barman.config.parse_boolean")
+    def test__is_model_ok(self, mock_parse_boolean):
+        """Test :meth:`Config._is_model`.
+
+        Ensure ``True`` is returned if there ``model = true`` is found.
+        """
+        fp = StringIO(
+            """
+            [barman]
+            barman_home = /some/barman/home
+            barman_user = barman
+            log_file = %(barman_home)s/log/barman.log
+
+            [SOME_MODEL]
+            model = true
+        """
+        )
+        c = Config(fp)
+        mock_parse_boolean.side_effect = ValueError("SOME_ERROR")
+
+        with pytest.raises(ValueError) as exc:
+            c._is_model("SOME_MODEL")
+
+        assert str(exc.value) == "SOME_ERROR"
+
+    def test_populate_servers_conflicting_clusters(self):
+        """Test :meth:`Config._populate_servers`.
+
+        Ensure conflicting clusters are reported as server errors.
+        """
+        fp = StringIO(
+            """
+            [barman]
+            barman_home = /some/barman/home
+            barman_user = barman
+            log_file = %(barman_home)s/log/barman.log
+
+            [SERVER_1]
+            cluster = SOME_CLUSTER
+
+            [SERVER_2]
+            cluster = SOME_CLUSTER
+        """
+        )
+        c = Config(fp)
+
+        # attribute servers_msg_list is empty before _populate_server()
+        assert c.servers_msg_list == []
+
+        c._populate_servers()
+
+        # after _populate_servers() if there is a global paths error
+        # servers_msg_list is created in configuration
+        assert c.servers_msg_list == [
+            "Conflicting cluster name: "
+            "'cluster=SOME_CLUSTER' for server 'SERVER_2' conflicts with "
+            "cluster name for server 'SERVER_1'"
+        ]
+
+    def test_populate_servers_model_not_tied_with_server(self):
+        """Test :meth:`Config._populate_servers`.
+
+        Ensure models which cluster does not exist in any server are reported
+        as server errors.
+        """
+        fp = StringIO(
+            """
+            [barman]
+            barman_home = /some/barman/home
+            barman_user = barman
+            log_file = %(barman_home)s/log/barman.log
+
+            [SERVER]
+            cluster = SOME_CLUSTER
+
+            [MODEL]
+            model = True
+            cluster = SOME_OTHER_CLUSTER
+        """
+        )
+        c = Config(fp)
+
+        # attribute servers_msg_list is empty before _populate_server()
+        assert c.servers_msg_list == []
+
+        c._populate_servers()
+
+        # after _populate_servers() if there is a global paths error
+        # servers_msg_list is created in configuration
+        assert c.servers_msg_list == [
+            "Model 'MODEL' has 'cluster=SOME_OTHER_CLUSTER', but no server exists with such 'cluster' config"
+        ]
+
+        assert c._servers["SERVER"].models == {}
+
+    def test_populate_servers_model_tied_with_server(self):
+        """Test :meth:`Config._populate_servers`.
+
+        Ensure a model which has a corresponding server with same cluster name is appended to server models.
+        """
+        fp = StringIO(
+            """
+            [barman]
+            barman_home = /some/barman/home
+            barman_user = barman
+            log_file = %(barman_home)s/log/barman.log
+
+            [SERVER]
+            cluster = SOME_CLUSTER
+
+            [MODEL]
+            model = True
+            cluster = SOME_CLUSTER
+        """
+        )
+        c = Config(fp)
+
+        # attribute servers_msg_list is empty before _populate_server()
+        assert c.servers_msg_list == []
+
+        c._populate_servers()
+
+        # after _populate_servers() if there is a global paths error
+        # servers_msg_list is created in configuration
+        assert c.servers_msg_list == []
+
+        assert list(c._servers["SERVER"].models.keys()) == ["MODEL"]
+        model = c._servers["SERVER"].models["MODEL"]
+        assert isinstance(model, ModelConfig)
+        assert model.name == "MODEL"
+        assert model.cluster == "SOME_CLUSTER"
+
+    def test__apply_models_file_not_found(self):
+        """Test :meth:`Config._apply_models`.
+
+        Ensure it ignores active model files which do not exist.
+        """
+        fp = StringIO(MINIMAL_CONFIG)
+        c = Config(fp)
+
+        mock = mock_open()
+        mock.side_effect = FileNotFoundError("FILE DOES NOT EXIST")
+
+        with patch.object(c, "servers") as mock_servers, patch("builtins.open", mock):
+            mock_server = MagicMock()
+            mock_servers.return_value = [mock_server]
+
+            c._apply_models()
+
+            mock_server.apply_model.assert_not_called()
+            mock_server.update_msg_list_and_disable_server.assert_not_called()
+            mock.assert_called_once_with(mock_server._active_model_file, "r")
+
+    def test__apply_models_file_with_bogus_content(self):
+        """Test :meth:`Config._apply_models`.
+
+        Ensure it ignores active model file with bogus content.
+        """
+        fp = StringIO(MINIMAL_CONFIG)
+        c = Config(fp)
+
+        mock = mock_open(read_data="     ")
+
+        with patch.object(c, "servers") as mock_servers, patch("builtins.open", mock):
+            mock_server = MagicMock()
+            mock_servers.return_value = [mock_server]
+
+            c._apply_models()
+
+            mock_server.apply_model.assert_not_called()
+            mock_server.update_msg_list_and_disable_server.assert_not_called()
+            mock.assert_called_once_with(mock_server._active_model_file, "r")
+            handle = mock()
+            handle.read.assert_called_once_with()
+
+    def test__apply_models_model_does_not_exist(self):
+        """Test :meth:`Config._apply_models`.
+
+        Ensure everything goes smoothly if the model and the file exists.
+        """
+        fp = StringIO(MINIMAL_CONFIG)
+        c = Config(fp)
+
+        mock = mock_open(read_data="SOME_OTHER_MODEL")
+
+        with patch.object(c, "servers") as mock_servers, patch("builtins.open", mock):
+            mock_server = MagicMock()
+            mock_servers.return_value = [mock_server]
+
+            c._apply_models()
+
+            mock_server.apply_model.assert_called_once_with("SOME_OTHER_MODEL")
+            mock_server.update_msg_list_and_disable_server.assert_not_called()
+            mock.assert_called_once_with(mock_server._active_model_file, "r")
+
+    def test__apply_models_model_ok(self):
+        """Test :meth:`Config._apply_models`.
+
+        Ensure errors are pointed out in case an invalid model is found in the
+        active model file.
+        """
+        fp = StringIO(MINIMAL_CONFIG)
+        c = Config(fp)
+
+        mock = mock_open(read_data="SOME_OTHER_MODEL")
+
+        with patch.object(c, "servers") as mock_servers, patch("builtins.open", mock):
+            mock_server = MagicMock()
+            mock_servers.return_value = [mock_server]
+            mock_server.apply_model.side_effect = KeyError("NOT FOUND")
+
+            c._apply_models()
+
+            mock_server.apply_model.assert_called_once_with("SOME_OTHER_MODEL")
+            mock_server.update_msg_list_and_disable_server.assert_called_once_with(
+                ["'NOT FOUND'"]
+            )
+            mock.assert_called_once_with(mock_server._active_model_file, "r")
+
+    def test_get_server_by_cluster_name_not_exists(self):
+        """Test :meth:`Config.get_server_by_cluster_name`.
+
+        Ensure ``None`` is returned if a server with the given cluster name does
+        not exist.
+        """
+        fp = StringIO(MINIMAL_CONFIG)
+        c = Config(fp)
+
+        with patch.object(c, "servers") as mock_servers:
+            mock_servers.return_value = [
+                MagicMock(cluster="SOME_CLUSTER"),
+                MagicMock(cluster="SOME_OTHER_CLUSTER"),
+                MagicMock(cluster="YET_ANOTHER_CLUSTER"),
+            ]
+
+            assert c.get_server_by_cluster_name("RANDOM") is None
+
+    def test_get_server_by_cluster_name_exists(self):
+        """Test :meth:`Config.get_server_by_cluster_name`.
+
+        Ensure a server is returned if a server with the given cluster name does
+        exist.
+        """
+        fp = StringIO(MINIMAL_CONFIG)
+        c = Config(fp)
+
+        with patch.object(c, "servers") as mock_servers:
+            mock_servers.return_value = [
+                MagicMock(cluster="SOME_CLUSTER"),
+                MagicMock(cluster="SOME_OTHER_CLUSTER"),
+                MagicMock(cluster="YET_ANOTHER_CLUSTER"),
+            ]
+
+            assert (
+                c.get_server_by_cluster_name("YET_ANOTHER_CLUSTER")
+                == mock_servers.return_value[2]
+            )
+
 
 class TestServerConfig(object):
     def test_update_msg_list_and_disable_server(self):
@@ -894,7 +1214,8 @@ class TestServerConfig(object):
             "last_backup_minimum_size": 1048576,
         }
         expected = testing_helpers.build_config_dictionary(expected_override)
-        del expected["config"]
+        for key in ["config", "_active_model_file", "active_model", "models"]:
+            del expected[key]
         assert main.to_json(False) == expected
 
         # Check `to_json(with_source=True)` works as expected
@@ -916,6 +1237,285 @@ class TestServerConfig(object):
             main.config._config._mapping["main"][config] = "/etc/barman.d/main.conf"
 
         assert main.to_json(True) == expected
+
+    @pytest.fixture
+    def server_config(self):
+        c = testing_helpers.build_config_from_dicts(
+            main_conf={"cluster": "SOME_CLUSTER"},
+        )
+        main = c.get_server("main")
+        return main
+
+    @patch("barman.config.output")
+    def test_add_model_invalid_cluster(self, mock_output, server_config):
+        """Test :meth:`ServerConfig.add_model`.
+
+        Make sure an error is logged and nothing is changed if the ``cluster``
+        attribute is incompatible between the server and the model.
+        """
+        model = MagicMock(cluster="SOME_OTHER_CLUSTER")
+
+        server_config.add_model(model)
+
+        assert server_config.models == {}
+        mock_output.error.assert_called_once_with(
+            "Model '%s' has 'cluster=%s', which is not compatible with "
+            "'cluster=%s' from server '%s'",
+            model.name,
+            model.cluster,
+            server_config.cluster,
+            server_config.name,
+        )
+
+    @patch("barman.config.output")
+    def test_add_model_ok(self, mock_output, server_config):
+        """Test :meth:`ServerConfig.add_model`.
+
+        Ensure everything is ok if ``cluster`` attribute is compatible.
+        """
+        model = MagicMock(cluster="SOME_CLUSTER")
+
+        server_config.add_model(model)
+
+        assert server_config.models == {model.name: model}
+        mock_output.error.assert_not_called()
+
+    def test_apply_model_already_active(self, server_config, caplog):
+        """Test :meth:`ServerConfig.apply_model`.
+
+        Ensure it does nothing if the given model is already active.
+        """
+        caplog.clear()
+
+        server_config.active_model = "SOME_MODEL"
+
+        mock = mock_open()
+
+        with patch("builtins.open", mock):
+            server_config.apply_model("SOME_MODEL")
+
+        assert len(caplog.records) == 0
+        mock.assert_not_called()
+
+    def test_apply_model_not_exists(self, server_config):
+        """Test :meth:`ServerConfig.apply_model`.
+
+        Ensure an exception is re-raised if the requested model doesn't exist.
+        """
+        mock = mock_open()
+
+        with patch("builtins.open", mock):
+            with pytest.raises(KeyError) as exc:
+                server_config.apply_model("SOME_MODEL")
+
+        expected = (
+            "\"Cannot apply model: there is no model 'SOME_MODEL' for server 'main'\""
+        )
+        assert str(exc.value) == expected
+
+        mock.assert_not_called()
+
+    @pytest.fixture
+    def mock_model(self):
+        mock = MagicMock(conninfo="VALUE_1", streaming_conninfo="VALUE_2")
+        mock.get_override_options.return_value = [
+            ("conninfo", "VALUE_1"),
+            ("streaming_conninfo", "VALUE_2"),
+        ]
+        return mock
+
+    @patch("barman.config.output")
+    @patch("barman.config._logger")
+    def test_apply_model_ok(self, mock_logger, mock_output, server_config, mock_model):
+        """Test :meth:`ServerConfig.apply_model`.
+
+        Ensure the new options are applied, and that attributes and file are
+        set/written as expected.
+        """
+        mock = mock_open()
+        server_config.models = {"SOME_MODEL": mock_model}
+        server_config.conninfo = "VALUE_1"
+
+        with patch("builtins.open", mock):
+            server_config.apply_model("SOME_MODEL")
+
+        mock_model.get_override_options.assert_called_once_with()
+        mock_logger.debug.assert_has_calls(
+            [
+                call(f"Applying model '{mock_model.name}' to server 'main'"),
+                call(
+                    "Changing value of option 'streaming_conninfo' for server "
+                    f"'{server_config.name}' from 'host=pg01.nowhere user=postgres port=5432' "
+                    f"to '{mock_model.streaming_conninfo}' through the model "
+                    f"'{mock_model.name}'"
+                ),
+            ]
+        )
+        mock_output.info.assert_not_called()
+
+        mock.assert_called_once_with("/some/barman/home/main/.active-model.auto", "w")
+        handle = mock()
+        handle.write.assert_called_once_with("SOME_MODEL")
+
+    @patch("barman.config.output")
+    @patch("barman.config._logger")
+    def test_apply_model_ok_with_output(
+        self, mock_logger, mock_output, server_config, mock_model
+    ):
+        """Test :meth:`ServerConfig.apply_model`.
+
+        Ensure the new options are applied, and that attributes and file are
+        set/written as expected. Additionally ensure messages go to console when
+        ``output_changes`` is ``True``.
+        """
+        mock = mock_open()
+        server_config.models = {"SOME_MODEL": mock_model}
+        server_config.conninfo = "VALUE_1"
+
+        with patch("builtins.open", mock):
+            server_config.apply_model("SOME_MODEL", True)
+
+        mock_model.get_override_options.assert_called_once_with()
+        mock_logger.debug.assert_has_calls(
+            [
+                call(f"Applying model '{mock_model.name}' to server 'main'"),
+                call(
+                    "Changing value of option 'streaming_conninfo' for server "
+                    f"'{server_config.name}' from 'host=pg01.nowhere user=postgres port=5432' "
+                    f"to '{mock_model.streaming_conninfo}' through the model "
+                    f"'{mock_model.name}'"
+                ),
+            ]
+        )
+        mock_output.info.assert_called_once_with(
+            "Changing value of option 'streaming_conninfo' for server "
+            f"'{server_config.name}' from 'host=pg01.nowhere user=postgres port=5432' "
+            f"to '{mock_model.streaming_conninfo}' through the model "
+            f"'{mock_model.name}'",
+            log=False,
+        )
+
+        mock.assert_called_once_with("/some/barman/home/main/.active-model.auto", "w")
+        handle = mock()
+        handle.write.assert_called_once_with("SOME_MODEL")
+
+
+class TestModelConfig:
+    """Test :class:`ModelConfig`."""
+
+    @pytest.fixture
+    def model_config(self):
+        mock_config = MagicMock()
+        mock_config.get.return_value = None
+        mock_config.get_config_source.return_value = "SOME_SOURCE"
+        return ModelConfig(mock_config, "SOME_MODEL")
+
+    @pytest.mark.parametrize("model", [None, "SOME_MODEL"])
+    @pytest.mark.parametrize("cluster", [None, "SOME_CLUSTER"])
+    @pytest.mark.parametrize("conninfo", [None, "SOME_CONNINFO"])
+    @pytest.mark.parametrize("primary_conninfo", [None, "SOME_PRIMARY_CONNINFO"])
+    @pytest.mark.parametrize("streaming_conninfo", [None, "SOME_STREAMING_CONNINFO"])
+    def test_get_override_options(
+        self,
+        model,
+        cluster,
+        conninfo,
+        primary_conninfo,
+        streaming_conninfo,
+        model_config,
+    ):
+        """Test :meth:`ModelConfig.get_override_options`.
+
+        Ensure the expected values are yielded by the method depending on the
+        attributes values.
+        """
+        model_config.model = model
+        model_config.cluster = cluster
+        model_config.conninfo = conninfo
+        model_config.primary_conninfo = primary_conninfo
+        model_config.streaming_conninfo = streaming_conninfo
+
+        expected = []
+
+        if conninfo is not None:
+            expected.append(("conninfo", conninfo))
+
+        if primary_conninfo is not None:
+            expected.append(("primary_conninfo", primary_conninfo))
+
+        if streaming_conninfo is not None:
+            expected.append(("streaming_conninfo", streaming_conninfo))
+
+        assert sorted(list(model_config.get_override_options())) == sorted(expected)
+
+    def test_to_json(self, model_config):
+        """Test :meth:`ModelConfig.to_json`.
+
+        Ensure it returns the expected result when we don't care about the
+        config source.
+        """
+        model_config.model = True
+        model_config.cluster = "SOME_CLUSTER"
+        model_config.conninfo = "SOME_CONNINFO"
+        model_config.primary_conninfo = "SOME_PRIMARY_CONNINFO"
+        model_config.streaming_conninfo = "SOME_STREAMING_CONNINFO"
+
+        expected = {
+            "cluster": "SOME_CLUSTER",
+            "conninfo": "SOME_CONNINFO",
+            "model": True,
+            "primary_conninfo": "SOME_PRIMARY_CONNINFO",
+            "streaming_conninfo": "SOME_STREAMING_CONNINFO",
+        }
+        assert model_config.to_json() == expected
+
+        model_config.config.get_config_source.assert_not_called()
+
+    def test_to_json_with_config_source(self, model_config):
+        """Test :meth:`ModelConfig.to_json`.
+
+        Ensure it returns the expected result when we do care about the config
+        source.
+        """
+        model_config.model = True
+        model_config.cluster = "SOME_CLUSTER"
+        model_config.conninfo = "SOME_CONNINFO"
+        model_config.primary_conninfo = "SOME_PRIMARY_CONNINFO"
+        model_config.streaming_conninfo = "SOME_STREAMING_CONNINFO"
+
+        expected = {
+            "cluster": {
+                "value": "SOME_CLUSTER",
+                "source": "SOME_SOURCE",
+            },
+            "conninfo": {
+                "value": "SOME_CONNINFO",
+                "source": "SOME_SOURCE",
+            },
+            "model": {
+                "value": True,
+                "source": "SOME_SOURCE",
+            },
+            "primary_conninfo": {
+                "value": "SOME_PRIMARY_CONNINFO",
+                "source": "SOME_SOURCE",
+            },
+            "streaming_conninfo": {
+                "value": "SOME_STREAMING_CONNINFO",
+                "source": "SOME_SOURCE",
+            },
+        }
+        assert model_config.to_json(True) == expected
+
+        model_config.config.get_config_source.assert_has_calls(
+            [
+                call("SOME_MODEL", "cluster"),
+                call("SOME_MODEL", "conninfo"),
+                call("SOME_MODEL", "model"),
+                call("SOME_MODEL", "primary_conninfo"),
+                call("SOME_MODEL", "streaming_conninfo"),
+            ]
+        )
 
 
 # noinspection PyMethodMayBeStatic
@@ -1212,3 +1812,109 @@ class TestCsvParsing(object):
             "test_server_option",
             "main",
         )
+
+
+class TestBaseConfig:
+    """Test :class:`BaseConfig` functionalities."""
+
+    def test_invoke_parser_no_new_value(self):
+        """Test :meth:`BaseConfig.invoke_parser`.
+
+        Ensure old_value is returned when value is ``None``.
+        """
+        bc = BaseConfig()
+        old_value = Mock()
+
+        result = bc.invoke_parser("SOME_KEY", "SOME_SOURCE", old_value, None)
+        assert result == old_value
+
+    def test_invoke_parser_csv_option_parser_ok(self):
+        """Test :meth:`BaseConfig.invoke_parser`.
+
+        Ensure :meth:`CsvOption.parse` is called as expected when the parser is
+        an instance of the class.
+        """
+        bc = BaseConfig()
+
+        with patch.dict(bc.PARSERS, {"SOME_KEY": CsvOption}), patch.object(
+            CsvOption, "parse"
+        ) as mock:
+            result = bc.invoke_parser(
+                "SOME_KEY", "SOME_SOURCE", "SOME_VALUE", "SOME_NEW_VALUE"
+            )
+            assert isinstance(result, CsvOption)
+
+            mock.assert_called_once_with("SOME_NEW_VALUE", "SOME_KEY", "SOME_SOURCE")
+
+    @patch("barman.config.output")
+    def test_invoke_parser_csv_option_parser_exception(self, mock_output):
+        """Test :meth:`BaseConfig.invoke_parser`.
+
+        When using a :class:`CsvOption`, ensure a warning is logged if an
+        exception is faced by the parser, in which case the old value is
+        returned.
+        """
+        bc = BaseConfig()
+
+        with patch.dict(bc.PARSERS, {"SOME_KEY": CsvOption}), patch.object(
+            CsvOption, "parse"
+        ) as mock:
+            mock.side_effect = ValueError("SOME_ERROR")
+
+            result = bc.invoke_parser(
+                "SOME_KEY", "SOME_SOURCE", "SOME_VALUE", "SOME_NEW_VALUE"
+            )
+            assert result == "SOME_VALUE"
+
+            mock.assert_called_once_with("SOME_NEW_VALUE", "SOME_KEY", "SOME_SOURCE")
+            mock_output.warning.assert_called_once_with(
+                "Ignoring invalid configuration value '%s' for key %s in %s: %s",
+                "SOME_NEW_VALUE",
+                "SOME_KEY",
+                "SOME_SOURCE",
+                mock.side_effect,
+            )
+
+    def test_invoke_parser_func_parser_ok(self):
+        """Test :meth:`BaseConfig.invoke_parser`.
+
+        Ensure a parser function is called as expected and returns the expected
+        result when invoking the parser.
+        """
+        bc = BaseConfig()
+        mock_parser = MagicMock()
+
+        with patch.dict(bc.PARSERS, {"SOME_KEY": mock_parser}):
+            result = bc.invoke_parser(
+                "SOME_KEY", "SOME_SOURCE", "SOME_VALUE", "SOME_NEW_VALUE"
+            )
+            assert result == mock_parser.return_value
+
+            mock_parser.assert_called_once_with("SOME_NEW_VALUE")
+
+    @patch("barman.config.output")
+    def test_invoke_parser_func_parser_exception(self, mock_output):
+        """Test :meth:`BaseConfig.invoke_parser`.
+
+        When using a parse function, ensure a warning is logged if an exception
+        is faced by the parser, in which case the old value is returned.
+        """
+        bc = BaseConfig()
+        mock_parser = MagicMock()
+
+        with patch.dict(bc.PARSERS, {"SOME_KEY": mock_parser}):
+            mock_parser.side_effect = ValueError("SOME_ERROR")
+
+            result = bc.invoke_parser(
+                "SOME_KEY", "SOME_SOURCE", "SOME_VALUE", "SOME_NEW_VALUE"
+            )
+            assert result == "SOME_VALUE"
+
+            mock_parser.assert_called_once_with("SOME_NEW_VALUE")
+            mock_output.warning.assert_called_once_with(
+                "Ignoring invalid configuration value '%s' for key %s in %s: %s",
+                "SOME_NEW_VALUE",
+                "SOME_KEY",
+                "SOME_SOURCE",
+                mock_parser.side_effect,
+            )

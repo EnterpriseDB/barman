@@ -236,7 +236,9 @@ def build_config_dictionary(config_keys=None):
     """
     # Basic dictionary
     base_config = {
+        "_active_model_file": "/some/barman/home/main/.active-model.auto",
         "active": True,
+        "active_model": None,
         "archiver": True,
         "archiver_batch_size": 0,
         "autogenerate_manifest": False,
@@ -246,6 +248,7 @@ def build_config_dictionary(config_keys=None):
         "azure_resource_group": None,
         "azure_subscription_id": None,
         "config": None,
+        "cluster": "main",
         "backup_compression": None,
         "backup_compression_format": None,
         "backup_compression_level": None,
@@ -271,6 +274,7 @@ def build_config_dictionary(config_keys=None):
         "incoming_wals_directory": "/some/barman/home/main/incoming",
         "max_incoming_wals_queue": None,
         "minimum_redundancy": "0",
+        "models": {},
         "name": "main",
         "network_compression": False,
         "parallel_jobs_start_batch_period": 1,

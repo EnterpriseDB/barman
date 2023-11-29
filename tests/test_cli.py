@@ -44,6 +44,7 @@ from barman.cli import (
     replication_status,
     keep,
     show_servers,
+    config_switch,
 )
 from barman.exceptions import WalArchiveContentError
 from barman.infofile import BackupInfo
@@ -1464,3 +1465,86 @@ class TestShowServersCli(object):
         json_output = json.loads(out)
         assert [self.test_server_name] == list(json_output.keys())
         assert json_output[self.test_server_name]["description"] == expected_description
+
+
+class TestConfigSwitchCli:
+    """Test ``barman config-switch`` outcomes."""
+
+    @pytest.fixture
+    def mock_args(self):
+        return Mock(server_name="SOME_SERVER", model_name="SOME_MODEL")
+
+    @patch("barman.cli.output")
+    @patch("barman.cli.get_server")
+    def test_config_switch_no_server(self, mock_get_server, mock_output, mock_args):
+        """Test :func:`config_switch`.
+
+        It should do nothing if :func:`get_server` returns nothing.
+        """
+        mock_get_server.return_value = None
+
+        config_switch(mock_args)
+
+        mock_get_server.assert_called_once_with(
+            mock_args,
+            skip_inactive=False,
+            on_error_stop=False,
+            suppress_error=True,
+        )
+        mock_output.info.assert_not_called()
+        mock_output.error.assert_not_called()
+
+    @patch("barman.cli.output")
+    @patch("barman.cli.get_server")
+    def test_config_switch_model_already_active(
+        self, mock_get_server, mock_output, mock_args
+    ):
+        """Test :func:`config_switch`.
+
+        It should log an ``INFO`` message if the requested model is already
+        active, and do nothing else.
+        """
+        mock_get_server.return_value.config.active_model = mock_args.model_name
+        mock_apply_model = mock_get_server.return_value.config.apply_model
+
+        config_switch(mock_args)
+
+        mock_get_server.assert_called_once_with(
+            mock_args,
+            skip_inactive=False,
+            on_error_stop=False,
+            suppress_error=True,
+        )
+        mock_output.info.assert_called_once_with(
+            "Model '%s' is already active for server '%s', "
+            "skipping..." % (mock_args.model_name, mock_args.server_name)
+        )
+        mock_apply_model.assert_not_called()
+        mock_output.error.assert_not_called()
+
+    @patch("barman.cli.output")
+    @patch("barman.cli.get_server")
+    def test_config_switch_model_does_not_exist(
+        self, mock_get_server, mock_output, mock_args
+    ):
+        """Test :func:`config_switch`.
+
+        It should log an ``ERROR`` message if the requested model does not
+        exist.
+        """
+        mock_apply_model = mock_get_server.return_value.config.apply_model
+        mock_apply_model.side_effect = KeyError("SOME_KEY_ERROR")
+
+        config_switch(mock_args)
+
+        mock_get_server.assert_called_once_with(
+            mock_args,
+            skip_inactive=False,
+            on_error_stop=False,
+            suppress_error=True,
+        )
+        mock_output.info.assert_not_called()
+        mock_apply_model.assert_called_once_with(
+            mock_args.model_name, output_changes=True
+        )
+        mock_output.error.assert_called_once_with("'SOME_KEY_ERROR'")
