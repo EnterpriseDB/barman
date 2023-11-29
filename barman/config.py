@@ -25,13 +25,15 @@ from copy import deepcopy
 import collections
 import datetime
 import inspect
+import json
 import logging.handlers
 import os
 import re
 import sys
 from glob import iglob
+from typing import List
 
-from barman import output
+from barman import output, utils
 
 try:
     from ConfigParser import ConfigParser, NoOptionError
@@ -739,6 +741,7 @@ class ServerConfig(BaseConfig):
         self.barman_home = config.barman_home
         self.barman_lock_directory = config.barman_lock_directory
         self.lock_directory_cleanup = config.lock_directory_cleanup
+        self.config_changes_queue = config.config_changes_queue
         config.validate_server_config(self.name)
         for key in ServerConfig.KEYS:
             value = None
@@ -1258,6 +1261,10 @@ class Config(object):
         This method parses the global [barman] section
         """
         self.barman_home = self.get("barman", "barman_home")
+        self.config_changes_queue = (
+            self.get("barman", "config_changes_queue")
+            or "%s/cfg_changes.queue" % self.barman_home
+        )
         self.barman_lock_directory = (
             self.get("barman", "barman_lock_directory") or self.barman_home
         )
@@ -1326,21 +1333,24 @@ class Config(object):
         for cfile in sorted(
             iglob(os.path.join(os.path.expanduser(config_files_directory), "*.conf"))
         ):
-            filename = os.path.basename(cfile)
-            if os.path.isfile(cfile):
-                # Load a file
-                _logger.debug("Including configuration file: %s", filename)
-                self._config.read_config(cfile)
-                if self._is_global_config_changed():
-                    msg = (
-                        "the configuration file %s contains a not empty ["
-                        "barman] section" % filename
-                    )
-                    _logger.fatal(msg)
-                    raise SystemExit("FATAL: %s" % msg)
-            else:
-                # Add an info that a file has been discarded
-                _logger.warn("Discarding configuration file: %s (not a file)", filename)
+            self.load_config_file(cfile)
+
+    def load_config_file(self, cfile):
+        filename = os.path.basename(cfile)
+        if os.path.isfile(cfile):
+            # Load a file
+            _logger.debug("Including configuration file: %s", filename)
+            self._config.read_config(cfile)
+            if self._is_global_config_changed():
+                msg = (
+                    "the configuration file %s contains a not empty [barman] section"
+                    % filename
+                )
+                _logger.fatal(msg)
+                raise SystemExit("FATAL: %s" % msg)
+        else:
+            # Add an info that a file has been discarded
+            _logger.warn("Discarding configuration file: %s (not a file)", filename)
 
     def _is_model(self, name):
         """
@@ -1598,6 +1608,7 @@ class Config(object):
             "barman_lock_directory",
             "barman_user",
             "lock_directory_cleanup",
+            "config_changes_queue",
             "log_file",
             "log_level",
             "configuration_files_directory",
@@ -1674,6 +1685,243 @@ class Config(object):
                     name,
                     section,
                 )
+
+
+class BaseChange:
+    _fields = []
+
+    def __eq__(self, other):
+        """Equality support."""
+        if isinstance(other, self.__class__):
+            return self.as_tuple() == other.as_tuple()
+        return False
+
+    def __hash__(self):
+        """Hash/set support."""
+        return hash(self.as_tuple())
+
+    def as_tuple(self) -> tuple:
+        """Convert to a tuple, ordered as self._fields."""
+        return tuple(vars(self)[k] for k in self._fields)
+
+    def as_dict(self):
+        return {k: vars(self)[k] for k in self._fields}
+
+
+class ConfigChange(BaseChange):
+    """Identifies a configuration change action received"""
+
+    _fields = ["key", "value", "config_file"]
+
+    def __init__(self, key, value, config_file=None):
+        """Representation of a configuration change received"""
+        self.key = key
+        self.value = value
+        self.config_file = config_file
+
+    @classmethod
+    def from_dict(cls, obj):
+        """
+        Factory for configuration change objects.
+
+        Generates configuration change objects starting from a dictionary with
+        the same fields.
+
+        """
+        if set(obj.keys()) == set(cls._fields):
+            return cls(**obj)
+        raise ValueError("Malformed configuration change serialization: %r" % obj)
+
+
+class ConfigChangeSet(BaseChange):
+    _fields = ["section", "changes_set"]
+
+    def __init__(self, section, changes_set=[]):
+        self.section = section
+        self.changes_set = changes_set
+
+    @classmethod
+    def from_dict(cls, obj):
+        """
+        Factory for configuration change objects.
+
+        Generates configuration change objects starting from a dictionary with
+        the same fields.
+
+        """
+        if set(obj.keys()) == set(cls._fields):
+            return cls(**obj)
+        if set(obj.keys()) == set(ConfigChange._fields):
+            return ConfigChange(**obj)
+        raise ValueError("Malformed configuration change serialization: %r" % obj)
+
+
+class ConfigChangesQueue:
+    """
+    Wraps the management of the config changes queue.
+
+    Once instantiated the queue can be accessed using the `queue` property.
+    """
+
+    def __init__(self, queue_file):
+        self.queue_file = queue_file
+        self._queue = None
+        self.open()
+
+    @staticmethod
+    def read_file(path) -> List[ConfigChangeSet]:
+        """Reads a json file containing a list of configuration changes."""
+        try:
+            with open(path, "r") as queue_file:
+                # Read the queue if exists
+                return json.load(queue_file, object_hook=ConfigChangeSet.from_dict)
+        except FileNotFoundError:
+            return []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    @property
+    def queue(self):
+        if self._queue is None:
+            self.open()
+
+        return self._queue
+
+    def open(self):
+        self._queue = self.read_file(self.queue_file)
+
+    def close(self):
+        with open(self.queue_file + ".tmp", "w") as queue_file:
+            # Dump the configuration change list into the queue file
+            json.dump(self._queue, queue_file, cls=ConfigChangeSetEncoder, indent=2)
+
+        # Juggle with the queue files to ensure consistency of
+        # the queue even if Shelver is interrupted abruptly
+        old_file_name = self.queue_file + ".old"
+        try:
+            os.rename(self.queue_file, old_file_name)
+        except FileNotFoundError:
+            old_file_name = None
+        os.rename(self.queue_file + ".tmp", self.queue_file)
+        if old_file_name:
+            os.remove(old_file_name)
+        self._queue = None
+
+
+class ConfigChangesProcessor:
+    """
+    The class is responsible for processing the config changes to
+    apply to the barman config
+    """
+
+    def __init__(self, config):
+        self.config = config
+        self.applied_changes = []
+
+    def receive_config_changes(self, changes):
+        """
+        Process all the configuration changes
+        """
+        # Get all the available configuration change files in order
+        changes_list = []
+        for section in changes:
+            section_name = section["server_name"]
+            # IMPORTANT: i'm not yet entirely sure why but if we don't specify
+            # that changes_set is an empty list, a reference to a list to all
+            # the previous changes is passed. needs more investigation but this
+            # fixed the issue for now
+            chg_set = ConfigChangeSet(section=section_name, changes_set=[])
+            for json_cng in section:
+                if json_cng in ("server_name", "scope"):
+                    continue
+                file_name = self.config._config.get_config_source(
+                    section_name, json_cng
+                )
+                if file_name == "default":
+                    file_name = os.path.expanduser(
+                        "%s/.barman.auto.conf" % self.config.barman_home
+                    )
+                chg = None
+                chg = ConfigChange(
+                    json_cng,
+                    section[json_cng],
+                    file_name,
+                )
+                chg_set.changes_set.append(chg)
+            changes_list.append(chg_set)
+
+        # If there are no configuration change we've nothing to do here
+        if len(changes_list) == 0:
+            _logger.debug("No valid changes submitted")
+            return
+
+        with ConfigChangesQueue(self.config.config_changes_queue) as changes_queue:
+            changes_queue.queue.extend(changes_list)
+
+    def process_conf_changes_queue(self):
+        """
+        Process the configuration changes in the queue one at time
+        """
+        try:
+            chgs_set = None
+            with ConfigChangesQueue(self.config.config_changes_queue) as changes_queue:
+                # Cycle and apply the configuration changes
+                while len(changes_queue.queue) > 0:
+                    chgs_set = changes_queue.queue[0]
+                    try:
+                        self.apply_change(chgs_set)
+                    except Exception as e:
+                        # Log that something went horribly wrong and re-raise
+                        msg = "Unable to process a set of changes. Exiting."
+                        output.error(msg)
+                        _logger.debug(
+                            "Error while processing %s. \nError: %s"
+                            % (
+                                json.dumps(
+                                    chgs_set, cls=ConfigChangeSetEncoder, indent=2
+                                ),
+                                e,
+                            ),
+                        )
+                        raise e
+
+                    # Remove the configuration change once succeeded
+                    changes_queue.queue.pop(0)
+                    self.applied_changes.append(chgs_set)
+
+        except Exception as err:
+            _logger.error("Cannot execute %s: %s", chgs_set, err)
+
+        # output.info(f"changes applied: {self.applied_changes}")
+
+    def apply_change(self, changes):
+        """ """
+        changed_files = dict()
+        for chg in changes.changes_set:
+            changed_files[chg.config_file] = utils.edit_config(
+                chg.config_file,
+                changes.section,
+                chg.key,
+                chg.value,
+                changed_files.get(chg.config_file),
+            )
+        for file, lines in changed_files.items():
+            with open(file, "w") as cfg_file:
+                cfg_file.writelines(lines)
+
+
+class ConfigChangeSetEncoder(json.JSONEncoder):
+    """Encode a configuration change as a dictionary."""
+
+    def default(self, obj):
+        if isinstance(obj, (ConfigChange, ConfigChangeSet)):
+            # Let the base class default method raise the TypeError
+            return dict(obj.as_dict())
+        return super().default(obj)
 
 
 # easy raw config diagnostic with python -m
