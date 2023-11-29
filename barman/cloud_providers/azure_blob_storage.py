@@ -44,7 +44,6 @@ except ImportError:
 
 try:
     from azure.storage.blob import (
-        BlobPrefix,
         ContainerClient,
         PartialBatchErrorException,
     )
@@ -290,26 +289,6 @@ class AzureCloudInterface(CloudInterface):
         # the storage account level in Azure)
         self.container_client.create_container()
 
-    def _walk_blob_tree(self, obj, ignore=None):
-        """
-        Walk a blob tree in a directory manner and return a list of directories
-        and files.
-
-        :param ItemPaged[BlobProperties] obj: Iterable response of BlobProperties
-          obtained from ContainerClient.walk_blobs
-        :param str|None ignore: An entry to be excluded from the returned list,
-          typically the top level prefix
-        :return: List of objects and directories in the tree
-        :rtype: List[str]
-        """
-        if obj.name != ignore:
-            yield obj.name
-        if isinstance(obj, BlobPrefix):
-            # We are a prefix and not a leaf so iterate children
-            for child in obj:
-                for v in self._walk_blob_tree(child):
-                    yield v
-
     def list_bucket(self, prefix="", delimiter=DEFAULT_DELIMITER):
         """
         List bucket content in a directory manner
@@ -322,7 +301,9 @@ class AzureCloudInterface(CloudInterface):
         res = self.container_client.walk_blobs(
             name_starts_with=prefix, delimiter=delimiter
         )
-        return self._walk_blob_tree(res, ignore=prefix)
+
+        for item in res:
+            yield item.name
 
     def download_file(self, key, dest_path, decompress=None):
         """
