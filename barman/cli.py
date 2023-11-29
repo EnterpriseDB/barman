@@ -24,7 +24,14 @@ import json
 import logging
 import os
 import sys
-from argparse import SUPPRESS, ArgumentTypeError, ArgumentParser, HelpFormatter
+from argparse import (
+    SUPPRESS,
+    ArgumentTypeError,
+    ArgumentParser,
+    HelpFormatter,
+)
+
+from barman.lockfile import ConfigUpdateLock
 
 if sys.version_info.major < 3:
     from argparse import Action, _SubParsersAction, _ActionsContainer
@@ -38,7 +45,11 @@ import barman.diagnose
 import barman.utils
 from barman import output
 from barman.annotations import KeepManager
-from barman.config import RecoveryOptions, parse_recovery_staging_path
+from barman.config import (
+    ConfigChangesProcessor,
+    RecoveryOptions,
+    parse_recovery_staging_path,
+)
 from barman.exceptions import (
     BadXlogSegmentName,
     RecoveryException,
@@ -1871,6 +1882,26 @@ def config_switch(args):
                 server.config.apply_model(model, True)
 
 
+@command(
+    [
+        argument(
+            "json_changes",
+            help="specifies the configuration changes to apply, in json format ",
+        ),
+    ]
+)
+def config_update(args):
+    """
+    Receives a set of configuration changes in json format and applies them.
+    """
+    json_changes = json.loads(args.json_changes)
+    # this stops the execution of multiple execitions of the config-update command
+    with ConfigUpdateLock(barman.__config__.barman_lock_directory):
+        procesor = ConfigChangesProcessor(barman.__config__)
+        procesor.receive_config_changes(json_changes)
+        procesor.process_conf_changes_queue()
+
+
 def pretty_args(args):
     """
     Prettify the given argparse namespace to be human readable
@@ -1937,6 +1968,9 @@ def global_config(args):
 
     # Load additional configuration files
     config.load_configuration_files_directory()
+    config.load_config_file(
+        "%s/.barman.auto.conf" % config.get("barman", "barman_home")
+    )
     # We must validate the configuration here in order to have
     # both output and logging configured
     config.validate_global_config()

@@ -281,6 +281,7 @@ def build_config_dictionary(config_keys=None):
         "basebackups_directory": "/some/barman/home/main/base",
         "barman_lock_directory": "/some/barman/home",
         "compression": None,
+        "config_changes_queue": "/some/barman/home/cfg_changes.queue",
         "conninfo": "host=pg01.nowhere user=postgres port=5432",
         "backup_method": "rsync",
         "check_timeout": 30,

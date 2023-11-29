@@ -902,3 +902,46 @@ def lock_files_cleanup(lock_dir, lock_directory_cleanup):
                 _logger.debug(
                     "%s file lock already acquired, skipping removal" % filename
                 )
+
+
+def edit_config(file, section, option, value, lines=None):
+    """
+    Utility method that given a file and a config section allows to:
+        - add a new section if at least a key-value content is provided
+        - add a new key-value to a config section
+        - change a section value
+
+    :param file: the path to the file to edit
+    :param section: the config section to edit or to add
+    :param option: the config key to edit or add
+    :param value: the value for the config key to update or add
+    """
+    conf_section = False
+    idx = 0
+
+    if lines is None:
+        try:
+            with open(file, "r") as config:
+                lines = config.readlines()
+        except FileNotFoundError:
+            lines = []
+    eof = len(lines) - 1
+    for idx, line in enumerate(lines):
+        if conf_section and line.strip().startswith("["):  # next section
+            lines.insert(idx - 1, option + " = " + value)
+            break
+        elif conf_section and line.strip().replace(" ", "").startswith(option + "="):
+            lines.pop(idx)
+            lines.insert(idx, option + " = " + value + "\n")
+            break
+        elif conf_section and idx == eof:
+            lines.append(option + " = " + value + "\n")
+            break
+        if line.strip() == "[" + section + "]":
+            conf_section = True
+    if not conf_section:
+        # Note: we need to use 2 append, otherwise the section matching is not
+        # going to work
+        lines.append("[" + section + "]\n")
+        lines.append(option + " = " + value + "\n")
+    return lines
