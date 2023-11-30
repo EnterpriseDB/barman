@@ -139,39 +139,39 @@ class CloudWalDownloader(object):
         remote_name = None
         # Automatically detect compression based on the file extension
         compression = None
-        for item in self.cloud_interface.list_bucket(source_dir):
+        for item in self.cloud_interface.list_bucket(wal_path):
             # perfect match (uncompressed file)
             if item == wal_path:
                 remote_name = item
             # look for compressed files or .partial files
-            elif item.startswith(wal_path):
-                # Detect compression
-                basename = item
-                for e, c in ALLOWED_COMPRESSIONS.items():
-                    if item[-len(e) :] == e:
-                        # Strip extension
-                        basename = basename[: -len(e)]
-                        compression = c
-                        break
 
-                # Check basename is a known xlog file (.partial?)
-                if not is_any_xlog_file(basename):
-                    logging.warning("Unknown WAL file: %s", item)
-                    continue
-                # Exclude backup informative files (not needed in recovery)
-                elif is_backup_file(basename):
-                    logging.info("Skipping backup file: %s", item)
-                    continue
+            # Detect compression
+            basename = item
+            for e, c in ALLOWED_COMPRESSIONS.items():
+                if item[-len(e) :] == e:
+                    # Strip extension
+                    basename = basename[: -len(e)]
+                    compression = c
+                    break
 
-                # Found candidate
-                remote_name = item
-                logging.info(
-                    "Found WAL %s for server %s as %s",
-                    wal_name,
-                    self.server_name,
-                    remote_name,
-                )
-                break
+            # Check basename is a known xlog file (.partial?)
+            if not is_any_xlog_file(basename):
+                logging.warning("Unknown WAL file: %s", item)
+                continue
+            # Exclude backup informative files (not needed in recovery)
+            elif is_backup_file(basename):
+                logging.info("Skipping backup file: %s", item)
+                continue
+
+            # Found candidate
+            remote_name = item
+            logging.info(
+                "Found WAL %s for server %s as %s",
+                wal_name,
+                self.server_name,
+                remote_name,
+            )
+            break
 
         if not remote_name:
             logging.info(
