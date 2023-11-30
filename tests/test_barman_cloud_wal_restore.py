@@ -70,9 +70,7 @@ class TestMain(object):
         """If the WAL cannot be found we exit with status 1."""
         cloud_interface_mock = get_cloud_interface_mock.return_value
         cloud_interface_mock.path = "testfolder/"
-        cloud_interface_mock.list_bucket.return_value = [
-            "testfolder/test-server/wals/000000080000ABFF/000000080000ABFF000000C1"
-        ]
+        cloud_interface_mock.list_bucket.return_value = []
         caplog.set_level(logging.INFO)
         with pytest.raises(SystemExit) as exc:
             cloud_walrestore.main(
