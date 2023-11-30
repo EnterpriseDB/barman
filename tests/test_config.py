@@ -16,7 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-from configparser import NoOptionError
 from datetime import timedelta
 
 import mock
@@ -868,10 +867,10 @@ class TestConfig(object):
         assert c._is_model("SOME_MODEL") is True
 
     @patch("barman.config.parse_boolean")
-    def test__is_model_ok(self, mock_parse_boolean):
+    def test__is_model_exception(self, mock_parse_boolean):
         """Test :meth:`Config._is_model`.
 
-        Ensure ``True`` is returned if there ``model = true`` is found.
+        Ensure an exception is face if the parser function faces an exception.
         """
         fp = StringIO(
             """
