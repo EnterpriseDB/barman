@@ -24,6 +24,7 @@ from barman.clients.cloud_compression import decompress_to_file
 from barman.cloud import (
     CloudInterface,
     CloudProviderError,
+    CloudObjectNotFoundError,
     CloudSnapshotInterface,
     DecompressingStreamingIO,
     DEFAULT_DELIMITER,
@@ -278,17 +279,24 @@ class S3CloudInterface(CloudInterface):
         :param str|None decompress: Compression scheme to use for decompression
         """
         # Open the remote file
-        obj = self.s3.Object(self.bucket_name, key)
-        remote_file = obj.get()["Body"]
+        try:
+            obj = self.s3.Object(self.bucket_name, key)
+            remote_file = obj.get()["Body"]
+            # Write the dest file in binary mode
+            with open(dest_path, "wb") as dest_file:
+                # If the file is not compressed, just copy its content
+                if decompress is None:
+                    shutil.copyfileobj(remote_file, dest_file)
+                    return
 
-        # Write the dest file in binary mode
-        with open(dest_path, "wb") as dest_file:
-            # If the file is not compressed, just copy its content
-            if decompress is None:
-                shutil.copyfileobj(remote_file, dest_file)
-                return
+                decompress_to_file(remote_file, dest_file, decompress)
+        except ClientError as exc:
+            error_code = exc.response["Error"]["Code"]
+            if error_code == "NoSuchKey":
+                raise CloudObjectNotFoundError("Object %s not found" % key)
+            else:
+                raise exc
 
-            decompress_to_file(remote_file, dest_file, decompress)
 
     def remote_open(self, key, decompressor=None):
         """

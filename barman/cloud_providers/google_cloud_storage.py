@@ -24,6 +24,7 @@ from barman.clients.cloud_compression import decompress_to_file
 from barman.cloud import (
     CloudInterface,
     CloudProviderError,
+    CloudObjectNotFoundError,
     CloudSnapshotInterface,
     DecompressingStreamingIO,
     DEFAULT_DELIMITER,
@@ -201,13 +202,16 @@ class GoogleCloudInterface(CloudInterface):
         :param str|None decompress: Compression scheme to use for decompression
         """
         logging.debug("GCS.download_file")
-        blob = storage.Blob(key, self.container_client)
-        with open(dest_path, "wb") as dest_file:
-            if decompress is None:
-                self.client.download_blob_to_file(blob, dest_file)
-                return
-            with blob.open(mode="rb") as blob_reader:
-                decompress_to_file(blob_reader, dest_file, decompress)
+        try:
+            blob = storage.Blob(key, self.container_client)
+            with open(dest_path, "wb") as dest_file:
+                if decompress is None:
+                    self.client.download_blob_to_file(blob, dest_file)
+                    return
+                with blob.open(mode="rb") as blob_reader:
+                    decompress_to_file(blob_reader, dest_file, decompress)
+        except NotFound:
+            raise CloudObjectNotFoundError("Object %s not found" % key)
 
     def remote_open(self, key, decompressor=None):
         """

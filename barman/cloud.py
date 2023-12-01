@@ -129,6 +129,10 @@ class CloudUploadingError(BarmanException):
     This exception is raised when there are upload errors
     """
 
+class CloudObjectNotFoundError(BarmanException):
+    """
+    This exception is raised when objects cannot be found in the cloud
+    """
 
 class TarFileIgnoringTruncate(tarfile.TarFile):
     """

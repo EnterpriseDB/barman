@@ -22,7 +22,7 @@ import mock
 import pytest
 
 from barman.clients import cloud_walrestore
-
+from barman.cloud import CloudObjectNotFoundError
 
 class TestMain(object):
     """
@@ -51,9 +51,7 @@ class TestMain(object):
         """If the WAL is found we exit with status 0."""
         cloud_interface_mock = get_cloud_interface_mock.return_value
         cloud_interface_mock.path = "testfolder/"
-        cloud_interface_mock.list_bucket.return_value = [
-            "testfolder/test-server/wals/000000080000ABFF/000000080000ABFF000000C1"
-        ]
+        cloud_interface_mock.download_file.side_effect = [CloudObjectNotFoundError("Object not found"), None]
         cloud_walrestore.main(
             [
                 "s3://test-bucket/testfolder/",
@@ -63,16 +61,14 @@ class TestMain(object):
             ]
         )
         assert caplog.text == ""
-        cloud_interface_mock.download_file.assert_called_once()
+        cloud_interface_mock.download_file.assert_called()
 
     @mock.patch("barman.clients.cloud_walrestore.get_cloud_interface")
     def test_fails_if_wal_not_found(self, get_cloud_interface_mock, caplog):
         """If the WAL cannot be found we exit with status 1."""
         cloud_interface_mock = get_cloud_interface_mock.return_value
         cloud_interface_mock.path = "testfolder/"
-        cloud_interface_mock.list_bucket.return_value = [
-            "testfolder/test-server/wals/000000080000ABFF/000000080000ABFF000000C1"
-        ]
+        cloud_interface_mock.download_file.side_effect = CloudObjectNotFoundError("Object not found")
         caplog.set_level(logging.INFO)
         with pytest.raises(SystemExit) as exc:
             cloud_walrestore.main(
@@ -85,7 +81,7 @@ class TestMain(object):
             )
         assert exc.value.code == 1
         assert (
-            "WAL file 000000080000ABFF000000C0 for server test-server does not exists\n"
+            "WAL file 000000080000ABFF000000C0 for server test-server does not exist\n"
             in caplog.text
         )
 
@@ -127,9 +123,6 @@ class TestMain(object):
         """Test that any cloud_interface.download exceptions cause exit status 4."""
         cloud_interface_mock = get_cloud_interface_mock.return_value
         cloud_interface_mock.path = "testfolder/"
-        cloud_interface_mock.list_bucket.return_value = [
-            "testfolder/test-server/wals/000000080000ABFF/000000080000ABFF000000C1"
-        ]
         cloud_interface_mock.download_file.side_effect = Exception(
             "something went wrong"
         )

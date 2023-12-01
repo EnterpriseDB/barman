@@ -26,6 +26,7 @@ from barman.clients.cloud_compression import decompress_to_file
 from barman.cloud import (
     CloudInterface,
     CloudProviderError,
+    CloudObjectNotFoundError,
     CloudSnapshotInterface,
     DecompressingStreamingIO,
     DEFAULT_DELIMITER,
@@ -313,13 +314,16 @@ class AzureCloudInterface(CloudInterface):
         :param str dest_path: Where to put the destination file
         :param str|None decompress: Compression scheme to use for decompression
         """
-        obj = self.container_client.download_blob(key)
-        with open(dest_path, "wb") as dest_file:
-            if decompress is None:
-                obj.download_to_stream(dest_file)
-                return
-            blob = StreamingBlobIO(obj)
-            decompress_to_file(blob, dest_file, decompress)
+        try:
+            obj = self.container_client.download_blob(key)
+            with open(dest_path, "wb") as dest_file:
+                if decompress is None:
+                    obj.download_to_stream(dest_file)
+                    return
+                blob = StreamingBlobIO(obj)
+                decompress_to_file(blob, dest_file, decompress)
+        except ResourceNotFoundError:
+            raise CloudObjectNotFoundError("Object %s not found" % key)
 
     def remote_open(self, key, decompressor=None):
         """
