@@ -143,6 +143,7 @@ class CloudWalDownloader(object):
             # perfect match (uncompressed file)
             if item == wal_path:
                 remote_name = item
+                continue
             # look for compressed files or .partial files
 
             # Detect compression
