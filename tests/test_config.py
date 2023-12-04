@@ -1279,38 +1279,51 @@ class TestServerConfig(object):
         assert server_config.models == {model.name: model}
         mock_output.error.assert_not_called()
 
-    def test_apply_model_already_active(self, server_config, caplog):
+    @pytest.mark.parametrize("from_cli", [False, True])
+    @patch("barman.config.output")
+    def test_apply_model_already_active(self, mock_output, from_cli, server_config):
         """Test :meth:`ServerConfig.apply_model`.
 
-        Ensure it does nothing if the given model is already active.
+        Ensure it only logs a message and does nothing else if the given model
+        is already active.
         """
-        caplog.clear()
-
         server_config.active_model = "SOME_MODEL"
 
         mock = mock_open()
 
         with patch("builtins.open", mock):
-            server_config.apply_model("SOME_MODEL")
+            server_config.apply_model("SOME_MODEL", from_cli)
 
-        assert len(caplog.records) == 0
+        expected = "Model '%s' is already active for server '%s', " "skipping..." % (
+            "SOME_MODEL",
+            server_config.name,
+        )
+
+        if from_cli:
+            mock_output.debug.assert_not_called()
+            mock_output.info.assert_called_once_with(expected)
+        else:
+            mock_output.debug.assert_called_once_with(expected)
+            mock_output.info.assert_not_called()
+
         mock.assert_not_called()
 
-    def test_apply_model_not_exists(self, server_config):
+    @pytest.mark.parametrize("from_cli", [False, True])
+    @patch("barman.config.output")
+    def test_apply_model_not_exists(self, mock_output, from_cli, server_config):
         """Test :meth:`ServerConfig.apply_model`.
 
-        Ensure an exception is re-raised if the requested model doesn't exist.
+        Ensure an error is logged if the requested model doesn't exist.
         """
         mock = mock_open()
 
         with patch("builtins.open", mock):
-            with pytest.raises(KeyError) as exc:
-                server_config.apply_model("SOME_MODEL")
+            server_config.apply_model("SOME_MODEL", from_cli)
 
         expected = (
-            "\"Cannot apply model: there is no model 'SOME_MODEL' for server 'main'\""
+            "Cannot apply model: there is no model 'SOME_MODEL' for server 'main'"
         )
-        assert str(exc.value) == expected
+        mock_output.error.assert_called_once_with(expected)
 
         mock.assert_not_called()
 
@@ -1323,9 +1336,9 @@ class TestServerConfig(object):
         ]
         return mock
 
+    @pytest.mark.parametrize("from_cli", [False, True])
     @patch("barman.config.output")
-    @patch("barman.config._logger")
-    def test_apply_model_ok(self, mock_logger, mock_output, server_config, mock_model):
+    def test_apply_model_ok(self, mock_output, from_cli, server_config, mock_model):
         """Test :meth:`ServerConfig.apply_model`.
 
         Ensure the new options are applied, and that attributes and file are
@@ -1336,67 +1349,62 @@ class TestServerConfig(object):
         server_config.conninfo = "VALUE_1"
 
         with patch("builtins.open", mock):
-            server_config.apply_model("SOME_MODEL")
+            server_config.apply_model("SOME_MODEL", from_cli)
 
         mock_model.get_override_options.assert_called_once_with()
-        mock_logger.debug.assert_has_calls(
-            [
-                call(f"Applying model '{mock_model.name}' to server 'main'"),
-                call(
-                    "Changing value of option 'streaming_conninfo' for server "
-                    f"'{server_config.name}' from 'host=pg01.nowhere user=postgres port=5432' "
-                    f"to '{mock_model.streaming_conninfo}' through the model "
-                    f"'{mock_model.name}'"
-                ),
-            ]
-        )
-        mock_output.info.assert_not_called()
 
-        mock.assert_called_once_with("/some/barman/home/main/.active-model.auto", "w")
-        handle = mock()
-        handle.write.assert_called_once_with("SOME_MODEL")
+        calls = [
+            call(f"Applying model '{mock_model.name}' to server 'main'"),
+            call(
+                "Changing value of option 'streaming_conninfo' for server "
+                f"'{server_config.name}' from 'host=pg01.nowhere user=postgres port=5432' "
+                f"to '{mock_model.streaming_conninfo}' through the model "
+                f"'{mock_model.name}'"
+            ),
+        ]
 
+        if from_cli:
+            mock_output.debug.assert_not_called()
+            mock_output.info.assert_has_calls(calls)
+            mock.assert_called_once_with(
+                "/some/barman/home/main/.active-model.auto", "w"
+            )
+            handle = mock()
+            handle.write.assert_called_once_with("SOME_MODEL")
+        else:
+            mock_output.debug.assert_has_calls(calls)
+            mock_output.info.assert_not_called()
+            mock.assert_not_called()
+
+    @pytest.mark.parametrize("file_exists", [False, True])
+    @pytest.mark.parametrize("active_model", [None, "SOME_MODEL"])
     @patch("barman.config.output")
-    @patch("barman.config._logger")
-    def test_apply_model_ok_with_output(
-        self, mock_logger, mock_output, server_config, mock_model
-    ):
-        """Test :meth:`ServerConfig.apply_model`.
+    def test_reset_model(self, mock_output, file_exists, active_model, server_config):
+        """Test :meth:`ServerConfig.reset_model`.
 
-        Ensure the new options are applied, and that attributes and file are
-        set/written as expected. Additionally ensure messages go to console when
-        ``output_changes`` is ``True``.
+        Ensure the active file is removed, if it exists, and that the control
+        attribute is set to ``None``.
         """
-        mock = mock_open()
-        server_config.models = {"SOME_MODEL": mock_model}
-        server_config.conninfo = "VALUE_1"
+        server_config.active_model = active_model
 
-        with patch("builtins.open", mock):
-            server_config.apply_model("SOME_MODEL", True)
+        with patch("os.path.isfile") as mock_is_file, patch("os.remove") as mock_remove:
+            mock_is_file.return_value = file_exists
 
-        mock_model.get_override_options.assert_called_once_with()
-        mock_logger.debug.assert_has_calls(
-            [
-                call(f"Applying model '{mock_model.name}' to server 'main'"),
-                call(
-                    "Changing value of option 'streaming_conninfo' for server "
-                    f"'{server_config.name}' from 'host=pg01.nowhere user=postgres port=5432' "
-                    f"to '{mock_model.streaming_conninfo}' through the model "
-                    f"'{mock_model.name}'"
-                ),
-            ]
-        )
-        mock_output.info.assert_called_once_with(
-            "Changing value of option 'streaming_conninfo' for server "
-            f"'{server_config.name}' from 'host=pg01.nowhere user=postgres port=5432' "
-            f"to '{mock_model.streaming_conninfo}' through the model "
-            f"'{mock_model.name}'",
-            log=False,
-        )
+            server_config.reset_model()
 
-        mock.assert_called_once_with("/some/barman/home/main/.active-model.auto", "w")
-        handle = mock()
-        handle.write.assert_called_once_with("SOME_MODEL")
+            mock_output.info.assert_called_once_with(
+                "Resetting the active model for the server %s" % (server_config.name)
+            )
+            mock_is_file.assert_called_once_with(
+                "/some/barman/home/main/.active-model.auto"
+            )
+
+            if file_exists:
+                mock_remove.assert_called_once_with(
+                    "/some/barman/home/main/.active-model.auto"
+                )
+            else:
+                mock_remove.assert_not_called()
 
 
 class TestModelConfig:

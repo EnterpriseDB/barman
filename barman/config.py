@@ -793,50 +793,69 @@ class ServerConfig(BaseConfig):
 
         self.models[model.name] = model
 
-    def apply_model(self, name, output_changes=False):
+    def apply_model(self, name, from_cli=False):
         """Apply config from a model named *name*.
 
         :param name: name of the model to be applied.
-        :param output_changes: if changes should be written to the console as
-            ``INFO`` messages.
-
-        :raises:
-            :exc:`KeyError`: if the model named *name* does not exist.
+        :param from_cli: ``True`` if this function has been called by the user
+            through a command, e.g. ``barman-config-switch``. ``False`` if it
+            has been called internally by Barman. ``INFO`` messages are written
+            in the first case, ``DEBUG`` messages in the second case.
         """
+        writer_func = getattr(output, "info" if from_cli else "debug")
+
         # No need to apply the same model twice
         if name == self.active_model:
+            writer_func(
+                "Model '%s' is already active for server '%s', "
+                "skipping..." % (name, self.name)
+            )
+
             return
 
         try:
             model = self.models[name]
-        except KeyError as exc:
-            raise KeyError(
+        except KeyError:
+            output.error(
                 "Cannot apply model: there is no model '%s' for server '%s'"
                 % (name, self.name)
-            ) from exc
+            )
 
-        _logger.debug("Applying model '%s' to server '%s'" % (model.name, self.name))
+            return
+
+        writer_func("Applying model '%s' to server '%s'" % (model.name, self.name))
 
         for option, value in model.get_override_options():
             old_value = getattr(self, option)
 
             if old_value != value:
-                message = (
+                writer_func(
                     "Changing value of option '%s' for server '%s' "
                     "from '%s' to '%s' through the model '%s'"
-                ) % (option, self.name, old_value, value, model.name)
-
-                _logger.debug(message)
-
-                if output_changes:
-                    output.info(message, log=False)
+                    % (option, self.name, old_value, value, model.name)
+                )
 
                 setattr(self, option, value)
 
-        with open(self._active_model_file, "w") as f:
-            f.write(name)
+        if from_cli:
+            # If the request came from the CLI, like from 'barman config-switch'
+            # then we need to persist the change to disk. On the other hand, if
+            # Barman is calling this method on its own, that's because it previously
+            # already read the active model from that file, so there is no need
+            # to persist it again to disk
+            with open(self._active_model_file, "w") as f:
+                f.write(name)
 
         self.active_model = model.name
+
+    def reset_model(self):
+        """Reset the active model for this server, if any."""
+        output.info("Resetting the active model for the server %s" % (self.name))
+
+        if os.path.isfile(self._active_model_file):
+            os.remove(self._active_model_file)
+
+        self.active_model = None
 
     def to_json(self, with_source=False):
         """
@@ -1487,7 +1506,7 @@ class Config(object):
         """
         For each Barman server, check for a pre-existing active model.
 
-        If a hidden file with an pre-existing active model file exists, apply
+        If a hidden file with a pre-existing active model file exists, apply
         that on top of the server configuration.
         """
         for server in self.servers():

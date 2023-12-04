@@ -1472,7 +1472,9 @@ class TestConfigSwitchCli:
 
     @pytest.fixture
     def mock_args(self):
-        return Mock(server_name="SOME_SERVER", model_name="SOME_MODEL")
+        return MagicMock(
+            server_name="SOME_SERVER", model_name="SOME_MODEL", reset=False
+        )
 
     @patch("barman.cli.output")
     @patch("barman.cli.get_server")
@@ -1494,18 +1496,16 @@ class TestConfigSwitchCli:
         mock_output.info.assert_not_called()
         mock_output.error.assert_not_called()
 
-    @patch("barman.cli.output")
     @patch("barman.cli.get_server")
-    def test_config_switch_model_already_active(
-        self, mock_get_server, mock_output, mock_args
-    ):
+    def test_config_switch_model_apply_model(self, mock_get_server, mock_args):
         """Test :func:`config_switch`.
 
-        It should log an ``INFO`` message if the requested model is already
-        active, and do nothing else.
+        It should call :meth:`barman.config.ServerConfig.apply_model` when
+        a server and a model are given.
         """
         mock_get_server.return_value.config.active_model = mock_args.model_name
         mock_apply_model = mock_get_server.return_value.config.apply_model
+        mock_reset_model = mock_get_server.return_value.config.reset_model
 
         config_switch(mock_args)
 
@@ -1515,25 +1515,20 @@ class TestConfigSwitchCli:
             on_error_stop=False,
             suppress_error=True,
         )
-        mock_output.info.assert_called_once_with(
-            "Model '%s' is already active for server '%s', "
-            "skipping..." % (mock_args.model_name, mock_args.server_name)
-        )
-        mock_apply_model.assert_not_called()
-        mock_output.error.assert_not_called()
+        mock_apply_model.assert_called_once_with(mock_args.model_name, True)
+        mock_reset_model.assert_not_called()
 
-    @patch("barman.cli.output")
     @patch("barman.cli.get_server")
-    def test_config_switch_model_does_not_exist(
-        self, mock_get_server, mock_output, mock_args
-    ):
+    def test_config_switch_model_reset_model(self, mock_get_server, mock_args):
         """Test :func:`config_switch`.
 
-        It should log an ``ERROR`` message if the requested model does not
-        exist.
+        It should call :meth:`barman.config.ServerConfig.reset_model` when
+        a server and ``--reset`` flag are given.
         """
+        delattr(mock_args, "model_name")
+        mock_args.reset = True
         mock_apply_model = mock_get_server.return_value.config.apply_model
-        mock_apply_model.side_effect = KeyError("SOME_KEY_ERROR")
+        mock_reset_model = mock_get_server.return_value.config.reset_model
 
         config_switch(mock_args)
 
@@ -1543,8 +1538,5 @@ class TestConfigSwitchCli:
             on_error_stop=False,
             suppress_error=True,
         )
-        mock_output.info.assert_not_called()
-        mock_apply_model.assert_called_once_with(
-            mock_args.model_name, output_changes=True
-        )
-        mock_output.error.assert_called_once_with("'SOME_KEY_ERROR'")
+        mock_apply_model.assert_not_called()
+        mock_reset_model.assert_called_once_with()

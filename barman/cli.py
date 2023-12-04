@@ -1815,34 +1815,38 @@ def check_wal_archive(args):
         argument(
             "server_name",
             completer=server_completer,
-            help="specifies the server name for the command ",
+            help="specifies the name of the server which configuration should "
+            "be override by the model",
         ),
         argument(
             "model_name",
-            help="specifies the model name for the command ",
+            help="specifies the name of the model which configuration should "
+            "override the server configuration. Not used when called with "
+            "the '--reset' flag",
+            nargs="?",
+        ),
+        argument(
+            "--reset",
+            help="indicates that we should unapply the currently active model "
+            "for the server",
+            action="store_true",
         ),
     ]
 )
 def config_switch(args):
     """
-    Switch a Barman server configuration by applying some model on top of it.
+    Change the active configuration for a server by applying a named model on
+    top of it, or by resetting the active model.
     """
     server = get_server(
         args, skip_inactive=False, on_error_stop=False, suppress_error=True
     )
 
     if server:
-        if server.config.active_model == args.model_name:
-            output.info(
-                "Model '%s' is already active for server '%s', "
-                "skipping..." % (args.model_name, args.server_name)
-            )
-            return
-
-        try:
-            server.config.apply_model(args.model_name, output_changes=True)
-        except KeyError as exc:
-            output.error(str(exc))
+        if args.reset:
+            server.config.reset_model()
+        else:
+            server.config.apply_model(args.model_name, True)
 
 
 def pretty_args(args):

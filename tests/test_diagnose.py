@@ -53,6 +53,20 @@ class TestDiagnose(object):
             },
         )
 
+        self.test_config_with_models = build_config_from_dicts(
+            global_conf=None,
+            main_conf={
+                "backup_directory": "/some/barman/home/main",
+                "archiver": "on",
+            },
+            with_model=True,
+            model_conf={
+                "model": "true",
+                "cluster": "main",
+                "conninfo": "SOME_CONNINFO",
+            },
+        )
+
     @patch("barman.cli.output.close_and_exit")
     @patch("barman.diagnose.output.info")
     def test_diagnose_json(self, info_mock_output, close_exit_mock, monkeypatch):
@@ -106,3 +120,26 @@ class TestDiagnose(object):
 
         # Assert that the JSON output syntax is correct
         json.loads(json_output2)
+
+    @patch("barman.cli.output.close_and_exit")
+    @patch("barman.diagnose.output.info")
+    def test_diagnose_json_with_models(
+        self, info_mock_output, close_exit_mock, monkeypatch
+    ):
+        monkeypatch.setattr(barman, "__config__", self.test_config_with_models)
+        mock_args = Mock(show_config_source=False)
+        diagnose(mock_args)
+        info_mock_output.assert_called_once()
+        json_output = info_mock_output.call_args[0][0]
+
+        # Assert that the JSON output syntax is correct
+        json.loads(json_output)
+
+        mock_args = Mock(show_config_source=True)
+        info_mock_output.reset_mock()
+        diagnose(mock_args)
+        info_mock_output.assert_called_once()
+        json_output = info_mock_output.call_args[0][0]
+
+        # Assert that the JSON output syntax is correct
+        json.loads(json_output)
