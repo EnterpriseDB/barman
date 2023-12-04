@@ -67,6 +67,40 @@ barman check <server_name>
 > and monitoring infrastructure. The `--nagios` option allows you
 > to easily create a plugin for Nagios/Icinga.
 
+## `config-switch`
+
+The `config-switch` command is used to apply a set of configuration overrides
+defined through a model to a Barman server. The final configuration of the Barman
+server is composed by the configuration of the server plus the overrides applied
+by the selected model. Models are specially useful for clustered environments,
+so you can create different configuration models which can be used in response to
+failover events, for example.
+
+The syntax for applying a model through `config-switch` command is:
+
+```bash
+barman config-switch <server_name> <model_name>
+```
+
+> *NOTE*: the command will only succeed if `<model_name>` exists and belongs
+> to the same `cluster` as `<server_name>`.
+
+> *NOTE*: there can be at most one model active at a time. If you run the command
+> twice with different models, only the overrides defined for the last one apply.
+
+The syntax for unapplying an existing active model for a server is:
+
+```bash
+barman config-switch <server_name> --reset
+```
+
+It will take care of unapplying the overrides that were previously in place by
+some active model.
+
+> *NOTE*: this command can also be useful for recovering from a specific situation:
+> when you have a server with an active model which was previously configured but
+> which no longer exists in your configuration.
+
 ## `generate-manifest`
 
 This command is useful when backup is created remotely and pg_basebackup is not

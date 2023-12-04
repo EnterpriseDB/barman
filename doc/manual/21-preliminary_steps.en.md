@@ -64,7 +64,7 @@ GRANT pg_checkpoint TO barman;
 > ["The Password File" section in the PostgreSQL Documentation][pgpass].
 
 This connection is required by Barman in order to coordinate its
-activities with the server, as well as for monitoring purposes.
+activities with the server, as well as for monitoring purposes.`
 
 You can choose your favourite client authentication method among those
 offered by PostgreSQL. More information can be found in the

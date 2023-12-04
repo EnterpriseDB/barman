@@ -6,14 +6,19 @@ There are two types of configuration files in Barman:
 
 - **global/general configuration**
 - **server configuration**
+- **model configuration**
 
 The main configuration file (set to `/etc/barman.conf` by default) contains general options such as main directory, system user, log file, and so on.
 
 Server configuration files, one for each server to be backed up by Barman, are located in the `/etc/barman.d` directory and must have a `.conf` suffix.
 
+Similarly, model configuration files, one for each model that can be applied to a server which is part of a cluster, are located in the `/etc/barman.d` directory and must have a `.conf` suffix.
+
+> *NOTE*: models define a set of configuration overrides which can be applied on top of the configuration of Barman servers that are part of the same cluster as the model, through the `barman config-switch` command.
+
 > **IMPORTANT**: For historical reasons, you can still have one single
-> configuration file containing both global and server options. However,
-> for maintenance reasons, this approach is deprecated.
+> configuration file containing both global as well as server and model options.
+> However, for maintenance reasons, this approach is deprecated.
 
 Configuration files in Barman follow the _INI_ format.
 
@@ -34,6 +39,7 @@ Every configuration option has a _scope_:
 
 - global
 - server
+- model
 - global/server: server options that can be generally set at global level
 
 Global options are allowed in the _general section_, which is identified in the INI file by the `[barman]` label:
@@ -43,15 +49,26 @@ Global options are allowed in the _general section_, which is identified in the 
 ; ... global and global/server options go here
 ```
 
-Server options can only be specified in a _server section_, which is identified by a line in the configuration file, in square brackets (`[` and `]`). The server section represents the ID of that server in Barman. The following example specifies a section for the server named `pg`:
+Server options can only be specified in a _server section_, which is identified by a line in the configuration file, in square brackets (`[` and `]`). The server section represents the ID of that server in Barman. The following example specifies a section for the server named `pg`, which belongs to the `my-cluster` cluster:
 
 ``` ini
 [pg]
+cluster=my-cluster
 ; Configuration options for the
 ; server named 'pg' go here
 ```
 
-There are two reserved words that cannot be used as server names in Barman:
+Model options can only be specified in a _model section_, which is identified the same way as a _server section_. There can be no conflicts among the identifier of _server sections_ and _model sections_. The following example specifies a section for the model named `pg:switchover`, which belongs to the `my-cluster` cluster:
+
+```ini
+[pg:switchover]
+cluster=my-cluster
+model=true
+; Configuration options for the model named 'pg:switchover', which belongs to
+; the server which is configured with the option 'cluster=pg', go here
+```
+
+There are two reserved words that cannot be used neither as server names nor as model names in Barman:
 
 - `barman`: identifier of the global section
 - `all`: a handy shortcut that allows you to execute some commands on every server managed by Barman in sequence
@@ -89,6 +106,16 @@ streaming_conninfo = host=pg user=streaming_barman
 backup_method = postgres
 streaming_archiver = on
 slot_name = barman
+```
+
+The following example defines a configuration model with a set of overrides that can be applied to the server which cluster is `streaming-pg`:
+
+```ini
+[streaming-pg:switchover]
+cluster=streaming-pg
+model=true
+conninfo = host=pg-2 user=barman dbname=postgres
+streaming_conninfo = host=pg-2 user=streaming_barman
 ```
 
 The following code shows a basic example of traditional backup using `rsync`/SSH:

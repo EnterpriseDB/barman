@@ -13,6 +13,6 @@ primary_conninfo
 
     The primary_conninfo value must be a libpq connection string; consult the
     [PostgreSQL manual][conninfo] for more information. Commonly used
-    keys are: host, hostaddr, port, dbname, user, password. Server.
+    keys are: host, hostaddr, port, dbname, user, password. Server/Model.
 
 [conninfo]: https://www.postgresql.org/docs/current/static/libpq-connect.html#LIBPQ-CONNSTRING
