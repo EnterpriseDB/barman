@@ -34,7 +34,7 @@ from barman.utils import BarmanEncoderV2
 _logger = logging.getLogger(__name__)
 
 
-def exec_diagnose(servers, errors_list, show_config_source):
+def exec_diagnose(servers, models, errors_list, show_config_source):
     """
     Diagnostic command: gathers information from backup server
     and from all the configured servers.
@@ -42,12 +42,13 @@ def exec_diagnose(servers, errors_list, show_config_source):
     Gathered information should be used for support and problems detection
 
     :param dict(str,barman.server.Server) servers: list of configured servers
+    :param models: list of configured models.
     :param list errors_list: list of global errors
     :param show_config_source: if we should include the configuration file that
         provides the effective value for each configuration option.
     """
     # global section. info about barman server
-    diagnosis = {"global": {}, "servers": {}}
+    diagnosis = {"global": {}, "servers": {}, "models": {}}
     # barman global config
     diagnosis["global"]["config"] = dict(
         barman.__config__.global_config_to_json(show_config_source)
@@ -72,13 +73,13 @@ def exec_diagnose(servers, errors_list, show_config_source):
         # server configuration
         diagnosis["servers"][name] = {}
         diagnosis["servers"][name]["config"] = server.config.to_json(show_config_source)
-        # server models
-        diagnosis["servers"][name]["active_model"] = server.config.active_model
-        diagnosis["servers"][name]["models"] = {}
-        for model in server.config.models.values():
-            diagnosis["servers"][name]["models"][model.name] = model.to_json(
-                show_config_source
-            )
+        # server model
+        active_model = (
+            server.config.active_model.name
+            if server.config.active_model is not None
+            else None
+        )
+        diagnosis["servers"][name]["active_model"] = active_model
         # server system info
         if server.config.ssh_command:
             try:
@@ -112,6 +113,15 @@ def exec_diagnose(servers, errors_list, show_config_source):
         }
         # Release any PostgreSQL resource
         server.close()
+    # per model section
+    for name in sorted(models):
+        model = models[name]
+        if model is None:
+            output.error("Unknown model '%s'" % name)
+            continue
+        # model configuration
+        diagnosis["models"][name] = {}
+        diagnosis["models"][name]["config"] = model.to_json(show_config_source)
     output.info(
         json.dumps(diagnosis, cls=BarmanEncoderV2, indent=4, sort_keys=True), log=False
     )

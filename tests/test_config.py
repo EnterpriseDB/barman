@@ -582,7 +582,7 @@ class TestConfig(object):
         )
         assert main.__dict__ == expected
 
-    def test_populate_servers(self):
+    def test_populate_servers_and_models(self):
         """
         Test for the presence of conflicting paths in configuration between all
         the servers
@@ -600,14 +600,14 @@ class TestConfig(object):
         # attribute servers_msg_list is empty before _populate_server()
         assert len(c.servers_msg_list) == 0
 
-        c._populate_servers()
+        c._populate_servers_and_models()
 
-        # after _populate_servers() if there is a global paths error
+        # after _populate_servers_and_models() if there is a global paths error
         # servers_msg_list is created in configuration
         assert c.servers_msg_list
         assert len(c.servers_msg_list) == 6
 
-    def test_populate_servers_following_symlink(self, tmpdir):
+    def test_populate_servers_and_models_following_symlink(self, tmpdir):
         """
         Test for the presence of conflicting paths in configuration between all
         the servers
@@ -626,7 +626,7 @@ class TestConfig(object):
             },
         )
 
-        c._populate_servers()
+        c._populate_servers_and_models()
 
         # If there is one or more path errors are present,
         # the msg_list of the 'main' server is populated during
@@ -891,113 +891,6 @@ class TestConfig(object):
 
         assert str(exc.value) == "SOME_ERROR"
 
-    def test_populate_servers_conflicting_clusters(self):
-        """Test :meth:`Config._populate_servers`.
-
-        Ensure conflicting clusters are reported as server errors.
-        """
-        fp = StringIO(
-            """
-            [barman]
-            barman_home = /some/barman/home
-            barman_user = barman
-            log_file = %(barman_home)s/log/barman.log
-
-            [SERVER_1]
-            cluster = SOME_CLUSTER
-
-            [SERVER_2]
-            cluster = SOME_CLUSTER
-        """
-        )
-        c = Config(fp)
-
-        # attribute servers_msg_list is empty before _populate_server()
-        assert c.servers_msg_list == []
-
-        c._populate_servers()
-
-        # after _populate_servers() if there is a global paths error
-        # servers_msg_list is created in configuration
-        assert c.servers_msg_list == [
-            "Conflicting cluster name: "
-            "'cluster=SOME_CLUSTER' for server 'SERVER_2' conflicts with "
-            "cluster name for server 'SERVER_1'"
-        ]
-
-    def test_populate_servers_model_not_tied_with_server(self):
-        """Test :meth:`Config._populate_servers`.
-
-        Ensure models which cluster does not exist in any server are reported
-        as server errors.
-        """
-        fp = StringIO(
-            """
-            [barman]
-            barman_home = /some/barman/home
-            barman_user = barman
-            log_file = %(barman_home)s/log/barman.log
-
-            [SERVER]
-            cluster = SOME_CLUSTER
-
-            [MODEL]
-            model = True
-            cluster = SOME_OTHER_CLUSTER
-        """
-        )
-        c = Config(fp)
-
-        # attribute servers_msg_list is empty before _populate_server()
-        assert c.servers_msg_list == []
-
-        c._populate_servers()
-
-        # after _populate_servers() if there is a global paths error
-        # servers_msg_list is created in configuration
-        assert c.servers_msg_list == [
-            "Model 'MODEL' has 'cluster=SOME_OTHER_CLUSTER', but no server exists with such 'cluster' config"
-        ]
-
-        assert c._servers["SERVER"].models == {}
-
-    def test_populate_servers_model_tied_with_server(self):
-        """Test :meth:`Config._populate_servers`.
-
-        Ensure a model which has a corresponding server with same cluster name is appended to server models.
-        """
-        fp = StringIO(
-            """
-            [barman]
-            barman_home = /some/barman/home
-            barman_user = barman
-            log_file = %(barman_home)s/log/barman.log
-
-            [SERVER]
-            cluster = SOME_CLUSTER
-
-            [MODEL]
-            model = True
-            cluster = SOME_CLUSTER
-        """
-        )
-        c = Config(fp)
-
-        # attribute servers_msg_list is empty before _populate_server()
-        assert c.servers_msg_list == []
-
-        c._populate_servers()
-
-        # after _populate_servers() if there is a global paths error
-        # servers_msg_list is created in configuration
-        assert c.servers_msg_list == []
-
-        assert list(c._servers["SERVER"].models.keys()) == ["MODEL"]
-        model = c._servers["SERVER"].models["MODEL"]
-        assert isinstance(model, ModelConfig)
-        assert model.name == "MODEL"
-        assert model.cluster == "SOME_CLUSTER"
-
     def test__apply_models_file_not_found(self):
         """Test :meth:`Config._apply_models`.
 
@@ -1044,26 +937,6 @@ class TestConfig(object):
     def test__apply_models_model_does_not_exist(self):
         """Test :meth:`Config._apply_models`.
 
-        Ensure everything goes smoothly if the model and the file exists.
-        """
-        fp = StringIO(MINIMAL_CONFIG)
-        c = Config(fp)
-
-        mock = mock_open(read_data="SOME_OTHER_MODEL")
-
-        with patch.object(c, "servers") as mock_servers, patch("builtins.open", mock):
-            mock_server = MagicMock()
-            mock_servers.return_value = [mock_server]
-
-            c._apply_models()
-
-            mock_server.apply_model.assert_called_once_with("SOME_OTHER_MODEL")
-            mock_server.update_msg_list_and_disable_server.assert_not_called()
-            mock.assert_called_once_with(mock_server._active_model_file, "r")
-
-    def test__apply_models_model_ok(self):
-        """Test :meth:`Config._apply_models`.
-
         Ensure errors are pointed out in case an invalid model is found in the
         active model file.
         """
@@ -1072,57 +945,52 @@ class TestConfig(object):
 
         mock = mock_open(read_data="SOME_OTHER_MODEL")
 
-        with patch.object(c, "servers") as mock_servers, patch("builtins.open", mock):
+        with patch.object(c, "servers") as mock_servers, patch(
+            "builtins.open", mock
+        ), patch.object(c, "get_model", Mock(return_value=None)):
             mock_server = MagicMock()
             mock_servers.return_value = [mock_server]
-            mock_server.apply_model.side_effect = KeyError("NOT FOUND")
 
             c._apply_models()
 
-            mock_server.apply_model.assert_called_once_with("SOME_OTHER_MODEL")
+            mock_server.apply_model.assert_not_called()
             mock_server.update_msg_list_and_disable_server.assert_called_once_with(
-                ["'NOT FOUND'"]
+                [
+                    "Model '%s' is set as the active model for the server "
+                    "'%s' but the model does not exist."
+                    % ("SOME_OTHER_MODEL", mock_server.name)
+                ]
             )
             mock.assert_called_once_with(mock_server._active_model_file, "r")
 
-    def test_get_server_by_cluster_name_not_exists(self):
-        """Test :meth:`Config.get_server_by_cluster_name`.
+    @pytest.fixture
+    def mock_model(self):
+        mock = MagicMock()
+        mock.name = "SOME_OTHER_MODEL"
+        mock.cluster = "main"
+        return mock
 
-        Ensure ``None`` is returned if a server with the given cluster name does
-        not exist.
+    def test__apply_models_model_ok(self, mock_model):
+        """Test :meth:`Config._apply_models`.
+
+        Ensure everything goes smoothly if the model and the file exists.
         """
         fp = StringIO(MINIMAL_CONFIG)
         c = Config(fp)
 
-        with patch.object(c, "servers") as mock_servers:
-            mock_servers.return_value = [
-                MagicMock(cluster="SOME_CLUSTER"),
-                MagicMock(cluster="SOME_OTHER_CLUSTER"),
-                MagicMock(cluster="YET_ANOTHER_CLUSTER"),
-            ]
+        mock = mock_open(read_data="SOME_OTHER_MODEL")
 
-            assert c.get_server_by_cluster_name("RANDOM") is None
+        with patch.object(c, "servers") as mock_servers, patch(
+            "builtins.open", mock
+        ), patch.object(c, "get_model", Mock(return_value=mock_model)):
+            mock_server = MagicMock()
+            mock_servers.return_value = [mock_server]
 
-    def test_get_server_by_cluster_name_exists(self):
-        """Test :meth:`Config.get_server_by_cluster_name`.
+            c._apply_models()
 
-        Ensure a server is returned if a server with the given cluster name does
-        exist.
-        """
-        fp = StringIO(MINIMAL_CONFIG)
-        c = Config(fp)
-
-        with patch.object(c, "servers") as mock_servers:
-            mock_servers.return_value = [
-                MagicMock(cluster="SOME_CLUSTER"),
-                MagicMock(cluster="SOME_OTHER_CLUSTER"),
-                MagicMock(cluster="YET_ANOTHER_CLUSTER"),
-            ]
-
-            assert (
-                c.get_server_by_cluster_name("YET_ANOTHER_CLUSTER")
-                == mock_servers.return_value[2]
-            )
+            mock_server.apply_model.assert_called_once_with(mock_model)
+            mock_server.update_msg_list_and_disable_server.assert_not_called()
+            mock.assert_called_once_with(mock_server._active_model_file, "r")
 
 
 class TestServerConfig(object):
@@ -1213,7 +1081,7 @@ class TestServerConfig(object):
             "last_backup_minimum_size": 1048576,
         }
         expected = testing_helpers.build_config_dictionary(expected_override)
-        for key in ["config", "_active_model_file", "active_model", "models"]:
+        for key in ["config", "_active_model_file", "active_model"]:
             del expected[key]
         assert main.to_json(False) == expected
 
@@ -1245,54 +1113,61 @@ class TestServerConfig(object):
         main = c.get_server("main")
         return main
 
+    @pytest.fixture
+    def model_config(self):
+        mock_config = MagicMock()
+        mock_config.get.return_value = None
+        mock_config.get_config_source.return_value = "SOME_SOURCE"
+        model = ModelConfig(mock_config, "SOME_MODEL")
+        model.cluster = "SOME_CLUSTER"
+        model.model = True
+        return model
+
     @patch("barman.config.output")
-    def test_add_model_invalid_cluster(self, mock_output, server_config):
-        """Test :meth:`ServerConfig.add_model`.
+    def test_apply_model_cluster_mismatch(
+        self, mock_output, server_config, model_config
+    ):
+        """Test :meth:`ServerConfig.apply_model`.
 
-        Make sure an error is logged and nothing is changed if the ``cluster``
-        attribute is incompatible between the server and the model.
+        Ensure it logs an error message and does nothing else when the cluster
+        config doesn't match between the model and the server.
         """
-        model = MagicMock(cluster="SOME_OTHER_CLUSTER")
+        model_config.cluster = "SOME_OTHER_CLUSTER"
 
-        server_config.add_model(model)
+        mock = mock_open()
 
-        assert server_config.models == {}
-        mock_output.error.assert_called_once_with(
+        with patch("builtins.open", mock):
+            server_config.apply_model(model_config)
+
+        expected = (
             "Model '%s' has 'cluster=%s', which is not compatible with "
-            "'cluster=%s' from server '%s'",
-            model.name,
-            model.cluster,
-            server_config.cluster,
-            server_config.name,
+            "'cluster=%s' from server '%s'"
+            % (
+                model_config.name,
+                model_config.cluster,
+                server_config.cluster,
+                server_config.name,
+            )
         )
-
-    @patch("barman.config.output")
-    def test_add_model_ok(self, mock_output, server_config):
-        """Test :meth:`ServerConfig.add_model`.
-
-        Ensure everything is ok if ``cluster`` attribute is compatible.
-        """
-        model = MagicMock(cluster="SOME_CLUSTER")
-
-        server_config.add_model(model)
-
-        assert server_config.models == {model.name: model}
-        mock_output.error.assert_not_called()
+        mock_output.error.assert_called_once_with(expected)
+        mock.assert_not_called()
 
     @pytest.mark.parametrize("from_cli", [False, True])
     @patch("barman.config.output")
-    def test_apply_model_already_active(self, mock_output, from_cli, server_config):
+    def test_apply_model_already_active(
+        self, mock_output, from_cli, server_config, model_config
+    ):
         """Test :meth:`ServerConfig.apply_model`.
 
         Ensure it only logs a message and does nothing else if the given model
         is already active.
         """
-        server_config.active_model = "SOME_MODEL"
+        server_config.active_model = model_config
 
         mock = mock_open()
 
         with patch("builtins.open", mock):
-            server_config.apply_model("SOME_MODEL", from_cli)
+            server_config.apply_model(model_config, from_cli)
 
         expected = "Model '%s' is already active for server '%s', " "skipping..." % (
             "SOME_MODEL",
@@ -1308,28 +1183,12 @@ class TestServerConfig(object):
 
         mock.assert_not_called()
 
-    @pytest.mark.parametrize("from_cli", [False, True])
-    @patch("barman.config.output")
-    def test_apply_model_not_exists(self, mock_output, from_cli, server_config):
-        """Test :meth:`ServerConfig.apply_model`.
-
-        Ensure an error is logged if the requested model doesn't exist.
-        """
-        mock = mock_open()
-
-        with patch("builtins.open", mock):
-            server_config.apply_model("SOME_MODEL", from_cli)
-
-        expected = (
-            "Cannot apply model: there is no model 'SOME_MODEL' for server 'main'"
-        )
-        mock_output.error.assert_called_once_with(expected)
-
-        mock.assert_not_called()
-
     @pytest.fixture
     def mock_model(self):
-        mock = MagicMock(conninfo="VALUE_1", streaming_conninfo="VALUE_2")
+        mock = MagicMock(
+            conninfo="VALUE_1", streaming_conninfo="VALUE_2", cluster="SOME_CLUSTER"
+        )
+        mock.name = "SOME_MODEL"
         mock.get_override_options.return_value = [
             ("conninfo", "VALUE_1"),
             ("streaming_conninfo", "VALUE_2"),
@@ -1345,11 +1204,10 @@ class TestServerConfig(object):
         set/written as expected.
         """
         mock = mock_open()
-        server_config.models = {"SOME_MODEL": mock_model}
         server_config.conninfo = "VALUE_1"
 
         with patch("builtins.open", mock):
-            server_config.apply_model("SOME_MODEL", from_cli)
+            server_config.apply_model(mock_model, from_cli)
 
         mock_model.get_override_options.assert_called_once_with()
 
@@ -1377,7 +1235,7 @@ class TestServerConfig(object):
             mock.assert_not_called()
 
     @pytest.mark.parametrize("file_exists", [False, True])
-    @pytest.mark.parametrize("active_model", [None, "SOME_MODEL"])
+    @pytest.mark.parametrize("active_model", [None, mock_model])
     @patch("barman.config.output")
     def test_reset_model(self, mock_output, file_exists, active_model, server_config):
         """Test :meth:`ServerConfig.reset_model`.

@@ -294,7 +294,6 @@ def build_config_dictionary(config_keys=None):
         "incoming_wals_directory": "/some/barman/home/main/incoming",
         "max_incoming_wals_queue": None,
         "minimum_redundancy": "0",
-        "models": {},
         "name": "main",
         "network_compression": False,
         "parallel_jobs_start_batch_period": 1,

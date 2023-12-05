@@ -1205,9 +1205,10 @@ def diagnose(args=None):
     """
     # Get every server (both inactive and temporarily disabled)
     servers = get_server_list(on_error_stop=False, suppress_error=True)
+    models = get_model_list()
     # errors list with duplicate paths between servers
     errors_list = barman.__config__.servers_msg_list
-    barman.diagnose.exec_diagnose(servers, errors_list, args.show_config_source)
+    barman.diagnose.exec_diagnose(servers, models, errors_list, args.show_config_source)
     output.close_and_exit()
 
 
@@ -1838,15 +1839,20 @@ def config_switch(args):
     Change the active configuration for a server by applying a named model on
     top of it, or by resetting the active model.
     """
-    server = get_server(
-        args, skip_inactive=False, on_error_stop=False, suppress_error=True
-    )
+    if args.model_name is None and not args.reset:
+        output.error("Either a model name or '--reset' flag need to be given")
+        return
 
-    if server:
+    server = get_server(args, skip_inactive=False)
+
+    if server is not None:
         if args.reset:
             server.config.reset_model()
         else:
-            server.config.apply_model(args.model_name, True)
+            model = get_model(args)
+
+            if model is not None:
+                server.config.apply_model(model, True)
 
 
 def pretty_args(args):
@@ -2140,6 +2146,111 @@ def manage_server_command(
 
     # All ok, execute the command
     return True
+
+
+def get_model_list(args=None):
+    """Get the model list from the configuration.
+
+    If the *args* parameter is ``None`` returns all defined servers.
+
+    :param args: an :class:`argparse.Namespace` containing a list
+        ``model_name`` parameter.
+
+    :return: a :class:`dict` -- each key is a model name, and its value the
+        corresponding :class:`ModelConfig` instance.
+    """
+    model_dict = {}
+
+    # This function must to be called with in a multiple-model context
+    assert not args or isinstance(args.model_name, list)
+
+    # Generate the list of models (required for global errors)
+    available_models = barman.__config__.model_names()
+
+    # Handle special *args* is ``None`` case
+    if not args:
+        model_names = available_models
+    else:
+        # Put models in a set, so multiple occurrences are counted only once
+        model_names = set(args.model_name)
+
+    # Loop through all the requested models
+    for model_name in model_names:
+        model = barman.__config__.get_model(model_name)
+        if model is None:
+            # Unknown model
+            model_dict[model_name] = None
+        else:
+            model_dict[model_name] = model
+
+    return model_dict
+
+
+def manage_model_command(model, name=None):
+    """
+    Standard and consistent method for managing model errors within a model
+    command execution.
+
+    :param model: :class:`ModelConfig` to be checked for errors.
+    :param name: name of the model.
+
+    :return: ``True`` if the command has to be executed with this model.
+    """
+
+    # Unknown model (skip it)
+    if not model:
+        output.error("Unknown model '%s'" % name)
+        return False
+
+    # All ok, execute the command
+    return True
+
+
+def get_model(args, on_error_stop=True):
+    """
+    Get a single model retrieving its configuration (wraps :func:`get_model_list`).
+
+    .. warning::
+        This function modifies the *args* parameter.
+
+    :param args: an :class:`argparse.Namespace` containing a single
+        ``model_name`` parameter.
+    :param on_error_stop: stop if an error is found.
+
+    :return: a :class:`ModelConfig` or ``None`` if the required model is
+        unknown and *on_error_stop* is ``False``.
+    """
+    # This function must to be called with in a single-model context
+    name = args.model_name
+    assert isinstance(name, str)
+
+    # Builds a list from a single given name
+    args.model_name = [name]
+
+    # Retrieve the requested model
+    models = get_model_list(args)
+
+    # The requested model has been excluded from :func:`get_model_list`` result
+    if len(models) == 0:
+        output.close_and_exit()
+        # The following return statement will never be reached
+        # but it is here for clarity
+        return None
+
+    # retrieve the model object
+    model = models[name]
+
+    # Apply standard validation control and skips
+    # the model if invalid, displaying standard
+    # error messages. If on_error_stop (default) exits
+    if not manage_model_command(model, name) and on_error_stop:
+        output.close_and_exit()
+        # The following return statement will never be reached
+        # but it is here for clarity
+        return None
+
+    # Returns the filtered model
+    return model
 
 
 def parse_backup_id(server, args):

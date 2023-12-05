@@ -768,35 +768,11 @@ class ServerConfig(BaseConfig):
             self.backup_directory, ".active-model.auto"
         )
         self.active_model = None
-        self.models = {}
 
-    def add_model(self, model):
-        """
-        Add *model* to the models of this server.
-
-        .. note::
-            If a model with the same name already exists in this server, it will
-            be overwritten.
-
-        :param model: a :class:`ModelConfig` instance.
-        """
-        if self.cluster != model.cluster:
-            output.error(
-                "Model '%s' has 'cluster=%s', which is not compatible with "
-                "'cluster=%s' from server '%s'",
-                model.name,
-                model.cluster,
-                self.cluster,
-                self.name,
-            )
-            return
-
-        self.models[model.name] = model
-
-    def apply_model(self, name, from_cli=False):
+    def apply_model(self, model, from_cli=False):
         """Apply config from a model named *name*.
 
-        :param name: name of the model to be applied.
+        :param model: the model to be applied.
         :param from_cli: ``True`` if this function has been called by the user
             through a command, e.g. ``barman-config-switch``. ``False`` if it
             has been called internally by Barman. ``INFO`` messages are written
@@ -804,21 +780,25 @@ class ServerConfig(BaseConfig):
         """
         writer_func = getattr(output, "info" if from_cli else "debug")
 
-        # No need to apply the same model twice
-        if name == self.active_model:
-            writer_func(
-                "Model '%s' is already active for server '%s', "
-                "skipping..." % (name, self.name)
+        if self.cluster != model.cluster:
+            output.error(
+                "Model '%s' has 'cluster=%s', which is not compatible with "
+                "'cluster=%s' from server '%s'"
+                % (
+                    model.name,
+                    model.cluster,
+                    self.cluster,
+                    self.name,
+                )
             )
 
             return
 
-        try:
-            model = self.models[name]
-        except KeyError:
-            output.error(
-                "Cannot apply model: there is no model '%s' for server '%s'"
-                % (name, self.name)
+        # No need to apply the same model twice
+        if self.active_model is not None and model.name == self.active_model.name:
+            writer_func(
+                "Model '%s' is already active for server '%s', "
+                "skipping..." % (model.name, self.name)
             )
 
             return
@@ -844,9 +824,9 @@ class ServerConfig(BaseConfig):
             # already read the active model from that file, so there is no need
             # to persist it again to disk
             with open(self._active_model_file, "w") as f:
-                f.write(name)
+                f.write(model.name)
 
-        self.active_model = model.name
+        self.active_model = model
 
     def reset_model(self):
         """Reset the active model for this server, if any."""
@@ -882,7 +862,7 @@ class ServerConfig(BaseConfig):
         # options, as things like `msg_list` are going to the `config` key,
         # i.e. we might be interested in considering only `ServerConfig.KEYS`
         # here instead of `vars(self)`
-        for key in ["config", "_active_model_file", "active_model", "models"]:
+        for key in ["config", "_active_model_file", "active_model"]:
             del json_dict[key]
 
         # options that are override by the model
@@ -890,8 +870,7 @@ class ServerConfig(BaseConfig):
 
         if self.active_model:
             override_options = {
-                option
-                for option, _ in self.models[self.active_model].get_override_options()
+                option for option, _ in self.active_model.get_override_options()
             }
 
         if with_source:
@@ -899,7 +878,7 @@ class ServerConfig(BaseConfig):
                 name = self.name
 
                 if option in override_options:
-                    name = self.active_model
+                    name = self.active_model.name
 
                 json_dict[option] = {
                     "value": value,
@@ -1179,6 +1158,7 @@ class Config(object):
                 )
         self.config_file = filename
         self._servers = None
+        self._models = None
         self.servers_msg_list = []
         self._parse_global_config()
 
@@ -1317,26 +1297,22 @@ class Config(object):
         except ValueError as exc:
             raise exc
 
-    def _populate_servers(self):
+    def _populate_servers_and_models(self):
         """
-        Populate server list from configuration file
+        Populate server list and model list from configuration file
 
         Also check for paths errors in configuration.
         If two or more paths overlap in
         a single server, that server is disabled.
         If two or more directory paths overlap between
         different servers an error is raised.
-
-        Also check for cluster name overlaps among
-        different servers, and raise errors in that
-        case.
         """
 
         # Populate servers
-        if self._servers is not None:
+        if self._servers is not None and self._models is not None:
             return
         self._servers = {}
-        models = {}
+        self._models = {}
         # Cycle all the available configurations sections
         for section in self._config.sections():
             if section == "barman":
@@ -1352,35 +1328,13 @@ class Config(object):
                 raise SystemExit("FATAL: %s" % msg)
             if self._is_model(section):
                 # Create a ModelConfig object
-                models[section] = ModelConfig(self, section)
+                self._models[section] = ModelConfig(self, section)
             else:
                 # Create a ServerConfig object
                 self._servers[section] = ServerConfig(self, section)
 
         # Check for conflicting paths in Barman configuration
         self._check_conflicting_paths()
-
-        # Check for conflicting clusters in Barman configuration
-        self._check_conflicting_clusters()
-
-        # Associate models with their servers
-        # We need to do that here, after parsing all servers config and making
-        # sure they are conflict free in terms of cluster name, so we can check
-        # for dangling models
-        for name, model in models.items():
-            server = self.get_server_by_cluster_name(model.cluster)
-
-            if server is None:
-                self.servers_msg_list.append(
-                    "Model '%s' has 'cluster=%s', but no server exists with such 'cluster' config"
-                    % (
-                        name,
-                        model.cluster,
-                    )
-                )
-                continue
-
-            server.add_model(model)
 
         # Apply models if the hidden files say so
         self._apply_models()
@@ -1477,31 +1431,6 @@ class Config(object):
                                 )
                             )
 
-    def _check_conflicting_clusters(self):
-        """
-        Look for conflicting cluster names among servers
-        """
-        # All cluster names in configuration
-        cluster_names = {}
-
-        # Cycle all the available configurations sections
-        for section in sorted(self.server_names()):
-            server = self.get_server(section)
-
-            if server.cluster in cluster_names:
-                self.servers_msg_list.append(
-                    "Conflicting cluster name: "
-                    "'cluster=%s' for server '%s' conflicts with "
-                    "cluster name for server '%s'"
-                    % (
-                        server.cluster,
-                        server.name,
-                        cluster_names[server.cluster],
-                    )
-                )
-            else:
-                cluster_names[server.cluster] = server.name
-
     def _apply_models(self):
         """
         For each Barman server, check for a pre-existing active model.
@@ -1524,21 +1453,31 @@ class Config(object):
                 # Try to protect itself from a bogus file
                 continue
 
-            try:
-                server.apply_model(active_model)
-            except KeyError as exc:
+            model = self.get_model(active_model)
+
+            if model is None:
                 # The model used to exist, but it's no longer avaialble for
                 # some reason
-                server.update_msg_list_and_disable_server([str(exc)])
+                server.update_msg_list_and_disable_server(
+                    [
+                        "Model '%s' is set as the active model for the server "
+                        "'%s' but the model does not exist."
+                        % (active_model, server.name)
+                    ]
+                )
+
+                continue
+
+            server.apply_model(model)
 
     def server_names(self):
         """This method returns a list of server names"""
-        self._populate_servers()
+        self._populate_servers_and_models()
         return self._servers.keys()
 
     def servers(self):
         """This method returns a list of server parameters"""
-        self._populate_servers()
+        self._populate_servers_and_models()
         return self._servers.values()
 
     def get_server(self, name):
@@ -1547,22 +1486,35 @@ class Config(object):
 
         :param str name: the server name
         """
-        self._populate_servers()
+        self._populate_servers_and_models()
         return self._servers.get(name, None)
 
-    def get_server_by_cluster_name(self, name):
-        """
-        Get the configuration of a Barman server based on its cluster name.
+    def model_names(self):
+        """Get a list of model names.
 
-        :param str name: the cluster name.
-
-        :return: :class:`ServerConfig` of the server which cluster name is
-            *name*, if any, ``None`` otherwise.
+        :return: a :class:`list` of configured model names.
         """
-        for server in self.servers():
-            if server.cluster == name:
-                return server
-        return None
+        self._populate_servers_and_models()
+        return self._models.keys()
+
+    def models(self):
+        """Get a list of models.
+
+        :return: a :class:`list` of configured :class:`ModelConfig` objects.
+        """
+        self._populate_servers_and_models()
+        return self._models.values()
+
+    def get_model(self, name):
+        """Get the configuration of the specified model.
+
+        :param name: the model name.
+
+        :return: a :class:`ModelConfig` if the model exists, otherwise
+            ``None``.
+        """
+        self._populate_servers_and_models()
+        return self._models.get(name, None)
 
     def validate_global_config(self):
         """
