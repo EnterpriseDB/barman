@@ -21,6 +21,7 @@ This module is responsible for all the things related to
 Barman configuration, such as parsing configuration file.
 """
 
+from copy import deepcopy
 import collections
 import datetime
 import inspect
@@ -597,6 +598,7 @@ class ServerConfig(BaseConfig):
         "check_timeout",
         "compression",
         "configuration_files_directory",
+        "create_slot",
         "custom_compression_filter",
         "custom_decompression_filter",
         "custom_compression_magic",
@@ -636,7 +638,6 @@ class ServerConfig(BaseConfig):
         "primary_ssh_command",
         "recovery_options",
         "recovery_staging_path",
-        "create_slot",
         "retention_policy",
         "retention_policy_mode",
         "reuse_backup",
@@ -924,24 +925,59 @@ class ServerConfig(BaseConfig):
 class ModelConfig(BaseConfig):
     """
     This class represents the configuration for a specific model of a server.
+
+    :cvar KEYS: list of configuration options that are allowed in a model.
+    :cvar REQUIRED_KEYS: list of configuration options that must always be set
+        when defining a configuration model.
+    :cvar PARSERS: mapping of parsers for the configuration options, if they
+        need special handling.
     """
 
-    KEYS = [
-        "cluster",
-        "conninfo",
-        "model",
-        "primary_conninfo",
-        "streaming_conninfo",
-    ]
+    # Keys from ServerConfig which are not allowed in a configuration model.
+    # They are mostly related with paths or hooks, which are not expected to
+    # be changed at all with a model.
+    _KEYS_BLACKLIST = {
+        # Path related options
+        "backup_directory",
+        "basebackups_directory",
+        "errors_directory",
+        "incoming_wals_directory",
+        "streaming_wals_directory",
+        "wals_directory",
+        # Hook related options
+        "post_archive_retry_script",
+        "post_archive_script",
+        "post_backup_retry_script",
+        "post_backup_script",
+        "post_delete_script",
+        "post_delete_retry_script",
+        "post_recovery_retry_script",
+        "post_recovery_script",
+        "post_wal_delete_script",
+        "post_wal_delete_retry_script",
+        "pre_archive_retry_script",
+        "pre_archive_script",
+        "pre_backup_retry_script",
+        "pre_backup_script",
+        "pre_delete_script",
+        "pre_delete_retry_script",
+        "pre_recovery_retry_script",
+        "pre_recovery_script",
+        "pre_wal_delete_script",
+        "pre_wal_delete_retry_script",
+    }
+
+    KEYS = list((set(ServerConfig.KEYS) | {"model"}) - _KEYS_BLACKLIST)
 
     REQUIRED_KEYS = [
         "cluster",
         "model",
     ]
 
-    PARSERS = {
-        "model": parse_boolean,
-    }
+    PARSERS = deepcopy(ServerConfig.PARSERS)
+    PARSERS.update({"model": parse_boolean})
+    for key in _KEYS_BLACKLIST:
+        PARSERS.pop(key, None)
 
     def __init__(self, config, name):
         self.config = config
@@ -966,7 +1002,7 @@ class ModelConfig(BaseConfig):
         :yield: tuples os option name and value which should override the value
             specified in the server with the value specified in the model.
         """
-        for option in set(self.KEYS) - {"cluster", "model"}:
+        for option in set(self.KEYS) - set(self.REQUIRED_KEYS):
             value = getattr(self, option)
 
             if value is not None:
