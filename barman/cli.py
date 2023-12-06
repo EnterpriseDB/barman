@@ -1205,7 +1205,7 @@ def diagnose(args=None):
     """
     # Get every server (both inactive and temporarily disabled)
     servers = get_server_list(on_error_stop=False, suppress_error=True)
-    models = get_model_list()
+    models = get_models_list()
     # errors list with duplicate paths between servers
     errors_list = barman.__config__.servers_msg_list
     barman.diagnose.exec_diagnose(servers, models, errors_list, args.show_config_source)
@@ -2148,7 +2148,7 @@ def manage_server_command(
     return True
 
 
-def get_model_list(args=None):
+def get_models_list(args=None):
     """Get the model list from the configuration.
 
     If the *args* parameter is ``None`` returns all defined servers.
@@ -2208,7 +2208,7 @@ def manage_model_command(model, name=None):
 
 def get_model(args, on_error_stop=True):
     """
-    Get a single model retrieving its configuration (wraps :func:`get_model_list`).
+    Get a single model retrieving its configuration (wraps :func:`get_models_list`).
 
     .. warning::
         This function modifies the *args* parameter.
@@ -2228,9 +2228,9 @@ def get_model(args, on_error_stop=True):
     args.model_name = [name]
 
     # Retrieve the requested model
-    models = get_model_list(args)
+    models = get_models_list(args)
 
-    # The requested model has been excluded from :func:`get_model_list`` result
+    # The requested model has been excluded from :func:`get_models_list`` result
     if len(models) == 0:
         output.close_and_exit()
         # The following return statement will never be reached

@@ -35,7 +35,7 @@ from barman.cli import (
     command,
     generate_manifest,
     get_model,
-    get_model_list,
+    get_models_list,
     get_server,
     get_server_list,
     manage_model_command,
@@ -367,18 +367,18 @@ class TestCli(object):
                 "Unknown model '%s'" % "SOME_MODEL"
             )
 
-    def test_get_model_list_invalid_args(self):
-        """Test :func:`get_model_list`.
+    def test_get_models_list_invalid_args(self):
+        """Test :func:`get_models_list`.
 
         Ensure an :exc:`AssertionError` is thrown when calling with invalid args.
         """
         mock_args = Mock(model_name="SOME_MODEL")
 
         with pytest.raises(AssertionError):
-            get_model_list(mock_args)
+            get_models_list(mock_args)
 
-    def test_get_model_list_none_args(self, monkeypatch):
-        """Test :func:`get_model_list`.
+    def test_get_models_list_none_args(self, monkeypatch):
+        """Test :func:`get_models_list`.
 
         Ensure the call brings all models when ``args`` is ``None``.
         """
@@ -386,13 +386,13 @@ class TestCli(object):
             barman, "__config__", build_config_from_dicts(with_model=True)
         )
         # we only have the ``main:model`` model by default
-        model_list = get_model_list()
+        model_list = get_models_list()
         assert len(model_list) == 1
         assert list(model_list.keys())[0] == "main:model"
         assert isinstance(model_list["main:model"], barman.config.ModelConfig)
 
-    def test_get_model_list_valid_args(self, monkeypatch):
-        """Test :func:`get_model_list`.
+    def test_get_models_list_valid_args(self, monkeypatch):
+        """Test :func:`get_models_list`.
 
         Ensure it brings a list with the requested models if ``args`` is given.
         """
@@ -403,7 +403,7 @@ class TestCli(object):
         mock_args = Mock(model_name=["main:model", "SOME_MODEL"])
         # we only have the ``main:model`` model by default, so ``SOME_MODEL``
         # should be ``None``
-        model_list = get_model_list(mock_args)
+        model_list = get_models_list(mock_args)
         assert len(model_list) == 2
         assert sorted(list(model_list.keys())) == ["SOME_MODEL", "main:model"]
         assert isinstance(model_list["main:model"], barman.config.ModelConfig)
