@@ -899,7 +899,7 @@ As an example, let's say you have a PostgreSQL cluster with the following nodes:
 * `pg-node-3`: standby
 
 Assume you are backing up from the primary node, and have a configuration which
-include the following options:
+includes the following options:
 
 ```ini
 [my-barman-server]
@@ -926,7 +926,7 @@ the following command, so you start backing up from the new primary node:
 barman config-switch my-barman-server my-barman-server:backup-from-pg-node-2
 ```
 
-That will basically override the cluster configuration options with the values
+That will override the cluster configuration options with the values
 defined in the selected model.
 
 > *NOTE*: not all options are configurable through models. Please refer to
