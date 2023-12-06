@@ -4,4 +4,6 @@ streaming_archiver_batch_size
     Otherwise, the traditional unlimited processing of the WAL queue
     is enabled. When batch processing is activated, the `archive-wal`
     process would limit itself to maximum `streaming_archiver_batch_size`
-    WAL segments per single run. Integer. Global/Server.
+    WAL segments per single run. Integer.
+
+    Scope: Global/Server/Model.

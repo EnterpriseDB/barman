@@ -12,4 +12,5 @@ streaming_archiver
     `true`. This is in order to maintain parity with deprecated behaviour
     where `archiver` would be enabled by default. This behaviour will be
     removed from the next major Barman version.
-    Global/Server.
+
+    Scope: Global/Server/Model.

@@ -1,2 +1,4 @@
 wals_directory
-:   Directory which contains WAL files. Server.
+:   Directory which contains WAL files.
+
+    Scope: Server.

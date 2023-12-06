@@ -5,4 +5,6 @@ immediate_checkpoint
     will be limited, according to the `checkpoint_completion_target`
     setting on the PostgreSQL server. If set to `true`, an immediate
     checkpoint will be requested, meaning that PostgreSQL will complete
-    the checkpoint as soon as possible. Global/Server.
+    the checkpoint as soon as possible.
+
+    Scope: Global/Server/Model.

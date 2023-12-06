@@ -4,3 +4,5 @@ forward_config_path
     commands. Set to true if you are invoking barman with the `-c/--config`
     option and your configuration is in the same place on both the passive
     and primary barman servers. Defaults to false.
+
+    Scope: Global/Server/Model.

@@ -11,3 +11,5 @@ primary_checkpoint_timeout
 
     This option works only if `primary_conninfo` option is set, and it is
     ignored otherwise.
+
+    Scope: Server/Model.

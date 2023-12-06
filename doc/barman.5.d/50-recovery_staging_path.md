@@ -7,4 +7,6 @@ recovery_staging_path
     "barman-staging-SERVER_NAME-BACKUP_ID". The staging directory within
     the staging path will be removed at the end of the recovery process.
     This option is *required* when recovering from compressed backups and
-    has no effect otherwise. Global/Server.
+    has no effect otherwise.
+
+    Scope: Global/Server/Model.

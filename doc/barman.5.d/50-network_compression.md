@@ -3,4 +3,5 @@ network_compression
     transfers.
     If set to `false` (default), no compression is used.
     If set to `true`, compression is enabled, reducing network usage.
-    Global/Server.
+
+    Scope: Global/Server/Model.

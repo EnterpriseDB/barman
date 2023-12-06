@@ -5,4 +5,6 @@ last_backup_maximum_age
     If empty (default), latest backup is always considered valid.
     Syntax for this option is: "i (DAYS | WEEKS | MONTHS)" where i is an integer
     greater than zero, representing the number of days | weeks | months
-    of the time frame. Global/Server.
+    of the time frame.
+
+    Scope: Global/Server/Model.
