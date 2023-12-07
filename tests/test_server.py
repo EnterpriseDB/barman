@@ -1753,6 +1753,92 @@ class TestServer(object):
         out, err = capsys.readouterr()
         assert "Replication slot 'test_repslot' does not exist" in err
 
+    @pytest.mark.parametrize(
+        ("remote_status", "expected_failure"),
+        (
+            # If all required status is present then there should be no failure
+            ({}, None),
+            # Monitoring privileges failure
+            (
+                {"has_monitoring_privileges": False},
+                "Check 'no access to monitoring functions' failed for server 'main'",
+            ),
+            # Streaming supported failures
+            (
+                {"streaming": False},
+                "Check 'PostgreSQL streaming (WAL streaming)' failed for server 'main'",
+            ),
+            (
+                {
+                    "connection_error": "test error",
+                    "streaming": False,
+                    "streaming_supported": None,
+                },
+                "Check 'PostgreSQL streaming (WAL streaming)' failed for server 'main'",
+            ),
+            # WAL level failure
+            (
+                {"wal_level": "minimal"},
+                "Check 'wal_level (WAL streaming)' failed for server 'main'",
+            ),
+            # Identity failures
+            (
+                {"postgres_systemid": "12345678"},
+                "Check 'systemid coherence (WAL streaming)' failed for server 'main'",
+            ),
+            (
+                {"streaming_systemid": "12345678"},
+                "Check 'systemid coherence (WAL streaming)' failed for server 'main'",
+            ),
+        ),
+    )
+    @patch("barman.wal_archiver.StreamingWalArchiver.receive_wal")
+    @patch("barman.server.Server.get_remote_status")
+    def test_receive_wal_checks(
+        self,
+        mock_remote_status,
+        mock_receive_wal,
+        remote_status,
+        expected_failure,
+        caplog,
+        tmpdir,
+    ):
+        """
+        Verify that receive-wal performs preflight checks.
+        """
+        # GIVEN a server configured for streaming archiving
+        server = build_real_server(
+            global_conf={"barman_lock_directory": tmpdir.mkdir("lock").strpath},
+            main_conf={
+                "streaming_archiver": "on",
+            },
+        )
+        # AND a remote_status
+        mock_remote_status.return_value = {
+            "has_monitoring_privileges": True,
+            "postgres_systemid": "01234567",
+            "replication_slot": Mock(restart_lsn="mock_lsn", active=True),
+            "streaming": True,
+            "streaming_supported": True,
+            "streaming_systemid": "01234567",
+            "wal_level": "replica",
+        }
+        mock_remote_status.return_value.update(remote_status)
+
+        # WHEN receive_wal is called
+        server.receive_wal()
+
+        # THEN if we expected the checks to pass, receive_wal was called on the archiver
+        if expected_failure is None:
+            mock_receive_wal.assert_called_once()
+        else:
+            # AND if we expected the checks to fail, the failing check is logged to file
+            assert expected_failure in caplog.text
+            # AND the impossible to start WAL streaming message is logged
+            assert "Impossible to start WAL streaming" in caplog.text
+            # AND receive_wal was not called on the archiver
+            mock_receive_wal.assert_not_called()
+
     @patch("barman.infofile.BackupInfo.save")
     @patch("os.path.exists")
     def test_check_backup(
