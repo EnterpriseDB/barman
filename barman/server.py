@@ -862,28 +862,25 @@ class Server(RemoteStatusMixin):
         """
         Perform checks related to the streaming of WALs only (not backups).
 
-        If no WAL-specific connection information is defined then this check will
-        call :meth:`_check_replication_slot` for the existing streaming connection,
-        since that is the connection which will be used when streaming WALs.
+        If no WAL-specific connection information is defined then checks already
+        performed on the default connection information will have verified their
+        suitability for WAL streaming so this check will only call
+        :meth:`_check_replication_slot` for the existing streaming connection as
+        this is the only additional check required.
 
-        If WAL-specific connection information *is* defined then this check will:
+        If WAL-specific connection information *is* defined then we must verify that
+        streaming is possible using that connection information *as well as* check
+        the replication slot. This check will therefore:
           1. Create these connections.
           2. Fetch the remote status of these connections.
-          3. Use the remote status information to run the
-             :meth:`_check_streaming_supported`, :meth:`_check_wal_level` and
-             :meth:`check_identity` checks, as we need to know the WAL-specific conninfo
-             points to a PostgreSQL instance which passes these checks.
-          4. Run an additional :meth:`_has_monitoring_privileges` check, which validates
-             the WAL-specific conninfo connects with a user than can read monitoring
-             information.
-          5. Run the :meth:`_check_replication_slot` check with the WAL-specific
-             connection.
+          3. Pass the remote status information to :meth:`_check_wal_streaming_preflight`
+             which will verify that the status information returned by these connections
+             indicates they are suitable for WAL streaming.
+          4. Pass the remote status information to :meth:`_check_replication_slot`
+             so that the status of the replication slot can be verified.
 
         :param CheckStrategy check_strategy: The strategy for the management
             of the result of this check
-        :param dict[str, None|str] remote_status: Remote status information used
-            by this check
-        :param str|None suffix: A suffix to be appended to the check name
         """
         # If we have wal-specific conninfo then we must use those to get
         # the remote status information for the check
@@ -894,15 +891,7 @@ class Server(RemoteStatusMixin):
             ) as postgres:
                 remote_status = postgres.get_remote_status()
                 remote_status.update(streaming.get_remote_status())
-
-                self._check_has_monitoring_privileges(
-                    check_strategy, remote_status, "WAL streaming"
-                )
-                self._check_streaming_supported(
-                    check_strategy, remote_status, "WAL streaming"
-                )
-                self._check_wal_level(check_strategy, remote_status, "WAL streaming")
-                self.check_identity(check_strategy, remote_status, "WAL streaming")
+                self._check_wal_streaming_preflight(check_strategy, remote_status)
                 self._check_replication_slot(
                     check_strategy, remote_status, "WAL streaming"
                 )
@@ -910,6 +899,29 @@ class Server(RemoteStatusMixin):
             # Use the status for the existing postgres connections
             remote_status = self.get_remote_status()
             self._check_replication_slot(check_strategy, remote_status)
+
+    def _check_wal_streaming_preflight(self, check_strategy, remote_status):
+        """
+        Verify the supplied remote_status indicates WAL streaming is possible.
+
+        Uses the remote status information to run the
+        :meth:`_check_streaming_supported`, :meth:`_check_wal_level` and
+        :meth:`check_identity` checks in order to verify that the connections
+        can be used for WAL streaming. Also runs an additional
+        :meth:`_has_monitoring_privileges` check, which validates the WAL-specific
+        conninfo connects with a user than can read monitoring information.
+
+        :param CheckStrategy check_strategy: The strategy for the management
+            of the result of this check
+        :param dict[str, None|str] remote_status: Remote status information used
+            by this check
+        """
+        self._check_has_monitoring_privileges(
+            check_strategy, remote_status, "WAL streaming"
+        )
+        self._check_streaming_supported(check_strategy, remote_status, "WAL streaming")
+        self._check_wal_level(check_strategy, remote_status, "WAL streaming")
+        self.check_identity(check_strategy, remote_status, "WAL streaming")
 
     def _check_replication_slot(self, check_strategy, remote_status, suffix=None):
         """
@@ -2780,6 +2792,17 @@ class Server(RemoteStatusMixin):
                 "Unable to start receive-wal process: "
                 "streaming_archiver option set to 'off' in "
                 "barman configuration file"
+            )
+            return
+
+        # Use the default CheckStrategy to silently check WAL streaming
+        # conditions are met and write errors to the log file.
+        strategy = CheckStrategy()
+        self._check_wal_streaming_preflight(strategy, self.get_remote_status())
+        if strategy.has_error:
+            output.error(
+                "Impossible to start WAL streaming. Check the log "
+                "for more details, or run 'barman check %s'" % self.config.name
             )
             return
 
