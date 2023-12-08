@@ -2,7 +2,7 @@
 
 # Configuration
 
-There are two types of configuration files in Barman:
+There are three types of configuration files in Barman:
 
 - **global/general configuration**
 - **server configuration**
@@ -14,7 +14,7 @@ Server configuration files, one for each server to be backed up by Barman, are l
 
 Similarly, model configuration files are located in the `/etc/barman.d` directory and must have a `.conf` suffix.
 
-> *NOTE*: models define a set of configuration overrides which can be applied on top of the configuration of Barman servers that are part of the same cluster as the model, through the `barman config-switch` command.
+> *NOTE*: models define a set of configuration overrides which can be applied on top of the configuration of Barman servers that are part of the same cluster as the model, through the [barman config-switch](#config-switch) command.
 
 > **IMPORTANT**: For historical reasons, you can still have one single
 > configuration file containing both global as well as server and model options.
