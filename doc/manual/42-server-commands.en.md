@@ -71,8 +71,8 @@ barman check <server_name>
 
 The `config-switch` command is used to apply a set of configuration overrides
 defined through a model to a Barman server. The final configuration of the Barman
-server is composed by the configuration of the server plus the overrides applied
-by the selected model. Models are specially useful for clustered environments,
+server is composed of the configuration of the server plus the overrides applied
+by the selected model. Models are particularly useful for clustered environments,
 so you can create different configuration models which can be used in response to
 failover events, for example.
 

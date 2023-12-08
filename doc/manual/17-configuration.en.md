@@ -12,7 +12,7 @@ The main configuration file (set to `/etc/barman.conf` by default) contains gene
 
 Server configuration files, one for each server to be backed up by Barman, are located in the `/etc/barman.d` directory and must have a `.conf` suffix.
 
-Similarly, model configuration files, one for each model that can be applied to a server which is part of a cluster, are located in the `/etc/barman.d` directory and must have a `.conf` suffix.
+Similarly, model configuration files are located in the `/etc/barman.d` directory and must have a `.conf` suffix.
 
 > *NOTE*: models define a set of configuration overrides which can be applied on top of the configuration of Barman servers that are part of the same cluster as the model, through the `barman config-switch` command.
 

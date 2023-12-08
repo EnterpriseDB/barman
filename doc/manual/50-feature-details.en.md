@@ -888,7 +888,7 @@ managed server, in particular hot standby servers and WAL streamers.
 
 Configuration models define a set of overrides for configuration options. These
 overrides can be applied to Barman servers which are part of the same cluster as
-the config models. They can be handy to handle clustered environments, so you
+the config models. They can be useful when handling clustered environments, so you
 can change the configuration of a Barman server in response to failover events,
 for example.
 
@@ -915,7 +915,7 @@ You could, for example, have a configuration model for that cluster as follows:
 [my-barman-server:backup-from-pg-node-2]
 cluster = my-cluster
 model = true
-conninfo = host=pg-node-2 user=barman
+conninfo = host=pg-node-2 user=barman database=postgres
 streaming_conninfo = host=pg-node-2 user=streaming_barman
 ```
 
