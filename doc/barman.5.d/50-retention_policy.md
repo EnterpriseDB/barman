@@ -7,4 +7,6 @@ retention_policy
     "RECOVERY WINDOW OF i MONTHS" where i is a positive integer representing,
     specifically, the number of days, weeks or months to retain your backups.
     For more detailed information, refer to the official documentation.
-    Default value is empty. Global/Server.
+    Default value is empty.
+
+    Scope: Global/Server/Model.

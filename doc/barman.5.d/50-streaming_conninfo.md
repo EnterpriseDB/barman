@@ -1,3 +1,5 @@
 streaming_conninfo
 :   Connection string used by Barman to connect to the Postgres server via
-    streaming replication protocol. By default it is set to `conninfo`. Server.
+    streaming replication protocol. By default it is set to `conninfo`.
+
+    Scope: Server/Model.

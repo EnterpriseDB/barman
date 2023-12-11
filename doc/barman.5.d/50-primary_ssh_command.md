@@ -5,3 +5,5 @@ primary_ssh_command
     If `primary_ssh_command` is specified, Barman uses it to establish a
     connection with the primary server.
     Empty by default, it can also be set globally.
+
+    Scope: Global/Server/Model.

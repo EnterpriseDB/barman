@@ -5,4 +5,6 @@ custom_compression_magic
     applying the custom compression to WALs which have been
     pre-compressed with that compression. If you do not configure this
     then custom compression will still be applied but any pre-compressed
-    WAL files will be compressed again during WAL archive. Global/Server.
+    WAL files will be compressed again during WAL archive.
+
+    Scope: Global/Server/Model.

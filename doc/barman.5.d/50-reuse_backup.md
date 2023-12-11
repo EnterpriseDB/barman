@@ -1,5 +1,5 @@
 reuse_backup
-:   This option controls incremental backup support. Global/Server.
+:   This option controls incremental backup support.
     Possible values are:
 
     * `off`: disabled (default);
@@ -9,3 +9,5 @@ reuse_backup
       create a hard link of the unchanged files (reduce backup time
       and space). Requires operating system and file system support
       for hard links.
+
+    Scope: Global/Server/Model.

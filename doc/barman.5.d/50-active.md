@@ -6,3 +6,5 @@ active
     setting active=false at first, making sure that barman check shows
     no problems, and only then activating the server. This will avoid
     spamming the Barman logs with errors during the initial setup.
+
+    Scope: Server/Model.

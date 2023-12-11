@@ -3,4 +3,6 @@ recovery_options
     `get-wal` activates generation of a basic `restore_command` in
     the resulting recovery configuration that uses the `barman get-wal`
     command to fetch WAL files directly from Barman's archive of WALs.
-    Comma separated list of values, default empty. Global/Server.
+    Comma separated list of values, default empty.
+
+    Scope: Global/Server/Model.

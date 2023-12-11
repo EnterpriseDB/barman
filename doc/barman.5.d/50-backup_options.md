@@ -17,4 +17,6 @@ backup_options
       of a backup.
 
     Note that `exclusive_backup` and `concurrent_backup` are mutually
-    exclusive. Global/Server.
+    exclusive.
+
+    Scope: Global/Server/Model.
