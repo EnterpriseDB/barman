@@ -162,7 +162,12 @@ def mock_backup_ext_info(
 
 
 def build_config_from_dicts(
-    global_conf=None, main_conf=None, test_conf=None, config_name=None
+    global_conf=None,
+    main_conf=None,
+    test_conf=None,
+    config_name=None,
+    with_model=False,
+    model_conf=None,
 ):
     """
     Utility method, generate a barman.config.Config object
@@ -175,6 +180,9 @@ def build_config_from_dicts(
     :param dict[str,str|None]|None main_conf: using this dictionary
         it is possible to override/add new values to the [main] section
     :return barman.config.Config: a barman configuration object
+    :param bool with_model: if we should include a ``main:model`` model section
+    :param dict[str,str|None]|None model_conf: using this dictionary
+        it is possible to override/add new values to the [main:model] section
     """
     # base barman section
     base_barman = {
@@ -195,6 +203,11 @@ def build_config_from_dicts(
         "ssh_command": 'ssh -c "arcfour" -p 22 postgres@pg02.nowhere',
         "conninfo": "host=pg02.nowhere user=postgres port=5433",
     }
+    # main:model section
+    base_main_model = {
+        "cluster": "main",
+        "model": "true",
+    }
     # update map values of the two sections
     if global_conf is not None:
         base_barman.update(global_conf)
@@ -202,6 +215,8 @@ def build_config_from_dicts(
         base_main.update(main_conf)
     if test_conf is not None:
         base_test.update(test_conf)
+    if model_conf is not None:
+        base_main_model.update(model_conf)
 
     # writing the StringIO obj with the barman and main sections
     config_file = StringIO()
@@ -216,6 +231,11 @@ def build_config_from_dicts(
     config_file.write("[test]\n")
     for key in base_test.keys():
         config_file.write("%s = %s\n" % (key, base_main[key]))
+
+    if with_model:
+        config_file.write("[main:model]\n")
+        for key in base_main_model.keys():
+            config_file.write("%s = %s\n" % (key, base_main_model[key]))
 
     config_file.seek(0)
     config = Config(config_file)
@@ -236,7 +256,9 @@ def build_config_dictionary(config_keys=None):
     """
     # Basic dictionary
     base_config = {
+        "_active_model_file": "/some/barman/home/main/.active-model.auto",
         "active": True,
+        "active_model": None,
         "archiver": True,
         "archiver_batch_size": 0,
         "autogenerate_manifest": False,
@@ -246,6 +268,7 @@ def build_config_dictionary(config_keys=None):
         "azure_resource_group": None,
         "azure_subscription_id": None,
         "config": None,
+        "cluster": "main",
         "backup_compression": None,
         "backup_compression_format": None,
         "backup_compression_level": None,

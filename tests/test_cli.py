@@ -34,8 +34,11 @@ from barman.cli import (
     check_wal_archive,
     command,
     generate_manifest,
+    get_model,
+    get_models_list,
     get_server,
     get_server_list,
+    manage_model_command,
     manage_server_command,
     OrderedHelpFormatter,
     parse_backup_id,
@@ -44,6 +47,7 @@ from barman.cli import (
     replication_status,
     keep,
     show_servers,
+    config_switch,
 )
 from barman.exceptions import WalArchiveContentError
 from barman.infofile import BackupInfo
@@ -324,6 +328,86 @@ class TestCli(object):
         # Check for the presence of global errors
         assert global_error_list
         assert len(global_error_list) == 6
+
+    def test_get_model(self, monkeypatch):
+        """
+        Test the get_model method, providing a basic configuration
+
+        :param monkeypatch monkeypatch: pytest patcher
+        """
+        # Mock the args from argparse
+        args = Mock()
+        args.model_name = "main:model"
+        monkeypatch.setattr(
+            barman,
+            "__config__",
+            build_config_from_dicts(
+                with_model=True,
+            ),
+        )
+        model_main = get_model(args)
+        # Expect the model to exists
+        assert model_main
+        # Expect the name to be the right one
+        assert model_main.name == "main:model"
+
+    @pytest.mark.parametrize("model", [None, MagicMock()])
+    @patch("barman.cli.output")
+    def test_manage_model_command(self, mock_output, model):
+        """Test :func:`manage_model_command`.
+
+        Ensure it returns the expected result and log the expected message.
+        """
+        expected = model is not None
+
+        assert manage_model_command(model, "SOME_MODEL") == expected
+
+        if model is None:
+            mock_output.error.assert_called_once_with(
+                "Unknown model '%s'" % "SOME_MODEL"
+            )
+
+    def test_get_models_list_invalid_args(self):
+        """Test :func:`get_models_list`.
+
+        Ensure an :exc:`AssertionError` is thrown when calling with invalid args.
+        """
+        mock_args = Mock(model_name="SOME_MODEL")
+
+        with pytest.raises(AssertionError):
+            get_models_list(mock_args)
+
+    def test_get_models_list_none_args(self, monkeypatch):
+        """Test :func:`get_models_list`.
+
+        Ensure the call brings all models when ``args`` is ``None``.
+        """
+        monkeypatch.setattr(
+            barman, "__config__", build_config_from_dicts(with_model=True)
+        )
+        # we only have the ``main:model`` model by default
+        model_list = get_models_list()
+        assert len(model_list) == 1
+        assert list(model_list.keys())[0] == "main:model"
+        assert isinstance(model_list["main:model"], barman.config.ModelConfig)
+
+    def test_get_models_list_valid_args(self, monkeypatch):
+        """Test :func:`get_models_list`.
+
+        Ensure it brings a list with the requested models if ``args`` is given.
+        """
+        monkeypatch.setattr(
+            barman, "__config__", build_config_from_dicts(with_model=True)
+        )
+
+        mock_args = Mock(model_name=["main:model", "SOME_MODEL"])
+        # we only have the ``main:model`` model by default, so ``SOME_MODEL``
+        # should be ``None``
+        model_list = get_models_list(mock_args)
+        assert len(model_list) == 2
+        assert sorted(list(model_list.keys())) == ["SOME_MODEL", "main:model"]
+        assert isinstance(model_list["main:model"], barman.config.ModelConfig)
+        assert model_list["SOME_MODEL"] is None
 
     @pytest.fixture
     def mock_backup_info(self):
@@ -1464,3 +1548,96 @@ class TestShowServersCli(object):
         json_output = json.loads(out)
         assert [self.test_server_name] == list(json_output.keys())
         assert json_output[self.test_server_name]["description"] == expected_description
+
+
+class TestConfigSwitchCli:
+    """Test ``barman config-switch`` outcomes."""
+
+    @pytest.fixture
+    def mock_args(self):
+        return MagicMock(
+            server_name="SOME_SERVER", model_name="SOME_MODEL", reset=False
+        )
+
+    @patch("barman.cli.output")
+    def test_config_switch_invalid_args(self, mock_output, mock_args):
+        """Test :func:`config_switch`.
+
+        It should error out if neither ``--reset`` nor ``model_name`` are given.
+        """
+        mock_args.model_name = None
+
+        config_switch(mock_args)
+
+        mock_output.error.assert_called_once_with(
+            "Either a model name or '--reset' flag need to be given"
+        )
+
+    @patch("barman.cli.get_server")
+    def test_config_switch_no_server(self, mock_get_server, mock_args):
+        """Test :func:`config_switch`.
+
+        It should do nothing if :func:`get_server` returns nothing.
+        """
+        mock_get_server.return_value = None
+
+        config_switch(mock_args)
+
+        mock_get_server.assert_called_once_with(mock_args, skip_inactive=False)
+
+    @patch("barman.cli.get_model")
+    @patch("barman.cli.get_server")
+    def test_config_switch_model_apply_model_no_model(
+        self, mock_get_server, mock_get_model, mock_args
+    ):
+        """Test :func:`config_switch`.
+
+        It should call :meth:`barman.config.ServerConfig.apply_model` when
+        a server and a model are given.
+        """
+        mock_apply_model = mock_get_server.return_value.config.apply_model
+        mock_reset_model = mock_get_server.return_value.config.reset_model
+        mock_get_model.return_value = None
+
+        config_switch(mock_args)
+
+        mock_get_server.assert_called_once_with(mock_args, skip_inactive=False)
+        mock_apply_model.assert_not_called()
+        mock_reset_model.assert_not_called()
+
+    @patch("barman.cli.get_model")
+    @patch("barman.cli.get_server")
+    def test_config_switch_model_apply_model_ok(
+        self, mock_get_server, mock_get_model, mock_args
+    ):
+        """Test :func:`config_switch`.
+
+        It should call :meth:`barman.config.ServerConfig.apply_model` when
+        a server and a model are given.
+        """
+        mock_apply_model = mock_get_server.return_value.config.apply_model
+        mock_reset_model = mock_get_server.return_value.config.reset_model
+
+        config_switch(mock_args)
+
+        mock_get_server.assert_called_once_with(mock_args, skip_inactive=False)
+        mock_apply_model.assert_called_once_with(mock_get_model.return_value, True)
+        mock_reset_model.assert_not_called()
+
+    @patch("barman.cli.get_server")
+    def test_config_switch_model_reset_model(self, mock_get_server, mock_args):
+        """Test :func:`config_switch`.
+
+        It should call :meth:`barman.config.ServerConfig.reset_model` when
+        a server and ``--reset`` flag are given.
+        """
+        mock_args.model_name = None
+        mock_args.reset = True
+        mock_apply_model = mock_get_server.return_value.config.apply_model
+        mock_reset_model = mock_get_server.return_value.config.reset_model
+
+        config_switch(mock_args)
+
+        mock_get_server.assert_called_once_with(mock_args, skip_inactive=False)
+        mock_apply_model.assert_not_called()
+        mock_reset_model.assert_called_once_with()
