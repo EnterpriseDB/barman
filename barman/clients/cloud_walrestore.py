@@ -28,9 +28,8 @@ from barman.clients.cloud_cli import (
     NetworkErrorExit,
     OperationErrorExit,
 )
-from barman.cloud import configure_logging, ALLOWED_COMPRESSIONS
+from barman.cloud import configure_logging, ALLOWED_COMPRESSIONS, CloudObjectNotFoundError
 from barman.cloud_providers import get_cloud_interface
-from barman.exceptions import BarmanException
 from barman.utils import force_str
 from barman.xlog import hash_dir, is_any_xlog_file, is_backup_file
 
@@ -136,64 +135,43 @@ class CloudWalDownloader(object):
 
         wal_path = os.path.join(source_dir, wal_name)
 
-        remote_name = None
-        # Automatically detect compression based on the file extension
-        compression = None
-        for item in self.cloud_interface.list_bucket(source_dir):
-            # perfect match (uncompressed file)
-            if item == wal_path:
-                remote_name = item
-            # look for compressed files or .partial files
-            elif item.startswith(wal_path):
-                # Detect compression
-                basename = item
-                for e, c in ALLOWED_COMPRESSIONS.items():
-                    if item[-len(e) :] == e:
-                        # Strip extension
-                        basename = basename[: -len(e)]
-                        compression = c
-                        break
-
-                # Check basename is a known xlog file (.partial?)
-                if not is_any_xlog_file(basename):
-                    logging.warning("Unknown WAL file: %s", item)
+        if sys.version_info >= (3, 0, 0):
+            # Try to optimistically download the wal file in one of the supported compression formats
+            for suffix, compression in ALLOWED_COMPRESSIONS.items():
+                wal_compressed_file = wal_path + suffix
+                try:
+                    self.cloud_interface.download_file(wal_compressed_file, wal_dest, compression)
+                    logging.debug(
+                        "Downloaded %s to %s (%s)",
+                        wal_name,
+                        wal_dest,
+                        "decompressed " + compression,
+                    )
+                    return
+                except CloudObjectNotFoundError:
+                    logging.debug(
+                        "WAL file %s for server %s does not exist", wal_name + suffix, self.server_name
+                    )
                     continue
-                # Exclude backup informative files (not needed in recovery)
-                elif is_backup_file(basename):
-                    logging.info("Skipping backup file: %s", item)
-                    continue
+        else:
+            log.warning(
+                "Compressed WALs cannot be restored with Python 2.x - please upgrade to a supported version of Python 3"
+            )
 
-                # Found candidate
-                remote_name = item
-                logging.info(
-                    "Found WAL %s for server %s as %s",
-                    wal_name,
-                    self.server_name,
-                    remote_name,
-                )
-                break
-
-        if not remote_name:
+        # Try to download the wal file in non-compressed format
+        try:
+            self.cloud_interface.download_file(wal_path, wal_dest, None)
+            logging.debug(
+                "Downloaded %s to %s (%s)",
+                wal_name,
+                wal_dest,
+                "uncompressed",
+            )
+        except CloudObjectNotFoundError:
             logging.info(
-                "WAL file %s for server %s does not exists", wal_name, self.server_name
+                "WAL file %s for server %s does not exist", wal_name, self.server_name
             )
             raise OperationErrorExit()
-
-        if compression and sys.version_info < (3, 0, 0):
-            raise BarmanException(
-                "Compressed WALs cannot be restored with Python 2.x - "
-                "please upgrade to a supported version of Python 3"
-            )
-
-        # Download the file
-        logging.debug(
-            "Downloading %s to %s (%s)",
-            remote_name,
-            wal_dest,
-            "decompressing " + compression if compression else "no compression",
-        )
-        self.cloud_interface.download_file(remote_name, wal_dest, compression)
-
 
 if __name__ == "__main__":
     main()
