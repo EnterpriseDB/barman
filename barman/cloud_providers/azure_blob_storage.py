@@ -55,9 +55,10 @@ try:
 except ImportError:
     raise SystemExit("Missing required python module: azure-storage-blob")
 
-# Domain for azure blob URIs
+# Domains for azure blob URIs
 # See https://docs.microsoft.com/en-us/rest/api/storageservices/naming-and-referencing-containers--blobs--and-metadata#resource-uri-syntax
 AZURE_BLOB_STORAGE_DOMAIN = "blob.core.windows.net"
+AZURE_GOV_BLOB_STORAGE_DOMAIN = "blob.core.usgovcloudapi.net"
 
 
 class StreamingBlobIO(RawIOBase):
@@ -167,10 +168,11 @@ class AzureCloudInterface(CloudInterface):
         self.max_single_put_size = max_single_put_size
 
         parsed_url = urlparse(url)
-        if parsed_url.netloc.endswith(AZURE_BLOB_STORAGE_DOMAIN):
+        if parsed_url.netloc.endswith(AZURE_BLOB_STORAGE_DOMAIN) or parsed_url.netloc.endswith(AZURE_GOV_BLOB_STORAGE_DOMAIN):
             # We have an Azure Storage URI so we use the following form:
-            # <http|https>://<account-name>.<service-name>.core.windows.net/<resource-path>
-            # where <resource-path> is <container>/<blob>.
+            # <http|https>://<account-name>.<azure-blob-uri>/<resource-path>
+            # where <resource-path> is <container>/<blob>
+            # and <azure-blob-uri> is blob.core.windows.net or blob.core.usgovcloudapi.net.
             # Note that although Azure supports an implicit root container, we require
             # that the container is always included.
             self.account_url = parsed_url.netloc
