@@ -21,6 +21,7 @@ import gzip
 import logging
 import os
 import snappy
+import zstandard as zstd
 
 import mock
 import pytest
@@ -537,6 +538,23 @@ class TestWalUploader(object):
             open_file.read()
         ) == "something".encode("utf-8")
 
+    def test_retrieve_zstd_file_obj(self, tmpdir):
+        """
+        Test the retrieve_file_obj method with a zstd file
+        """
+        # Setup the WAL
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something".encode("utf-8"), ensure=True)
+        # Create a simple CloudWalUploader obj
+        uploader = CloudWalUploader(mock.MagicMock(), "test-server", compression="zstd")
+        open_file = uploader.retrieve_file_obj(source.strpath)
+        # Check the in memory file received
+        assert open_file
+        # Decompress on the fly to check content
+        assert zstd.ZstdDecompressor().decompressobj(
+            read_across_frames=True
+        ).decompress(open_file.read()) == "something".encode("utf-8")
+
     def test_retrieve_normal_file_name(self):
         """
         Test the retrieve_wal_name method with an uncompressed file
@@ -588,6 +606,18 @@ class TestWalUploader(object):
         # Check the file name received
         assert wal_final_name
         assert wal_final_name == "000000080000ABFF000000C1.snappy"
+
+    def test_retrieve_zstd_file_name(self):
+        """
+        Test the retrieve_wal_name method with zstd compression
+        """
+        # Create a fake source name
+        source = "wal_dir/000000080000ABFF000000C1"
+        uploader = CloudWalUploader(mock.MagicMock(), "test-server", compression="zstd")
+        wal_final_name = uploader.retrieve_wal_name(source)
+        # Check the file name received
+        assert wal_final_name
+        assert wal_final_name == "000000080000ABFF000000C1.zst"
 
     @mock.patch("barman.cloud.CloudInterface")
     @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader.retrieve_file_obj")
