@@ -279,6 +279,13 @@ def parse_arguments(args=None):
         const="snappy",
         dest="compression",
     )
+    compression.add_argument(
+        "--zstd",
+        help="zstd-compress the backup while uploading to the cloud",
+        action="store_const",
+        const="zst",
+        dest="compression",
+    )
     parser.add_argument(
         "-h",
         "--host",

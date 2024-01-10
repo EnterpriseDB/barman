@@ -36,6 +36,7 @@ import mock
 from mock.mock import MagicMock
 import pytest
 import snappy
+import zstandard as zstd
 
 from barman.exceptions import BackupPreconditionException
 from barman.infofile import BackupInfo
@@ -98,6 +99,9 @@ def _compression_helper(src, compression):
     if compression == "snappy":
         dest = BytesIO()
         snappy.stream_compress(src, dest)
+    elif compression == "zstd":
+        dest = BytesIO()
+        zstd.ZstdCompressor().copy_stream(src, dest)
     elif compression == "gzip":
         dest = BytesIO()
         with gzip.GzipFile(fileobj=dest, mode="wb") as gz:
@@ -975,7 +979,7 @@ class TestS3CloudInterface(object):
         ) in caplog.text
 
     @pytest.mark.skipif(sys.version_info < (3, 0), reason="Requires Python 3 or higher")
-    @pytest.mark.parametrize("compression", (None, "bzip2", "gzip", "snappy"))
+    @pytest.mark.parametrize("compression", (None, "bzip2", "gzip", "snappy", "zstd"))
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_download_file(self, boto_mock, compression, tmpdir):
         """Verifies that cloud_interface.download_file decompresses correctly."""
@@ -1007,7 +1011,13 @@ class TestS3CloudInterface(object):
 
     @pytest.mark.parametrize(
         ("compression", "file_ext"),
-        ((None, ""), ("bzip2", ".bz2"), ("gzip", ".gz"), ("snappy", ".snappy")),
+        (
+            (None, ""),
+            ("bzip2", ".bz2"),
+            ("gzip", ".gz"),
+            ("snappy", ".snappy"),
+            ("zstd", ".zst"),
+        ),
     )
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_extract_tar(self, boto_mock, compression, file_ext, tmpdir):
@@ -2028,7 +2038,7 @@ class TestAzureCloudInterface(object):
         ) in caplog.text
 
     @pytest.mark.skipif(sys.version_info < (3, 0), reason="Requires Python 3 or higher")
-    @pytest.mark.parametrize("compression", (None, "bzip2", "gzip", "snappy"))
+    @pytest.mark.parametrize("compression", (None, "bzip2", "gzip", "snappy", "zstd"))
     @mock.patch.dict(
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
@@ -2077,7 +2087,13 @@ class TestAzureCloudInterface(object):
 
     @pytest.mark.parametrize(
         ("compression", "file_ext"),
-        ((None, ""), ("bzip2", ".bz2"), ("gzip", ".gz"), ("snappy", ".snappy")),
+        (
+            (None, ""),
+            ("bzip2", ".bz2"),
+            ("gzip", ".gz"),
+            ("snappy", ".snappy"),
+            ("zstd", ".zst"),
+        ),
     )
     @mock.patch.dict(
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
@@ -2564,6 +2580,9 @@ class TestGoogleCloudInterface(TestCase):
             "snappy_compression": {
                 "compression": "snappy",
             },
+            "zstd_compression": {
+                "compression": "zstd",
+            },
         }
         for test_name, test_case in test_cases.items():
             with self.subTest(msg=test_name, compression=test_case["compression"]):
@@ -3008,7 +3027,7 @@ end_time=2014-12-22 09:25:27.410470+01:00
                         suffix,
                     ),
                 ]
-                for suffix in ("", ".gz", ".bz2", ".snappy")
+                for suffix in ("", ".gz", ".bz2", ".snappy", ".zst")
             ]
             for spec in spec_group
         ],
@@ -3347,7 +3366,7 @@ class TestCloudTarUploader(object):
         "compression",
         # The CloudTarUploader expects the short form compression args set by the
         # cloud_backup argument parser
-        (None, "bz2", "gz", "snappy"),
+        (None, "bz2", "gz", "snappy", "zstd"),
     )
     @mock.patch("barman.cloud.CloudInterface")
     def test_add(self, mock_cloud_interface, compression, tmpdir):
@@ -3392,6 +3411,12 @@ class TestCloudTarUploader(object):
                 # We must manually decompress the snappy bytes before extracting
                 tar_fileobj = BytesIO()
                 snappy.stream_decompress(uploaded_data, tar_fileobj)
+                tar_fileobj.seek(0)
+            elif compression == "zstd":
+                tar_mode = "r|"
+                # We must manually decompress the zstd bytes before extracting
+                tar_fileobj = BytesIO()
+                zstd.ZstdDecompressor().copy_stream(uploaded_data, tar_fileobj)
                 tar_fileobj.seek(0)
             else:
                 tar_mode = "r|%s" % compression

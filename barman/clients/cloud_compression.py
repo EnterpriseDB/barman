@@ -33,6 +33,14 @@ def _try_import_snappy():
     return snappy
 
 
+def _try_import_zstd():
+    try:
+        import zstandard
+    except ImportError:
+        raise SystemExit("Missing required python module: zstandard")
+    return zstandard
+
+
 class ChunkedCompressor(with_metaclass(ABCMeta, object)):
     """
     Base class for all ChunkedCompressors
@@ -92,13 +100,47 @@ class SnappyCompressor(ChunkedCompressor):
         return self.decompressor.decompress(data)
 
 
+class ZstdCompressor(ChunkedCompressor):
+    """
+    A ChunkedCompressor implementation based on zstandard
+    """
+
+    def __init__(self):
+        zstd = _try_import_zstd()
+        self.compressor = zstd.ZstdCompressor()
+        self.decompressor = zstd.ZstdDecompressor().decompressobj(
+            read_across_frames=True
+        )
+
+    def add_chunk(self, data):
+        """
+        Compresses the supplied data and returns all the compressed bytes.
+
+        :param bytes data: The chunk of data to be compressed
+        :return: The compressed data
+        :rtype: bytes
+        """
+        return self.compressor.compress(data)
+
+    def decompress(self, data):
+        """
+        Decompresses the supplied chunk of data and returns at least part of the
+        uncompressed data.
+
+        :param bytes data: The chunk of data to be decompressed
+        :return: The decompressed data
+        :rtype: bytes
+        """
+        return self.decompressor.decompress(data)
+
+
 def get_compressor(compression):
     """
     Helper function which returns a ChunkedCompressor for the specified compression
-    algorithm. Currently only snappy is supported. The other compression algorithms
+    algorithm. Currently snappy and zstd is supported. The other compression algorithms
     supported by barman cloud use the decompression built into TarFile.
 
-    :param str compression: The compression algorithm to use. Can be set to snappy
+    :param str compression: The compression algorithm to use. Can be set to snappy, zstd
       or any compression supported by the TarFile mode string.
     :return: A ChunkedCompressor capable of compressing and decompressing using the
       specified compression.
@@ -106,6 +148,8 @@ def get_compressor(compression):
     """
     if compression == "snappy":
         return SnappyCompressor()
+    elif compression == "zstd" or compression == "zst":
+        return ZstdCompressor()
     return None
 
 
@@ -115,7 +159,7 @@ def compress(wal_file, compression):
     compressed data.
     :param IOBase wal_file: A file-like object containing the WAL file data.
     :param str compression: The compression algorithm to apply. Can be one of:
-      bzip2, gzip, snappy.
+      bzip2, gzip, snappy, zstd.
     :return: The compressed data
     :rtype: BytesIO
     """
@@ -125,6 +169,12 @@ def compress(wal_file, compression):
         snappy.stream_compress(wal_file, in_mem_snappy)
         in_mem_snappy.seek(0)
         return in_mem_snappy
+    elif compression == "zstd":
+        in_mem_zstd = BytesIO()
+        zstd = _try_import_zstd()
+        zstd.ZstdCompressor().copy_stream(wal_file, in_mem_zstd)
+        in_mem_zstd.seek(0)
+        return in_mem_zstd
     elif compression == "gzip":
         # Create a BytesIO for in memory compression
         in_mem_gzip = BytesIO()
@@ -150,12 +200,17 @@ def get_streaming_tar_mode(mode, compression):
     ignored so that barman-cloud can apply them itself.
 
     :param str mode: The file mode to use, either r or w.
-    :param str compression: The compression algorithm to use. Can be set to snappy
+    :param str compression: The compression algorithm to use. Can be set to snappy, zstd
       or any compression supported by the TarFile mode string.
     :return: The full filemode for a streaming tar file
     :rtype: str
     """
-    if compression == "snappy" or compression is None:
+    if (
+        compression == "snappy"
+        or compression == "zstd"
+        or compression == "zst"
+        or compression is None
+    ):
         return "%s|" % mode
     else:
         return "%s|%s" % (mode, compression)
@@ -170,12 +225,16 @@ def decompress_to_file(blob, dest_file, compression):
     :param IOBase dest_file: A file-like object into which the uncompressed data
       should be written.
     :param str compression: The compression algorithm to apply. Can be one of:
-      bzip2, gzip, snappy.
+      bzip2, gzip, snappy, zstd.
     :rtype: None
     """
     if compression == "snappy":
         snappy = _try_import_snappy()
         snappy.stream_decompress(blob, dest_file)
+        return
+    elif compression == "zstd":
+        zstd = _try_import_zstd()
+        zstd.ZstdDecompressor().copy_stream(blob, dest_file)
         return
     elif compression == "gzip":
         source_file = gzip.GzipFile(fileobj=blob, mode="rb")

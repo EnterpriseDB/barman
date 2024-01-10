@@ -104,6 +104,7 @@ setup(
         "azure": ["azure-identity", "azure-storage-blob"],
         "azure-snapshots": ["azure-identity", "azure-mgmt-compute"],
         "cloud": ["boto3"],
+        "zstd": ["zstandard"],
         "google": [
             "google-cloud-storage",
         ],

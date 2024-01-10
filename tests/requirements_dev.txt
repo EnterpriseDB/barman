@@ -2,6 +2,7 @@
 .[cloud]
 .[azure]
 .[snappy]
+.[zstd]
 .[google]
 pytest
 mock
