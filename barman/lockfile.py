@@ -359,10 +359,15 @@ class ConfigUpdateLock(LockFile):
     """
     This lock protects barman from multiple executions of config-update command
 
-    Creates a '.config-update.lock' lock file under the given lock_directory.
+    Creates a ``.config-update.lock`` lock file under the given ``lock_directory``.
     """
 
     def __init__(self, lock_directory):
+        """
+        Initialize a new :class:`ConfigUpdateLock` object.
+
+        :param lock_directory str: where to create the ``.config-update.lock`` file.
+        """
         super(ConfigUpdateLock, self).__init__(
             os.path.join(lock_directory, ".config-update.lock"),
             raise_if_fail=True,

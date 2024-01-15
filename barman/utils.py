@@ -912,9 +912,16 @@ def edit_config(file, section, option, value, lines=None):
         - change a section value
 
     :param file: the path to the file to edit
+    :type file: str
     :param section: the config section to edit or to add
+    :type section: str
     :param option: the config key to edit or add
+    :type option: str
     :param value: the value for the config key to update or add
+    :type value: str
+    :param lines: optional parameter containing the set of lines of the file to update
+    :type lines: list
+    :return: the updated lines of the file
     """
     conf_section = False
     idx = 0
@@ -927,18 +934,23 @@ def edit_config(file, section, option, value, lines=None):
             lines = []
     eof = len(lines) - 1
     for idx, line in enumerate(lines):
-        if conf_section and line.strip().startswith("["):  # next section
+        # next section
+        if conf_section and line.strip().startswith("["):
             lines.insert(idx - 1, option + " = " + value)
             break
+        # Option found, update value
         elif conf_section and line.strip().replace(" ", "").startswith(option + "="):
             lines.pop(idx)
             lines.insert(idx, option + " = " + value + "\n")
             break
+        # End of file reached, append lines
         elif conf_section and idx == eof:
             lines.append(option + " = " + value + "\n")
             break
+        # Section found
         if line.strip() == "[" + section + "]":
             conf_section = True
+    # Section not found, create a new section and append option
     if not conf_section:
         # Note: we need to use 2 append, otherwise the section matching is not
         # going to work

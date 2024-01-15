@@ -1895,7 +1895,7 @@ def config_update(args):
     Receives a set of configuration changes in json format and applies them.
     """
     json_changes = json.loads(args.json_changes)
-    # this stops the execution of multiple execitions of the config-update command
+    # this prevents multiple concurrent executions of the config-update command
     with ConfigUpdateLock(barman.__config__.barman_lock_directory):
         procesor = ConfigChangesProcessor(barman.__config__)
         procesor.receive_config_changes(json_changes)

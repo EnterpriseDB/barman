@@ -22,6 +22,7 @@ import logging
 import signal
 import sys
 import re
+import os
 from argparse import ArgumentTypeError
 from datetime import datetime, timedelta
 from dateutil import tz
@@ -1019,3 +1020,76 @@ class TestCheckBackupNames(object):
         )
         # THEN None is returned
         assert backup_info is None
+
+
+class TestEditConfig:
+    def test_edit_config_existing_section(self, tmpdir):
+        # Create a temporary file
+        temp_file = tmpdir.join("test.ini")
+        temp_file.write(b"[Section1]\nkey1 = value1\nkey2 = value2\n")
+        temp_file.ensure(file=True)
+        # Call the edit_config function
+        lines = barman.utils.edit_config(
+            temp_file.strpath, "Section1", "key2", "new_value"
+        )
+
+        # Verify the updated lines
+        assert lines == ["[Section1]\n", "key1 = value1\n", "key2 = new_value\n"]
+
+        # Clean up the temporary file
+        os.remove(temp_file.strpath)
+
+    def test_edit_config_new_section(self, tmpdir):
+        # Create a temporary file
+        temp_file = tmpdir.join("test.ini")
+        temp_file.write(b"[Section1]\nkey1 = value1\n")
+        temp_file.ensure(file=True)
+
+        # Call the edit_config function
+        lines = barman.utils.edit_config(
+            temp_file.strpath, "Section2", "key1", "value1"
+        )
+
+        # Verify the updated lines
+        assert lines == [
+            "[Section1]\n",
+            "key1 = value1\n",
+            "[Section2]\n",
+            "key1 = value1\n",
+        ]
+
+        # Clean up the temporary file
+        os.remove(temp_file.strpath)
+
+    def test_edit_config_existing_option(self, tmpdir):
+        # Create a temporary file
+
+        temp_file = tmpdir.join("test.ini")
+        temp_file.write(b"[Section1]\nkey1 = value1\nkey2 = value2\n")
+        temp_file.ensure(file=True)
+
+        # Call the edit_config function
+        lines = barman.utils.edit_config(
+            temp_file.strpath, "Section1", "key1", "new_value"
+        )
+
+        # Verify the updated lines
+        assert lines == ["[Section1]\n", "key1 = new_value\n", "key2 = value2\n"]
+
+        # Clean up the temporary file
+        os.remove(temp_file.strpath)
+
+    def test_edit_config_new_file(self, tmpdir):
+        # Create a temporary file
+        temp_file = tmpdir.join("test.ini")
+        file_path = temp_file.strpath
+        temp_file.ensure(file=True)
+
+        # Call the edit_config function
+        lines = barman.utils.edit_config(file_path, "Section1", "key1", "value1")
+
+        # Verify the updated lines
+        assert lines == ["[Section1]\n", "key1 = value1\n"]
+
+        # Clean up the temporary file
+        os.remove(file_path)
