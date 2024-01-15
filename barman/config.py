@@ -1688,33 +1688,69 @@ class Config(object):
 
 
 class BaseChange:
+    """
+    Base class for change objects.
+
+    Provides methods for equality comparison, hashing, and conversion
+    to tuple and dictionary.
+    """
+
     _fields = []
 
     def __eq__(self, other):
-        """Equality support."""
+        """
+        Equality support.
+
+        :param other: other object to compare this one against.
+        """
         if isinstance(other, self.__class__):
             return self.as_tuple() == other.as_tuple()
         return False
 
     def __hash__(self):
-        """Hash/set support."""
+        """
+        Hash/set support.
+
+        :return: a hash of the tuple created though :meth:`as_tuple`.
+        """
         return hash(self.as_tuple())
 
     def as_tuple(self) -> tuple:
-        """Convert to a tuple, ordered as self._fields."""
+        """
+        Convert to a tuple, ordered as :attr:`_fields`.
+
+        :return: tuple of values for :attr:`_fields`.
+        """
         return tuple(vars(self)[k] for k in self._fields)
 
     def as_dict(self):
+        """
+        Convert to a dictionary, using :attr:`_fields` as keys.
+
+        :return: a dictionary where keys are taken from :attr:`_fields` and values are the corresponding values for those fields.
+        """
         return {k: vars(self)[k] for k in self._fields}
 
 
 class ConfigChange(BaseChange):
-    """Identifies a configuration change action received"""
+    """
+    Represents a configuration change received.
+
+    :ivar key str: The key of the configuration change.
+    :ivar value str: The value of the configuration change.
+    :ivar config_file Optional[str]: The configuration file associated with the change, or ``None``.
+    """
 
     _fields = ["key", "value", "config_file"]
 
     def __init__(self, key, value, config_file=None):
-        """Representation of a configuration change received"""
+        """
+        Initialize a :class:`ConfigChange` object.
+
+        :param key str: the configuration setting to be changed.
+        :param value str: the new configuration value.
+        :param config_file Optional[str]: configuration file associated with the change, if any, or ``None``.
+        """
         self.key = key
         self.value = value
         self.config_file = config_file
@@ -1722,11 +1758,14 @@ class ConfigChange(BaseChange):
     @classmethod
     def from_dict(cls, obj):
         """
-        Factory for configuration change objects.
+        Factory method for creating :class:`ConfigChange` objects from a dictionary.
 
-        Generates configuration change objects starting from a dictionary with
-        the same fields.
-
+        :param obj: Dictionary representing the configuration change.
+        :type obj: :class:`dict`
+        :return: Configuration change object.
+        :rtype: :class:`ConfigChange`
+        :raises:
+            :exc:`ValueError`: If the dictionary is malformed.
         """
         if set(obj.keys()) == set(cls._fields):
             return cls(**obj)
@@ -1734,9 +1773,20 @@ class ConfigChange(BaseChange):
 
 
 class ConfigChangeSet(BaseChange):
+    """Represents a set of :class:`ConfigChange` for a given configuration section.
+
+    :ivar section str: name of the configuration section related with the changes.
+    :ivar changes_set List[:class:`ConfigChange`]: list of configuration changes to be applied to the section.
+    """
+
     _fields = ["section", "changes_set"]
 
     def __init__(self, section, changes_set=[]):
+        """Initialize a new :class:`ConfigChangeSet` object.
+
+        :param section str: name of the configuration section related with the changes.
+        :param changes_set List[ConfigChange]: list of configuration changes to be applied to the *section*.
+        """
         self.section = section
         self.changes_set = changes_set
 
@@ -1748,8 +1798,23 @@ class ConfigChangeSet(BaseChange):
         Generates configuration change objects starting from a dictionary with
         the same fields.
 
+        .. note::
+            Handles both :class:`ConfigChange` and :class:`ConfigChangeSet` mapping.
+
+        :param obj: Dictionary representing the configuration changes set.
+        :type obj: :class:`dict`
+        :return: Configuration set of changes.
+        :rtype: :class:`ConfigChangeSet`
+        :raises:
+            :exc:`ValueError`: If the dictionary is malformed.
         """
         if set(obj.keys()) == set(cls._fields):
+            if len(obj["changes_set"]) > 0 and not isinstance(
+                obj["changes_set"][0], ConfigChange
+            ):
+                obj["changes_set"] = [
+                    ConfigChange.from_dict(c) for c in obj["changes_set"]
+                ]
             return cls(**obj)
         if set(obj.keys()) == set(ConfigChange._fields):
             return ConfigChange(**obj)
@@ -1760,17 +1825,30 @@ class ConfigChangesQueue:
     """
     Wraps the management of the config changes queue.
 
-    Once instantiated the queue can be accessed using the `queue` property.
+    The :class:`ConfigChangesQueue` class provides methods to read, write, and manipulate
+    a queue of configuration changes. It is designed to be used as a context manager
+    to ensure proper opening and closing of the queue file.
+
+    Once instantiated the queue can be accessed using the :attr:`queue` property.
     """
 
     def __init__(self, queue_file):
+        """
+        Initialize the :class:`ConfigChangesQueue` object.
+
+        :param queue_file str: file where to persist the queue of changes to be processed.
+        """
         self.queue_file = queue_file
         self._queue = None
         self.open()
 
     @staticmethod
     def read_file(path) -> List[ConfigChangeSet]:
-        """Reads a json file containing a list of configuration changes."""
+        """
+        Reads a json file containing a list of configuration changes.
+
+        :return: the list of :class:`ConfigChangeSet` to be applied to Barman configuration sections.
+        """
         try:
             with open(path, "r") as queue_file:
                 # Read the queue if exists
@@ -1779,22 +1857,37 @@ class ConfigChangesQueue:
             return []
 
     def __enter__(self):
+        """
+        Enter method for context manager.
+        """
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        Closes the resource when exiting the context manager.
+        """
         self.close()
 
     @property
     def queue(self):
+        """
+        Returns the queue object.
+
+        If the queue object is not yet initialized, it will be opened before returning.
+
+        :return: the queue object.
+        """
         if self._queue is None:
             self.open()
 
         return self._queue
 
     def open(self):
+        """Open and parse the :attr:`queue_file` into :attr:`_queue`."""
         self._queue = self.read_file(self.queue_file)
 
     def close(self):
+        """Write the new content and close the :attr:`queue_file`."""
         with open(self.queue_file + ".tmp", "w") as queue_file:
             # Dump the configuration change list into the queue file
             json.dump(self._queue, queue_file, cls=ConfigChangeSetEncoder, indent=2)
@@ -1819,12 +1912,18 @@ class ConfigChangesProcessor:
     """
 
     def __init__(self, config):
+        """Initialize a new :class:`ConfigChangesProcessor` object,
+
+        :param config Config: the Barman configuration.
+        """
         self.config = config
         self.applied_changes = []
 
     def receive_config_changes(self, changes):
         """
-        Process all the configuration changes
+        Process all the configuration *changes*.
+
+        :param changes Dict[str, str]: each key is the name of a section to be updated, and the value is a dictionary of configuration options along with their values that should be updated in such section.
         """
         # Get all the available configuration change files in order
         changes_list = []
@@ -1841,11 +1940,14 @@ class ConfigChangesProcessor:
                 file_name = self.config._config.get_config_source(
                     section_name, json_cng
                 )
+                # if the configuration change overrides a default value
+                # then the source file is ".barman.auto.conf"
                 if file_name == "default":
                     file_name = os.path.expanduser(
                         "%s/.barman.auto.conf" % self.config.barman_home
                     )
                 chg = None
+                # Instantiate the configuration change object
                 chg = ConfigChange(
                     json_cng,
                     section[json_cng],
@@ -1859,12 +1961,20 @@ class ConfigChangesProcessor:
             _logger.debug("No valid changes submitted")
             return
 
+        # Extend the queue with the new changes
         with ConfigChangesQueue(self.config.config_changes_queue) as changes_queue:
             changes_queue.queue.extend(changes_list)
 
     def process_conf_changes_queue(self):
         """
-        Process the configuration changes in the queue one at time
+        Process the configuration changes in the queue.
+
+        This method iterates over the configuration changes in the queue and applies them one by one.
+        If an error occurs while applying a change, it logs the error and raises an exception.
+
+        :raises:
+            :exc:`Exception`: If an error occurs while applying a change.
+
         """
         try:
             chgs_set = None
@@ -1896,10 +2006,12 @@ class ConfigChangesProcessor:
         except Exception as err:
             _logger.error("Cannot execute %s: %s", chgs_set, err)
 
-        # output.info(f"changes applied: {self.applied_changes}")
-
     def apply_change(self, changes):
-        """ """
+        """
+        Apply the given changes to the configuration files.
+
+        :param changes List[ConfigChangeSet]: list of sections and their configuration options to be updated.
+        """
         changed_files = dict()
         for chg in changes.changes_set:
             changed_files[chg.config_file] = utils.edit_config(
@@ -1915,7 +2027,9 @@ class ConfigChangesProcessor:
 
 
 class ConfigChangeSetEncoder(json.JSONEncoder):
-    """Encode a configuration change as a dictionary."""
+    """
+    JSON encoder for :class:`ConfigChange` and :class:`ConfigChangeSet` objects.
+    """
 
     def default(self, obj):
         if isinstance(obj, (ConfigChange, ConfigChangeSet)):

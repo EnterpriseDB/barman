@@ -15,11 +15,13 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
-
+import json
+import os
 from datetime import timedelta
 
 import mock
 import pytest
+import testing_helpers
 from mock import MagicMock, Mock, call, mock_open, patch
 
 from barman.config import (
@@ -27,6 +29,10 @@ from barman.config import (
     BaseConfig,
     ConfigMapping,
     Config,
+    ConfigChange,
+    ConfigChangeSet,
+    ConfigChangesProcessor,
+    ConfigChangesQueue,
     CsvOption,
     ModelConfig,
     RecoveryOptions,
@@ -39,7 +45,6 @@ from barman.config import (
     parse_snapshot_disks,
     parse_time_interval,
 )
-import testing_helpers
 
 try:
     from cStringIO import StringIO
@@ -1860,7 +1865,6 @@ class TestBaseConfig:
         an instance of the class.
         """
         bc = BaseConfig()
-
         with patch.dict(bc.PARSERS, {"SOME_KEY": CsvOption}), patch.object(
             CsvOption, "parse"
         ) as mock:
@@ -1943,3 +1947,233 @@ class TestBaseConfig:
                 "SOME_SOURCE",
                 mock_parser.side_effect,
             )
+
+
+class TestConfigChangesProcessor:
+    def test_receive_config_changes(self, tmpdir):
+        config = Mock()
+        queue_file = tmpdir.join("cfg_changes.queue")
+        queue_file.write("[]")
+        queue_file.ensure(file=True)
+        config.barman_home = tmpdir.strpath
+        config.config_changes_queue = queue_file.strpath
+        config._config.get_config_source.return_value = "default"
+        processor = ConfigChangesProcessor(config)
+
+        changes = [
+            {"server_name": "main", "key1": "value1", "key2": "value2"},
+            {"server_name": "web", "key3": "value3", "key4": "value4"},
+        ]
+
+        processor.receive_config_changes(changes)
+
+        with ConfigChangesQueue(config.config_changes_queue) as chgs_queue:
+            assert len(chgs_queue.queue) == 2
+            assert isinstance(chgs_queue.queue[0], ConfigChangeSet)
+            assert isinstance(chgs_queue.queue[1], ConfigChangeSet)
+
+            assert len(chgs_queue.queue[0].changes_set) == 2
+            assert isinstance(chgs_queue.queue[0].changes_set[0], ConfigChange)
+            assert isinstance(chgs_queue.queue[0].changes_set[1], ConfigChange)
+
+            assert chgs_queue.queue[0].section == "main"
+            assert chgs_queue.queue[0].changes_set[0].key == "key1"
+            assert chgs_queue.queue[0].changes_set[0].value == "value1"
+            assert chgs_queue.queue[0].changes_set[1].key == "key2"
+            assert chgs_queue.queue[0].changes_set[1].value == "value2"
+
+            assert chgs_queue.queue[1].section == "web"
+            assert chgs_queue.queue[1].changes_set[0].key == "key3"
+            assert chgs_queue.queue[1].changes_set[0].value == "value3"
+            assert chgs_queue.queue[1].changes_set[1].key == "key4"
+            assert chgs_queue.queue[1].changes_set[1].value == "value4"
+
+    def test_process_conf_changes_queue(self, tmpdir):
+        config = Mock()
+        queue_file = tmpdir.join("cfg_changes.queue")
+        queue_file.write("[]")
+        queue_file.ensure(file=True)
+        config.barman_home = tmpdir.strpath
+        config.config_changes_queue = queue_file.strpath
+        config._config.get_config_source.return_value = "default"
+        processor = ConfigChangesProcessor(config)
+
+        expected_changes = [
+            ConfigChangeSet(
+                section="main",
+                changes_set=[
+                    ConfigChange(
+                        "key1", "value1", "%s/.barman.auto.conf" % config.barman_home
+                    ),
+                    ConfigChange(
+                        "key2", "value2", "%s/.barman.auto.conf" % config.barman_home
+                    ),
+                ],
+            ),
+            ConfigChangeSet(
+                section="web",
+                changes_set=[
+                    ConfigChange(
+                        "key3", "value3", "%s/.barman.auto.conf" % config.barman_home
+                    ),
+                    ConfigChange(
+                        "key4", "value4", "%s/.barman.auto.conf" % config.barman_home
+                    ),
+                ],
+            ),
+        ]
+
+        # processor.applied_changes = changes
+
+        changes = [
+            {"server_name": "main", "key1": "value1", "key2": "value2"},
+            {"server_name": "web", "key3": "value3", "key4": "value4"},
+        ]
+
+        processor.receive_config_changes(changes)
+        # with patch("builtins.open", mock_open()) as mock_file:
+        processor.process_conf_changes_queue()
+
+        assert len(processor.applied_changes) == 2
+        assert expected_changes == processor.applied_changes
+
+
+class TestConfigChangeQueue:
+    def test_config_changes_queue(self, tmpdir):
+        config = Mock()
+        queue_file = tmpdir.join("cfg_changes.queue")
+        queue_file.write("[]")
+        queue_file.ensure(file=True)
+        config.barman_home = tmpdir.strpath
+        config.config_changes_queue = queue_file.strpath
+        config._config.get_config_source.return_value = "default"
+        # Create a sample list of configuration change sets
+        change_set_1 = ConfigChangeSet(
+            section="section1",
+            changes_set=[
+                ConfigChange(
+                    "option1", "value1", "%s/.barman.auto.conf" % config.barman_home
+                ),
+            ],
+        )
+        change_set_2 = ConfigChangeSet(
+            section="section2",
+            changes_set=[
+                ConfigChange(
+                    "option2", "value2", "%s/.barman.auto.conf" % config.barman_home
+                ),
+            ],
+        )
+        change_set_3 = ConfigChangeSet(
+            section="section3",
+            changes_set=[
+                ConfigChange(
+                    "option3", "value3", "%s/.barman.auto.conf" % config.barman_home
+                ),
+            ],
+        )
+        change_sets = [change_set_1, change_set_2, change_set_3]
+
+        # Initialize the ConfigChangesQueue
+        with ConfigChangesQueue(config.config_changes_queue) as queue_w:
+            # Ensure the queue is initially empty
+            assert queue_w.queue == []
+
+            # Add the change sets to the queue
+            for change_set in change_sets:
+                queue_w.queue.append(change_set)
+
+            # Save the queue to the file
+            # queue_w.close()
+        queue_w = None
+        # Reopen the queue and verify its contents
+        with ConfigChangesQueue(config.config_changes_queue) as queue_r:
+            assert queue_r.queue == change_sets
+
+        # Verify that the queue file exists
+        assert os.path.exists(config.config_changes_queue)
+
+        # Verify that the queue file contains the correct JSON data
+        with open(config.config_changes_queue, "r") as file:
+            saved_queue = json.load(file, object_hook=ConfigChangeSet.from_dict)
+            assert saved_queue == change_sets
+
+
+class TestConfigChangeSet:
+    def test_config_change_set_from_dict(self):
+        """
+        Test the `from_dict` method of the `ConfigChangeSet` class.
+        """
+        # Test case 1: Valid dictionary with all fields
+        obj = {
+            "section": "main",
+            "changes_set": [
+                {"key": "archiver", "value": "off", "config_file": "/some/file"},
+                {
+                    "key": "description",
+                    "value": "Main PostgreSQL Database",
+                    "config_file": "/some/file",
+                },
+            ],
+        }
+        change_set = ConfigChangeSet.from_dict(obj)
+        assert change_set.section == "main"
+        assert len(change_set.changes_set) == 2
+        assert isinstance(change_set.changes_set[0], ConfigChange)
+        assert change_set.changes_set[0].key == "archiver"
+        assert change_set.changes_set[0].value == "off"
+        assert change_set.changes_set[0].config_file == "/some/file"
+        assert isinstance(change_set.changes_set[1], ConfigChange)
+        assert change_set.changes_set[1].key == "description"
+        assert change_set.changes_set[1].value == "Main PostgreSQL Database"
+        assert change_set.changes_set[1].config_file == "/some/file"
+
+        # Test case 2: Valid dictionary with only ConfigChange fields
+        obj = {"key": "archiver", "value": "off", "config_file": "/some/file"}
+        change_set = ConfigChangeSet.from_dict(obj)
+        assert isinstance(change_set, ConfigChange)
+        assert change_set.key == "archiver"
+        assert change_set.value == "off"
+        assert change_set.config_file == "/some/file"
+
+        # Test case 3: Malformed dictionary
+        obj = {
+            "section": "main",
+            "option": "archiver",
+            "old_value": "off",
+            "new_value": "on",
+        }
+        with pytest.raises(ValueError):
+            ConfigChangeSet.from_dict(obj)
+
+
+class TestConfigChange:
+    def test_init(self):
+        key = "barman_home"
+        value = "/some/barman/home"
+        config_file = "/etc/barman.conf"
+
+        change = ConfigChange(key, value, config_file)
+
+        assert change.key == key
+        assert change.value == value
+        assert change.config_file == config_file
+
+    def test_from_dict_valid(self):
+        obj = {
+            "key": "barman_home",
+            "value": "/some/barman/home",
+            "config_file": "/etc/barman.conf",
+        }
+
+        change = ConfigChange.from_dict(obj)
+
+        assert change.key == obj["key"]
+        assert change.value == obj["value"]
+        assert change.config_file == obj["config_file"]
+
+    def test_from_dict_invalid(self):
+        obj = {"key": "barman_home", "value": "/some/barman/home"}
+
+        with pytest.raises(ValueError):
+            ConfigChange.from_dict(obj)
