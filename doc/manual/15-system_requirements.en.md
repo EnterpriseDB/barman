@@ -10,7 +10,7 @@
     - python-dateutil
     - setuptools
 - PostgreSQL >= 10 (next version will require PostgreSQL >= 11)
-- rsync >= 3.0.4 (optional)
+- rsync >= 3.1.0 (optional)
 
 > **IMPORTANT:**
 > Users of RedHat Enterprise Linux, CentOS and Scientific Linux are
