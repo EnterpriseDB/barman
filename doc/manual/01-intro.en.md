@@ -17,7 +17,7 @@ incident and recover the database in the shortest time possible. We
 normally refer to this discipline as **disaster recovery**, and more
 broadly *business continuity*.
 
-Within business continuity, it is important to familiarise with two fundamental metrics, as defined by Wikipedia:
+Within business continuity, it is important to familiarise yourself with two fundamental metrics, as defined by Wikipedia:
 
 - [**Recovery Point Objective (RPO)**][rpo]: _"maximum targeted period in which data might be lost from an IT service due to a major incident"_
 - [**Recovery Time Objective (RTO)**][rto]: _"the targeted duration of time and a service level within which a business process must be restored after a disaster (or disruption) in order to avoid unacceptable consequences associated with a break in business continuity"_
@@ -50,7 +50,7 @@ Moreover, do everything you can to prepare yourself and your team for when the d
 - It is going to be when you are on holiday (right in the middle of your cruise around the world) and somebody else has to deal with it.
 - It is certainly going to be stressful.
 - You will regret not being sure that the last available backup is valid.
-- Unless you know how long it approximately takes to recover, every second will seems like forever.
+- Unless you know how long it approximately takes to recover, every second will seem like forever.
 
 Be prepared, don't be scared.
 
