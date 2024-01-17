@@ -52,6 +52,7 @@ from barman.config import (
 )
 from barman.exceptions import (
     BadXlogSegmentName,
+    LockFileBusy,
     RecoveryException,
     SyncError,
     WalArchiveContentError,
@@ -296,6 +297,15 @@ def cron(args):
     """
     Run maintenance tasks (global command)
     """
+    # Before doing anything, check if the configuration file has been updated
+    try:
+        with ConfigUpdateLock(barman.__config__.barman_lock_directory):
+            procesor = ConfigChangesProcessor(barman.__config__)
+            procesor.process_conf_changes_queue()
+
+    except LockFileBusy:
+        output.warning("another process is updating barman configuration files")
+
     # Skip inactive and temporarily disabled servers
     servers = get_server_list(
         skip_inactive=True, skip_disabled=True, wal_streaming=True
