@@ -1781,7 +1781,7 @@ class ConfigChangeSet(BaseChange):
 
     _fields = ["section", "changes_set"]
 
-    def __init__(self, section, changes_set=[]):
+    def __init__(self, section, changes_set=None):
         """Initialize a new :class:`ConfigChangeSet` object.
 
         :param section str: name of the configuration section related with the changes.
@@ -1789,6 +1789,8 @@ class ConfigChangeSet(BaseChange):
         """
         self.section = section
         self.changes_set = changes_set
+        if self.changes_set is None:
+            self.changes_set = []
 
     @classmethod
     def from_dict(cls, obj):
@@ -1929,11 +1931,8 @@ class ConfigChangesProcessor:
         changes_list = []
         for section in changes:
             section_name = section["server_name"]
-            # IMPORTANT: i'm not yet entirely sure why but if we don't specify
-            # that changes_set is an empty list, a reference to a list to all
-            # the previous changes is passed. needs more investigation but this
-            # fixed the issue for now
-            chg_set = ConfigChangeSet(section=section_name, changes_set=[])
+            # Instantiate the ConfigChangeSet object
+            chg_set = ConfigChangeSet(section=section_name)
             for json_cng in section:
                 if json_cng in ("server_name", "scope"):
                     continue
