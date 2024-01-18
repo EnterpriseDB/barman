@@ -1909,17 +1909,20 @@ def config_update(args):
     json_changes = json.loads(args.json_changes)
     # this prevents multiple concurrent executions of the config-update command
     with ConfigUpdateLock(barman.__config__.barman_lock_directory):
-        procesor = ConfigChangesProcessor(barman.__config__)
-        procesor.receive_config_changes(json_changes)
-        procesor.process_conf_changes_queue()
-        for section in json_changes:
-            server_name = section.get("server_name", None)
-            if server_name:
-                server = get_server(
-                    argparse.Namespace(server_name=server_name), skip_inactive=False
-                )
-                if server:
-                    server.restart_processes()
+        processor = ConfigChangesProcessor(barman.__config__)
+        processor.receive_config_changes(json_changes)
+        processor.process_conf_changes_queue()
+        for change in processor.applied_changes:
+            server = get_server(
+                argparse.Namespace(server_name=change.section),
+                # skip_disabled=True,
+                inactive_is_error=False,
+                disabled_is_error=False,
+                on_error_stop=False,
+                suppress_error=True,
+            )
+            if server:
+                server.restart_processes()
 
 
 def pretty_args(args):
@@ -2009,6 +2012,7 @@ def get_server(
     skip_disabled=False,
     skip_passive=False,
     inactive_is_error=False,
+    disabled_is_error=True,
     on_error_stop=True,
     suppress_error=False,
     wal_streaming=False,
@@ -2077,12 +2081,16 @@ def get_server(
     # Apply standard validation control and skips
     # the server if inactive or disabled, displaying standard
     # error messages. If on_error_stop (default) exits
-    if (
-        not manage_server_command(
-            server, name, inactive_is_error, skip_inactive=skip_inactive
-        )
-        and on_error_stop
-    ):
+    x = not manage_server_command(
+        server,
+        name,
+        inactive_is_error,
+        disabled_is_error,
+        skip_inactive,
+        skip_disabled,
+        suppress_error,
+    )
+    if x and on_error_stop:
         output.close_and_exit()
         # The following return statement will never be reached
         # but it is here for clarity
@@ -2188,6 +2196,7 @@ def manage_server_command(
     disabled_is_error=True,
     skip_inactive=True,
     skip_disabled=True,
+    suppress_error=False,
 ):
     """
     Standard and consistent method for managing server errors within
@@ -2209,13 +2218,15 @@ def manage_server_command(
 
     # Unknown server (skip it)
     if not server:
-        output.error("Unknown server '%s'" % name)
+        if not suppress_error:
+            output.error("Unknown server '%s'" % name)
         return False
 
     if not server.config.active:
         # Report inactive server as error
         if inactive_is_error:
             output.error("Inactive server: %s" % server.config.name)
+            return False
         if skip_inactive:
             return False
 
@@ -2225,6 +2236,7 @@ def manage_server_command(
         if disabled_is_error:
             for message in server.config.msg_list:
                 output.error(message)
+                return False
         if skip_disabled:
             return False
 
