@@ -1930,12 +1930,77 @@ class ConfigChangesProcessor:
         # Get all the available configuration change files in order
         changes_list = []
         for section in changes:
-            section_name = section["server_name"]
+            original_section = deepcopy(section)
+            section_name = None
+            scope = section.pop("scope")
+
+            if scope not in ["server", "model"]:
+                output.warning(
+                    "%r has been ignored because 'scope' is "
+                    "invalid: '%s'. It should be either 'server' "
+                    "or 'model'.",
+                    original_section,
+                    scope,
+                )
+                continue
+            elif scope == "server":
+                try:
+                    section_name = section.pop("server_name")
+                except KeyError:
+                    output.warning(
+                        "%r has been ignored because 'server_name' is missing.",
+                        original_section,
+                    )
+                    continue
+            elif scope == "model":
+                try:
+                    section_name = section.pop("model_name")
+                except KeyError:
+                    output.warning(
+                        "%r has been ignored because 'model_name' is missing.",
+                        original_section,
+                    )
+                    continue
+
+            server_obj = self.config.get_server(section_name)
+            model_obj = self.config.get_model(section_name)
+
+            if scope == "server":
+                # the section already exists as a model
+                if model_obj is not None:
+                    output.warning(
+                        "%r has been ignored because '%s' is a model, not a server.",
+                        original_section,
+                        section_name,
+                    )
+                    continue
+            elif scope == "model":
+                # the section already exists as a server
+                if server_obj is not None:
+                    output.warning(
+                        "%r has been ignored because '%s' is a server, not a model.",
+                        original_section,
+                        section_name,
+                    )
+                    continue
+
+                # If the model does not exist yet in Barman
+                if model_obj is None:
+                    # 'model=on' is required for models, so force that if the
+                    # user forgot 'model' or set it to something invalid
+                    section["model"] = "on"
+
+                    if "cluster" not in section:
+                        output.warning(
+                            "%r has been ignored because it is a "
+                            "new model but 'cluster' is missing.",
+                            original_section,
+                        )
+                        continue
+
             # Instantiate the ConfigChangeSet object
             chg_set = ConfigChangeSet(section=section_name)
             for json_cng in section:
-                if json_cng in ("server_name", "scope"):
-                    continue
                 file_name = self.config._config.get_config_source(
                     section_name, json_cng
                 )
@@ -2019,6 +2084,16 @@ class ConfigChangesProcessor:
                 chg.key,
                 chg.value,
                 changed_files.get(chg.config_file),
+            )
+            output.info(
+                "Changing value of option '%s' for section '%s' "
+                "from '%s' to '%s' through config-update."
+                % (
+                    chg.key,
+                    changes.section,
+                    self.config.get(changes.section, chg.key),
+                    chg.value,
+                )
             )
         for file, lines in changed_files.items():
             with open(file, "w") as cfg_file:

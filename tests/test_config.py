@@ -1950,7 +1950,8 @@ class TestBaseConfig:
 
 
 class TestConfigChangesProcessor:
-    def test_receive_config_changes(self, tmpdir):
+    def test_receive_config_changes_existing_config(self, tmpdir):
+        # test it is okay when updating existing servers and models config
         config = Mock()
         queue_file = tmpdir.join("cfg_changes.queue")
         queue_file.write("[]")
@@ -1958,37 +1959,69 @@ class TestConfigChangesProcessor:
         config.barman_home = tmpdir.strpath
         config.config_changes_queue = queue_file.strpath
         config._config.get_config_source.return_value = "default"
+        config.get_server.side_effect = [Mock()] * 2 + [None]
+        config.get_model.side_effect = [None] * 2 + [Mock()]
         processor = ConfigChangesProcessor(config)
 
         changes = [
-            {"server_name": "main", "key1": "value1", "key2": "value2"},
-            {"server_name": "web", "key3": "value3", "key4": "value4"},
+            {
+                "server_name": "main",
+                "key1": "value1",
+                "key2": "value2",
+                "scope": "server",
+            },
+            {
+                "server_name": "web",
+                "key3": "value3",
+                "key4": "value4",
+                "scope": "server",
+            },
+            {
+                "model_name": "my-model",
+                "key5": "value5",
+                "key6": "value6",
+                "scope": "model",
+            },
         ]
 
         processor.receive_config_changes(changes)
 
         with ConfigChangesQueue(config.config_changes_queue) as chgs_queue:
-            assert len(chgs_queue.queue) == 2
+            assert len(chgs_queue.queue) == 3
             assert isinstance(chgs_queue.queue[0], ConfigChangeSet)
             assert isinstance(chgs_queue.queue[1], ConfigChangeSet)
 
             assert len(chgs_queue.queue[0].changes_set) == 2
             assert isinstance(chgs_queue.queue[0].changes_set[0], ConfigChange)
             assert isinstance(chgs_queue.queue[0].changes_set[1], ConfigChange)
-
             assert chgs_queue.queue[0].section == "main"
             assert chgs_queue.queue[0].changes_set[0].key == "key1"
             assert chgs_queue.queue[0].changes_set[0].value == "value1"
             assert chgs_queue.queue[0].changes_set[1].key == "key2"
             assert chgs_queue.queue[0].changes_set[1].value == "value2"
 
+            assert len(chgs_queue.queue[1].changes_set) == 2
+            assert isinstance(chgs_queue.queue[1].changes_set[0], ConfigChange)
+            assert isinstance(chgs_queue.queue[1].changes_set[1], ConfigChange)
             assert chgs_queue.queue[1].section == "web"
             assert chgs_queue.queue[1].changes_set[0].key == "key3"
             assert chgs_queue.queue[1].changes_set[0].value == "value3"
             assert chgs_queue.queue[1].changes_set[1].key == "key4"
             assert chgs_queue.queue[1].changes_set[1].value == "value4"
 
-    def test_process_conf_changes_queue(self, tmpdir):
+            assert len(chgs_queue.queue[2].changes_set) == 2
+            assert isinstance(chgs_queue.queue[2].changes_set[0], ConfigChange)
+            assert isinstance(chgs_queue.queue[2].changes_set[1], ConfigChange)
+            assert chgs_queue.queue[2].section == "my-model"
+            assert chgs_queue.queue[2].changes_set[0].key == "key5"
+            assert chgs_queue.queue[2].changes_set[0].value == "value5"
+            assert chgs_queue.queue[2].changes_set[1].key == "key6"
+            assert chgs_queue.queue[2].changes_set[1].value == "value6"
+
+    @patch("barman.config.output.warning")
+    def test_receive_config_changes_warnings(self, mock_warning, tmpdir):
+        # test it throws the expected warnings when invalid requests are issued
+        # and that it ignores the changes instead of applying them
         config = Mock()
         queue_file = tmpdir.join("cfg_changes.queue")
         queue_file.write("[]")
@@ -1996,6 +2029,67 @@ class TestConfigChangesProcessor:
         config.barman_home = tmpdir.strpath
         config.config_changes_queue = queue_file.strpath
         config._config.get_config_source.return_value = "default"
+        config.get_server.side_effect = [None, Mock(), None]
+        config.get_model.side_effect = [Mock(), None, None]
+        processor = ConfigChangesProcessor(config)
+
+        changes = [
+            {"scope": "random"},  # invalid scope
+            {"scope": "server"},  # missing server_name
+            {"scope": "model"},  # missing model_name
+            {"scope": "server", "server_name": "my-model"},  # server is a model
+            {"scope": "model", "model_name": "my-server"},  # model is a server
+            {"scope": "model", "model_name": "my-model"},  # new model missing cluster
+        ]
+
+        processor.receive_config_changes(changes)
+
+        with ConfigChangesQueue(config.config_changes_queue) as chgs_queue:
+            assert len(chgs_queue.queue) == 0
+
+        mock_warning.assert_has_calls(
+            [
+                call(
+                    "%r has been ignored because 'scope' is invalid: '%s'. It should be either 'server' or 'model'.",
+                    {"scope": "random"},
+                    "random",
+                ),
+                call(
+                    "%r has been ignored because 'server_name' is missing.",
+                    {"scope": "server"},
+                ),
+                call(
+                    "%r has been ignored because 'model_name' is missing.",
+                    {"scope": "model"},
+                ),
+                call(
+                    "%r has been ignored because '%s' is a model, not a server.",
+                    {"scope": "server", "server_name": "my-model"},
+                    "my-model",
+                ),
+                call(
+                    "%r has been ignored because '%s' is a server, not a model.",
+                    {"scope": "model", "model_name": "my-server"},
+                    "my-server",
+                ),
+                call(
+                    "%r has been ignored because it is a new model but 'cluster' is missing.",
+                    {"scope": "model", "model_name": "my-model"},
+                ),
+            ]
+        )
+
+    @patch("barman.config.output.info")
+    def test_process_conf_changes_queue(self, mock_info, tmpdir):
+        config = Mock()
+        queue_file = tmpdir.join("cfg_changes.queue")
+        queue_file.write("[]")
+        queue_file.ensure(file=True)
+        config.barman_home = tmpdir.strpath
+        config.config_changes_queue = queue_file.strpath
+        config._config.get_config_source.return_value = "default"
+        config.get_model.return_value = None
+        config.get.side_effect = [f"old_value{i}" for i in range(1, 5)]
         processor = ConfigChangesProcessor(config)
 
         expected_changes = [
@@ -2026,8 +2120,18 @@ class TestConfigChangesProcessor:
         # processor.applied_changes = changes
 
         changes = [
-            {"server_name": "main", "key1": "value1", "key2": "value2"},
-            {"server_name": "web", "key3": "value3", "key4": "value4"},
+            {
+                "server_name": "main",
+                "key1": "value1",
+                "key2": "value2",
+                "scope": "server",
+            },
+            {
+                "server_name": "web",
+                "key3": "value3",
+                "key4": "value4",
+                "scope": "server",
+            },
         ]
 
         processor.receive_config_changes(changes)
@@ -2036,6 +2140,18 @@ class TestConfigChangesProcessor:
 
         assert len(processor.applied_changes) == 2
         assert expected_changes == processor.applied_changes
+
+        # make sure apply_change is logging as expected
+        mock_info.assert_has_calls(
+            [
+                call(
+                    f"Changing value of option 'key{i}' for section "
+                    f"'{'main' if i < 3 else 'web'}' "
+                    f"from 'old_value{i}' to 'value{i}' through config-update."
+                )
+                for i in range(1, 5)
+            ]
+        )
 
 
 class TestConfigChangeQueue:
