@@ -20,6 +20,7 @@
 This module implements the interface with the command line and the logger.
 """
 
+import argparse
 import json
 import logging
 import os
@@ -1890,6 +1891,7 @@ def config_switch(args):
 
             if model is not None:
                 server.config.apply_model(model, True)
+        server.restart_processes()
 
 
 @command(
@@ -1910,6 +1912,14 @@ def config_update(args):
         procesor = ConfigChangesProcessor(barman.__config__)
         procesor.receive_config_changes(json_changes)
         procesor.process_conf_changes_queue()
+        for section in json_changes:
+            server_name = section.get("server_name", None)
+            if server_name:
+                server = get_server(
+                    argparse.Namespace(server_name=server_name), skip_inactive=False
+                )
+                if server:
+                    server.restart_processes()
 
 
 def pretty_args(args):

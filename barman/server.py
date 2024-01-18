@@ -2473,7 +2473,7 @@ class Server(RemoteStatusMixin):
                     self.cron_archive_wal(keep_descriptors)
                     if self.config.streaming_archiver:
                         # Spawn the receive-wal sub-process
-                        self.cron_receive_wal(keep_descriptors)
+                        self.background_receive_wal(keep_descriptors)
                     else:
                         # Terminate the receive-wal sub-process if present
                         self.kill("receive-wal", fail_if_not_present=False)
@@ -2537,13 +2537,13 @@ class Server(RemoteStatusMixin):
                 "on server %s. Skipping to the next server" % self.config.name
             )
 
-    def cron_receive_wal(self, keep_descriptors):
+    def background_receive_wal(self, keep_descriptors):
         """
-        Method that handles the start of a 'receive-wal' sub process
+        Method that handles the start of a 'receive-wal' sub process, running in background.
 
         This method must be run protected by ServerCronLock
         :param bool keep_descriptors: whether to keep subprocess
-           descriptors attached to this process.
+            descriptors attached to this process.
         """
         try:
             # Try to acquire ServerWalReceiveLock, if the lock is available,
@@ -4174,3 +4174,13 @@ class Server(RemoteStatusMixin):
                 "Cannot open %s file for server %s: %s"
                 % (PRIMARY_INFO_FILE, self.config.name, e)
             )
+
+    def restart_processes(self):
+        """
+        Restart server subprocesses.
+        """
+        # Terminate the receive-wal sub-process if present
+        self.kill("receive-wal", fail_if_not_present=False)
+        if self.config.streaming_archiver:
+            # Spawn the receive-wal sub-process
+            self.background_receive_wal(keep_descriptors=False)
