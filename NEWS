@@ -1,5 +1,28 @@
 Barman News - History of user-visible changes
 
+Version 3.10.0 - 24 January 2024
+
+- Limit the average bandwidth used by `barman-cloud-backup` when backing
+  up to either AWS S3 or Azure Blob Storage according to the value set by
+  a new CLI option `--max-bandwidth`.
+
+- Add the new configuration option `lock_directory_cleanup`
+  That enables cron to automatically clean up the barman_lock_directory
+  from unused lock files.
+
+- Add support for a new type of configuration called `model`. 
+  The model acts as a set of overrides for configuration options
+  for a given Barman server.
+
+- Add a new barman command `barman config-update` that allows the creation
+  and the update of configurations using JSON
+
+- Bug fixes:
+
+    - Fix a bug that caused `--min-chunk-size` to be ignored when using
+      barman-cloud-backup as hook script in Barman.
+
+
 Version 3.9.0 - 3 October 2023
 
 - Allow `barman switch-wal --force` to be run against PG>=14 if the
