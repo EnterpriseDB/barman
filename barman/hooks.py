@@ -210,7 +210,6 @@ class HookScriptRunner(object):
 
 
 class RetryHookScriptRunner(HookScriptRunner):
-
     """
     A 'retry' hook script is a special kind of hook script that Barman
     tries to run indefinitely until it either returns a SUCCESS or
