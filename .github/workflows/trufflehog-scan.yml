@@ -1,0 +1,43 @@
+###
+# Foundation-security Trufflehog workflow
+# version: 2.0
+###
+name: Foundation-Security/Trufflehog Scan
+
+on:
+  push:
+    tags:
+      - "**"
+    branches:
+      - "**"
+
+jobs:
+  Trufflehog-Scan:
+    runs-on: ubuntu-22.04
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout source repository
+        id: checkout-source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{github.repository}}
+          ref: ${{ github.ref }}
+          path: source
+          token: ${{secrets.GH_SLONIK}}
+
+      - name: Checkout foundation-security repository
+        id: checkout-foundation-security
+        uses: actions/checkout@v4
+        with:
+          repository: EnterpriseDB/foundation-security
+          ref: v2
+          path: foundation-security
+          token: ${{secrets.GH_SLONIK}}
+
+      - name: Secrets Scan
+        id: call-th-composite
+        uses: ./foundation-security/actions/trufflehog
+        with:
+          cloudsmith-token: ${{ secrets.CLOUDSMITH_READ_ALL }}
