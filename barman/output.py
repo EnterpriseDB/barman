@@ -1642,11 +1642,11 @@ class JsonOutputWriter(ConsoleOutputWriter):
                     percent=data["wal_until_next_compression_ratio"]
                 )
             if data["children_timelines"]:
-                wal_output[
-                    "_WARNING"
-                ] = "WAL information is inaccurate \
+                wal_output["_WARNING"] = (
+                    "WAL information is inaccurate \
                     due to multiple timelines interacting with \
                     this backup"
+                )
                 for history in data["children_timelines"]:
                     wal_output["timelines"].append(str(history.tli))
 
