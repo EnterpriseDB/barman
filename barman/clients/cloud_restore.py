@@ -300,9 +300,11 @@ class CloudBackupDownloaderObjectStore(CloudBackupDownloader):
                 "Extracting %s to %s (%s)",
                 file_info.path,
                 target_dir,
-                "decompressing " + file_info.compression
-                if file_info.compression
-                else "no compression",
+                (
+                    "decompressing " + file_info.compression
+                    if file_info.compression
+                    else "no compression"
+                ),
             )
             self.cloud_interface.extract_tar(file_info.path, target_dir)
 
