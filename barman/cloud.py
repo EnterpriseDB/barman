@@ -72,7 +72,12 @@ BUFSIZE = 16 * 1024
 LOGGING_FORMAT = "%(asctime)s [%(process)s] %(levelname)s: %(message)s"
 
 # Allowed compression algorithms
-ALLOWED_COMPRESSIONS = {".gz": "gzip", ".bz2": "bzip2", ".snappy": "snappy"}
+ALLOWED_COMPRESSIONS = {
+    ".gz": "gzip",
+    ".bz2": "bzip2",
+    ".snappy": "snappy",
+    ".zst": "zstd",
+}
 
 DEFAULT_DELIMITER = "/"
 
@@ -193,7 +198,7 @@ class CloudTarUploader(object):
         self.buffer = None
         self.counter = 0
         self.compressor = None
-        # Some supported compressions (e.g. snappy) require CloudTarUploader to apply
+        # Some supported compressions (e.g. snappy, zstd) require CloudTarUploader to apply
         # compression manually rather than relying on the tar file.
         self.compressor = cloud_compression.get_compressor(compression)
         # If the compression is supported by tar then it will be added to the filemode
@@ -366,6 +371,8 @@ class CloudUploadController(object):
             components.append(".bz2")
         elif self.compression == "snappy":
             components.append(".snappy")
+        elif self.compression == "zst":
+            components.append(".zst")
         return "".join(components)
 
     def _get_tar(self, name):
@@ -2287,6 +2294,8 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
                         info.compression = "bzip2"
                     elif ext == "tar.snappy":
                         info.compression = "snappy"
+                    elif ext == "tar.zst":
+                        info.compression = "zstd"
                     else:
                         logging.warning("Skipping unknown extension: %s", ext)
                         continue
