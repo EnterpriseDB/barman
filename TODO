@@ -1,6 +1,5 @@
 Barman TODO - Backlog of features for Barman
 
-* Cluster-awareness
 * TAR copy method
 * TAR storage strategy for backups
 * Centralised WAL hub capability (streaming server)

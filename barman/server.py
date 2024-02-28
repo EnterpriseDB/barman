@@ -2463,6 +2463,11 @@ class Server(RemoteStatusMixin):
             # Actually this is the highest level of locking in the cron,
             # this stops the execution of multiple cron on the same server
             with ServerCronLock(self.config.barman_lock_directory, self.config.name):
+                # Check if physical slot if present (maybe master changed in cluster)
+                if remote_status["replication_slot"] is None:
+                    with closing(self):
+                        self.create_physical_repslot()
+                        self.receive_wal(reset=True)
                 # When passive call sync.cron() and never run
                 # local WAL archival
                 if self.passive_node:
