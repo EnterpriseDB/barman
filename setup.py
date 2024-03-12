@@ -45,7 +45,6 @@ setup_requires = pytest_runner
 install_requires = [
     "psycopg2 >= 2.4.2",
     "python-dateutil",
-    "argcomplete",
 ]
 
 barman = {}
@@ -100,10 +99,11 @@ setup(
     long_description="\n".join(__doc__.split("\n")[2:]),
     install_requires=install_requires,
     extras_require={
-        "cloud": ["boto3"],
+        "argcomplete": ["argcomplete"],
         "aws-snapshots": ["boto3"],
         "azure": ["azure-identity", "azure-storage-blob"],
         "azure-snapshots": ["azure-identity", "azure-mgmt-compute"],
+        "cloud": ["boto3"],
         "google": [
             "google-cloud-storage",
         ],
