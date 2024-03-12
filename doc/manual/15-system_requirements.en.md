@@ -5,7 +5,7 @@
 - Linux/Unix
 - Python >= 3.6
 - Python modules:
-    - argcomplete
+    - argcomplete (optional)
     - psycopg2 >= 2.4.2
     - python-dateutil
     - setuptools
