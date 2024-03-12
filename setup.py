@@ -104,7 +104,6 @@ setup(
         "aws-snapshots": ["boto3"],
         "azure": ["azure-identity", "azure-storage-blob"],
         "azure-snapshots": ["azure-identity", "azure-mgmt-compute"],
-        "snappy": ["python-snappy"],
         "google": [
             "google-cloud-storage",
         ],
@@ -112,6 +111,7 @@ setup(
             "grpcio",
             "google-cloud-compute",  # requires minimum python3.7
         ],
+        "snappy": ["python-snappy==0.6.1"],
     },
     platforms=["Linux", "Mac OS X"],
     classifiers=[
