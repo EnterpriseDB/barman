@@ -36,7 +36,10 @@ from barman.lockfile import ConfigUpdateLock
 
 if sys.version_info.major < 3:
     from argparse import Action, _SubParsersAction, _ActionsContainer
-import argcomplete
+try:
+    import argcomplete
+except ImportError:
+    argcomplete = None
 from collections import OrderedDict
 from contextlib import closing
 
@@ -2381,7 +2384,8 @@ def main():
     """
     # noinspection PyBroadException
     try:
-        argcomplete.autocomplete(p)
+        if argcomplete:
+            argcomplete.autocomplete(p)
         args = p.parse_args()
         global_config(args)
         if args.command is None:
