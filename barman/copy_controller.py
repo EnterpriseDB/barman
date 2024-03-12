@@ -506,7 +506,7 @@ class RsyncCopyController(object):
         """
         _logger.info(
             "Detected rsync version less than 3.1. "
-            "top using '--ignore-missing-args' argument."
+            "Stopping use of '--ignore-missing-args' argument."
         )
         self.rsync_has_ignore_missing_args = False
         self.rsync_cache.clear()
