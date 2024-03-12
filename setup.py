@@ -111,7 +111,7 @@ setup(
             "grpcio",
             "google-cloud-compute",  # requires minimum python3.7
         ],
-        "snappy": ["python-snappy"],
+        "snappy": ["python-snappy==0.6.1"],
     },
     platforms=["Linux", "Mac OS X"],
     classifiers=[
