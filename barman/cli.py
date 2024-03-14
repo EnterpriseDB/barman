@@ -1994,9 +1994,10 @@ def global_config(args):
 
     # Load additional configuration files
     config.load_configuration_files_directory()
-    config.load_config_file(
-        "%s/.barman.auto.conf" % config.get("barman", "barman_home")
-    )
+    # Handle the autoconf file, load it only if exists
+    autoconf_path = "%s/.barman.auto.conf" % config.get("barman", "barman_home")
+    if os.path.exists(autoconf_path):
+        config.load_config_file(autoconf_path)
     # We must validate the configuration here in order to have
     # both output and logging configured
     config.validate_global_config()

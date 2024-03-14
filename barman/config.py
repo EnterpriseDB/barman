@@ -1336,20 +1336,24 @@ class Config(object):
 
     def load_config_file(self, cfile):
         filename = os.path.basename(cfile)
-        if os.path.isfile(cfile):
-            # Load a file
-            _logger.debug("Including configuration file: %s", filename)
-            self._config.read_config(cfile)
-            if self._is_global_config_changed():
-                msg = (
-                    "the configuration file %s contains a not empty [barman] section"
-                    % filename
-                )
-                _logger.fatal(msg)
-                raise SystemExit("FATAL: %s" % msg)
+        if os.path.exists(cfile):
+            if os.path.isfile(cfile):
+                # Load a file
+                _logger.debug("Including configuration file: %s", filename)
+                self._config.read_config(cfile)
+                if self._is_global_config_changed():
+                    msg = (
+                        "the configuration file %s contains a not empty [barman] section"
+                        % filename
+                    )
+                    _logger.fatal(msg)
+                    raise SystemExit("FATAL: %s" % msg)
+            else:
+                # Add an warning message that a file has been discarded
+                _logger.warn("Discarding configuration file: %s (not a file)", filename)
         else:
-            # Add an info that a file has been discarded
-            _logger.warn("Discarding configuration file: %s (not a file)", filename)
+            # Add an warning message that a file has been discarded
+            _logger.warn("Discarding configuration file: %s (not found)", filename)
 
     def _is_model(self, name):
         """
