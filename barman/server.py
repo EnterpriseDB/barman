@@ -644,27 +644,39 @@ class Server(RemoteStatusMixin):
              of the results of the various checks
         """
         check_strategy.init_check("WAL archive")
-        # Make sure that WAL archiving has been setup
-        # XLOG_DB needs to exist and its size must be > 0
-        # NOTE: we do not need to acquire a lock in this phase
-        xlogdb_empty = True
-        if os.path.exists(self.xlogdb_file_name):
-            with open(self.xlogdb_file_name, "rb") as fxlogdb:
-                if os.fstat(fxlogdb.fileno()).st_size > 0:
-                    xlogdb_empty = False
+        if not os.access(self.config.wals_directory, os.W_OK):
+            check_strategy.result(
+                self.config.name, False,
+                hint=f"wals_directory {self.config.wals_directory} must be writable"
+            )
+            return
+        if self.config.archiver:
+            # Make sure that WAL archiving has been setup
+            # XLOG_DB needs to exist and its size must be > 0
+            # NOTE: we do not need to acquire a lock in this phase
+            xlogdb_empty = True
+            if os.path.exists(self.xlogdb_file_name):
+                with open(self.xlogdb_file_name, "rb") as fxlogdb:
+                    if os.fstat(fxlogdb.fileno()).st_size > 0:
+                        xlogdb_empty = False
 
-        # NOTE: This check needs to be only visible if it fails
-        if xlogdb_empty:
-            # Skip the error if we have a terminated backup
-            # with status WAITING_FOR_WALS.
-            # TODO: Improve this check
-            backup_id = self.get_last_backup_id([BackupInfo.WAITING_FOR_WALS])
-            if not backup_id:
-                check_strategy.result(
-                    self.config.name,
-                    False,
-                    hint="please make sure WAL shipping is setup",
-                )
+            # NOTE: This check needs to be only visible if it fails
+            if xlogdb_empty:
+                # Skip the error if we have a terminated backup
+                # with status WAITING_FOR_WALS.
+                # TODO: Improve this check
+                backup_id = self.get_last_backup_id([BackupInfo.WAITING_FOR_WALS])
+                if not backup_id:
+                    check_strategy.result(
+                        self.config.name,
+                        False,
+                        hint="please make sure WAL shipping is setup",
+                    )
+        if self.config.streaming_archiver:
+            if not glob(os.path.join(self.config.streaming_wals_directory,
+                                     "*" + PARTIAL_EXTENSION)):
+                check_strategy.result(self.config.name, False,
+                                      hint="partial file should be present")
 
         # Check the number of wals in the incoming directory
         self._check_wal_queue(check_strategy, "incoming", "archiver")
