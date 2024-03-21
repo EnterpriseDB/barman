@@ -2079,6 +2079,55 @@ class TestConfigChangesProcessor:
             ]
         )
 
+    @patch("barman.config.output.warning")
+    def test_receive_config_changes_with_empty_or_malformed_queue_file(
+        self, mock_warning, tmpdir
+    ):
+        # test it throws the expected warnings when invalid requests are issued
+        # and that it ignores the changes instead of applying them
+        config = Mock()
+        queue_file = tmpdir.join("cfg_changes.queue")
+        queue_file.ensure(file=True)
+        config.barman_home = tmpdir.strpath
+        config.config_changes_queue = queue_file.strpath
+        config._config.get_config_source.return_value = "default"
+        config.get_server.side_effect = [Mock()] * 2 + [None]
+        config.get_model.side_effect = [None] * 2 + [Mock()]
+        processor = ConfigChangesProcessor(config)
+
+        changes = [
+            {
+                "server_name": "main",
+                "key1": "value1",
+                "key2": "value2",
+                "scope": "server",
+            }
+        ]
+
+        processor.receive_config_changes(changes)
+
+        with ConfigChangesQueue(config.config_changes_queue) as chgs_queue:
+            assert len(chgs_queue.queue) == 1
+            assert isinstance(chgs_queue.queue[0], ConfigChangeSet)
+
+            assert len(chgs_queue.queue[0].changes_set) == 2
+            assert isinstance(chgs_queue.queue[0].changes_set[0], ConfigChange)
+            assert isinstance(chgs_queue.queue[0].changes_set[1], ConfigChange)
+            assert chgs_queue.queue[0].section == "main"
+            assert chgs_queue.queue[0].changes_set[0].key == "key1"
+            assert chgs_queue.queue[0].changes_set[0].value == "value1"
+            assert chgs_queue.queue[0].changes_set[1].key == "key2"
+            assert chgs_queue.queue[0].changes_set[1].value == "value2"
+
+        mock_warning.assert_has_calls(
+            [
+                call(
+                    "Malformed or empty configuration change queue: %s"
+                    % str(queue_file)
+                )
+            ]
+        )
+
     @patch("barman.config.output.info")
     def test_process_conf_changes_queue(self, mock_info, tmpdir):
         config = Mock()
@@ -2116,8 +2165,6 @@ class TestConfigChangesProcessor:
                 ],
             ),
         ]
-
-        # processor.applied_changes = changes
 
         changes = [
             {
@@ -2213,6 +2260,29 @@ class TestConfigChangeQueue:
         with open(config.config_changes_queue, "r") as file:
             saved_queue = json.load(file, object_hook=ConfigChangeSet.from_dict)
             assert saved_queue == change_sets
+
+    @patch("barman.config.output.warning")
+    def test_config_changes_queue_with_empty_or_malformed_queue_file(
+        self, mock_warning, tmpdir
+    ):
+        config = Mock()
+        queue_file = tmpdir.join("cfg_changes.queue")
+        queue_file.ensure(file=True)
+        config.barman_home = tmpdir.strpath
+        config.config_changes_queue = queue_file.strpath
+        config._config.get_config_source.return_value = "default"
+        # Initialize the ConfigChangesQueue
+        with ConfigChangesQueue(config.config_changes_queue) as queue_w:
+            # Ensure the queue is initially empty
+            assert queue_w.queue == []
+        mock_warning.assert_has_calls(
+            [
+                call(
+                    "Malformed or empty configuration change queue: %s"
+                    % str(queue_file)
+                )
+            ]
+        )
 
 
 class TestConfigChangeSet:
