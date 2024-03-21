@@ -1860,6 +1860,11 @@ class ConfigChangesQueue:
                 return json.load(queue_file, object_hook=ConfigChangeSet.from_dict)
         except FileNotFoundError:
             return []
+        except json.JSONDecodeError:
+            output.warning(
+                "Malformed or empty configuration change queue: %s" % queue_file.name
+            )
+            return []
 
     def __enter__(self):
         """
