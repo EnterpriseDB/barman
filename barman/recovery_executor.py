@@ -821,6 +821,9 @@ class RecoveryExecutor(object):
         """
         # List of required WAL files partitioned by containing directory
         xlogs = collections.defaultdict(list)
+        # Keep a separate list of partial xlogs because we must treat these
+        # differently to the archived xlogs
+        partial_xlogs = []
         # add '/' suffix to ensure it is a directory
         wal_dest = "%s/" % wal_dest
         # Map of every compressor used with any WAL file in the archive,
@@ -829,16 +832,39 @@ class RecoveryExecutor(object):
         compression_manager = self.backup_manager.compression_manager
         # Fill xlogs and compressors maps from required_xlog_files
         for wal_info in required_xlog_files:
-            hashdir = xlog.hash_dir(wal_info.name)
-            xlogs[hashdir].append(wal_info)
-            # If a compressor is required, make sure it exists in the cache
             if (
-                wal_info.compression is not None
-                and wal_info.compression not in compressors
-            ):
-                compressors[wal_info.compression] = compression_manager.get_compressor(
-                    compression=wal_info.compression
+                xlog.is_partial_file(wal_info.name)
+                and hasattr(wal_info, "orig_filename")
+                and (
+                    os.path.dirname(wal_info.orig_filename)
+                    == self.config.streaming_wals_directory
                 )
+            ):
+                # If a .partial file is in the `streaming` directory then add it to a
+                # separate list so it can be renamed and transferred in a separate
+                # Rsync operation.
+                partial_xlogs.append(wal_info)
+            else:
+                if xlog.is_partial_file(wal_info.name):
+                    # If a .partial file is in the main WAL archive then either a
+                    # standby was promoted or a primary was recovered from a backup.
+                    # In either case we do not attempt to handle it and instead warn
+                    # the user.
+                    output.warning(
+                        ".partial WAL file '%s' found in WAL archive", wal_info.name
+                    )
+                hashdir = xlog.hash_dir(wal_info.name)
+                xlogs[hashdir].append(wal_info)
+                # If a compressor is required, make sure it exists in the cache
+                if (
+                    wal_info.compression is not None
+                    and wal_info.compression not in compressors
+                ):
+                    compressors[
+                        wal_info.compression
+                    ] = compression_manager.get_compressor(
+                        compression=wal_info.compression
+                    )
 
         rsync = RsyncPgData(
             path=self.server.path,
@@ -892,29 +918,12 @@ class RecoveryExecutor(object):
                     else:
                         shutil.copy2(os.path.join(source_dir, segment.name), dst_file)
                 if remote_command:
-                    try:
-                        # Transfer the WAL files
-                        rsync.from_file_list(
-                            list(segment.name for segment in xlogs[prefix]),
-                            wal_decompression_dest,
-                            wal_dest,
-                        )
-                    except CommandFailedException as e:
-                        msg = (
-                            "data transfer failure while copying WAL files "
-                            "to directory '%s'"
-                        ) % (wal_dest[1:],)
-                        raise DataTransferFailure.from_command_error("rsync", e, msg)
-
-                    # Cleanup files after the transfer
-                    for segment in xlogs[prefix]:
-                        file_name = os.path.join(wal_decompression_dest, segment.name)
-                        try:
-                            os.unlink(file_name)
-                        except OSError as e:
-                            output.warning(
-                                "Error removing temporary file '%s': %s", file_name, e
-                            )
+                    self._rsync_move_files(
+                        rsync,
+                        list(segment.name for segment in xlogs[prefix]),
+                        wal_decompression_dest,
+                        wal_dest,
+                    )
             else:
                 try:
                     rsync.from_file_list(
@@ -929,6 +938,30 @@ class RecoveryExecutor(object):
                     )
                     raise DataTransferFailure.from_command_error("rsync", e, msg)
 
+        # Now copy any .partial files we need to care about
+        if partial_xlogs:
+            _logger.info("Copying .partial WAL files from streaming directory.")
+            partial_staging_dir = tempfile.mkdtemp(prefix="barman_wal-partial-")
+            # Stage a copy of the .partial file with its final name so that Rsync can
+            # copy the file to its final destination.
+            for segment in partial_xlogs:
+                src_file = os.path.join(
+                    self.config.streaming_wals_directory, segment.name
+                )
+                dst_file = os.path.join(
+                    partial_staging_dir, segment.name.rstrip(".partial")
+                )
+                shutil.copy2(src_file, dst_file)
+            # Move the renamed files to the final destination
+            self._rsync_move_files(
+                rsync,
+                list(segment.name.rstrip(".partial") for segment in partial_xlogs),
+                partial_staging_dir,
+                wal_dest,
+            )
+            # Cleanup staging dir
+            shutil.rmtree(partial_staging_dir)
+
         _logger.info("Finished copying %s WAL files.", total_wals)
 
         # Remove local decompression target directory if different from the
@@ -936,6 +969,32 @@ class RecoveryExecutor(object):
         # remote recovery
         if wal_decompression_dest and wal_decompression_dest != wal_dest:
             shutil.rmtree(wal_decompression_dest)
+
+    def _rsync_move_files(self, rsync, file_list, src_dir, dst_dir):
+        """
+        Helper function which copies the given file list to dst_dir and removes them
+        from the src_dir.
+        """
+        try:
+            # Transfer the WAL files
+            rsync.from_file_list(
+                file_list,
+                src_dir,
+                dst_dir,
+            )
+        except CommandFailedException as e:
+            msg = (
+                "data transfer failure while copying WAL files "
+                "to directory '%s'" % (dst_dir,)
+            )
+            raise DataTransferFailure.from_command_error("rsync", e, msg)
+        # Cleanup files after the transfer
+        for basename in file_list:
+            file_name = os.path.join(src_dir, basename)
+            try:
+                os.unlink(file_name)
+            except OSError as e:
+                output.warning("Error removing temporary file '%s': %s", file_name, e)
 
     def _generate_archive_status(
         self, recovery_info, remote_command, required_xlog_files
