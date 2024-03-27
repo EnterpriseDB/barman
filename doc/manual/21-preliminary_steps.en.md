@@ -51,7 +51,7 @@ GRANT EXECUTE ON FUNCTION pg_stop_backup(boolean, boolean) to barman;
 
 It is worth noting that with PostgreSQL version 13 and below without a real 
 superuser, the `--force` option of the `barman switch-wal` command will not work.  
-If you are running PostgreSQL version 14 or above, you can grant the `pg_checkpoint` 
+If you are running PostgreSQL version 15 or above, you can grant the `pg_checkpoint` 
 role, so you can use this feature without a superuser:
 
 ``` sql
