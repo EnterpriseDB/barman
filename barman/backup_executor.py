@@ -1771,6 +1771,13 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
                 msg = "\t%s, %s, %s" % (item.oid, item.name, item.location)
                 _logger.info(msg)
 
+        # Get summarize_wal information for incremental backups
+        # Postgres major version should be >= 17
+        backup_info.set_attribute("summarize_wal", None)
+        if self.postgres.server_version >= 170000:
+            summarize_wal = self.postgres.get_setting("summarize_wal")
+            backup_info.set_attribute("summarize_wal", summarize_wal)
+
     @staticmethod
     def _backup_info_from_start_location(backup_info, start_info):
         """

@@ -74,6 +74,7 @@ EXPECTED_MINIMAL = {
             "xlog_segment_size": 16777216,
             "systemid": None,
             "compression": None,
+            "summarize_wal": None,
         }
     },
     "config": {},
