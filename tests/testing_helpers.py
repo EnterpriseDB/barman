@@ -69,6 +69,7 @@ def build_test_backup_info(
     server=None,
     systemid=None,
     copy_stats=None,
+    summarize_wal=None,
 ):
     """
     Create an 'Ad Hoc' BackupInfo object for testing purposes.
@@ -101,6 +102,7 @@ def build_test_backup_info(
     :param int version: postgres version of the backup
     :param barman.server.Server|None server: Server object for the backup
     :param dict|None: Copy stats dictionary
+    :param str|None: summarize_wal status flag
     :rtype: barman.infofile.LocalBackupInfo
     """
     if begin_time is None:
@@ -405,7 +407,9 @@ def build_real_server(global_conf=None, main_conf=None):
     )
 
 
-def build_mocked_server(name=None, config=None, global_conf=None, main_conf=None):
+def build_mocked_server(
+    name=None, config=None, global_conf=None, main_conf=None, pg_version=None
+):
     """
     Build a mock server object
     :param str name: server name, defaults to 'main'
@@ -415,6 +419,7 @@ def build_mocked_server(name=None, config=None, global_conf=None, main_conf=None
         it is possible to override or add new values to the [barman] section
     :param dict[str,str|None]|None main_conf: using this dictionary
         it is possible to override/add new values to the [main] section
+    :param int pg_version: postgres server version, default to ``None``
     :rtype: barman.server.Server
     """
     # instantiate a retention policy object using mocked parameters
@@ -433,11 +438,17 @@ def build_mocked_server(name=None, config=None, global_conf=None, main_conf=None
     server.postgres.xlog_segment_size = DEFAULT_XLOG_SEG_SIZE
     server.path = "/test/bin"
     server.systemid = "6721602258895701769"
+    server.postgres.server_version = pg_version
     return server
 
 
 def build_backup_manager(
-    server=None, name=None, config=None, global_conf=None, main_conf=None
+    server=None,
+    name=None,
+    config=None,
+    global_conf=None,
+    main_conf=None,
+    pg_version=None,
 ):
     """
     Instantiate a BackupManager object using mocked parameters
@@ -448,7 +459,7 @@ def build_backup_manager(
     :rtype: barman.backup.BackupManager
     """
     if server is None:
-        server = build_mocked_server(name, config, global_conf, main_conf)
+        server = build_mocked_server(name, config, global_conf, main_conf, pg_version)
     with mock.patch("barman.backup.CompressionManager"):
         manager = BackupManager(server=server)
     manager.compression_manager.unidentified_compression = None

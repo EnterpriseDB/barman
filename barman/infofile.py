@@ -497,6 +497,8 @@ class BackupInfo(FieldListFile):
         "snapshots_info", load=load_snapshots_info, dump=output_snapshots_info
     )
 
+    summarize_wal = Field("summarize_wal")
+
     __slots__ = "backup_id", "backup_version"
 
     _hide_if_null = ("backup_name", "snapshots_info")

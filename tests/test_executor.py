@@ -614,7 +614,6 @@ class TestStrategy(object):
             "file_offset": 11845848,
             "timestamp": start_time,
         }
-
         # Build a test empty backup info
         backup_info = LocalBackupInfo(server=backup_manager.server, backup_id="fake_id")
 
@@ -664,7 +663,8 @@ class TestStrategy(object):
         # Test: start concurrent backup
         # Build a backup_manager using a mocked server
         server = build_mocked_server(
-            main_conf={"backup_options": BackupOptions.CONCURRENT_BACKUP}
+            main_conf={"backup_options": BackupOptions.CONCURRENT_BACKUP},
+            pg_version=90600,  # this is a postgres 9.6
         )
         backup_manager = build_backup_manager(server=server)
         # Mock server.get_pg_setting('data_directory') call
@@ -678,9 +678,6 @@ class TestStrategy(object):
         # Mock server.get_pg_tablespaces() call
         tablespaces = [Tablespace._make(("test_tbs", 1234, "/tbs/test"))]
         server.postgres.get_tablespaces.return_value = tablespaces
-        # this is a postgres 9.6
-        server.postgres.server_version = 90600
-
         # Mock call to new api method
         start_time = datetime.datetime.now()
         server.postgres.start_concurrent_backup.return_value = {
@@ -761,13 +758,12 @@ class TestStrategy(object):
         """
         # Build a backup info and configure the mocks
         server = build_mocked_server(
-            main_conf={"backup_options": BackupOptions.CONCURRENT_BACKUP}
+            main_conf={"backup_options": BackupOptions.CONCURRENT_BACKUP},
+            pg_version=90600,  # This is a postgres 9.6
         )
         backup_manager = build_backup_manager(server=server)
 
         stop_time = datetime.datetime.now()
-        # This is a pg 9.6
-        server.postgres.server_version = 90600
         # Mock stop backup call for the new api method
         start_time = datetime.datetime.now(tz.tzlocal()).replace(microsecond=0)
         server.postgres.stop_concurrent_backup.return_value = {
@@ -881,6 +877,7 @@ class TestPostgresBackupExecutor(object):
             begin_offset=28,
             copy_stats=dict(copy_time=100, total_time=105),
         )
+        backup_manager.server.postgres.server_version = backup_info.version
         current_xlog_timestamp = datetime.datetime(2015, 10, 26, 14, 38)
         backup_manager.server.postgres.current_xlog_info = dict(
             location="0/12000090",
