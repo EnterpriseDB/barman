@@ -32,7 +32,7 @@ from barman.cloud import configure_logging, ALLOWED_COMPRESSIONS
 from barman.cloud_providers import get_cloud_interface
 from barman.exceptions import BarmanException
 from barman.utils import force_str
-from barman.xlog import hash_dir, is_any_xlog_file, is_backup_file
+from barman.xlog import hash_dir, is_any_xlog_file, is_backup_file, is_partial_file
 
 
 def main(args=None):
@@ -68,7 +68,7 @@ def main(args=None):
                 logging.error("Bucket %s does not exist", cloud_interface.bucket_name)
                 raise OperationErrorExit()
 
-            downloader.download_wal(config.wal_name, config.wal_dest)
+            downloader.download_wal(config.wal_name, config.wal_dest, config.no_partial)
 
     except Exception as exc:
         logging.error("Barman cloud WAL restore exception: %s", force_str(exc))
@@ -90,6 +90,12 @@ def parse_arguments(args=None):
         "Currently AWS S3, Azure Blob Storage and Google Cloud Storage are supported.",
     )
 
+    parser.add_argument(
+        "--no-partial",
+        help="Do not download partial WAL files",
+        action="store_true",
+        default=False,
+    )
     parser.add_argument(
         "wal_name",
         help="The value of the '%%f' keyword (according to 'restore_command').",
@@ -118,12 +124,13 @@ class CloudWalDownloader(object):
         self.cloud_interface = cloud_interface
         self.server_name = server_name
 
-    def download_wal(self, wal_name, wal_dest):
+    def download_wal(self, wal_name, wal_dest, no_partial):
         """
         Download a WAL file from cloud storage
 
         :param str wal_name: Name of the WAL file
         :param str wal_dest: Full path of the destination WAL file
+        :param bool no_partial: Do not download partial WAL files
         """
 
         # Correctly format the source path on s3
@@ -162,6 +169,10 @@ class CloudWalDownloader(object):
             # Exclude backup informative files (not needed in recovery)
             elif is_backup_file(basename):
                 logging.info("Skipping backup file: %s", item)
+                continue
+            # Exclude partial files if required
+            elif no_partial and is_partial_file(basename):
+                logging.info("Skipping partial file: %s", item)
                 continue
 
             # Found candidate

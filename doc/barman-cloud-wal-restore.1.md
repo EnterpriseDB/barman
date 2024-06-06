@@ -53,6 +53,7 @@ optional arguments:
   -t, --test            Test cloud connectivity and exit
   --cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}
                         The cloud provider to use as a storage backend
+  --no-partial          Do not download partial WAL files
 
 Extra options for the aws-s3 cloud provider:
   --endpoint-url ENDPOINT_URL

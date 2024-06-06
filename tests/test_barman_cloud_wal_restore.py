@@ -66,6 +66,50 @@ class TestMain(object):
         cloud_interface_mock.download_file.assert_called_once()
 
     @mock.patch("barman.clients.cloud_walrestore.get_cloud_interface")
+    def test_succeeds_if_wal_is_found_partial(self, get_cloud_interface_mock, caplog):
+        """If the WAL is found as partial we exit with status 0."""
+        cloud_interface_mock = get_cloud_interface_mock.return_value
+        cloud_interface_mock.path = "testfolder/"
+        cloud_interface_mock.list_bucket.return_value = [
+            "testfolder/test-server/wals/000000080000ABFF/000000080000ABFF000000C1.partial"
+        ]
+        cloud_walrestore.main(
+            [
+                "s3://test-bucket/testfolder/",
+                "test-server",
+                "000000080000ABFF000000C1",
+                "/tmp/000000080000ABFF000000C1",
+            ]
+        )
+        assert caplog.text == ""
+        cloud_interface_mock.download_file.assert_called_once()
+
+    @mock.patch("barman.clients.cloud_walrestore.get_cloud_interface")
+    def test_fails_if_wal_is_found_partial_but_nopartial(self, get_cloud_interface_mock, caplog):
+        """If the WAL is found as partial we exit with status 0."""
+        cloud_interface_mock = get_cloud_interface_mock.return_value
+        cloud_interface_mock.path = "testfolder/"
+        cloud_interface_mock.list_bucket.return_value = [
+            "testfolder/test-server/wals/000000080000ABFF/000000080000ABFF000000C1.partial"
+        ]
+        caplog.set_level(logging.INFO)
+        with pytest.raises(SystemExit) as exc:
+            cloud_walrestore.main(
+                [
+                    "--no-partial",
+                    "s3://test-bucket/testfolder/",
+                    "test-server",
+                    "000000080000ABFF000000C1",
+                    "/tmp/000000080000ABFF000000C1",
+                ]
+            )
+        assert exc.value.code == 1
+        assert (
+            "WAL file 000000080000ABFF000000C1 for server test-server does not exists\n"
+            in caplog.text
+        )
+
+    @mock.patch("barman.clients.cloud_walrestore.get_cloud_interface")
     def test_fails_if_wal_not_found(self, get_cloud_interface_mock, caplog):
         """If the WAL cannot be found we exit with status 1."""
         cloud_interface_mock = get_cloud_interface_mock.return_value
