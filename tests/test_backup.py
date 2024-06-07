@@ -922,39 +922,38 @@ class TestBackup(object):
             None,
             "off",
             "on",
+            "on",
         ]
+
+        err_msg = "'summarize_wal' option has to be enabled in the Postgres server "
+        "to perform an incremental backup using the Postgres backup method"
+
         # ensure incremental backup with summarize_wal disabled raises exception
-        with pytest.raises(BackupException):
+        with pytest.raises(BackupException, match=err_msg):
             backup_manager._validate_incremental_backup_configs()
-        with pytest.raises(BackupException):
+        with pytest.raises(BackupException, match=err_msg):
             backup_manager._validate_incremental_backup_configs()
         # no exception is raised when summarize_wal is on
         backup_manager._validate_incremental_backup_configs()
 
-    @pytest.mark.parametrize(
-        ("backup_method", "should_raise_ex"),
-        [
-            ("any_non_postgres_method", True),
-            ("postgres", False),
-        ],
-    )
-    def test_validate_incremental_backup_configs_postgres_method(
-        self,
-        backup_method,
-        should_raise_ex,
-    ):
-        """
-        Test that 'backup_method = postgres' on Postgres incremental backups
-        """
-        backup_manager = build_backup_manager(
-            global_conf={"backup_method": backup_method}
-        )
-        backup_manager.executor.server.postgres.get_setting.return_value = "on"
-        if should_raise_ex:
-            with pytest.raises(BackupException):
-                backup_manager._validate_incremental_backup_configs()
-        else:
-            backup_manager._validate_incremental_backup_configs()
+        parent_backup_id = "20240619T100000"
+        parent_summarize_wal = "off"
+
+        with mock.patch.object(BackupManager, "get_backup") as mock_get_backup:
+            mock_get_backup.return_value = build_test_backup_info(
+                server=backup_manager.server,
+                backup_id=parent_backup_id,
+                summarize_wal=parent_summarize_wal,
+            )
+            err_msg = "The specified backup is not eligible as a parent for an "
+            "incremental backup because WAL summaries were not enabled "
+            "when that backup was taken."
+
+            with pytest.raises(BackupException, match=err_msg):
+                backup_manager._validate_incremental_backup_configs(
+                    parent_backup_id=parent_backup_id
+                )
+            mock_get_backup.assert_called_once_with(parent_backup_id)
 
 
 class TestWalCleanup(object):
