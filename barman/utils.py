@@ -864,6 +864,8 @@ def get_backup_id_using_shortcut(server, shortcut, BackupInfo):
         backup_id = server.get_first_backup_id()
     elif shortcut in ("last-failed"):
         backup_id = server.get_last_backup_id([BackupInfo.FAILED])
+    elif shortcut in ("latest-full", "last-full"):
+        backup_id = server.get_last_full_backup_id()
     elif is_backup_id(shortcut):
         backup_id = shortcut
 

@@ -1691,10 +1691,22 @@ class Server(RemoteStatusMixin):
         Get the id of the latest/last backup in the catalog (if exists)
 
         :param status_filter: The status of the backup to return,
+            default to :attr:`BackupManager.DEFAULT_STATUS_FILTER`.
+        :return str|None: ID of the backup
+        """
+        return self.backup_manager.get_last_backup_id(status_filter)
+
+    def get_last_full_backup_id(
+        self, status_filter=BackupManager.DEFAULT_STATUS_FILTER
+    ):
+        """
+        Get the id of the latest/last FULL backup in the catalog (if exists)
+
+        :param status_filter: The status of the backup to return,
             default to DEFAULT_STATUS_FILTER.
         :return string|None: ID of the backup
         """
-        return self.backup_manager.get_last_backup_id(status_filter)
+        return self.backup_manager.get_last_full_backup_id(status_filter)
 
     def get_first_backup_id(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
         """
