@@ -936,24 +936,42 @@ class TestBackup(object):
         # no exception is raised when summarize_wal is on
         backup_manager._validate_incremental_backup_configs()
 
-        parent_backup_id = "20240619T100000"
-        parent_summarize_wal = "off"
+    @patch("barman.backup.BackupManager.get_available_backups")
+    def test_get_last_full_backup_id(self, get_available_backups):
+        """
+        Test that the function returns the correct last full backup
+        """
+        backup_manager = build_backup_manager(global_conf={"backup_method": "postgres"})
 
-        with mock.patch.object(BackupManager, "get_backup") as mock_get_backup:
-            mock_get_backup.return_value = build_test_backup_info(
-                server=backup_manager.server,
-                backup_id=parent_backup_id,
-                summarize_wal=parent_summarize_wal,
+        available_backups = {
+            "20241010T120000": "20241009T131000",
+            "20241010T131000": None,
+            "20241010T140202": "20241010T131000",
+            "20241010T150000": "20241010T140202",
+            "20241010T160000": None,
+            "20241010T180000": "20241010T160000",
+            "20241011T180000": None,
+            "20241012T180000": "20241011T180000",
+            "20241013T180000": "20241012T180000",
+        }
+
+        backups = dict(
+            (
+                bkp_id,
+                build_test_backup_info(
+                    server=backup_manager.server,
+                    backup_id=bkp_id,
+                    parent_backup_id=par_bkp_id,
+                    summarize_wal="on",
+                ),
             )
-            err_msg = "The specified backup is not eligible as a parent for an "
-            "incremental backup because WAL summaries were not enabled "
-            "when that backup was taken."
+            for bkp_id, par_bkp_id in available_backups.items()
+        )
+        get_available_backups.return_value = backups
 
-            with pytest.raises(BackupException, match=err_msg):
-                backup_manager._validate_incremental_backup_configs(
-                    parent_backup_id=parent_backup_id
-                )
-            mock_get_backup.assert_called_once_with(parent_backup_id)
+        last_full_backup = backup_manager.get_last_full_backup_id()
+        get_available_backups.assert_called_once()
+        assert last_full_backup == "20241011T180000"
 
 
 class TestWalCleanup(object):

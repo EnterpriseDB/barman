@@ -877,3 +877,26 @@ class LocalBackupInfo(BackupInfo):
                     return backup_info
 
         return None
+
+    def is_full_and_eligible_for_incremental(self):
+        """
+        Used to filter out backups that have a parent backup id and are not
+        considered as FULL backups.
+
+        .. note::
+            Only consider backups which are eligible for Postgres core
+            incremental backups:
+
+            * backup_method = ``postgres``
+            * summarize_wal = ``on``
+            * parent_backup_id = ``None``
+
+        :return bool: True if it's a full backup or False if not.
+        """
+        if (
+            self.backup_manager.config.backup_method == "postgres"
+            and self.summarize_wal == "on"
+            and not self.parent_backup_id
+        ):
+            return True
+        return False

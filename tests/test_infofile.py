@@ -45,7 +45,12 @@ from barman.infofile import (
     dump_backup_ids,
     load_backup_ids,
 )
-from testing_helpers import build_backup_manager, build_mocked_server, build_real_server
+from testing_helpers import (
+    build_backup_manager,
+    build_mocked_server,
+    build_real_server,
+    build_test_backup_info,
+)
 
 BASE_BACKUP_INFO = """backup_label=None
 begin_offset=40
@@ -1020,3 +1025,68 @@ class TestLocalBackupInfo:
                 backup_info.server,
                 backup_id="SOME_CHILD_ID_1",
             )
+
+    def test_true_is_full_and_eligible_for_incremental(self):
+        """
+        Test that the function applies the correct conditions for a full backup
+        that is eligible for incremental mode. The backup_method should be `postgres`,
+        the summarize_wal should be `on` and parent_backup_id should be `None`
+        """
+        backup_method = "postgres"
+        summarize_wal = "on"
+        parent_backup_id = None
+
+        pg_backup_manager = build_backup_manager(
+            main_conf={"backup_method": backup_method}
+        )
+
+        backup_info = build_test_backup_info(
+            server=pg_backup_manager.server,
+            backup_id="12345",
+            parent_backup_id=parent_backup_id,
+            summarize_wal=summarize_wal,
+        )
+
+        assert backup_info.is_full_and_eligible_for_incremental()
+
+    @pytest.mark.parametrize(
+        ("summarize_wal", "parent_backup_id"),
+        (("on", "12345678"), ("off", None), ("off", "12345678")),
+    )
+    def test_false_is_full_and_eligible_for_incremental(
+        self, summarize_wal, parent_backup_id
+    ):
+        """
+        Test that the function applies the correct conditions for a full backup
+        that is eligible for incremental mode. The backup_method should be `postgres`,
+        the summarize_wal should be `on` and parent_backup_id should be `None`
+        """
+        backup_method = "postgres"
+
+        backup_manager = build_backup_manager(
+            main_conf={"backup_method": backup_method}
+        )
+
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            backup_id="12345",
+            parent_backup_id=parent_backup_id,
+            summarize_wal=summarize_wal,
+        )
+
+        assert not backup_info.is_full_and_eligible_for_incremental()
+
+        backup_method = "rsync"
+
+        backup_manager = build_backup_manager(
+            main_conf={"backup_method": backup_method}
+        )
+
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            backup_id="12345",
+            parent_backup_id=parent_backup_id,
+            summarize_wal=summarize_wal,
+        )
+
+        assert not backup_info.is_full_and_eligible_for_incremental()

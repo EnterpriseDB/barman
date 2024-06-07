@@ -361,8 +361,8 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         Get the id of the latest/last backup in the catalog (if exists)
 
         :param status_filter: The status of the backup to return,
-            default to DEFAULT_STATUS_FILTER.
-        :return string|None: ID of the backup
+            default to :attr:`DEFAULT_STATUS_FILTER`.
+        :return str|None: ID of the backup
         """
         available_backups = self.get_available_backups(status_filter)
         if len(available_backups) == 0:
@@ -370,6 +370,29 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
         ids = sorted(available_backups.keys())
         return ids[-1]
+
+    def get_last_full_backup_id(self, status_filter=DEFAULT_STATUS_FILTER):
+        """
+        Get the id of the latest/last FULL backup in the catalog (if exists)
+
+        :param status_filter: The status of the backup to return,
+            default to :attr:`DEFAULT_STATUS_FILTER`.
+        :return str|None: ID of the backup
+        """
+        available_full_backups = list(
+            filter(
+                lambda backup: backup.is_full_and_eligible_for_incremental(),
+                self.get_available_backups(status_filter).values(),
+            )
+        )
+
+        if len(available_full_backups) == 0:
+            return None
+
+        backup_infos = sorted(
+            available_full_backups, key=lambda backup_info: backup_info.backup_id
+        )
+        return backup_infos[-1].backup_id
 
     def get_first_backup_id(self, status_filter=DEFAULT_STATUS_FILTER):
         """
