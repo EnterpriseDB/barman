@@ -24,11 +24,12 @@ import os
 import mock
 import pytest
 from dateutil import tz
-from mock import Mock, PropertyMock, patch
+from mock import Mock, PropertyMock, patch, call
 
 from barman.backup_executor import (
     ExclusiveBackupStrategy,
     PostgresBackupExecutor,
+    PostgresBackupStrategy,
     RsyncBackupExecutor,
     SnapshotBackupExecutor,
 )
@@ -589,7 +590,8 @@ class TestStrategy(object):
         """
         # Build a backup_manager using a mocked server
         server = build_mocked_server(
-            main_conf={"backup_options": BackupOptions.EXCLUSIVE_BACKUP}
+            main_conf={"backup_options": BackupOptions.EXCLUSIVE_BACKUP},
+            pg_version=170000,
         )
         backup_manager = build_backup_manager(server=server)
 
@@ -643,7 +645,8 @@ class TestStrategy(object):
         # Test: start concurrent backup
         # Build a backup_manager using a mocked server
         server = build_mocked_server(
-            main_conf={"backup_options": BackupOptions.CONCURRENT_BACKUP}
+            main_conf={"backup_options": BackupOptions.CONCURRENT_BACKUP},
+            pg_version=170000,
         )
         backup_manager = build_backup_manager(server=server)
         # Simulate old Postgres version
@@ -826,6 +829,45 @@ class TestStrategy(object):
         # check has status True
         else:
             assert check_result.status is True
+
+    @pytest.mark.parametrize(
+        ("server_version", "expected_value"),
+        [(160000, None), (170000, "on")],
+    )
+    def test__pg_get_metadata(self, server_version, expected_value):
+        # Given a PostgreSQL connection of the specified version
+        mock_postgres = mock.Mock()
+        mock_postgres.server_version = server_version
+        # Mock postgres server.get_setting() call
+        mock_postgres.get_setting.side_effect = [
+            "data_directory",
+            expected_value,
+        ]
+
+        # Mock postgres server.get_configuration_files() call
+        mock_postgres.get_configuration_files.return_value = dict(
+            config_file="/etc/postgresql.conf",
+            hba_file="/pg/pg_hba.conf",
+            ident_file="/pg/pg_ident.conf",
+        )
+        # Mock postgres server.get_tablespaces() call
+        tablespaces = [Tablespace._make(("test_tbs", 1234, "/tbs/test"))]
+        mock_postgres.get_tablespaces.return_value = tablespaces
+
+        strategy = PostgresBackupStrategy(mock_postgres, "test server")
+        backup_info = build_test_backup_info()
+        strategy._pg_get_metadata(backup_info)
+
+        mock_postgres.get_tablespaces.assert_called_once()
+        mock_postgres.get_configuration_files.assert_called_once()
+        if mock_postgres.server_version < 170000:
+            mock_postgres.get_setting.assert_called_once_with("data_directory")
+            assert backup_info.summarize_wal is None
+        else:
+            calls = [call("data_directory"), call("summarize_wal")]
+            assert mock_postgres.get_setting.call_count == 2
+            mock_postgres.get_setting.assert_has_calls(calls, any_order=False)
+            assert backup_info.summarize_wal == "on"
 
 
 class TestPostgresBackupExecutor(object):
