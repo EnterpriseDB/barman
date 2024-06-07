@@ -584,13 +584,16 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
         return True
 
-    def backup(self, wait=False, wait_timeout=None, name=None):
+    def backup(self, wait=False, wait_timeout=None, name=None, **kwargs):
         """
         Performs a backup for the server
 
         :param bool wait: wait for all the required WAL files to be archived
         :param int|None wait_timeout:
         :param str|None name: the friendly name to be saved with this backup
+        :kwparam barman.infofile.LocalBackupInfo parent_backup_info:
+            information of the parent backup in case it is an incremental backup
+            using the postgres mode
         :return BackupInfo: the generated BackupInfo
         """
         _logger.debug("initialising backup information")
@@ -625,7 +628,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             retry_script.run()
 
             # Do the backup using the BackupExecutor
-            self.executor.backup(backup_info)
+            self.executor.backup(backup_info, **kwargs)
 
             # Create a restore point after a backup
             target_name = "barman_%s" % backup_info.backup_id

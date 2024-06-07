@@ -918,6 +918,7 @@ class PgBaseBackup(PostgreSQLClient):
         immediate=False,
         check=True,
         compression=None,
+        parent_backup_manifest_path=None,
         args=None,
         **kwargs
     ):
@@ -937,6 +938,9 @@ class PgBaseBackup(PostgreSQLClient):
           allowed values of the Command obj
         :param barman.compression.PgBaseBackupCompression compression:
           the pg_basebackup compression options used for this backup
+        :param str parent_backup_manifest_path:
+          the path to a backup_manifest file from a previous backup which can
+          be used to perform an incremental backup
         :param List[str] args: additional arguments
         """
         PostgreSQLClient.__init__(
@@ -971,6 +975,10 @@ class PgBaseBackup(PostgreSQLClient):
         # Only global bandwidth limit is supported
         if bwlimit is not None and bwlimit > 0:
             self.args.append("--max-rate=%s" % bwlimit)
+
+        # If it has a manifest file path it means it is an incremental backup
+        if parent_backup_manifest_path:
+            self.args.append("--incremental=%s" % parent_backup_manifest_path)
 
         # Immediate checkpoint
         if immediate:

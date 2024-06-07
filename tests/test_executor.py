@@ -1136,6 +1136,7 @@ class TestPostgresBackupExecutor(object):
                 compression=None,
                 err_handler=mock.ANY,
                 out_handler=mock.ANY,
+                parent_backup_manifest_path=None,
             ),
             mock.call()(),
         ]
@@ -1174,6 +1175,7 @@ class TestPostgresBackupExecutor(object):
                 compression=None,
                 err_handler=mock.ANY,
                 out_handler=mock.ANY,
+                parent_backup_manifest_path=None,
             ),
             mock.call()(),
         ]
@@ -1211,6 +1213,7 @@ class TestPostgresBackupExecutor(object):
                 compression=None,
                 err_handler=mock.ANY,
                 out_handler=mock.ANY,
+                parent_backup_manifest_path=None,
             ),
             mock.call()(),
         ]
@@ -1243,6 +1246,7 @@ class TestPostgresBackupExecutor(object):
                 compression=None,
                 err_handler=mock.ANY,
                 out_handler=mock.ANY,
+                parent_backup_manifest_path=None,
             ),
             mock.call()(),
         ]
