@@ -407,6 +407,13 @@ def backup_completer(prefix, parsed_args, **kwargs):
             default=SUPPRESS,
         ),
         argument(
+            "--incremental",
+            completer=backup_completer,
+            dest="backup_id",
+            help="performs an incremental backup. An ID of a previous backup must "
+            "be provided ('latest' and 'latest-full' are also available options)",
+        ),
+        argument(
             "--reuse-backup",
             nargs="?",
             choices=barman.config.REUSE_BACKUP_VALUES,
@@ -515,6 +522,10 @@ def backup(args):
         if not manage_server_command(server, name):
             continue
 
+        incremental_kwargs = {}
+
+        if args.backup_id is not None:
+            incremental_kwargs["parent_backup_info"] = parse_backup_id(server, args)
         if args.reuse_backup is not None:
             server.config.reuse_backup = args.reuse_backup
         if args.retry_sleep is not None:
@@ -547,6 +558,7 @@ def backup(args):
                 wait=args.wait,
                 wait_timeout=args.wait_timeout,
                 backup_name=args.backup_name,
+                **incremental_kwargs,
             )
     output.close_and_exit()
 
@@ -1086,7 +1098,7 @@ def recover(args):
                 target_action=getattr(args, "target_action", None),
                 standby_mode=getattr(args, "standby_mode", None),
                 recovery_conf_filename=args.recovery_conf_filename,
-                **snapshot_kwargs
+                **snapshot_kwargs,
             )
         except RecoveryException as exc:
             output.error(force_str(exc))

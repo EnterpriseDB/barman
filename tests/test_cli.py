@@ -1069,7 +1069,7 @@ class TestCli(object):
         mock_get_server_list.return_value = mock_server_list
 
         # WHEN backup is called with the immediate_checkpoint arg
-        mock_args = Mock(server_name=server_name)
+        mock_args = Mock(server_name=server_name, backup_id=None)
         if arg_value is not None:
             mock_args.immediate_checkpoint = arg_value
         else:

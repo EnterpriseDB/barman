@@ -1589,7 +1589,7 @@ class Server(RemoteStatusMixin):
             output.error("Permission denied, unable to access '%s'" % e)
             return
 
-    def backup(self, wait=False, wait_timeout=None, backup_name=None):
+    def backup(self, wait=False, wait_timeout=None, backup_name=None, **kwargs):
         """
         Performs a backup for the server
         :param bool wait: wait for all the required WAL files to be archived
@@ -1598,6 +1598,9 @@ class Server(RemoteStatusMixin):
             before timing out
         :param str|None backup_name: a friendly name by which this backup can
             be referenced in the future
+        :kwparam barman.infofile.LocalBackupInfo parent_backup_info:
+            information of the parent backup in case it is an incremental backup
+            using the postgres mode
         """
         # The 'backup' command is not available on a passive node.
         # We assume that if we get here the node is not passive
@@ -1635,6 +1638,7 @@ class Server(RemoteStatusMixin):
                     wait=wait,
                     wait_timeout=wait_timeout,
                     name=backup_name,
+                    **kwargs,
                 )
 
             # Archive incoming WALs and update WAL catalogue
