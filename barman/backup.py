@@ -596,9 +596,9 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         :raises BackupException: if a command argument is considered invalid
         """
         if "parent_backup_id" in kwargs:
-            self._validate_incremental_backup_configs()
+            self._validate_incremental_backup_configs(**kwargs)
 
-    def _validate_incremental_backup_configs(self):
+    def _validate_incremental_backup_configs(self, **kwargs):
         """
         Check required configurations for a Postgres incremental backup
 
@@ -616,6 +616,16 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             raise BackupException(
                 "'summarize_wal' option has to be enabled in the Postgres server "
                 "to perform an incremental backup using the Postgres backup method"
+            )
+
+        parent_backup_id = kwargs.get("parent_backup_id")
+        parent_backup_info = self.get_backup(parent_backup_id)
+
+        if parent_backup_info and parent_backup_info.summarize_wal != "on":
+            raise BackupException(
+                "The specified backup is not eligible as a parent for an "
+                "incremental backup because WAL summaries were not enabled "
+                "when that backup was taken."
             )
 
     def backup(self, wait=False, wait_timeout=None, name=None, **kwargs):
