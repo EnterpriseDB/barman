@@ -126,6 +126,29 @@ class RetentionPolicy(with_metaclass(ABCMeta, object)):
         """
         return "%s %s %s" % (self.mode, self.value, self.unit)
 
+    def propagate_retention_status_to_children(self, backup_info, report, ret_status):
+        """
+        Propagate retention status to all backups in the chain.
+
+        .. note::
+            This has a side-effect. It modifies or add data to *report* dict.
+
+        :param barman.infofile.BackupInfo backup_info: The object we want to
+            propagate the RETENTION STATUS from.
+        :param report dict[str, str]: The report data structure to be modified.
+            Each key is the ID of a backup, and its value is the retention status
+            of that backup.
+        :param ret_status str:  The status of the backup according to retention
+            policies
+        """
+        backup_id_tree = backup_info.walk_backups_tree(return_root=False)
+        for backup in backup_id_tree:
+            report[backup.backup_id] = ret_status
+            _logger.debug(
+                "Propagating %s retention status of backup %s to %s."
+                % (ret_status, backup_info.backup_id, backup.backup_id)
+            )
+
 
 class RedundancyRetentionPolicy(RetentionPolicy):
     """
@@ -170,6 +193,12 @@ class RedundancyRetentionPolicy(RetentionPolicy):
         # NOTE: reverse key orders (simulate reverse chronology)
         i = 0
         for bid in sorted(backups.keys(), reverse=True):
+            if backups[bid].is_incremental:
+                _logger.debug(
+                    "Ignoring incremental backup %s from retention policy report."
+                    % backups[bid]
+                )
+                continue
             if backups[bid].status == BackupInfo.DONE:
                 keep_target = self.server.get_keep_target(bid)
                 if keep_target == KeepManager.TARGET_STANDALONE:
@@ -185,6 +214,16 @@ class RedundancyRetentionPolicy(RetentionPolicy):
                 i = i + 1
             else:
                 report[bid] = BackupInfo.NONE
+
+            if backups[bid].has_children:
+                status = report[bid]
+                if status in (BackupInfo.KEEP_STANDALONE, BackupInfo.KEEP_FULL):
+                    status = BackupInfo.VALID
+                self.propagate_retention_status_to_children(
+                    backup_info=backups[bid],
+                    report=report,
+                    ret_status=status,
+                )
         return report
 
     def _wal_report(self):
@@ -271,6 +310,12 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
         valid = 0
         # NOTE: reverse key orders (simulate reverse chronology)
         for bid in sorted(backups.keys(), reverse=True):
+            if backups[bid].is_incremental:
+                _logger.debug(
+                    "Ignoring incremental backup %s from retention policy report."
+                    % backups[bid]
+                )
+                continue
             # We are interested in DONE backups only
             if backups[bid].status == BackupInfo.DONE:
                 keep_target = self.server.get_keep_target(bid)
@@ -350,6 +395,16 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
                         found = True
             else:
                 report[bid] = BackupInfo.NONE
+
+            if backups[bid].has_children:
+                status = report[bid]
+                if status in (BackupInfo.KEEP_STANDALONE, BackupInfo.KEEP_FULL):
+                    status = BackupInfo.VALID
+                self.propagate_retention_status_to_children(
+                    backup_info=backups[bid],
+                    report=report,
+                    ret_status=status,
+                )
         return report
 
     def _wal_report(self):
