@@ -37,7 +37,7 @@ import dateutil.tz
 
 from barman import output, xlog
 from barman.cloud_providers import get_snapshot_interface_from_backup_info
-from barman.command_wrappers import RsyncPgData
+from barman.command_wrappers import PgCombineBackup, RsyncPgData
 from barman.config import RecoveryOptions
 from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (
@@ -1807,6 +1807,73 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
             raise DataTransferFailure.from_command_error("rsync", e, msg)
 
 
+class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
+    """
+    A specialised recovery method for incremental backups.
+    Inheritence is not necessarily the best thing here since the two RecoveryExecutor
+    classes only differ by this one method, and the same will be true for future
+    RecoveryExecutors (i.e. ones which handle encryption).
+    Nevertheless for a wip "make it work" effort this will do.
+    """
+
+    BASE_INCREMENTAL_NAME = "base"
+
+    def __init__(self, backup_manager):
+        """
+        Constructor
+
+        :param barman.backup.BackupManager backup_manager: the BackupManager
+            owner of the executor
+        :param compression Compression.
+        """
+        super(TarballRecoveryExecutor, self).__init__(backup_manager)
+
+    # TODO
+    # When recovering, we need to:
+    # 1. create the backup chain of parents
+    # 2. combine backups into a single synthetic backup
+    # 3. Check if the output file exists
+    # 3. temporarily store this in a folder from barman server
+    # 4. copy the backup to a node
+
+    def get_backup_chain(self):
+        pass
+
+    # this can be inside get_synthetic or apart
+    def _check_output_valid(self):
+        pass
+
+    def get_synthetic_backup(self):
+        pass
+
+    # after pg_combinebackup we need to check if the output was created
+    def check_output_was_created(self):
+        pass
+
+    def copy_output_to_somewhere(self):
+        pass
+
+    def something(self):
+        pg_basebackup = PgCombineBackup(
+            connection=self.server.streaming,
+            destination=backup_dest,
+            command=remote_status["pg_basebackup_path"],
+            version=remote_status["pg_basebackup_version"],
+            app_name=self.config.streaming_backup_name,
+            tbs_mapping=tbs_map,
+            bwlimit=bandwidth_limit,
+            immediate=self.config.immediate_checkpoint,
+            path=self.server.path,
+            retry_times=self.config.basebackup_retry_times,
+            retry_sleep=self.config.basebackup_retry_sleep,
+            retry_handler=partial(self._retry_handler, dest_dirs),
+            compression=self.backup_compression,
+            err_handler=self._err_handler,
+            out_handler=PgBaseBackup.make_logging_handler(logging.INFO),
+            parent_backup_manifest_path=parent_backup_manifest_path,
+        )
+
+
 def recovery_executor_factory(backup_manager, command, backup_info):
     """
     Method in charge of building adequate RecoveryExecutor depending on the context
@@ -1814,6 +1881,8 @@ def recovery_executor_factory(backup_manager, command, backup_info):
     :param: command barman.fs.UnixLocalCommand
     :return: RecoveryExecutor instance
     """
+    if backup_info.parent_backup_id:
+        return PgCombineBackupRecoveryExecutor(backup_manager)
     if backup_info.snapshots_info is not None:
         return SnapshotRecoveryExecutor(backup_manager)
     compression = backup_info.compression
