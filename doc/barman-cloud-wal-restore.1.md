@@ -30,6 +30,7 @@ usage: barman-cloud-wal-restore [-V] [--help] [-v | -q] [-t]
                                 [--profile AWS_PROFILE]
                                 [--read-timeout READ_TIMEOUT]
                                 [--azure-credential {azure-cli,managed-identity}]
+                                [--no-partial]
                                 source_url server_name wal_name wal_dest
 
 This script can be used as a `restore_command` to download WAL files
