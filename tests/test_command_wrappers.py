@@ -1227,6 +1227,46 @@ class TestPgBaseBackup(object):
         assert ("PgBaseBackup", WARNING, err) in caplog.record_tuples
 
     @pytest.mark.parametrize(
+        ("parent_backup_manifest_path", "expected_arg", "unexpected_arg"),
+        [
+            (
+                "/path/to/backup_manifest/file",
+                "--incremental=/path/to/backup_manifest/file",
+                None,
+            ),
+            (None, None, "--incremental"),
+        ],
+    )
+    def test_incremental_backup_arg(
+        self, parent_backup_manifest_path, expected_arg, unexpected_arg
+    ):
+        """
+        Asserts that incremental backup opions are passed correctly to the
+        pg_basebackup command. Only cares whether the correct arguments are
+        created and does not verify the behaviour of the command itself.
+        """
+        connection_mock = mock.MagicMock()
+        connection_mock.get_connection_string.return_value = "fake_connstring"
+        compression_mock = None
+        cmd = command_wrappers.PgBaseBackup(
+            destination="/fake/target",
+            command=self.pg_basebackup_path,
+            connection=connection_mock,
+            version="17",
+            app_name="test_app_name",
+            compression=compression_mock,
+            parent_backup_manifest_path=parent_backup_manifest_path,
+        )
+
+        # Assert that the expected argument is present
+        if expected_arg is not None:
+            assert expected_arg in cmd.args
+
+        # Assert that the unexpected argument is not present, no matter its value
+        if unexpected_arg is not None:
+            assert all(not arg.startswith(unexpected_arg) for arg in cmd.args)
+
+    @pytest.mark.parametrize(
         ("compression_config", "expected_args", "unexpected_args"),
         [
             # `gzip` compression before pg15
