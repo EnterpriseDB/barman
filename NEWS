@@ -1,5 +1,16 @@
 Barman News - History of user-visible changes
 
+Version 3.10.1 - 12 June 2024
+
+- Bug fixes:
+    - Make `argcomplete` optional to avoid installation issues on some
+      platforms.
+    - Load `barman.auto.conf` only when the file exists.
+    - Emit a warning when the `cfg_changes.queue` file is malformed.
+    - Correct in documentation the postgresql version where
+      `pg_checkpoint` is available.
+    - Add `--no-partial` option to `barman-cloud-wal-restore`.
+
 Version 3.10.0 - 24 January 2024
 
 - Limit the average bandwidth used by `barman-cloud-backup` when backing
