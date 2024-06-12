@@ -261,6 +261,12 @@ class TestRetentionPolicies(object):
         assert empty_report_child == BackupInfo.NONE
 
     def test_first_backup(self, server):
+        """
+        Basic unit test of method first_backup
+
+        This method tests the retrieval of the first backup using both
+        RedundancyRetentionPolicy and RecoveryWindowRetentionPolicy
+        """
         rp = RetentionPolicyFactory.create(
             "retention_policy", "RECOVERY WINDOW OF 4 WEEKS", server
         )
@@ -268,12 +274,21 @@ class TestRetentionPolicies(object):
 
         # Build a BackupInfo object with status to DONE
         backup_info = build_test_backup_info(
-            server=server, backup_id="test0", end_time=datetime.now(tzlocal())
+            server=server,
+            backup_id="test0",
+            end_time=datetime.now(tzlocal()) - timedelta(days=1),
+        )
+        # Build another BackupInfo object with status to DONE taken one day after
+        backup_info2 = build_test_backup_info(
+            server=server, backup_id="test1", end_time=datetime.now(tzlocal())
         )
 
         # instruct the get_available_backups method to return a map with
         # our mock as result and minimum_redundancy = 1
-        server.get_available_backups.return_value = {"test_backup": backup_info}
+        server.get_available_backups.return_value = {
+            "test_backup": backup_info,
+            "test_backup2": backup_info2,
+        }
         server.config.minimum_redundancy = 1
         # execute retention policy report
         report = rp.first_backup()
@@ -285,14 +300,12 @@ class TestRetentionPolicies(object):
         )
         assert isinstance(rp, RedundancyRetentionPolicy)
 
-        # Build a BackupInfo object with status to DONE
-        backup_info = build_test_backup_info(
-            server=server, backup_id="test1", end_time=datetime.now(tzlocal())
-        )
-
         # instruct the get_available_backups method to return a map with
         # our mock as result and minimum_redundancy = 1
-        server.get_available_backups.return_value = {"test_backup": backup_info}
+        server.get_available_backups.return_value = {
+            "test_backup": backup_info,
+            "test_backup2": backup_info2,
+        }
         server.config.minimum_redundancy = 1
 
         # execute retention policy report
