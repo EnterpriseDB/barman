@@ -24,6 +24,8 @@ from __future__ import print_function
 
 import collections
 import datetime
+from distutils.version import LooseVersion as Version
+from functools import partial
 import logging
 import os
 import re
@@ -59,7 +61,7 @@ from barman.compression import (
 )
 import barman.fs as fs
 from barman.infofile import BackupInfo, LocalBackupInfo
-from barman.utils import force_str, mkpath
+from barman.utils import force_str, mkpath, total_seconds
 
 # generic logger for this module
 _logger = logging.getLogger(__name__)
@@ -1816,8 +1818,6 @@ class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
     Nevertheless for a wip "make it work" effort this will do.
     """
 
-    BASE_INCREMENTAL_NAME = "base"
-
     def __init__(self, backup_manager):
         """
         Constructor
@@ -1827,21 +1827,14 @@ class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
         :param compression Compression.
         """
         super(IncrementalRecoveryExecutor, self).__init__(backup_manager)
-
-    # TODO
-    # When recovering, we need to:
-    # 1. create the backup chain of parents
-    # 2. combine backups into a single synthetic backup
-    # 3. Check if the output file exists
-    # 3. temporarily store this in a folder from barman server
-    # 4. copy the backup to a node
-
+        self.combine_start_time = None
+        self.combine_end_time = None
+    
     def get_backup_chain(self, backup_info):
         """
         Get the backup chain for the provided incremental backup, returning it as a list
         starting from the full backup, through the parent backups up until the provided
         incremental backup.
-
         :param backup_info: The backup_info object for the incremental backup.
         :return: A list of backup_info objects from the root to the provided incremental backup.
         """
@@ -1851,39 +1844,232 @@ class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
             for backup in reversed(list(backup_info.walk_to_root(include_self=True)))
         ]
 
-    # this can be inside get_synthetic or apart
-    def _check_output_valid(self):
-        pass
+    def create_synthetic_backup(self, backup_info):
+        """Use pg_combinebackup"""
+        backup_dest = backup_info.get_synthetic_directory()
+        dest_dirs = [backup_dest]
 
-    def get_synthetic_backup(self):
-        pass
+        # Store the start time
+        self.combine_start_time = datetime.datetime.now()
 
-    # after pg_combinebackup we need to check if the output was created
-    def check_output_was_created(self):
-        pass
+        # Manage tablespaces, we need to handle them now in order to
+        # be able to relocate them inside the
+        # destination directory of the syntethic backup
+        tbs_map = {}
+        if backup_info.tablespaces:
+            for tablespace in backup_info.tablespaces:
+                source = tablespace.location
+                destination = backup_info.get_data_directory(
+                    tablespace_oid=tablespace.oid, basedir=False
+                )
+                tbs_map[source] = destination
+                dest_dirs.append(destination)
 
-    def copy_output_to_somewhere(self):
-        pass
+        # Prepare the destination directories for pgdata and tablespaces
+        self._prepare_backup_destination(dest_dirs)
 
-    def something(self):
-        pg_basebackup = PgCombineBackup(
-            connection=self.server.streaming,
+        # Retrieve pg_combinebackup version information
+        remote_status = self._fetch_remote_status()
+
+        backup_path_chain = self._get_backup_path_chain(backup_info)
+
+        self._start_message()
+
+        pg_combinebackup = PgCombineBackup(
+            connection=self.server.postgres,
             destination=backup_dest,
-            command=remote_status["pg_basebackup_path"],
-            version=remote_status["pg_basebackup_version"],
-            app_name=self.config.streaming_backup_name,
+            command=remote_status["pg_combinebackup_path"],
+            version=remote_status["pg_combinebackup_version"],
+            app_name="barman_synthetic_backup",
             tbs_mapping=tbs_map,
-            bwlimit=bandwidth_limit,
-            immediate=self.config.immediate_checkpoint,
             path=self.server.path,
-            retry_times=self.config.basebackup_retry_times,
-            retry_sleep=self.config.basebackup_retry_sleep,
+            retry_times=0,
+            retry_sleep=30,
             retry_handler=partial(self._retry_handler, dest_dirs),
-            compression=self.backup_compression,
-            err_handler=self._err_handler,
-            out_handler=PgBaseBackup.make_logging_handler(logging.INFO),
-            parent_backup_manifest_path=parent_backup_manifest_path,
+            out_handler=PgCombineBackup.make_logging_handler(logging.INFO),
+            *backup_path_chain
         )
+
+        # Do the actual combine
+        try:
+            pg_combinebackup()
+        except CommandFailedException as e:
+            msg = (
+                "data transfer failure on directory '%s'"
+                % backup_info.get_synthetic_directory()
+            )
+            raise DataTransferFailure.from_command_error("pg_combinebackup", e, msg)
+
+        self._end_message()
+        # Store the end time
+        self.combine_end_time = datetime.datetime.now()
+
+        copy_time = total_seconds(self.copy_end_time - self.copy_start_time)
+        backup_info.copy_stats = {
+            "copy_time": copy_time,
+            "total_time": copy_time,
+        }
+
+    def _retry_handler(self, dest_dirs, attempt):
+        """
+        Handler invoked during a combine backup in case of retry.
+
+        The method simply warn the user of the failure and
+        remove the already existing directories of the backup.
+
+        :param list[str] dest_dirs: destination directories
+        :param int attempt: attempt number (starting from 0)
+        """
+        output.warning(
+            "Failure combining backups using pg_combinebackup (attempt %s)", attempt
+        )
+        output.warning(
+            "The files copied so far will be removed and "
+            "the backup process will restart in %s seconds",
+            "30",
+        )
+        # Remove all the destination directories and reinit the backup
+        self._prepare_backup_destination(dest_dirs)
+
+    def _fetch_remote_status(self):
+        """
+        Gather info from the remote server.
+
+        This method does not raise any exception in case of errors,
+        but set the missing values to None in the resulting dictionary.
+        """
+        remote_status = dict.fromkeys(
+            (
+                "pg_combinebackup_installed",
+                "pg_combinebackup_tbls_mapping",
+                "pg_combinebackup_path",
+                "pg_combinebackup_version",
+            ),
+            None,
+        )
+
+        # Test pg_basebackup existence
+        version_info = PgCombineBackup.get_version_info(self.server.path)
+
+        if version_info["full_path"]:
+            remote_status["pg_combinebackup_installed"] = True
+            remote_status["pg_combinebackup_path"] = version_info["full_path"]
+            remote_status["pg_combinebackup_version"] = version_info["full_version"]
+            pgcombinebackup_version = version_info["major_version"]
+        else:
+            remote_status["pg_combinebackup_installed"] = False
+            return remote_status
+
+        pg_version = None
+        if self.server.postgres is not None:
+            pg_version = self.server.postgres.server_major_version
+
+        pg_version = Version(pg_version)
+
+        # If any of the two versions is unknown, we can't compare them
+        if pgcombinebackup_version is None or pg_version is None or pg_version < "17":
+            # Return here. We are unable to retrieve
+            # pg_basebackup or PostgreSQL versions
+            return remote_status
+
+        remote_status["pg_combinebackup_tbls_mapping"] = False
+
+        return remote_status
+
+    def _get_backup_path_chain(self, backup_info):
+        """
+        Get the backup chain for the provided incremental backup, returning it as a list
+        starting from the full backup, through the parent backups up until the provided
+        incremental backup.
+        :param backup_info: The backup_info object for the incremental backup.
+        :return: A list of backup_info objects from the root to the provided incremental backup.
+        """
+        deque = collections.deque([])
+
+        for backup in backup_info.walk_to_root(include_self=True):
+            deque.appendleft(backup.get_basebackup_directory())
+
+        return list(deque)
+
+    def _prepare_backup_destination(self, dest_dirs):
+        """
+        Prepare the destination of the synthetic backup.
+
+        This method is also responsible for removing a directory if
+        it already exists and for ensuring the correct permissions for
+        the created directories
+
+        :param list[str] dest_dirs: destination directories
+        """
+        for dest_dir in dest_dirs:
+            # Remove a dir if exists. Ignore eventual errors
+            shutil.rmtree(dest_dir, ignore_errors=True)
+            # create the dir
+            mkpath(dest_dir)
+            # Ensure the right permissions to the destination directory
+            # chmod 0700 octal
+            os.chmod(dest_dir, 448)
+
+    def _start_message(self, backup_info):
+        output.info(
+            "Starting combining backups via pg_combinebackup for %s",
+            backup_info.backup_id,
+        )
+
+    def _end_message(self, backup_info):
+        output.info(
+            "Ending combining backups via pg_combinebackup for %s",
+            backup_info.backup_id,
+        )
+
+    # TODO
+    def get_synthetic_backup_info(self, backup_info):
+        pass
+    #    try:
+    #        self.create_synthetic_backup(backup_info)
+    #    except CommandFailedException as e:
+    #        raise e
+#
+    #    combined_backup_info = LocalBackupInfo(
+    #        self.server, info_file=backup_info.get_filename(basedir=False)
+    #    )
+    #    return combined_backup_info
+
+    def recover(
+        self,
+        backup_info,
+        dest,
+        tablespaces=None,
+        remote_command=None,
+        target_tli=None,
+        target_time=None,
+        target_xid=None,
+        target_lsn=None,
+        target_name=None,
+        target_immediate=False,
+        exclusive=False,
+        target_action=None,
+        standby_mode=None,
+        recovery_conf_filename=None,
+    ):
+        new_backup_info = self.executor.get_synthetic_backup_info(backup_info)
+        recovery_info = super().recover(
+            new_backup_info,
+            dest,
+            tablespaces,
+            remote_command,
+            target_tli,
+            target_time,
+            target_xid,
+            target_lsn,
+            target_name,
+            target_immediate,
+            exclusive,
+            target_action,
+            standby_mode,
+            recovery_conf_filename,
+        )
+        return recovery_info
 
 
 def recovery_executor_factory(backup_manager, command, backup_info):
@@ -1893,8 +2079,8 @@ def recovery_executor_factory(backup_manager, command, backup_info):
     :param: command barman.fs.UnixLocalCommand
     :return: RecoveryExecutor instance
     """
-    if backup_info.parent_backup_id:
-        return PgCombineBackupRecoveryExecutor(backup_manager)
+    if backup_info.parent_backup_id is not None:
+        return IncrementalRecoveryExecutor(backup_manager)
     if backup_info.snapshots_info is not None:
         return SnapshotRecoveryExecutor(backup_manager)
     compression = backup_info.compression

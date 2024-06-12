@@ -767,7 +767,7 @@ class LocalBackupInfo(BackupInfo):
         """
         return os.path.join(self.config.basebackups_directory, self.backup_id)
 
-    def get_data_directory(self, tablespace_oid=None):
+    def get_data_directory(self, tablespace_oid=None, basedir=True):
         """
         Get path to the backup data dir according with the backup version
 
@@ -790,6 +790,8 @@ class LocalBackupInfo(BackupInfo):
 
         # Build the requested path according to backup_version value
         path = [self.get_basebackup_directory()]
+        if not basedir:
+            path = [self.get_synthetic_directory()]
         # Check the version of the backup
         if self.backup_version == 2:
             # If an oid has been provided, we are looking for a tablespace
@@ -809,12 +811,15 @@ class LocalBackupInfo(BackupInfo):
         # Return the built path
         return os.path.join(*path)
 
-    def get_filename(self):
+    def get_filename(self, basedir=True):
         """
         Get the default filename for the backup.info file based on
         backup ID and server directory for base backups
         """
-        return os.path.join(self.get_basebackup_directory(), "backup.info")
+        if basedir:
+            return os.path.join(self.get_basebackup_directory(), "backup.info")
+        else:
+            return os.path.join(self.get_synthetic_directory(), "backup.info")
 
     def save(self, filename=None, file_object=None):
         if not file_object:
@@ -936,3 +941,10 @@ class LocalBackupInfo(BackupInfo):
         ):
             return True
         return False
+
+    def get_synthetic_directory(self):
+        """
+        Get the default filename for synthetic backups before
+        copying to the destination
+        """
+        return os.path.join(self.config.synthetic_directory, self.backup_id)
