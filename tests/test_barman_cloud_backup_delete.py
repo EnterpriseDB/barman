@@ -103,12 +103,57 @@ class TestCloudBackupDelete(object):
             for name, path in file_paths.items()
         )
 
-    def _create_backup_metadata(
-        self, backup_ids, begin_wals=None, end_wals=None, is_snapshot_backup=False
+    def _create_backup_info(
+        self,
+        backup_id,
+        begin_wal=None,
+        end_wal=None,
+        backup_name=None,
+        parent_backup_id=None,
+        children_backup_ids=None,
+        is_incremental=False,
+        has_children=False,
     ):
         """
-        Helper for tests which creates mock BackupFileInfo and BackupInfo objects
-        which are returned in a dict keyed by backup_id.
+        Helper for tests which creates mock BackupInfo objects.
+
+        If *begin_wal* is set then the backup's begin_wal and
+        timeline values will be set according to the wal name.
+
+        This is used by tests for two purposes:
+          1. Helper to create a backup_metadata and mock CloudBackupCatalog.
+          2. Providing the data needed to create backup_metadata.
+        """
+        backup_info = mock.MagicMock(name="backup_info", snapshots_info=None)
+        backup_info.backup_id = backup_id
+        if backup_name:
+            backup_info.backup_name = backup_name
+        backup_info.status = "DONE"
+        backup_info.end_time = datetime.datetime.strptime(
+            backup_id, "%Y%m%dT%H%M%S"
+        ) + datetime.timedelta(hours=1)
+
+        backup_info.begin_wal = begin_wal
+        backup_info.timeline = None
+        if backup_info.begin_wal:
+            backup_info.timeline = int(backup_info.begin_wal[:8])
+        backup_info.end_wal = end_wal
+        backup_info.is_incremental = is_incremental
+        backup_info.has_children = has_children
+        backup_info.parent_backup_id = parent_backup_id
+        backup_info.children_backups_ids = children_backup_ids
+        return backup_info
+
+    def _create_backup_metadata(
+        self,
+        backup_ids,
+        begin_wals=None,
+        end_wals=None,
+        is_snapshot_backup=False,
+    ):
+        """
+        Helper for tests which creates mock BackupFileInfo which are
+        returned in a dict keyed by backup_id.
 
         If begin_wals has an entry for a given backup_id then the begin_wal and
         timeline values will be set according to the wal name in begin_wals.
@@ -121,6 +166,7 @@ class TestCloudBackupDelete(object):
             begin_wals = {}
         if end_wals is None:
             end_wals = {}
+
         backup_metadata = {}
         for backup in backup_ids:
             backup_name = None
@@ -141,23 +187,12 @@ class TestCloudBackupDelete(object):
                     }
                 )
             backup_metadata[backup_id]["files"] = mock_backup_files
-            backup_info = mock.MagicMock(name="backup_info", snapshots_info=None)
-            backup_info.backup_id = backup_id
-            if backup_name:
-                backup_info.backup_name = backup_name
-            backup_info.status = "DONE"
-            backup_info.end_time = datetime.datetime.strptime(
-                backup_id, "%Y%m%dT%H%M%S"
-            ) + datetime.timedelta(hours=1)
-            try:
-                backup_info.begin_wal = begin_wals[backup_id]
-                backup_info.timeline = int(backup_info.begin_wal[:8])
-            except KeyError:
-                pass
-            try:
-                backup_info.end_wal = end_wals[backup_id]
-            except KeyError:
-                pass
+            backup_info = self._create_backup_info(
+                backup_id,
+                begin_wals.get(backup_id),
+                end_wals.get(backup_id),
+                backup_name,
+            )
             backup_metadata[backup_id]["info"] = backup_info
         return backup_metadata
 
