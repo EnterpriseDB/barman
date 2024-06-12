@@ -572,6 +572,7 @@ class ServerConfig(BaseConfig):
         "streaming_backup_name",
         "streaming_conninfo",
         "streaming_wals_directory",
+        "syntheticbackups_directory",
         "tablespace_bandwidth_limit",
         "wal_conninfo",
         "wal_retention_policy",
@@ -688,6 +689,7 @@ class ServerConfig(BaseConfig):
         "streaming_backup_name": "barman_streaming_backup",
         "streaming_conninfo": "%(conninfo)s",
         "streaming_wals_directory": "%(backup_directory)s/streaming",
+        "syntheticbackups_directory": "%(backup_directory)s/synthetic",
         "wal_retention_policy": "main",
         "wals_directory": "%(backup_directory)s/wals",
     }
@@ -975,6 +977,7 @@ class ModelConfig(BaseConfig):
         "errors_directory",
         "incoming_wals_directory",
         "streaming_wals_directory",
+        "syntheticbackups_directory",
         "wals_directory",
         # Hook related options
         "post_archive_retry_script",
@@ -1439,6 +1442,7 @@ class Config(object):
                 "incoming_wals_directory": section_conf.incoming_wals_directory,
                 "streaming_wals_directory": section_conf.streaming_wals_directory,
                 "wals_directory": section_conf.wals_directory,
+                "syntheticbackups_directory": section_conf.syntheticbackups_directory,
             }
 
             # Check for path errors

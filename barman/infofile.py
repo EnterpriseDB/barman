@@ -767,7 +767,7 @@ class LocalBackupInfo(BackupInfo):
         """
         return os.path.join(self.config.basebackups_directory, self.backup_id)
 
-    def get_data_directory(self, tablespace_oid=None, basedir=True):
+    def get_data_directory(self, tablespace_oid=None):
         """
         Get path to the backup data dir according with the backup version
 
@@ -790,8 +790,6 @@ class LocalBackupInfo(BackupInfo):
 
         # Build the requested path according to backup_version value
         path = [self.get_basebackup_directory()]
-        if not basedir:
-            path = [self.get_synthetic_directory()]
         # Check the version of the backup
         if self.backup_version == 2:
             # If an oid has been provided, we are looking for a tablespace
@@ -811,15 +809,12 @@ class LocalBackupInfo(BackupInfo):
         # Return the built path
         return os.path.join(*path)
 
-    def get_filename(self, basedir=True):
+    def get_filename(self):
         """
         Get the default filename for the backup.info file based on
         backup ID and server directory for base backups
         """
-        if basedir:
-            return os.path.join(self.get_basebackup_directory(), "backup.info")
-        else:
-            return os.path.join(self.get_synthetic_directory(), "backup.info")
+        return os.path.join(self.get_basebackup_directory(), "backup.info")
 
     def save(self, filename=None, file_object=None):
         if not file_object:
@@ -942,9 +937,25 @@ class LocalBackupInfo(BackupInfo):
             return True
         return False
 
-    def get_synthetic_directory(self):
+
+class SynthethicBackupInfo(LocalBackupInfo):
+    def __init__(self, server, info_file=None, backup_id=None, **kwargs):
         """
-        Get the default filename for synthetic backups before
-        copying to the destination
+        Stores meta information about a single backup
+
+        :param Server server:
+        :param file,str,None info_file:
+        :param str,None backup_id:
+        :raise BackupInfoBadInitialisation: if the info_file content is invalid
+            or neither backup_info or
         """
-        return os.path.join(self.config.synthetic_directory, self.backup_id)
+        # Initialises the attributes for the object
+        # based on the predefined keys
+        super(SynthethicBackupInfo, self).__init__(backup_id=backup_id, **kwargs)
+
+    def get_basebackup_directory(self):
+        """
+        Get the default filename for the backup.info file based on
+        backup ID and server directory for base backups
+        """
+        return os.path.join(self.config.syntheticbackups_directory, self.backup_id)
