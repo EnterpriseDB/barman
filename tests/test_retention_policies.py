@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import itertools
 import logging
 import re
 from datetime import datetime, timedelta
@@ -35,6 +36,7 @@ from testing_helpers import build_mocked_server, build_test_backup_info
 
 
 class TestRetentionPolicies(object):
+
     @pytest.fixture
     def server(self):
         backup_manager = mock.Mock()
@@ -180,49 +182,83 @@ class TestRetentionPolicies(object):
 
         # Build a BackupInfo object with status to DONE
         backup_info = build_test_backup_info(
-            server=server, backup_id="test1", end_time=datetime.now(tzlocal())
+            server=server,
+            backup_id="test_backup",
+            end_time=datetime.now(tzlocal()),
+            parent_backup_id=None,
+            children_backup_ids=["test_backup_child"],
+        )
+
+        # Build a CHILD BackupInfo object with status to DONE
+        child_backup_info = build_test_backup_info(
+            server=server,
+            backup_id="test_backup_child",
+            end_time=datetime.now(tzlocal()) + timedelta(days=1),
+            parent_backup_id="test_backup",
+            children_backup_ids=None,
         )
 
         # instruct the get_available_backups method to return a map with
         # our mock as result and minimum_redundancy = 1
-        server.get_available_backups.return_value = {"test_backup": backup_info}
+        server.get_available_backups.return_value = {
+            "test_backup": backup_info,
+            "test_backup_child": child_backup_info,
+        }
         server.config.minimum_redundancy = 1
-        # execute retention policy report
-        report = rp.backup_status("test_backup")
 
-        assert report == "VALID"
+        # execute retention policy report on parent
+        report_parent = rp.backup_status("test_backup")
+
+        assert report_parent == "VALID"
+
+        # execute retention policy report on child
+        report_child = rp.backup_status("test_backup_child")
+
+        assert report_child == "VALID"
         # Force context of retention policy for testing purposes.
         # Expect the method to return a BackupInfo.NONE value
         rp.context = "invalid"
-        empty_report = rp.backup_status("test_backup")
+        empty_report_parent = rp.backup_status("test_backup")
 
-        assert empty_report == BackupInfo.NONE
+        assert empty_report_parent == BackupInfo.NONE
+
+        empty_report_child = rp.backup_status("test_backup_child")
+
+        assert empty_report_child == BackupInfo.NONE
 
         rp = RetentionPolicyFactory.create(
             "retention_policy", "RECOVERY WINDOW OF 4 WEEKS", server=server
         )
         assert isinstance(rp, RecoveryWindowRetentionPolicy)
 
-        # Build a BackupInfo object with status to DONE
-        backup_info = build_test_backup_info(
-            server=server, backup_id="test1", end_time=datetime.now(tzlocal())
-        )
-
         # instruct the get_available_backups method to return a map with
         # our mock as result and minimum_redundancy = 1
-        server.get_available_backups.return_value = {"test_backup": backup_info}
+        server.get_available_backups.return_value = {
+            "test_backup": backup_info,
+            "test_backup_child": child_backup_info,
+        }
         server.config.minimum_redundancy = 1
-        # execute retention policy report
-        report = rp.backup_status("test_backup")
 
-        assert report == "VALID"
+        # execute retention policy report on parent
+        report_parent = rp.backup_status("test_backup")
+
+        assert report_parent == "VALID"
+
+        # execute retention policy report on child
+        report_child = rp.backup_status("test_backup_child")
+
+        assert report_child == "VALID"
 
         # Force context of retention policy for testing purposes.
         # Expect the method to return a BackupInfo.NONE value
         rp.context = "invalid"
-        empty_report = rp.backup_status("test_backup")
+        empty_report_parent = rp.backup_status("test_backup")
 
-        assert empty_report == BackupInfo.NONE
+        assert empty_report_parent == BackupInfo.NONE
+
+        empty_report_child = rp.backup_status("test_backup_child")
+
+        assert empty_report_child == BackupInfo.NONE
 
     def test_first_backup(self, server):
         rp = RetentionPolicyFactory.create(
@@ -263,6 +299,265 @@ class TestRetentionPolicies(object):
         report = rp.first_backup()
 
         assert report == "test_backup"
+
+    @pytest.mark.parametrize(
+        ("retention_policy", "retention_status"),
+        itertools.product(
+            ("RECOVERY WINDOW OF 4 WEEKS", "REDUNDANCY 2"),
+            (
+                BackupInfo.OBSOLETE,
+                BackupInfo.VALID,
+                BackupInfo.POTENTIALLY_OBSOLETE,
+                BackupInfo.KEEP_FULL,
+                BackupInfo.KEEP_STANDALONE,
+                BackupInfo.NONE,
+            ),
+        ),
+    )
+    @mock.patch("barman.retention_policies._logger.debug")
+    @mock.patch("barman.infofile.LocalBackupInfo.walk_backups_tree")
+    def test__propagate_retention_status_to_children(
+        self,
+        mock_walk_backups_tree,
+        mock_logger,
+        retention_policy,
+        retention_status,
+        server,
+        tmpdir,
+    ):
+        """
+        Unit test of method _propagate_retention_status_to_children
+        """
+
+        # Use this to Build a chain of incrementals BackupInfo objects in
+        # post-order up to the root.
+        chain = {
+            "b3": """parent_backup_id=b2
+                   children_backup_ids=None
+                   status=DONE""",
+            "b6": """parent_backup_id=b2
+                   children_backup_ids=None
+                   status=DONE""",
+            "b2": """parent_backup_id=root
+                   children_backup_ids=b3,b6
+                   status=DONE""",
+            "b5": """parent_backup_id=b4
+                   children_backup_ids=None
+                   status=DONE""",
+            "b4": """parent_backup_id=root
+                   children_backup_ids=b5
+                   status=DONE""",
+            "root": """parent_backup_id=None
+                     children_backup_ids=b2,b4
+                     status=DONE""",
+        }
+        backup_chain = {}
+        for bkp in chain:
+            infofile = tmpdir.mkdir(bkp).join("backup.info")
+            infofile.write(chain[bkp])
+            b_info = build_test_backup_info(
+                backup_id=bkp,
+                server=server,
+            )
+            backup_chain[bkp] = b_info
+
+        root = backup_chain["root"]
+        mock_walk_backups_tree.return_value = iter(list(backup_chain.values())[:-1])
+
+        rp = RetentionPolicyFactory.create(
+            "retention_policy", retention_policy, server=server
+        )
+
+        report = {}
+        rp._propagate_retention_status_to_children(root, report, retention_status)
+
+        mock_walk_backups_tree.assert_called_once()
+
+        mock_logger.call_count == 5
+        # For full backups with status KEEP, we propagate VALID status to children
+        if retention_status in (BackupInfo.KEEP_FULL, BackupInfo.KEEP_STANDALONE):
+            retention_status = BackupInfo.VALID
+        for backup_id in report:
+            mock_logger.assert_any_call(
+                "Propagating %s retention status of backup root to %s."
+                % (retention_status, backup_id)
+            )
+
+        for backup in report:
+            assert report[backup] == retention_status
+
+    def test_redundancy_report_with_incrementals(self, server, caplog):
+        """
+        Test of the management of the minimum_redundancy parameter
+        into the backup_report method of the RedundancyRetentionPolicy class
+
+        """
+        rp = RetentionPolicyFactory.create(
+            "retention_policy", "REDUNDANCY 2", server=server
+        )
+        assert isinstance(rp, RedundancyRetentionPolicy)
+
+        backups_data = {
+            "20240628T000000": {
+                "parent_backup_id": None,
+                "children_backup_ids": ["20240628T120000"],
+                "end_time": datetime.now(tzlocal()) - timedelta(weeks=6, days=1),
+            },
+            "20240628T120000": {
+                "parent_backup_id": "20240628T000000",
+                "children_backup_ids": None,
+                "end_time": datetime.now(tzlocal()) - timedelta(weeks=6),
+            },
+            "20240629T000000": {
+                "parent_backup_id": None,
+                "children_backup_ids": ["20240629T120000"],
+                "end_time": datetime.now(tzlocal()) - timedelta(weeks=5, days=1),
+            },
+            "20240629T120000": {
+                "parent_backup_id": "20240629T000000",
+                "children_backup_ids": None,
+                "end_time": datetime.now(tzlocal()) - timedelta(weeks=5),
+            },
+            "20240630T000000": {
+                "parent_backup_id": None,
+                "children_backup_ids": None,
+                "end_time": datetime.now(tzlocal()),
+            },
+        }
+
+        available_backups = {}
+        for bkp_id, info in backups_data.items():
+            available_backups[bkp_id] = build_test_backup_info(
+                backup_id=bkp_id,
+                server=server,
+                parent_backup_id=info["parent_backup_id"],
+                children_backup_ids=info["children_backup_ids"],
+                end_time=info["end_time"],
+            )
+
+        # instruct the get_available_backups method to return a map with
+        # our mock as result and minimum_redundancy = 1
+        server.get_available_backups.return_value = available_backups
+
+        server.config.minimum_redundancy = 1
+
+        # execute retention policy report
+        report = rp.report()
+        # check that our mock is valid for the retention policy because
+        # the total number of valid backups is lower than the retention policy
+        # redundancy.
+        assert report == {
+            "20240630T000000": "VALID",
+            "20240629T000000": "VALID",
+            "20240629T120000": "VALID",
+            "20240628T000000": "OBSOLETE",
+            "20240628T120000": "OBSOLETE",
+        }
+
+        # Expect a ValueError if passed context is invalid
+        with pytest.raises(ValueError):
+            rp.report(context="invalid")
+        # Set a new minimum_redundancy parameter, enforcing the usage of the
+        # configuration parameter instead of the retention policy default
+        server.config.minimum_redundancy = 3
+        # execute retention policy report
+        rp.report()
+        # Check for the warning inside the log
+        caplog.set_level(logging.WARNING)
+
+        log = caplog.text
+        assert log.find(
+            "WARNING  Retention policy redundancy (2) "
+            "is lower than the required minimum redundancy (3). "
+            "Enforce 3."
+        )
+
+    def test_recovery_window_report_with_incrementals(self, server, caplog):
+        """
+        Test of the management of the minimum_redundancy parameter
+        into the backup_report method of the RecoveryWindowRetentionPolicy class
+
+        """
+        rp = RetentionPolicyFactory.create(
+            "retention_policy", "RECOVERY WINDOW OF 4 WEEKS", server=server
+        )
+        assert isinstance(rp, RecoveryWindowRetentionPolicy)
+
+        backups_data = {
+            "20240628T000000": {
+                "parent_backup_id": None,
+                "children_backup_ids": ["20240628T120000"],
+                "end_time": datetime.now(tzlocal()) - timedelta(weeks=6, days=1),
+            },
+            "20240628T120000": {
+                "parent_backup_id": "20240628T000000",
+                "children_backup_ids": None,
+                "end_time": datetime.now(tzlocal()) - timedelta(weeks=6),
+            },
+            "20240629T000000": {
+                "parent_backup_id": None,
+                "children_backup_ids": ["20240629T120000"],
+                "end_time": datetime.now(tzlocal()) - timedelta(weeks=5, days=1),
+            },
+            "20240629T120000": {
+                "parent_backup_id": "20240629T000000",
+                "children_backup_ids": None,
+                "end_time": datetime.now(tzlocal()) - timedelta(weeks=5),
+            },
+            "20240630T000000": {
+                "parent_backup_id": None,
+                "children_backup_ids": None,
+                "end_time": datetime.now(tzlocal()),
+            },
+        }
+
+        available_backups = {}
+        for bkp_id, info in backups_data.items():
+            available_backups[bkp_id] = build_test_backup_info(
+                backup_id=bkp_id,
+                server=server,
+                parent_backup_id=info["parent_backup_id"],
+                children_backup_ids=info["children_backup_ids"],
+                end_time=info["end_time"],
+            )
+
+        # instruct the get_available_backups method to return a map with
+        # our mock as result and minimum_redundancy = 1
+        server.get_available_backups.return_value = available_backups
+
+        server.config.minimum_redundancy = 1
+        server.config.name = "test"
+
+        # execute retention policy report
+        report = rp.report()
+        # check that our mock is valid for the retention policy because
+        # the total number of valid backups is lower than the retention policy
+        # redundancy.
+        assert report == {
+            "20240630T000000": "VALID",
+            "20240629T000000": "VALID",
+            "20240629T120000": "VALID",
+            "20240628T000000": "OBSOLETE",
+            "20240628T120000": "OBSOLETE",
+        }
+
+        # Expect a ValueError if passed context is invalid
+        with pytest.raises(ValueError):
+            rp.report(context="invalid")
+        # Set a new minimum_redundancy parameter, enforcing the usage of the
+        # configuration parameter instead of the retention policy default
+        server.config.minimum_redundancy = 4
+        # execute retention policy report
+        rp.report()
+        # Check for the warning inside the log
+        caplog.set_level(logging.WARNING)
+        log = caplog.text
+        warn = (
+            r"WARNING  .*Keeping obsolete backup 20240628T000000 for "
+            r"server test \(older than .*\) due to minimum redundancy "
+            r"requirements \(4\)\n"
+        )
+        assert re.search(warn, log)
 
 
 class TestRedundancyRetentionPolicyWithKeepAnnotation(object):
