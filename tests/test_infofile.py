@@ -1127,14 +1127,25 @@ class TestLocalBackupInfo:
             side_effect=provide_child_backup_info,
         ):
             # Call the `walk_backups_tree` method on the root backup info
-            backups = list(root_backup_info.walk_backups_tree())
+            backups = list(root_backup_info.walk_backups_tree(return_self=True))
             # Assert that the backups are returned in the correct order
             # We want to walk through the tree in a depth-first post order,
             # so leaf nodes are visited first, then their parent, and so on.
+            assert len(backups) == 4
             assert backups[0].backup_id == "child_backup3"
             assert backups[1].backup_id == "child_backup1"
             assert backups[2].backup_id == "child_backup2"
             assert backups[3].backup_id == "root_backup"
+
+            # Call the `walk_backups_tree` method on the root backup info
+            backups = list(root_backup_info.walk_backups_tree(return_self=False))
+            # Assert that the backups are returned in the correct order
+            # We want to walk through the tree in a depth-first post order,
+            # so leaf nodes are visited first, then their parent, and so on.
+            assert len(backups) == 3
+            assert backups[0].backup_id == "child_backup3"
+            assert backups[1].backup_id == "child_backup1"
+            assert backups[2].backup_id == "child_backup2"
 
     def test_true_is_full_and_eligible_for_incremental(self):
         """
