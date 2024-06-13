@@ -85,7 +85,9 @@ class TestMain(object):
         cloud_interface_mock.download_file.assert_called_once()
 
     @mock.patch("barman.clients.cloud_walrestore.get_cloud_interface")
-    def test_fails_if_wal_is_found_partial_but_nopartial(self, get_cloud_interface_mock, caplog):
+    def test_fails_if_wal_is_found_partial_but_nopartial(
+        self, get_cloud_interface_mock, caplog
+    ):
         """If the WAL is found as partial we exit with status 0."""
         cloud_interface_mock = get_cloud_interface_mock.return_value
         cloud_interface_mock.path = "testfolder/"
