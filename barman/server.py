@@ -1598,9 +1598,8 @@ class Server(RemoteStatusMixin):
             before timing out
         :param str|None backup_name: a friendly name by which this backup can
             be referenced in the future
-        :kwparam barman.infofile.LocalBackupInfo parent_backup_info:
-            information of the parent backup in case it is an incremental backup
-            using the postgres mode
+        :kwparam str parent_backup_id: id of the parent backup when taking a
+            Postgres incremental backup
         """
         # The 'backup' command is not available on a passive node.
         # We assume that if we get here the node is not passive

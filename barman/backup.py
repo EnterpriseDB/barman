@@ -591,9 +591,8 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         :param bool wait: wait for all the required WAL files to be archived
         :param int|None wait_timeout:
         :param str|None name: the friendly name to be saved with this backup
-        :kwparam barman.infofile.LocalBackupInfo parent_backup_info:
-            information of the parent backup in case it is an incremental backup
-            using the postgres mode
+        :kwparam str parent_backup_id: id of the parent backup when taking a
+            Postgres incremental backup
         :return BackupInfo: the generated BackupInfo
         """
         _logger.debug("initialising backup information")
@@ -607,6 +606,11 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 backup_name=name,
             )
             backup_info.set_attribute("systemid", self.server.systemid)
+
+            backup_info.set_attribute(
+                "parent_backup_id",
+                kwargs.get("parent_backup_id"),
+            )
 
             backup_info.save()
             self.backup_cache_add(backup_info)
@@ -628,7 +632,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             retry_script.run()
 
             # Do the backup using the BackupExecutor
-            self.executor.backup(backup_info, **kwargs)
+            self.executor.backup(backup_info)
 
             # Create a restore point after a backup
             target_name = "barman_%s" % backup_info.backup_id
@@ -697,6 +701,23 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
         finally:
             if backup_info:
+
+                # IF is an incremental backup, we save here child backup info id
+                # inside the parent list of children. no matter if the backup
+                # is successful or not. This is needed to be able to retrieve
+                # also failed incremental backups for removal or other operations
+                # like show-backup.
+                parent_backup_info = backup_info.get_parent_backup_info()
+
+                if parent_backup_info:
+                    if parent_backup_info.children_backup_ids:
+                        parent_backup_info.children_backup_ids.append(  # type: ignore
+                            backup_info.backup_id
+                        )
+                    else:
+                        parent_backup_info.children_backup_ids = [backup_info.backup_id]
+                    parent_backup_info.save()
+
                 backup_info.save()
 
                 # Make sure we are not holding any PostgreSQL connection

@@ -525,7 +525,9 @@ def backup(args):
         incremental_kwargs = {}
 
         if args.backup_id is not None:
-            incremental_kwargs["parent_backup_info"] = parse_backup_id(server, args)
+            parent_backup_info = parse_backup_id(server, args)
+            if parent_backup_info:
+                incremental_kwargs["parent_backup_id"] = parent_backup_info.backup_id
         if args.reuse_backup is not None:
             server.config.reuse_backup = args.reuse_backup
         if args.retry_sleep is not None:

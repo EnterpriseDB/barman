@@ -75,6 +75,8 @@ EXPECTED_MINIMAL = {
             "systemid": None,
             "compression": None,
             "summarize_wal": None,
+            "parent_backup_id": None,
+            "children_backup_ids": None,
         }
     },
     "config": {},
