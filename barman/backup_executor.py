@@ -120,7 +120,7 @@ class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
             return self._mode
 
     @abstractmethod
-    def backup(self, backup_info, **kwargs):
+    def backup(self, backup_info):
         """
         Perform a backup for the server - invoked by BackupManager.backup()
 
@@ -358,7 +358,7 @@ class PostgresBackupExecutor(BackupExecutor):
                 exc,
             )
 
-    def backup(self, backup_info, **kwargs):
+    def backup(self, backup_info):
         """
         Perform a backup for the server - invoked by BackupManager.backup()
         through the generic interface of a BackupExecutor.
@@ -373,9 +373,6 @@ class PostgresBackupExecutor(BackupExecutor):
         at least one session available for the backup.
 
         :param barman.infofile.LocalBackupInfo backup_info: backup information
-        :kwparam barman.infofile.LocalBackupInfo parent_backup_info:
-            information of the parent backup in case it is an incremental backup
-            using the postgres mode
         """
         try:
             # Set data directory and server version
@@ -395,7 +392,7 @@ class PostgresBackupExecutor(BackupExecutor):
             # Start the copy
             self.current_action = "copying files"
             self._start_backup_copy_message(backup_info)
-            self.backup_copy(backup_info, **kwargs)
+            self.backup_copy(backup_info)
             self._stop_backup_copy_message(backup_info)
             self.strategy.stop_backup(backup_info)
 
@@ -565,7 +562,7 @@ class PostgresBackupExecutor(BackupExecutor):
 
         return remote_status
 
-    def backup_copy(self, backup_info, **kwargs):
+    def backup_copy(self, backup_info):
         """
         Perform the actual copy of the backup using pg_basebackup.
         First, manages tablespaces, then copies the base backup
@@ -576,9 +573,6 @@ class PostgresBackupExecutor(BackupExecutor):
         mechanism when necessary.
 
         :param barman.infofile.LocalBackupInfo backup_info: backup information
-        :kwparam barman.infofile.LocalBackupInfo parent_backup_info:
-            information of the parent backup in case it is an incremental backup
-            using the postgres mode
         """
 
         # Make sure the destination directory exists, ensure the
@@ -617,12 +611,10 @@ class PostgresBackupExecutor(BackupExecutor):
 
         # Find the backup_manifest file path of the parent backup in case
         # it is an incremental backup
+        parent_backup_info = backup_info.get_parent_backup_info()
         parent_backup_manifest_path = None
-        if "parent_backup_info" in kwargs:
-            parent_backup_info = kwargs["parent_backup_info"]
-            parent_backup_manifest_path = self._get_backup_manifest_from_backup(
-                parent_backup_info
-            )
+        if parent_backup_info:
+            parent_backup_manifest_path = parent_backup_info.get_backup_manifest_path()
 
         pg_basebackup = PgBaseBackup(
             connection=self.server.streaming,
@@ -750,13 +742,6 @@ class PostgresBackupExecutor(BackupExecutor):
             # chmod 0700 octal
             os.chmod(dest_dir, 448)
 
-    def _get_backup_manifest_from_backup(self, backup_info):
-        """
-        Get the backup_manifest file path of a backup
-        :param str backup_info: backup information
-        """
-        return os.path.join(backup_info.get_data_directory(), "backup_manifest")
-
     def _start_backup_copy_message(self, backup_info):
         output.info(
             "Starting backup copy via pg_basebackup for %s", backup_info.backup_id
@@ -854,14 +839,14 @@ class ExternalBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
             self.current_action = action
 
     @abstractmethod
-    def backup_copy(self, backup_info, **kwargs):
+    def backup_copy(self, backup_info):
         """
         Performs the actual copy of a backup for the server
 
         :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
 
-    def backup(self, backup_info, **kwargs):
+    def backup(self, backup_info):
         """
         Perform a backup for the server - invoked by BackupManager.backup()
         through the generic interface of a BackupExecutor. This implementation
@@ -1113,7 +1098,7 @@ class PassiveBackupExecutor(BackupExecutor):
                 "for server %s" % backup_manager.config.name
             )
 
-    def backup(self, backup_info, **kwargs):
+    def backup(self, backup_info):
         """
         This method should never be called, because this is a passive server
 
@@ -1206,7 +1191,7 @@ class RsyncBackupExecutor(ExternalBackupExecutor):
                 "backup_compression option is not supported by rsync backup_method"
             )
 
-    def backup_copy(self, backup_info, **kwargs):
+    def backup_copy(self, backup_info):
         """
         Perform the actual copy of the backup using Rsync.
 
@@ -1534,7 +1519,7 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
         for volume in volumes.values():
             volume.resolve_mounted_volume(remote_cmd)
 
-    def backup_copy(self, backup_info, **kwargs):
+    def backup_copy(self, backup_info):
         """
         Perform the backup using cloud provider disk snapshots.
 
