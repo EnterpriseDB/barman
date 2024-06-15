@@ -38,7 +38,11 @@ from barman.exceptions import (
     RecoveryTargetActionException,
     SnapshotBackupException,
 )
-from barman.infofile import BackupInfo, WalFileInfo
+from barman.infofile import (
+    BackupInfo,
+    WalFileInfo,
+    SyntheticBackupInfo,
+)
 from barman.recovery_executor import (
     Assertion,
     RecoveryExecutor,
@@ -47,6 +51,7 @@ from barman.recovery_executor import (
     TarballRecoveryExecutor,
     ConfigurationFileMangeler,
     recovery_executor_factory,
+    IncrementalRecoveryExecutor,
 )
 
 
@@ -2264,25 +2269,40 @@ class TestSnapshotRecoveryExecutor(object):
 
 class TestRecoveryExecutorFactory(object):
     @pytest.mark.parametrize(
-        ("compression", "expected_executor", "snapshots_info", "should_error"),
+        (
+            "compression",
+            "parent_backup_id",
+            "expected_executor",
+            "snapshots_info",
+            "should_error",
+        ),
         [
             # No compression or snapshots_info should return RecoveryExecutor
-            (None, RecoveryExecutor, None, False),
+            (None, None, RecoveryExecutor, None, False),
             # Supported compression should return TarballRecoveryExecutor
-            ("gzip", TarballRecoveryExecutor, None, False),
+            ("gzip", None, TarballRecoveryExecutor, None, False),
             # Unrecognised compression should cause an error
-            ("snappy", None, None, True),
+            ("snappy", None, None, None, True),
             # A backup_info with snapshots_info should return SnapshotRecoveryExecutor
-            (None, SnapshotRecoveryExecutor, mock.Mock(), False),
+            (None, None, SnapshotRecoveryExecutor, mock.Mock(), False),
+            # A backup with a parent_backup_id should return IncrementalRecoveryExecutor
+            (None, "some_parent_id", IncrementalRecoveryExecutor, None, False),
         ],
     )
     def test_recovery_executor_factory(
-        self, compression, expected_executor, snapshots_info, should_error
+        self,
+        compression,
+        parent_backup_id,
+        expected_executor,
+        snapshots_info,
+        should_error,
     ):
         mock_backup_manager = mock.Mock()
         mock_command = mock.Mock()
         mock_backup_info = mock.Mock(
-            compression=compression, snapshots_info=snapshots_info
+            compression=compression,
+            snapshots_info=snapshots_info,
+            parent_backup_id=parent_backup_id,
         )
 
         # WHEN recovery_executor_factory is called with the specified compression
