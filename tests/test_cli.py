@@ -750,30 +750,84 @@ class TestCli(object):
 
     @pytest.mark.parametrize(
         (
+            "backup_is_incremental",
             "backup_is_compressed",
             "recovery_staging_path_arg",
             "recovery_staging_path_config",
             "expected_recovery_staging_path",
             "should_error",
+            "error_substring",
         ),
         [
-            # If a backup is not compressed then recovery_staging_path is ignored
-            (False, None, None, None, False),
-            # If a backup is compressed and no recovery_staging_path is provided
-            # we expect an error
-            (True, None, None, None, True),
+            # If a backup is not incremental nor compressed then recovery_staging_path
+            # is ignored
+            (False, False, None, None, None, False, None),
+            # If a backup is compressed and no recovery_staging_path is provided we
+            # expect an error.
+            (
+                False,
+                True,
+                None,
+                None,
+                None,
+                True,
+                "backup is compressed with gzip compression but no recovery staging "
+                "path is provided.",
+            ),
             # If a backup is compressed and an argument is provided then it should
             # be set in the config
-            (True, "/from/arg", None, "/from/arg", False),
+            (False, True, "/from/arg", None, "/from/arg", False, None),
             # If a backup is compressed and a bad argument is provided then it should
             # error
-            (True, "from/arg", None, None, True),
+            (
+                False,
+                True,
+                "from/arg",
+                None,
+                None,
+                True,
+                "Cannot parse recovery staging path: Invalid value : 'from/arg' (must "
+                "be an absolute path)",
+            ),
             # If a backup is compressed and a config value is set then it should
             # be set in the config
-            (True, None, "/from/conf", "/from/conf", False),
+            (False, True, None, "/from/conf", "/from/conf", False, None),
             # If a backup is compressed and both arg and config are set then arg
             # takes precedence
-            (True, "/from/arg", "/from/conf", "/from/arg", False),
+            (False, True, "/from/arg", "/from/conf", "/from/arg", False, None),
+            # If a backup is incremental and no recovery_staging_path is provided we
+            # expect an error.
+            (
+                True,
+                False,
+                None,
+                None,
+                None,
+                True,
+                "backup will be combined with pg_combinebackup in the barman host but "
+                "no recovery staging path is provided.",
+            ),
+            # If a backup is incremental and an argument is provided then it should
+            # be set in the config
+            (True, False, "/from/arg", None, "/from/arg", False, None),
+            # If a backup is incremental and a bad argument is provided then it should
+            # error
+            (
+                True,
+                False,
+                "from/arg",
+                None,
+                None,
+                True,
+                "Cannot parse recovery staging path: Invalid value : 'from/arg' (must "
+                "be an absolute path)",
+            ),
+            # If a backup is incremental and a config value is set then it should
+            # be set in the config
+            (True, False, None, "/from/conf", "/from/conf", False, None),
+            # If a backup is incremental and both arg and config are set then arg
+            # takes precedence
+            (True, False, "/from/arg", "/from/conf", "/from/arg", False, None),
         ],
     )
     @patch("barman.cli.parse_backup_id")
@@ -784,11 +838,13 @@ class TestCli(object):
         parse_backup_id_mock,
         mock_backup_info,
         mock_recover_args,
+        backup_is_incremental,
         backup_is_compressed,
         recovery_staging_path_arg,
         recovery_staging_path_config,
         expected_recovery_staging_path,
         should_error,
+        error_substring,
         monkeypatch,
         capsys,
     ):
@@ -796,6 +852,8 @@ class TestCli(object):
         parse_backup_id_mock.return_value = mock_backup_info
         # AND the backup has the specified compression
         mock_backup_info.compression = backup_is_compressed and "gzip" or None
+        # AND the backup has the specified parent
+        mock_backup_info.parent_backup_id = backup_is_incremental and "some_id" or None
         # AND a configuration with the specified recovery_staging_path
         config = build_config_from_dicts(
             global_conf={"recovery_staging_path": recovery_staging_path_config},
@@ -816,9 +874,12 @@ class TestCli(object):
 
         # THEN if we expected an error the error was observed
         _, err = capsys.readouterr()
+        errors = [msg for msg in err.split("\n") if msg.startswith("ERROR: ")]
         if should_error:
-            assert len(err) > 0
+            assert len(errors) > 0
+            assert any([error_substring in msg for msg in errors])
         else:
+            assert len(errors) == 0
             # AND if we expected success, the server config recovery staging
             # path matches expectations
             assert server.recovery_staging_path == expected_recovery_staging_path

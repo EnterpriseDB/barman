@@ -41,6 +41,7 @@ from barman.infofile import (
     Field,
     FieldListFile,
     LocalBackupInfo,
+    SyntheticBackupInfo,
     WalFileInfo,
     load_datetime_tz,
     dump_backup_ids,
@@ -1065,7 +1066,7 @@ class TestLocalBackupInfo:
             side_effect=provide_parent_backup_info,
         ):
             # Call the walk_to_root method
-            result = list(backup_info.walk_to_root())
+            result = list(backup_info.walk_to_root(return_self=False))
 
             # Check if the method correctly walks through all the parent backups
             # in the correct order
@@ -1073,6 +1074,24 @@ class TestLocalBackupInfo:
             assert result[0].backup_id == "parent_backup_id1"
             assert result[1].backup_id == "parent_backup_id2"
             assert result[2].backup_id == "parent_backup_id3"
+
+        # Test case for when the method is set to also return the current backup
+        backup_info.backup_id = "incremental_backup_id"
+        with mock.patch(
+            "barman.infofile.LocalBackupInfo",
+            side_effect=provide_parent_backup_info,
+        ):
+            # Call the walk_to_root method with include_self=True
+            result = list(backup_info.walk_to_root())
+
+            # Check if the method includes the current backup and walks through all
+            # the parent backups in the correct order and ALSO yields the current
+            # backup
+            assert len(result) == 4
+            assert result[0].backup_id == "incremental_backup_id"
+            assert result[1].backup_id == "parent_backup_id1"
+            assert result[2].backup_id == "parent_backup_id2"
+            assert result[3].backup_id == "parent_backup_id3"
 
     def test_walk_backups_tree(self):
         """
@@ -1127,7 +1146,7 @@ class TestLocalBackupInfo:
             side_effect=provide_child_backup_info,
         ):
             # Call the `walk_backups_tree` method on the root backup info
-            backups = list(root_backup_info.walk_backups_tree(return_self=True))
+            backups = list(root_backup_info.walk_backups_tree())
             # Assert that the backups are returned in the correct order
             # We want to walk through the tree in a depth-first post order,
             # so leaf nodes are visited first, then their parent, and so on.
@@ -1211,3 +1230,75 @@ class TestLocalBackupInfo:
         )
 
         assert not backup_info.is_full_and_eligible_for_incremental()
+
+
+class TestSyntheticBackupInfo:
+    """
+    this class tests the methods of the SyntheticBackupInfo object
+    """
+
+    def test_init_synthetic_backup_info_with_backup_id(self):
+        """
+        Unit test for the __init__ method using backup_id.
+
+        Create mock server and a SyntheticBackupInfo object.
+
+        This unit tests checks:
+            * base_directory parameter
+            * backup_id parameter
+            * instance type
+        """
+        server = build_mocked_server()
+        base_directory = "fake/path/"
+        backup_id = "fake_name"
+        obj = SyntheticBackupInfo(
+            server=server,
+            base_directory=base_directory,
+            backup_id=backup_id,
+            info_file=None,
+        )
+        assert obj.base_directory == base_directory
+        assert obj.backup_id == backup_id
+        assert isinstance(obj, SyntheticBackupInfo)
+
+    def test_init_synthetic_backup_info_with_info_file(self, tmpdir):
+        """
+        Unit test for the __init__ method using info_file.
+
+        Create mock server and a SyntheticBackupInfo object.
+
+        This unit tests checks:
+            * base_directory parameter
+            * filename parameter
+            * instance type
+        """
+        server = build_mocked_server()
+        base_directory = "fake/path/"
+        backup_id = "fake_name"
+        infofile = tmpdir.mkdir(backup_id).join("backup.info")
+        infofile.write(BASE_BACKUP_INFO)
+        obj = SyntheticBackupInfo(
+            server=server,
+            base_directory=base_directory,
+            backup_id=None,
+            info_file=infofile.strpath,
+        )
+        assert obj.base_directory == base_directory
+        assert obj.filename == infofile.strpath
+        assert isinstance(obj, SyntheticBackupInfo)
+
+    def test_get_basebackup_directory(self):
+        """
+        Unit test for the get_basebackup_directory.
+
+        Create mock server and a SyntheticBackupInfo object.
+
+        This unit tests checks if the method returns the correct path based on
+        base_directory and backup_id.
+        """
+        server = build_mocked_server()
+        backup_info = SyntheticBackupInfo(
+            server=server, base_directory="/fake/path/", backup_id="fake_name"
+        )
+        directory = backup_info.get_basebackup_directory()
+        assert directory == "/fake/path/fake_name"

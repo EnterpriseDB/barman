@@ -25,7 +25,7 @@ import dateutil
 import dateutil.tz
 import mock
 import pytest
-from mock import MagicMock
+from mock import MagicMock, Mock, call
 
 import testing_helpers
 from barman import xlog
@@ -2332,3 +2332,705 @@ class TestConfigurationFileMangeler:
         content = a_file.read()
         assert len(mangeled) == 1
         assert "#BARMAN#recovery_target=something" in content
+
+
+class TestIncrementalRecoveryExecutor(object):
+    """
+    This class tests the methods of the :class:`IncrementalRecoveryExecutor` class.
+    """
+
+    @pytest.fixture
+    def server(self):
+        """
+        Server mock fixture to be used in the tests below.
+        """
+        backup_manager = mock.Mock()
+        backup_manager.get_keep_target.return_value = None
+        server = testing_helpers.build_mocked_server()
+        server.backup_manager = backup_manager
+        yield server
+
+    @pytest.fixture
+    def executor(self):
+        """
+        Executor mock fixture to be used in the tests below.
+        """
+        backup_manager = testing_helpers.build_backup_manager()
+        executor = IncrementalRecoveryExecutor(backup_manager=backup_manager)
+        return executor
+
+    @pytest.fixture
+    def synthetic_backup_info(self, server):
+        backup_info = SyntheticBackupInfo(
+            server=server,
+            base_directory="fake_path",
+            backup_id="backup_id",
+            version=170000,
+        )
+        return backup_info
+
+    @mock.patch("barman.recovery_executor.IncrementalRecoveryExecutor._combine_backups")
+    def test_recover(self, mock__combine_backups, executor, synthetic_backup_info):
+        """
+        Unit test for the recover method.
+
+        This unit test checks if the recover from the super class
+        is called with the required parameters.
+
+        :param mock__combine_backups: _combine_backups method mock from
+            IncrementalRecoveryExecutor class
+        :param executor: executor mock fixture
+        :param synthetic_backup_info: synthetic_backup_info mock fixture
+        """
+        mock_backup_info = Mock()
+        mock__combine_backups.return_value = synthetic_backup_info
+        executor.config.recovery_staging_path = "fake/staging/path"
+
+        with mock.patch("barman.recovery_executor.RecoveryExecutor.recover") as mock_sr:
+            _ = executor.recover(
+                mock_backup_info, "fake/destination/path", remote_command=None
+            )
+
+            mock_sr.assert_called_once_with(
+                synthetic_backup_info, "fake/destination/path", remote_command=None
+            )
+
+    @mock.patch("barman.recovery_executor.PgCombineBackup")
+    @mock.patch(
+        "barman.recovery_executor.IncrementalRecoveryExecutor._get_backup_chain_paths"
+    )
+    @mock.patch(
+        "barman.recovery_executor.IncrementalRecoveryExecutor._fetch_remote_status"
+    )
+    @mock.patch(
+        "barman.recovery_executor.IncrementalRecoveryExecutor._prepare_destination"
+    )
+    @mock.patch("barman.infofile.LocalBackupInfo.get_data_directory")
+    @mock.patch("barman.infofile.FieldListFile.load")
+    @mock.patch("barman.config.parse_recovery_staging_path")
+    def test__combine_backups(
+        self,
+        mock_parse_recovery_stg_path,
+        mock_load_fields,
+        mock_get_data_dir,
+        mock__prepare_dest,
+        mock_fetch_remote_status,
+        mock_get_backup_chain_paths,
+        mock_pg_combinebackup,
+        executor,
+        server,
+    ):
+        """
+        Unit test for the _combine_backups method.
+
+        Create mock patches for the methods used inside _combine_backups.
+
+        This unit tests checks if _prepare_destination and pg_combinebackup are
+        called with the correct parameters.
+        It also tests if the result is a SyntheticBackupInfo object.
+
+        :param mock_parse_recovery_stg_path: parse_recovery_staging_path mock
+        :param mock_load_fields: load mock for backup_infos
+        :param mock_get_data_dir: get_data_directory method mock
+        :param mock__prepare_dest: _prepare_destination method mock
+        :param mock_fetch_remote_status: _fetch_remote_status method mock
+        :param mock_get_backup_chain_paths: _get_backup_chain_paths method mock
+        :param mock_pg_combinebackup: PgCombineBackup object mock
+        :param executor: executor mock fixture
+        :param server: server mock fixture
+        """
+        mock_parse_recovery_stg_path.return_value = "/home/fake/path/data"
+
+        mock_backup_info = testing_helpers.build_test_backup_info(
+            backup_id="backup",
+            server=server,
+            tablespaces=[("tbs2", 16409, "/var/lib/pgsql/17/tablespaces2")],
+        )
+
+        mock_load_fields.side_effect = None
+
+        def side_effect(tablespace_oid=None):
+            if tablespace_oid:
+                return f"/home/fake/path/data/{tablespace_oid}"
+            return "/home/fake/path/data"
+
+        mock_get_data_dir.side_effect = side_effect
+
+        mock_fetch_remote_status.return_value = {
+            "pg_combinebackup_installed": True,
+            "pg_combinebackup_path": "/fake/path",
+            "pg_combinebackup_version": "17",
+        }
+
+        mock_get_backup_chain_paths.return_value = (
+            "/some/barman/home/main/base/backup_%s/data/" % i for i in range(3)
+        )
+
+        tbs_map = {"/home/fake/path/data/16409": "/home/fake/path/data/16409"}
+
+        mock_pg_combinebackup.side_effect = None
+
+        result = executor._combine_backups(
+            mock_backup_info, "/home/mock/destination/to/combine"
+        )
+
+        calls = [
+            mock.call(mock_get_data_dir()),
+            mock.call(mock_get_data_dir(16409)),
+        ]
+
+        mock__prepare_dest.assert_has_calls(calls, any_order=False)
+
+        mock_pg_combinebackup.assert_called_once_with(
+            destination=mock_get_data_dir(),
+            command=mock_fetch_remote_status.return_value["pg_combinebackup_path"],
+            version=mock_fetch_remote_status.return_value["pg_combinebackup_version"],
+            app_name=None,
+            tbs_mapping=tbs_map,
+            retry_times=0,
+            retry_sleep=30,
+            retry_handler=mock.ANY,
+            out_handler=mock.ANY,
+            args=mock_get_backup_chain_paths.return_value,
+        )
+
+        assert isinstance(result, SyntheticBackupInfo)
+
+    @mock.patch(
+        "barman.recovery_executor.IncrementalRecoveryExecutor._move_to_destination"
+    )
+    @mock.patch(
+        "barman.recovery_executor.IncrementalRecoveryExecutor._prepare_destination"
+    )
+    @mock.patch("barman.infofile.LocalBackupInfo.get_data_directory")
+    def test__backup_copy_no_tablespaces(
+        self, mock_get_data_dir, mock_prepare_dest, mock_move_to_dest, executor, server
+    ):
+        """
+        Unit test for the _backup_copy method without tablespaces.
+
+        Create mock patches for the methods used inside _backup_copy.
+
+        This unit tests checks if get_data_directory, _prepare_destination and
+        _move_to_destination are called (or not) with the correct parameters.
+        It tests one cenario: there are no tablespaces created in the postgres
+        server.
+
+        :param mock_get_data_dir: get_data_directory method mock
+        :param mock_prepare_dest: _prepare_destination method mock
+        :param mock_move_to_dest: _move_to_destination method mock
+        :param executor: executor mock fixture
+        :param server: server mock fixture
+        """
+        backup_info = testing_helpers.build_test_backup_info(
+            backup_id="backup", server=server, tablespaces=None
+        )
+        mock_get_data_dir.return_value = "/some/barman/home/main/base/backup/data/"
+
+        executor._backup_copy(backup_info, dest="destination/recover/path")
+
+        mock_get_data_dir.assert_called_once()
+        mock_prepare_dest.assert_not_called()
+        mock_move_to_dest.assert_called_once_with(
+            source=mock_get_data_dir.return_value,
+            destination="destination/recover/path",
+            exclude_path_names={"pg_tblspc"},
+        )
+
+    @mock.patch(
+        "barman.recovery_executor.IncrementalRecoveryExecutor._move_to_destination"
+    )
+    @mock.patch(
+        "barman.recovery_executor.IncrementalRecoveryExecutor._prepare_destination"
+    )
+    @mock.patch("barman.infofile.LocalBackupInfo.get_data_directory")
+    def test__backup_copy_with_tablespaces(
+        self, mock_get_data_dir, mock_prepare_dest, mock_move_to_dest, server, executor
+    ):
+        """
+        Unit test for the _backup_copy method with tablespaces.
+
+        Create mock patches for the methods used inside _backup_copy.
+
+        This unit tests checks if get_data_directory, _prepare_destination and
+        _move_to_destination are called (or not) with the correct parameters.
+        It tests two cenario: there are two tablespaces created in the postgres
+        server. The first cenario has no tablespace mapping and the second has
+        tablespace mapping.
+
+        :param mock_get_data_dir: get_data_directory method mock
+        :param mock_get_data_dest: _prepare_destination method mock
+        :param mock_move_to_dest: _move_to_destination method mock
+        :param executor: executor mock fixture
+        :param server: server mock fixture
+        """
+        backup_info = testing_helpers.build_test_backup_info(
+            backup_id="backup",
+            server=server,
+            tablespaces=[
+                ("tbs2", 16409, "/var/lib/pgsql/17/tablespaces2"),
+                ("tbs1", 16419, "/var/lib/pgsql/17/tablespaces"),
+            ],
+        )
+
+        def side_effect(tablespace_oid=None):
+            if tablespace_oid:
+                return f"/home/fake/path/data/{tablespace_oid}"
+            return "/home/fake/path/data"
+
+        mock_get_data_dir.side_effect = side_effect
+
+        executor._backup_copy(backup_info, dest="destination/recover/path")
+
+        mock_get_data_dir.call_count == 3
+        mock_prepare_dest.call_count == 2
+
+        tablespace_mapping = {
+            "tbs1": "/home/fake/path/tablespace1",
+            "tbs2": "/home/fake/path/tablespace2",
+        }
+        prepare_calls = {
+            "no_mapping": [
+                mock.call(backup_info.tablespaces[0].location),
+                mock.call(backup_info.tablespaces[1].location),
+            ],
+            "with_mapping": [
+                mock.call(tablespace_mapping["tbs2"]),
+                mock.call(tablespace_mapping["tbs1"]),
+            ],
+        }
+
+        move_calls = {
+            "no_mapping": [
+                mock.call(
+                    source=mock_get_data_dir(tablespace_oid=16409),
+                    destination=backup_info.tablespaces[0].location,
+                ),
+                mock.call(
+                    source=mock_get_data_dir(tablespace_oid=16419),
+                    destination=backup_info.tablespaces[1].location,
+                ),
+                mock.call(
+                    source=mock_get_data_dir(),
+                    destination="destination/recover/path",
+                    exclude_path_names={"pg_tblspc"},
+                ),
+            ],
+            "with_mapping": [
+                mock.call(
+                    source=mock_get_data_dir(tablespace_oid=16409),
+                    destination=tablespace_mapping["tbs2"],
+                ),
+                mock.call(
+                    source=mock_get_data_dir(tablespace_oid=16419),
+                    destination=tablespace_mapping["tbs1"],
+                ),
+                mock.call(
+                    source=mock_get_data_dir(),
+                    destination="destination/recover/path",
+                    exclude_path_names={"pg_tblspc"},
+                ),
+            ],
+        }
+
+        mock_prepare_dest.assert_has_calls(prepare_calls["no_mapping"], any_order=False)
+        mock_move_to_dest.assert_has_calls(move_calls["no_mapping"], any_order=False)
+
+        executor._backup_copy(
+            backup_info, dest="destination/recover/path", tablespaces=tablespace_mapping
+        )
+
+        mock_prepare_dest.assert_has_calls(
+            prepare_calls["with_mapping"], any_order=False
+        )
+        mock_move_to_dest.assert_has_calls(move_calls["with_mapping"], any_order=False)
+
+    def test__backup_copy_remote(self, server, executor):
+        """
+        Unit test for the _backup_copy method with remote option.
+
+        Create mock patches for the methods used inside _backup_copy.
+
+        This unit tests checks if get_data_directory, _prepare_destination and
+        _move_to_destination are called (or not) with the correct parameters.
+        It tests two cenario: there are two tablespaces created in the postgres
+        server. The first cenario has no tablespace mapping and the second has
+        tablespace mapping.
+
+        :param mock_get_data_dir: get_data_directory method mock
+        :param mock_get_data_dest: _prepare_destination method mock
+        :param mock_move_to_dest: _move_to_destination method mock
+        :param executor: executor mock fixture
+        :param server: server mock fixture
+        """
+        backup_info = testing_helpers.build_test_backup_info(
+            backup_id="backup",
+            server=server,
+            tablespaces=[
+                ("tbs2", 16409, "/var/lib/pgsql/17/tablespaces2"),
+                ("tbs1", 16419, "/var/lib/pgsql/17/tablespaces"),
+            ],
+        )
+
+        dest = "destination/recover/path"
+        remote_command = "ssh pg"
+        tablespaces = {"tbs_name": "/destination/location"}
+
+        with mock.patch(
+            "barman.recovery_executor.RecoveryExecutor._backup_copy"
+        ) as mock_super__backup_copy:
+            executor._backup_copy(
+                backup_info,
+                dest=dest,
+                remote_command=remote_command,
+                tablespaces=tablespaces,
+            )
+
+            mock_super__backup_copy.assert_called_once_with(
+                backup_info,
+                dest,
+                tablespaces,
+                remote_command,
+            )
+
+    @mock.patch("barman.infofile.LocalBackupInfo.walk_to_root")
+    def test__get_backup_chain_paths(self, mock_walk_to_root, executor, server):
+        """
+        Unit test for the _get_backup_chain_paths method.
+
+        Create mock patch for walk_to_root method used inside _get_backup_chain_paths.
+
+        This unit tests checks if the result paths are returned in the corret order.
+
+        :param mock_walk_to_root: walk_to_root method mock
+        :param executor: executor mock fixture
+        :param server: server mock fixture
+        """
+        mock_walk_to_root.return_value = (
+            testing_helpers.build_test_backup_info(
+                backup_id="b%s" % i,
+                server=server,
+                parent_backup_id=(None if i == 0 else "b" + str(i - 1)),
+            )
+            for i in range(3)
+        )
+
+        backup_info = testing_helpers.build_test_backup_info(
+            backup_id="b2",
+            server=server,
+            parent_backup_id="b1",
+        )
+
+        basedir = "/some/barman/home/main/base/"
+        result = list(executor._get_backup_chain_paths(backup_info))
+
+        assert list(result) == [
+            basedir + "b2/data",
+            basedir + "b1/data",
+            basedir + "b0/data",
+        ]
+
+    @mock.patch("barman.command_wrappers.PostgreSQLClient.find_command")
+    def test__fetch_remote_status(self, find_command, executor):
+        """
+        Unit test for the _fetch_remote_status method.
+
+        Create mock patch for find_command.
+
+        This unit tests checks the information for the pg_combinebackup client
+        of the server.
+
+        :param find_command: find_command mock
+        :param executor: executor mock fixture
+        """
+        # Simulate the absence of pg_combinebackup
+        find_command.side_effect = CommandFailedException
+        executor.backup_manager.server.postgres.server_major_version = "16"
+        remote = executor._fetch_remote_status()
+        assert remote["pg_combinebackup_installed"] is False
+        assert remote["pg_combinebackup_path"] is None
+
+        # Simulate the presence of pg_combinebackup 17 and pg 17
+        find_command.side_effect = None
+        find_command.return_value.cmd = "/fake/path"
+        find_command.return_value.out = "pg_combinebackup 17.0.0"
+        executor.server.postgres.server_major_version = "17"
+        executor.server.path = "fake/path2"
+        remote = executor._fetch_remote_status()
+        assert remote["pg_combinebackup_installed"] is True
+        assert remote["pg_combinebackup_path"] == "/fake/path"
+        assert remote["pg_combinebackup_version"] == "17.0.0"
+
+        # Simulate the presence of pg_combinebackup 17 and no Pg
+        executor.server.postgres.server_major_version = None
+        find_command.reset_mock()
+        find_command.return_value.out = "pg_combinebackup 17.0.0"
+        remote = executor._fetch_remote_status()
+        assert remote["pg_combinebackup_installed"] is True
+        assert remote["pg_combinebackup_path"] == "/fake/path"
+        assert remote["pg_combinebackup_version"] == "17.0.0"
+
+    @mock.patch("os.chmod")
+    @mock.patch("os.makedirs")
+    @mock.patch("shutil.rmtree")
+    def test__prepare_destination(self, mock_rmtree, mock_mkdir, mock_chmod, executor):
+        """
+        Unit test for the _prepare_destination method.
+
+        Create mock patch for shutil.rmtree, os.makedirs and os.chmod.
+
+        This unit tests checks if all methods are called once with the correct
+        args and the number of calls.
+
+        :param mock_rmtree: shutil.rmtree mock object
+        :param mock_mkdir: os.makedirs mock object
+        :param mock_chmod: os.chmod mock object
+        :param executor: executor mock fixture
+        """
+        dest_dir = "/destination/directory"
+        executor._prepare_destination(dest_dir)
+        mock_rmtree.assert_called_once_with(dest_dir, ignore_errors=True)
+        mock_mkdir.assert_called_once_with(dest_dir)
+        mock_chmod.assert_called_once_with(dest_dir, 448)
+
+    @mock.patch("shutil.move")
+    @mock.patch("os.path.join")
+    @mock.patch("os.listdir")
+    def test__move_to_destination(
+        self,
+        mock_listdir,
+        mock_path_join,
+        mock_sh_move,
+        executor,
+    ):
+        """
+        Unit test for the _move_to_destination method.
+
+        Create mock patch for os.listdir, os.path.join and oshutil.move.
+
+        This unit tests checks if all methods are called with the correct args
+        and the number of calls.
+
+        :param mock_listdir: os.listdir mock object
+        :param mock_path_join: os.path.join mock object
+        :param mock_sh_move: shutil.move mock object
+        :param executor: executor mock fixture
+        """
+        mock_listdir.return_value = [
+            "some/directory",
+            "another",
+            "i_am_a_file.py",
+        ]
+
+        source_dir = "/source/destination"
+        dest_dir = "target/destination"
+
+        def side_effect(source="/source/destination", file_or_dir=""):
+            return source + "/" + file_or_dir
+
+        mock_path_join.side_effect = side_effect
+
+        executor._move_to_destination(
+            source=source_dir, destination=dest_dir, exclude_path_names=set()
+        )
+
+        mock_listdir.assert_called_once_with(source_dir)
+        assert mock_path_join.call_count == 3
+        assert mock_sh_move.call_count == 3
+
+        calls = [
+            call("/source/destination/some/directory", dest_dir),
+            call("/source/destination/another", dest_dir),
+            call("/source/destination/i_am_a_file.py", dest_dir),
+        ]
+        mock_sh_move.assert_has_calls(calls, any_order=False)
+
+    @mock.patch("shutil.move")
+    @mock.patch("os.path.join")
+    @mock.patch("os.listdir")
+    def test__move_to_destination_exclude_path(
+        self,
+        mock_listdir,
+        mock_path_join,
+        mock_sh_move,
+        executor,
+    ):
+        """
+        Unit test for the _move_to_destination method excluding a path.
+
+        Create mock patch for os.listdir, os.path.join and oshutil.move.
+
+        This unit tests checks if all methods are called with the correct args
+        and the number of calls.
+
+        :param mock_listdir: os.listdir mock object
+        :param mock_path_join: os.path.join mock object
+        :param mock_sh_move: shutil.move mock object
+        :param executor: executor mock fixture
+        """
+        mock_listdir.return_value = [
+            "some/directory",
+            "another",
+            "i_am_a_file.py",
+        ]
+
+        source_dir = "/source/destination"
+        dest_dir = "target/destination"
+
+        def side_effect(source="/source/destination", file_or_dir=""):
+            return source + "/" + file_or_dir
+
+        mock_path_join.side_effect = side_effect
+
+        executor._move_to_destination(
+            source=source_dir,
+            destination=dest_dir,
+            exclude_path_names={"i_am_a_file.py"},
+        )
+
+        mock_listdir.assert_called_once_with(source_dir)
+        assert mock_path_join.call_count == 2
+        assert mock_sh_move.call_count == 2
+        assert mock_sh_move.call_count == 2
+
+        calls = [
+            call("/source/destination/some/directory", dest_dir),
+            call("/source/destination/another", dest_dir),
+        ]
+        mock_sh_move.assert_has_calls(calls, any_order=False)
+
+    @mock.patch("barman.output.error")
+    @mock.patch("shutil.move")
+    @mock.patch("os.path.join")
+    @mock.patch("os.listdir")
+    def test__move_to_destination_error(
+        self,
+        mock_listdir,
+        mock_path_join,
+        mock_sh_move,
+        mock_error,
+        executor,
+    ):
+        """
+        Unit test for the _move_to_destination method with shutil.Error.
+
+        Create mock patch for os.listdir, os.path.join, oshutil.move and
+        barman.output.error.
+
+        This unit tests checks if an error is raised when shutil.move fails
+        and the error message that output.error is called with.
+        Also checks number of method calls.
+
+        :param mock_listdir: os.listdir mock object
+        :param mock_path_join: os.path.join mock object
+        :param mock_sh_move: shutil.move mock object
+        :param mock_error: barman.output.error mock object
+        :param executor: executor mock fixture
+        """
+        mock_listdir.return_value = [
+            "some/directory",
+            "another/",
+            "i_am_a_file.py",
+        ]
+
+        source_dir = "/source/destination"
+        dest_dir = "target/destination"
+
+        def side_effect(source="/source/destination", file_or_dir=""):
+            return source + "/" + file_or_dir
+
+        mock_path_join.side_effect = side_effect
+
+        def move_side_effect(path=None, file_or_dir=None):
+            raise shutil.Error()
+
+        mock_sh_move.side_effect = move_side_effect
+        with pytest.raises(SystemExit):
+            executor._move_to_destination(
+                source=source_dir, destination=dest_dir, exclude_path_names=set()
+            )
+
+        mock_path_join.call_count == 1
+        mock_sh_move.call_count == 1
+        mock_error.assert_called_once_with(
+            f"Destination directory '{dest_dir}' must be empty."
+        )
+
+    @mock.patch(
+        "barman.recovery_executor.IncrementalRecoveryExecutor._prepare_destination"
+    )
+    @mock.patch("barman.output.warning")
+    def test__retry_handler(self, mock_warning, mock__prepare_dest, executor):
+        """
+        Unit test for the _retry_handler method.
+
+        Create mock patch for barman.output.warning and _prepare_destination.
+
+        This unit tests checks number of calls, calls order and if the methods
+        are called with the correct args.
+
+        :param mock_warning: barman.output.warning mock object
+        :param mock__prepare_dest: _prepare_destination mock object
+        :param executor: executor mock fixture
+        """
+        dest_dirs = [
+            "some/destination",
+            "another",
+            "i_am_a_file.py",
+        ]
+        executor._retry_handler(dest_dirs=dest_dirs, attempt=3)
+
+        assert mock_warning.call_count == 2
+        calls = [
+            call("Failure combining backups using pg_combinebackup (attempt %s)", 3),
+            call(
+                "The files created so far will be removed and the combine process will restart in %s seconds",
+                "30",
+            ),
+        ]
+        mock_warning.assert_has_calls(calls, any_order=False)
+
+        assert mock__prepare_dest.call_count == 3
+        calls = [call("some/destination"), call("another"), call("i_am_a_file.py")]
+        mock__prepare_dest.assert_has_calls(calls, any_order=False)
+
+    @mock.patch("barman.output.info")
+    def test__start_message(self, mock_info, executor, synthetic_backup_info):
+        """
+                Unit test for the _start_message method.
+
+                Create mock patch for barman.output.info.
+
+                This unit tests checks if there is a call to the method with the correct
+                message.
+        .
+                :param mock_info: barman.output.info mock object
+                :param executor: executor mock fixture
+                :param synthetic_backup_info: synthetic_backup_info mock fixture
+        """
+        executor._start_message(synthetic_backup_info)
+        mock_info.assert_called_once_with(
+            "Start combining backup via pg_combinebackup for backup %s on %s",
+            synthetic_backup_info.backup_id,
+            synthetic_backup_info.base_directory,
+        )
+
+    @mock.patch("barman.output.info")
+    def test__end_message(self, mock_info, executor, synthetic_backup_info):
+        """
+        Unit test for the _end_message method.
+
+        Create mock patch for barman.output.info.
+
+        This unit tests checks if there is a call to the method with the correct
+        message.
+
+        :param mock_info: barman.output.info mock object
+        :param executor: executor mock fixture
+        :param synthetic_backup_info: synthetic_backup_info mock fixture
+        """
+        executor._end_message(synthetic_backup_info)
+        mock_info.assert_called_once_with(
+            "End combining backup via pg_combinebackup for backup %s",
+            synthetic_backup_info.backup_id,
+        )
