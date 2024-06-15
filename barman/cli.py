@@ -909,9 +909,9 @@ def recover(args):
         )
         output.close_and_exit()
 
-    # If the backup to be recovered is compressed then there are additional
-    # checks to be carried out
-    if backup_id.compression is not None:
+    # If the backup to be recovered is compressed or an incremental then
+    # there are additional checks to be carried out
+    if backup_id.compression is not None or backup_id.parent_backup_id is not None:
         # Set the recovery staging path from the cli if it is set
         if args.recovery_staging_path is not None:
             try:
@@ -922,21 +922,34 @@ def recover(args):
                 output.error("Cannot parse recovery staging path: %s", str(exc))
                 output.close_and_exit()
             server.config.recovery_staging_path = recovery_staging_path
-        # If the backup is compressed but there is no recovery_staging_path
-        # then this is an error - the user *must* tell barman where recovery
-        # data can be staged.
+
+        # If no staging path is found then we need to display a proper error
+        # according to the backup type (compressed or incremental)
         if server.config.recovery_staging_path is None:
-            output.error(
-                "Cannot recover from backup '%s' of server '%s': "
-                "backup is compressed with %s compression but no recovery "
-                "staging path is provided. Either set recovery_staging_path "
-                "in the Barman config or use the --recovery-staging-path "
-                "argument.",
-                args.backup_id,
-                server.config.name,
-                backup_id.compression,
-            )
-            output.close_and_exit()
+            if backup_id.parent_backup_id is not None:
+                output.error(
+                    "Cannot recover from backup '%s' of server '%s': "
+                    "backup will be combined with pg_combinebackup in the "
+                    "barman host but no recovery staging path is provided. "
+                    "Either set recovery_staging_path in the Barman config "
+                    "or use the --recovery-staging-path argument.",
+                    args.backup_id,
+                    server.config.name,
+                )
+                output.close_and_exit()
+
+            if backup_id.compression is not None:
+                output.error(
+                    "Cannot recover from backup '%s' of server '%s': "
+                    "backup is compressed with %s compression but no recovery "
+                    "staging path is provided. Either set recovery_staging_path "
+                    "in the Barman config or use the --recovery-staging-path "
+                    "argument.",
+                    args.backup_id,
+                    server.config.name,
+                    backup_id.compression,
+                )
+                output.close_and_exit()
 
     # decode the tablespace relocation rules
     tablespaces = {}
