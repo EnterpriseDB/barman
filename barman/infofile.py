@@ -973,7 +973,7 @@ class SyntheticBackupInfo(LocalBackupInfo):
     ):
         """
         Stores meta information about a single synthetic backup.
-        
+
         .. note::
             A synthetic backup is a base backup which was artificially created
             through ``pg_combinebackup``. A synthetic backup is not part of

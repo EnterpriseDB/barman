@@ -1757,6 +1757,169 @@ class TestPgVerifyBackup(object):
         assert pg_verify_backup.out_handler
 
 
+class TestPgCombineBackup(object):
+    """
+    Class for testing of the :class:`PgCombineBackup` obj
+    """
+
+    pg_combinebackup_path = "/usr/bin/pg_combinebackup"
+
+    def test_init_simple(self, which):
+        """
+        Test class build
+        """
+        connection_mock = mock.MagicMock()
+        connection_mock.get_connection_string.return_value = "test_conn"
+        pgcombinebackup = command_wrappers.PgCombineBackup(
+            destination="/fake/path",
+            command=self.pg_combinebackup_path,
+            connection=connection_mock,
+            version="17",
+            app_name="fake_app_name",
+        )
+        assert pgcombinebackup.args == [
+            "--output=/fake/path",
+        ]
+        assert pgcombinebackup.cmd == self.pg_combinebackup_path
+        assert pgcombinebackup.check is True
+        assert pgcombinebackup.close_fds is True
+        assert pgcombinebackup.allowed_retval == (0,)
+        assert pgcombinebackup.err_handler
+        assert pgcombinebackup.out_handler
+
+        connection_mock.conn_parameters = {
+            "host": "fake host",
+            "port": "fake_port",
+            "user": "fake_user",
+        }
+        pgcombinebackup = command_wrappers.PgCombineBackup(
+            destination="/fake/target",
+            command=self.pg_combinebackup_path,
+            connection=connection_mock,
+            version="17",
+            app_name="fake_app_name",
+        )
+        assert pgcombinebackup.args == [
+            "--output=/fake/target",
+        ]
+
+        which.return_value = None
+        which.side_effect = None
+        with pytest.raises(CommandFailedException):
+            # Expect an exception for pg_combinebackup not in path
+            command_wrappers.PgCombineBackup(
+                destination="/fake/target",
+                connection=connection_mock,
+                command="fake/path",
+                version="17",
+                app_name="fake_app_name",
+            )
+
+    def test_init_args(self):
+        """
+        Test class build with additional arguments
+        """
+        connection_mock = mock.MagicMock()
+        connection_mock.get_connection_string.return_value = "test_connstring"
+        backup_paths = ["/path/to/full_backup", "/path/to/incremental_backup"]
+        pg_combinebackup = command_wrappers.PgCombineBackup(
+            command="/path/to/pg_combinebackup",
+            connection=connection_mock,
+            version="17",
+            destination="/dest/dir",
+            args=backup_paths,
+        )
+        assert (
+            pg_combinebackup.args
+            == [
+                "--output=/dest/dir",
+            ]
+            + backup_paths
+        )
+        assert pg_combinebackup.cmd == "/path/to/pg_combinebackup"
+        assert pg_combinebackup.check is True
+        assert pg_combinebackup.close_fds is True
+        assert pg_combinebackup.allowed_retval == (0,)
+        assert pg_combinebackup.err_handler
+        assert pg_combinebackup.out_handler
+
+    @mock.patch("barman.command_wrappers.Command.pipe_processor_loop")
+    @mock.patch("barman.command_wrappers.subprocess.Popen")
+    def test_simple_invocation(self, popen, pipe_processor_loop, caplog):
+        # See all logs
+        caplog.set_level(0)
+
+        ret = 0
+        out = "out"
+        err = "err"
+
+        pipe = _mock_pipe(popen, pipe_processor_loop, ret, out, err)
+        connection_mock = mock.MagicMock()
+        connection_mock.get_connection_string.return_value = "fake_connstring"
+        cmd = command_wrappers.PgCombineBackup(
+            destination="/fake/target",
+            command=self.pg_combinebackup_path,
+            connection=connection_mock,
+            version="17",
+            app_name="fake_app_name",
+        )
+        result = cmd.execute()
+
+        popen.assert_called_with(
+            [
+                self.pg_combinebackup_path,
+                "--output=/fake/target",
+            ],
+            close_fds=True,
+            env=None,
+            preexec_fn=mock.ANY,
+            shell=False,
+            stdout=mock.ANY,
+            stderr=mock.ANY,
+            stdin=mock.ANY,
+        )
+        assert not pipe.stdin.write.called
+        pipe.stdin.close.assert_called_once_with()
+        assert result == ret
+        assert cmd.ret == ret
+        assert cmd.out is None
+        assert cmd.err is None
+        assert ("PgCombineBackup", DEBUG, out) in caplog.record_tuples
+        assert ("PgCombineBackup", WARNING, err) in caplog.record_tuples
+
+    @pytest.mark.parametrize(
+        ("tbs_mapping", "expected_args"),
+        [
+            ({"tbs1": "/dest1"}, ["--tablespace-mapping=tbs1=/dest1"]),
+            (
+                {"tbs1": "/dest1", "tbs2": "/dest2"},
+                [
+                    "--tablespace-mapping=tbs1=/dest1",
+                    "--tablespace-mapping=tbs2=/dest2",
+                ],
+            ),
+        ],
+    )
+    def test_tablespace_mapping(self, tbs_mapping, expected_args):
+        """
+        Test that tablespace mappings are correctly passed
+        """
+        connection_mock = mock.MagicMock()
+        connection_mock.get_connection_string.return_value = "fake_connstring"
+        cmd = command_wrappers.PgCombineBackup(
+            destination="/fake/target",
+            command=self.pg_combinebackup_path,
+            connection=connection_mock,
+            version="17",
+            app_name="fake_app_name",
+            tbs_mapping=tbs_mapping,
+        )
+
+        # Assert that the expected arguments are present
+        for expected_arg in expected_args:
+            assert expected_arg in cmd.args
+
+
 # noinspection PyMethodMayBeStatic
 class TestBarmanSubProcess(object):
     """
