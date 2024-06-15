@@ -537,6 +537,7 @@ class TestCli(object):
         backup_info.status = BackupInfo.DONE
         backup_info.tablespaces = []
         backup_info.compression = None
+        backup_info.parent_backup_id = None
         return backup_info
 
     @pytest.fixture
