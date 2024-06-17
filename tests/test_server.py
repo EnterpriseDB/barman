@@ -2210,7 +2210,7 @@ class TestServer(object):
         assert (
             "Received file '00000001000000EF000000AB' "
             "with checksum '34743e1e454e967eb76a16c66372b0ef' "
-            "by put-wal for server 'main'\n" in caplog.text
+            "by put-wal for server 'main'" in caplog.text
         )
 
         # Verify fsync calls
