@@ -1261,6 +1261,51 @@ class TestPostgresBackupExecutor(object):
         with pytest.raises(DataTransferFailure):
             backup_manager.executor.backup_copy(backup_info)
 
+        # Check incremental backups with Postgres 17 onward
+        remote_mock.reset_mock()
+        pg_basebackup_mock.reset_mock()
+        pg_basebackup_mock.return_value.side_effect = None
+        backup_manager.executor._remote_status = None
+        remote_mock.return_value = {
+            "pg_basebackup_version": "17",
+            "pg_basebackup_path": "/fake/path",
+            "pg_basebackup_bwlimit": True,
+        }
+        backup_manager.executor.config.immediate_checkpoint = True
+        backup_manager.executor.config.streaming_conninfo = "fake=connstring"
+        mock_parent_backup_info = Mock()
+        mock_parent_backup_info.get_backup_manifest_path.return_value = "/SOME/MANIFEST"
+        with patch("barman.infofile.LocalBackupInfo.get_parent_backup_info") as mock_gp:
+            mock_gp.return_value = mock_parent_backup_info
+            backup_manager.executor.backup_copy(backup_info)
+        out, err = capsys.readouterr()
+        assert out == ""
+        assert err == ""
+        # Check that expected parameter was passed to pg_basebackup to identify
+        # the parent backup
+        assert pg_basebackup_mock.mock_calls == [
+            mock.call.make_logging_handler(logging.INFO),
+            mock.call(
+                connection=mock.ANY,
+                version="17",
+                app_name="barman_streaming_backup",
+                destination=mock.ANY,
+                command="/fake/path",
+                tbs_mapping=mock.ANY,
+                bwlimit=1,
+                immediate=True,
+                retry_times=0,
+                retry_sleep=30,
+                retry_handler=mock.ANY,
+                path=mock.ANY,
+                compression=None,
+                err_handler=mock.ANY,
+                out_handler=mock.ANY,
+                parent_backup_manifest_path="/SOME/MANIFEST",
+            ),
+            mock.call()(),
+        ]
+
     def test_postgres_start_backup(self):
         """
         Test concurrent backup using pg_basebackup
