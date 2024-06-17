@@ -718,8 +718,35 @@ class ConsoleOutputWriter(object):
         if backup_info["status"] in BackupInfo.STATUS_COPY_DONE:
             output_fun(row.format("PostgreSQL Version", backup_info["version"]))
             output_fun(row.format("PGDATA directory", backup_info["pgdata"]))
-            output_fun(row.format("Checksums", backup_info["data_checksums"]))
-            output_fun("")
+            output_fun(
+                row.format(
+                    "Estimated Cluster Size", pretty_size(backup_info["cluster_size"])
+                )
+            )
+        output_fun("")
+
+    @staticmethod
+    def render_show_backup_server(backup_info, output_fun, header_row, nested_row):
+        """
+        Render server metadata in plain text form.
+
+        :param dict backup_info: a dictionary containing the backup metadata
+        :param function output_fun: function which accepts a string and sends it to
+            an output writer
+        :param str header_row: format string which allows for single value header
+            rows to be formatted
+        :param str nested_row: format string which allows for `key: value` rows to be
+            formatted
+        """
+        output_fun(header_row.format("Server information"))
+        output_fun(nested_row.format("Checksums", backup_info["data_checksums"]))
+        if backup_info["summarize_wal"] is None:
+            output_fun(nested_row.format("WAL summarizer", "not supported"))
+        else:
+            output_fun(
+                nested_row.format("WAL summarizer", backup_info["summarize_wal"])
+            )
+        output_fun("")
 
     @staticmethod
     def render_show_backup_snapshots(backup_info, output_fun, header_row, nested_row):
@@ -792,30 +819,79 @@ class ConsoleOutputWriter(object):
             formatted
         """
         output_fun(header_row.format("Base backup information"))
-        if backup_info["size"] is not None:
-            disk_usage_output = "{}".format(pretty_size(backup_info["size"]))
-            if "wal_size" in backup_info and backup_info["wal_size"] is not None:
-                disk_usage_output += " ({} with WALs)".format(
-                    pretty_size(backup_info["size"] + backup_info["wal_size"]),
+        if backup_info["mode"] is not None:
+            output_fun(nested_row.format("Backup Method", backup_info["mode"]))
+        # Information only for postgres backups
+        if backup_info["mode"] == "postgres" and "backup_type" in backup_info:
+            output_fun(nested_row.format("Backup Type", backup_info["backup_type"]))
+            if backup_info["backup_type"] == "incremental":
+                output_fun(
+                    nested_row.format("Root Backup Id", backup_info["root_backup_id"])
                 )
-            output_fun(nested_row.format("Disk usage", disk_usage_output))
-        if backup_info["deduplicated_size"] is not None and backup_info["size"] > 0:
-            deduplication_ratio = 1 - (
-                float(backup_info["deduplicated_size"]) / backup_info["size"]
-            )
-            dedupe_output = "{} (-{})".format(
-                pretty_size(backup_info["deduplicated_size"]),
-                "{percent:.2%}".format(percent=deduplication_ratio),
-            )
-            output_fun(nested_row.format("Incremental size", dedupe_output))
+                output_fun(
+                    nested_row.format(
+                        "Parent Backup Id", backup_info["parent_backup_id"]
+                    )
+                )
+                output_fun(
+                    nested_row.format("Backup chain size", backup_info["chain_size"])
+                )
+            if backup_info["children_backup_ids"] is not None:
+                output_fun(
+                    nested_row.format(
+                        "Children Backup Id(s)",
+                        backup_info["children_backup_ids"],
+                    )
+                )
+
+        # The backup_info["deduplicated_size"] is the size of the backup. For
+        # rsync backups, the first one has
+        # backup_info["deduplicated_size"] == backup_info["size"]
+        # and the following backups will get incremental optimization
+        # with hard link, backup_info["deduplicated_size"] < backup_info["size"].
+        # For postgres backups, all backups will have
+        # backup_info["deduplicated_size"] == backup_info["size"]. This is the
+        # reason cluster_size is also used to estimate resource savings for
+        # postgres backups.
+        if "deduplicated_size" in backup_info:
+            backup_size = backup_info["deduplicated_size"]
+            if backup_size is not None:
+                backup_size_output = "{}".format(pretty_size(backup_size))
+                if "wal_size" in backup_info and backup_info["wal_size"] is not None:
+                    backup_size_output += " ({} with WALs)".format(
+                        pretty_size(backup_size + backup_info["wal_size"]),
+                    )
+                    output_fun(nested_row.format("Backup Size", backup_size_output))
+                    output_fun(
+                        nested_row.format(
+                            "WAL Size", pretty_size(backup_info["wal_size"])
+                        )
+                    )
+            if "est_dedup_size" in backup_info and "deduplication_ratio" in backup_info:
+                dedupe_output = "{} ({})".format(
+                    pretty_size(backup_info["est_dedup_size"]),
+                    "{percent:.2%}".format(percent=backup_info["deduplication_ratio"]),
+                )
+        # Only show Resource saving for Postgres incremental backups and
+        # rsync backups
+        if "backup_type" in backup_info and backup_info["backup_type"] in (
+            "rsync",
+            "incremental",
+        ):
+            output_fun(nested_row.format("Resource savings", dedupe_output))
+
         output_fun(nested_row.format("Timeline", backup_info["timeline"]))
         output_fun(nested_row.format("Begin WAL", backup_info["begin_wal"]))
         output_fun(nested_row.format("End WAL", backup_info["end_wal"]))
+
         # This is WAL stuff...
-        if "wal_num" in backup_info:
+        if "wal_num" in backup_info and backup_info["wal_num"]:
             output_fun(nested_row.format("WAL number", backup_info["wal_num"]))
 
-        if "wal_compression_ratio" in backup_info:
+        if (
+            "wal_compression_ratio" in backup_info
+            and backup_info["wal_compression_ratio"]
+        ):
             # Output WAL compression ratio for basebackup WAL files
             if backup_info["wal_compression_ratio"] > 0:
                 wal_compression_output = "{percent:.2%}".format(
@@ -830,28 +906,25 @@ class ConsoleOutputWriter(object):
         output_fun(nested_row.format("Begin time", backup_info["begin_time"]))
         output_fun(nested_row.format("End time", backup_info["end_time"]))
 
-        # If copy statistics are available print a summary
-        copy_stats = backup_info.get("copy_stats")
-        if copy_stats:
-            copy_time = copy_stats.get("copy_time")
-            if copy_time:
-                value = human_readable_timedelta(datetime.timedelta(seconds=copy_time))
-                # Show analysis time if it is more than a second
-                analysis_time = copy_stats.get("analysis_time")
-                if analysis_time is not None and analysis_time >= 1:
-                    value += " + {} startup".format(
-                        human_readable_timedelta(
-                            datetime.timedelta(seconds=analysis_time)
-                        )
+        # If copy statistics are available, show summary
+        if "copy_time" in backup_info and backup_info["copy_time"]:
+            value = human_readable_timedelta(
+                datetime.timedelta(seconds=backup_info["copy_time"])
+            )
+            # Show analysis time if it is more than a second
+            if "analysis_time" in backup_info and backup_info["analysis_time"]:
+                value += " + {} startup".format(
+                    human_readable_timedelta(
+                        datetime.timedelta(seconds=backup_info["analysis_time"])
                     )
-                output_fun(nested_row.format("Copy time", value))
-                size = backup_info["deduplicated_size"] or backup_info["size"]
-                if size is not None:
-                    value = "{}/s".format(pretty_size(size / copy_time))
-                    number_of_workers = copy_stats.get("number_of_workers", 1)
-                    if number_of_workers > 1:
-                        value += " (%s jobs)" % number_of_workers
-                    output_fun(nested_row.format("Estimated throughput", value))
+                )
+            output_fun(nested_row.format("Copy time", value))
+
+            if backup_size is not None and "estimated_throughput" in backup_info:
+                value = "{}/s".format(pretty_size(backup_info["estimated_throughput"]))
+                if "number_of_workers" in backup_info and backup_info["number_of_workers"]:
+                    value += " (%s jobs)" % backup_info["number_of_workers"]
+                output_fun(nested_row.format("Estimated throughput", value))
 
         output_fun(nested_row.format("Begin Offset", backup_info["begin_offset"]))
         output_fun(nested_row.format("End Offset", backup_info["end_offset"]))
@@ -981,6 +1054,9 @@ class ConsoleOutputWriter(object):
 
         output_fun("Backup {}:".format(backup_info["backup_id"]))
         ConsoleOutputWriter.render_show_backup_general(backup_info, output_fun, row)
+        ConsoleOutputWriter.render_show_backup_server(
+            backup_info, output_fun, header_row, nested_row
+        )
         if backup_info["status"] in BackupInfo.STATUS_COPY_DONE:
             ConsoleOutputWriter.render_show_backup_snapshots(
                 backup_info, output_fun, header_row, nested_row
@@ -1503,67 +1579,94 @@ class JsonOutputWriter(ConsoleOutputWriter):
     def result_show_backup(self, backup_ext_info):
         """
         Output all available information about a backup in show-backup command
+        in json format.
 
-        The argument has to be the result
-        of a Server.get_backup_ext_info() call
+        The argument has to be the result of a Server.get_backup_ext_info() call
 
         :param dict backup_ext_info: a dictionary containing
             the info to display
         """
         data = dict(backup_ext_info)
+
+        # Json top layer info
         server_name = data["server_name"]
 
+        # Json second layer info
         output = self.json_output[server_name] = dict(
             backup_id=data["backup_id"], status=data["status"]
         )
-
-        if "backup_name" in data and data["backup_name"] is not None:
+        # Json second layer info
+        # Server information
+        output["server_information"] = dict(
+            data_checksums=data["data_checksums"],
+            summarize_wal=(
+                data["summarize_wal"] if data["summarize_wal"] else "not supported"
+            ),
+        )
+        if "backup_name" in data and data["backup_name"]:
             output.update({"backup_name": data["backup_name"]})
 
+        if "systemid" in data and data["systemid"]:
+            output.update({"system_id": data["systemid"]})
+
         if data["status"] in BackupInfo.STATUS_COPY_DONE:
+            # Json second layer info
+            # General information
             output.update(
                 dict(
                     postgresql_version=data["version"],
                     pgdata_directory=data["pgdata"],
-                    data_checksums=data["data_checksums"],
+                    cluster_size=data["cluster_size"],
                     tablespaces=[],
                 )
             )
-            if "snapshots_info" in data and data["snapshots_info"]:
-                output["snapshots_info"] = data["snapshots_info"]
-            if data["tablespaces"]:
-                for item in data["tablespaces"]:
-                    output["tablespaces"].append(
-                        dict(name=item.name, location=item.location, oid=item.oid)
-                    )
-
+            # Json second layer info
+            # Base Backup information
             output["base_backup_information"] = dict(
-                disk_usage=pretty_size(data["size"]),
-                disk_usage_bytes=data["size"],
-                disk_usage_with_wals=pretty_size(data["size"] + data["wal_size"]),
-                disk_usage_with_wals_bytes=data["size"] + data["wal_size"],
+                backup_method=data["mode"],
+                backup_type=data["backup_type"],
+                backup_size=pretty_size(data["deduplicated_size"]),
+                backup_size_bytes=data["deduplicated_size"],
+                backup_size_with_wals=pretty_size(
+                    data["deduplicated_size"] + data["wal_size"]
+                ),
+                backup_size_with_wals_bytes=data["deduplicated_size"]
+                + data["wal_size"],
+                wal_size=pretty_size(data["wal_size"]),
+                wal_size_bytes=data["wal_size"],
+                resource_savings=pretty_size(data["est_dedup_size"]),
+                resource_savings_bytes=int(data["est_dedup_size"]),
+                resource_savings_percentage="{percent:.2%}".format(
+                    percent=data["deduplication_ratio"]
+                ),
+                timeline=data["timeline"],
+                begin_wal=data["begin_wal"],
+                end_wal=data["end_wal"],
+                wal_num=data["wal_num"],
+                begin_time_timestamp=str(int(timestamp(data["begin_time"]))),
+                begin_time=data["begin_time"].isoformat(sep=" "),
+                end_time_timestamp=str(int(timestamp(data["end_time"]))),
+                end_time=data["end_time"].isoformat(sep=" "),
+                begin_offset=data["begin_offset"],
+                end_offset=data["end_offset"],
+                begin_lsn=data["begin_xlog"],
+                end_lsn=data["end_xlog"],
             )
-            if data["deduplicated_size"] is not None and data["size"] > 0:
-                deduplication_ratio = 1 - (
-                    float(data["deduplicated_size"]) / data["size"]
-                )
+            # Json second layer info
+            # Base Backup information - only for postgres backups
+            if data["backup_type"] != "rsync":
                 output["base_backup_information"].update(
                     dict(
-                        incremental_size=pretty_size(data["deduplicated_size"]),
-                        incremental_size_bytes=data["deduplicated_size"],
-                        incremental_size_ratio="-{percent:.2%}".format(
-                            percent=deduplication_ratio
-                        ),
+                        root_backup_id=data["root_backup_id"],
+                        parent_backup_id=data["parent_backup_id"],
+                        chain_size=data["chain_size"],
+                        children_backup_ids=data["children_backup_ids"],
                     )
                 )
-            output["base_backup_information"].update(
-                dict(
-                    timeline=data["timeline"],
-                    begin_wal=data["begin_wal"],
-                    end_wal=data["end_wal"],
-                )
-            )
+            # Json second layer info
             if data["wal_compression_ratio"] > 0:
+                # Json second layer info
+                # Base Backup information
                 output["base_backup_information"].update(
                     dict(
                         wal_compression_ratio="{percent:.2%}".format(
@@ -1571,49 +1674,62 @@ class JsonOutputWriter(ConsoleOutputWriter):
                         )
                     )
                 )
-            output["base_backup_information"].update(
-                dict(
-                    begin_time_timestamp=str(int(timestamp(data["begin_time"]))),
-                    begin_time=data["begin_time"].isoformat(sep=" "),
-                    end_time_timestamp=str(int(timestamp(data["end_time"]))),
-                    end_time=data["end_time"].isoformat(sep=" "),
+
+            if "copy_time" in data and data["copy_time"]:
+                # Json second layer info
+                # Base Backup information
+                output["base_backup_information"].update(
+                    dict(
+                        copy_time=human_readable_timedelta(
+                            datetime.timedelta(seconds=data["copy_time"])
+                        ),
+                        copy_time_seconds=data["copy_time"],
+                        throughput="%s/s"
+                        % pretty_size(data["deduplicated_size"] / data["copy_time"]),
+                        throughput_bytes=int(
+                            data["deduplicated_size"] / data["copy_time"]
+                        ),
+                    )
                 )
-            )
-            copy_stats = data.get("copy_stats")
-            if copy_stats:
-                copy_time = copy_stats.get("copy_time")
-                analysis_time = copy_stats.get("analysis_time", 0)
-                if copy_time:
+                if "number_of_workers" in data and data["number_of_workers"]:
+                    # Json second layer info
+                    # Base Backup information
                     output["base_backup_information"].update(
                         dict(
-                            copy_time=human_readable_timedelta(
-                                datetime.timedelta(seconds=copy_time)
-                            ),
-                            copy_time_seconds=copy_time,
-                            analysis_time=human_readable_timedelta(
-                                datetime.timedelta(seconds=analysis_time)
-                            ),
-                            analysis_time_seconds=analysis_time,
+                            number_of_workers=data["number_of_workers"],
                         )
                     )
-                    size = data["deduplicated_size"] or data["size"]
-                    output["base_backup_information"].update(
-                        dict(
-                            throughput="%s/s" % pretty_size(size / copy_time),
-                            throughput_bytes=size / copy_time,
-                            number_of_workers=copy_stats.get("number_of_workers", 1),
-                        )
+            if "analysis_time" in data and data["analysis_time"]:
+                # Json second layer info
+                # Base Backup information
+                output["base_backup_information"].update(
+                    dict(
+                        analysis_time=human_readable_timedelta(
+                            datetime.timedelta(seconds=data["analysis_time"])
+                        ),
+                        analysis_time_seconds=data["analysis_time"],
                     )
-
-            output["base_backup_information"].update(
-                dict(
-                    begin_offset=data["begin_offset"],
-                    end_offset=data["end_offset"],
-                    begin_lsn=data["begin_xlog"],
-                    end_lsn=data["end_xlog"],
                 )
-            )
 
+            if data["tablespaces"]:
+                for item in data["tablespaces"]:
+                    # Json second layer info
+                    # Tablespaces info
+                    output["tablespaces"].append(
+                        dict(name=item.name, location=item.location, oid=item.oid)
+                    )
+            # Json second layer info
+            # Catalog information
+            previous_backup_id = data.setdefault("previous_backup_id", "not available")
+            next_backup_id = data.setdefault("next_backup_id", "not available")
+            output["catalog_information"] = {
+                "retention_policy": data["retention_policy_status"] or "not enforced",
+                "previous_backup": previous_backup_id
+                or "- (this is the oldest base backup)",
+                "next_backup": next_backup_id or "- (this is the latest base backup)",
+            }
+            # Json second layer info
+            # WAL information
             wal_output = output["wal_information"] = dict(
                 no_of_files=data["wal_until_next_num"],
                 disk_usage=pretty_size(data["wal_until_next_size"]),
@@ -1644,16 +1760,10 @@ class JsonOutputWriter(ConsoleOutputWriter):
                 for history in data["children_timelines"]:
                     wal_output["timelines"].append(str(history.tli))
 
-            previous_backup_id = data.setdefault("previous_backup_id", "not available")
-            next_backup_id = data.setdefault("next_backup_id", "not available")
-
-            output["catalog_information"] = {
-                "retention_policy": data["retention_policy_status"] or "not enforced",
-                "previous_backup": previous_backup_id
-                or "- (this is the oldest base backup)",
-                "next_backup": next_backup_id or "- (this is the latest base backup)",
-            }
-
+            # Json second layer info
+            # Snapshots information
+            if "snapshots_info" in data and data["snapshots_info"]:
+                output["snapshots_info"] = data["snapshots_info"]
         else:
             if data["error"]:
                 output["error"] = data["error"]
