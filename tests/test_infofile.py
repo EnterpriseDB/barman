@@ -24,6 +24,7 @@ from datetime import datetime
 import mock
 import pytest
 from dateutil.tz import tzlocal, tzoffset
+from mock import patch
 from barman.cloud_providers.aws_s3 import AwsSnapshotMetadata, AwsSnapshotsInfo
 from barman.cloud_providers.azure_blob_storage import (
     AzureSnapshotMetadata,
@@ -41,6 +42,8 @@ from barman.infofile import (
     LocalBackupInfo,
     WalFileInfo,
     load_datetime_tz,
+    dump_backup_ids,
+    load_backup_ids,
 )
 from testing_helpers import build_backup_manager, build_mocked_server, build_real_server
 
@@ -49,6 +52,7 @@ begin_offset=40
 begin_time=2014-12-22 09:25:22.561207+01:00
 begin_wal=000000010000000000000004
 begin_xlog=0/4000028
+children_backup_ids=None
 config_file=/fakepath/postgresql.conf
 end_offset=184
 end_time=2014-12-22 09:25:27.410470+01:00
@@ -58,6 +62,7 @@ error=None
 hba_file=/fakepath/pg_hba.conf
 ident_file=/fakepath/pg_ident.conf
 mode=default
+parent_backup_id=None
 pgdata=/fakepath/data
 server_name=fake-9.4-server
 size=20935690
@@ -87,6 +92,36 @@ def test_load_datetime_tz():
     # try to load an incorrect date
     with pytest.raises(ValueError):
         load_datetime_tz("Invalid datetime")
+
+
+@pytest.mark.parametrize(
+    ("input", "expected"),
+    [
+        (None, None),
+        (["SOME_BACKUP_ID"], "SOME_BACKUP_ID"),
+        (["SOME_BACKUP_ID_1", "SOME_BACKUP_ID_2"], "SOME_BACKUP_ID_1,SOME_BACKUP_ID_2"),
+    ],
+)
+def test_dump_backup_ids(input, expected):
+    """
+    Unit tests for :func:`dump_backup_ids`.
+    """
+    assert dump_backup_ids(input) == expected
+
+
+@pytest.mark.parametrize(
+    ("input", "expected"),
+    [
+        (None, None),
+        ("SOME_BACKUP_ID", ["SOME_BACKUP_ID"]),
+        ("SOME_BACKUP_ID_1,SOME_BACKUP_ID_2", ["SOME_BACKUP_ID_1", "SOME_BACKUP_ID_2"]),
+    ],
+)
+def test_load_backup_ids(input, expected):
+    """
+    Unit tests for :func:`load_backup_ids`.
+    """
+    assert load_backup_ids(input) == expected
 
 
 # noinspection PyMethodMayBeStatic
@@ -874,3 +909,114 @@ class TestBackupInfo(object):
         assert "snapshots_info" not in infofile.read()
         # AND the backup name is not included in the JSON output
         assert "snapshots_info" not in b_info.to_json().keys()
+
+
+class TestLocalBackupInfo:
+    """
+    Unit tests for :class:`LocalBackupInfo`.
+    """
+
+    @pytest.fixture
+    def backup_info(self, tmpdir):
+        """
+        Create a new instance of :class:`LocalBackupInfo`.
+
+        :return LocalBackupInfo: an instance of a local backup info.
+        """
+        infofile = tmpdir.join("backup.info")
+        infofile.write(BASE_BACKUP_INFO)
+        # Mock the server, we don't need it at the moment
+        server = build_mocked_server()
+        # load the data from the backup.info file
+        return LocalBackupInfo(server, info_file=infofile.strpath)
+
+    @mock.patch("barman.infofile.LocalBackupInfo.get_data_directory")
+    def test_get_backup_manifest_path(self, mock_get_data_dir, backup_info):
+        """
+        Ensure :meth:`LocalBackupInfo.get_backup_manifest_path` returns the expected
+        path for its ``backup_manifest`` file.
+        """
+        expected = "/some/random/path/backup_manifest"
+        mock_get_data_dir.return_value = "/some/random/path"
+        assert backup_info.get_backup_manifest_path() == expected
+
+    def test_get_parent_backup_info_no_parent(self, backup_info):
+        """
+        Ensure :meth:`LocalBackupInfo.get_parent_backup_info` returns ``None`` if the
+        backup doesn't have a parent backup.
+        """
+        backup_info.parent_backup_id = None
+        assert backup_info.get_parent_backup_info() is None
+
+    def test_get_parent_backup_info_empty_parent(self, backup_info):
+        """
+        Ensure :meth:`LocalBackupInfo.get_parent_backup_info` returns ``None`` if the
+        backup has a parent backup, but the parent backup is empty.
+        """
+        backup_info.parent_backup_id = "SOME_ID"
+
+        with patch("barman.infofile.LocalBackupInfo") as mock:
+            mock.return_value.status = BackupInfo.EMPTY
+            assert backup_info.get_parent_backup_info() is None
+            mock.assert_called_once_with(backup_info.server, backup_id="SOME_ID")
+
+    def test_get_parent_backup_info_parent_ok(self, backup_info):
+        """
+        Ensure :meth:`LocalBackupInfo.get_parent_backup_info` returns the backup info
+        object of the parent.
+        """
+        backup_info.parent_backup_id = "SOME_ID"
+
+        with patch("barman.infofile.LocalBackupInfo") as mock:
+            mock.return_value.status = BackupInfo.DONE
+            assert backup_info.get_parent_backup_info() is mock.return_value
+            mock.assert_called_once_with(backup_info.server, backup_id="SOME_ID")
+
+    def test_get_child_backup_info_no_parent(self, backup_info):
+        """
+        Ensure :meth:`LocalBackupInfo.get_child_backup_info` returns ``None`` if the
+        backup doesn't have children backups.
+        """
+        backup_info.children_backup_ids = None
+        assert backup_info.get_child_backup_info("SOME_ID") is None
+
+    def test_get_child_backup_info_not_a_child(self, backup_info):
+        """
+        Ensure :meth:`LocalBackupInfo.get_child_backup_info` returns ``None`` if the
+        backup has children, but requested ID is not a child.
+        """
+        backup_info.children_backup_ids = ["SOME_CHILD_ID_1", "SOME_CHILD_ID_2"]
+        assert backup_info.get_child_backup_info("SOME_ID") is None
+
+    def test_get_child_backup_info_empty_child(self, backup_info):
+        """
+        Ensure :meth:`LocalBackupInfo.get_child_backup_info` returns ``None`` if the
+        backup has children, but requested ID is from an empty child.
+        """
+        backup_info.children_backup_ids = ["SOME_CHILD_ID_1", "SOME_CHILD_ID_2"]
+
+        with patch("barman.infofile.LocalBackupInfo") as mock:
+            mock.return_value.status = BackupInfo.EMPTY
+            assert backup_info.get_child_backup_info("SOME_CHILD_ID_1") is None
+            mock.assert_called_once_with(
+                backup_info.server,
+                backup_id="SOME_CHILD_ID_1",
+            )
+
+    def test_get_child_backup_info_child_ok(self, backup_info):
+        """
+        Ensure :meth:`LocalBackupInfo.get_child_backup_info` returns the backup info
+        object of the requested child.
+        """
+        backup_info.children_backup_ids = ["SOME_CHILD_ID_1", "SOME_CHILD_ID_2"]
+
+        with patch("barman.infofile.LocalBackupInfo") as mock:
+            mock.return_value.status = BackupInfo.DONE
+            assert (
+                backup_info.get_child_backup_info("SOME_CHILD_ID_1")
+                is mock.return_value
+            )
+            mock.assert_called_once_with(
+                backup_info.server,
+                backup_id="SOME_CHILD_ID_1",
+            )

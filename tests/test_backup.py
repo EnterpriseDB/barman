@@ -824,6 +824,73 @@ class TestBackup(object):
         # THEN backup name is None in the backup_info
         assert backup_info.backup_name is None
 
+    @patch("barman.backup.LocalBackupInfo.save")
+    @patch("barman.backup.output")
+    def test_backup_without_parent_backup_id(
+        self,
+        _mock_output,
+        _mock_backup_info_save,
+    ):
+        """
+        Verify that information about parent and children are not updated when no parent
+        backup ID is specified.
+        """
+        # GIVEN a backup manager
+        backup_manager = build_backup_manager()
+        backup_manager.executor.backup = Mock()
+        backup_manager.executor.copy_start_time = datetime.now()
+
+        # WHEN a backup is taken with no parent backup ID
+        backup_info = backup_manager.backup()
+
+        # THEN parent backup ID is None in the backup_info
+        assert backup_info.parent_backup_id is None
+
+    @patch("barman.backup.LocalBackupInfo.save")
+    @patch("barman.backup.output")
+    def test_backup_with_parent_backup_id(
+        self,
+        _mock_output,
+        _mock_backup_info_save,
+    ):
+        """
+        Verify that information about parent and children are updated when a parent
+        backup ID is specified.
+        """
+        # GIVEN a backup manager
+        backup_manager = build_backup_manager()
+        backup_manager.executor.backup = Mock()
+        backup_manager.executor.copy_start_time = datetime.now()
+
+        # WHEN a backup is taken with a parent backup ID which contains no children
+        with patch("barman.infofile.LocalBackupInfo.get_parent_backup_info") as mock:
+            mock.return_value.children_backup_ids = None
+            backup_info = backup_manager.backup(
+                parent_backup_id="SOME_PARENT_BACKUP_ID",
+            )
+
+        # THEN parent backup ID is filled in the backup_info
+        assert backup_info.parent_backup_id == "SOME_PARENT_BACKUP_ID"
+
+        # AND children backup IDs is set in the parent backup_info
+        assert mock.return_value.children_backup_ids == [backup_info.backup_id]
+
+        # WHEN a backup is taken with a parent backup ID which contains a child
+        with patch("barman.infofile.LocalBackupInfo.get_parent_backup_info") as mock:
+            mock.return_value.children_backup_ids = ["SOME_CHILD_BACKUP_ID"]
+            backup_info = backup_manager.backup(
+                parent_backup_id="SOME_PARENT_BACKUP_ID",
+            )
+
+        # THEN parent backup ID is filled in the backup_info
+        assert backup_info.parent_backup_id == "SOME_PARENT_BACKUP_ID"
+
+        # AND children backup IDs is set in the parent backup_info
+        assert mock.return_value.children_backup_ids == [
+            "SOME_CHILD_BACKUP_ID",
+            backup_info.backup_id,
+        ]
+
 
 class TestWalCleanup(object):
     """Test cleanup of WALs by BackupManager"""

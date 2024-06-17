@@ -70,6 +70,8 @@ def build_test_backup_info(
     systemid=None,
     copy_stats=None,
     summarize_wal=None,
+    parent_backup_id=None,
+    children_backup_ids=None,
 ):
     """
     Create an 'Ad Hoc' BackupInfo object for testing purposes.
