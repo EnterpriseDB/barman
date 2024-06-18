@@ -854,8 +854,23 @@ class TestStrategy(object):
         tablespaces = [Tablespace._make(("test_tbs", 1234, "/tbs/test"))]
         mock_postgres.get_tablespaces.return_value = tablespaces
 
+        mock_postgres.current_size = 2048
+        mock_postgres.xlog_segment_size = 16
         strategy = PostgresBackupStrategy(mock_postgres, "test server")
         backup_info = build_test_backup_info()
+
+        # default values from build_test_backup_info() to verify that the values
+        # set in this method were changed inplace after calling the method
+        assert backup_info.pgdata == "/pgdata/location"
+        assert backup_info.version == 90302
+        assert backup_info.xlog_segment_size == 16777216
+        assert backup_info.tablespaces == [
+            Tablespace(name="tbs1", oid=16387, location="/fake/location"),
+            Tablespace(name="tbs2", oid=16405, location="/another/location"),
+        ]
+        assert backup_info.summarize_wal is None
+        assert backup_info.cluster_size is None
+
         strategy._pg_get_metadata(backup_info)
 
         mock_postgres.get_tablespaces.assert_called_once()
@@ -863,11 +878,18 @@ class TestStrategy(object):
         if mock_postgres.server_version < 170000:
             mock_postgres.get_setting.assert_called_once_with("data_directory")
             assert backup_info.summarize_wal is None
+            assert backup_info.version == 160000
         else:
             calls = [call("data_directory"), call("summarize_wal")]
             assert mock_postgres.get_setting.call_count == 2
             mock_postgres.get_setting.assert_has_calls(calls, any_order=False)
             assert backup_info.summarize_wal == "on"
+            assert backup_info.version == 170000
+
+        assert backup_info.pgdata == "data_directory"
+        assert backup_info.xlog_segment_size == 16
+        assert backup_info.tablespaces == tablespaces
+        assert backup_info.cluster_size == 2048
 
 
 class TestPostgresBackupExecutor(object):

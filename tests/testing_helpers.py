@@ -72,6 +72,7 @@ def build_test_backup_info(
     summarize_wal=None,
     parent_backup_id=None,
     children_backup_ids=None,
+    cluster_size=None,
 ):
     """
     Create an 'Ad Hoc' BackupInfo object for testing purposes.
@@ -105,6 +106,9 @@ def build_test_backup_info(
     :param barman.server.Server|None server: Server object for the backup
     :param dict|None: Copy stats dictionary
     :param str|None: summarize_wal status flag
+    :param str|None: parent_backup_id status flag
+    :param list|None: children_backup_ids status flag
+    :param int|None: cluster_size status flag
     :rtype: barman.infofile.LocalBackupInfo
     """
     if begin_time is None:
