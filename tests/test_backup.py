@@ -911,9 +911,9 @@ class TestBackup(object):
         backup_manager.validate_backup_args(**incremental_kwargs)
         mock_validate_incremental.assert_called_once()
 
-    def test_validate_incremental_backup_configs(self):
+    def test_validate_incremental_backup_configs_summarize_wal(self):
         """
-        Test Postgres incremental backup validations
+        Test that summarize_wal is enabled on Postgres incremental backup
         """
         backup_manager = build_backup_manager(global_conf={"backup_method": "postgres"})
 
@@ -923,15 +923,38 @@ class TestBackup(object):
             "off",
             "on",
         ]
-
         # ensure incremental backup with summarize_wal disabled raises exception
         with pytest.raises(BackupException):
             backup_manager._validate_incremental_backup_configs()
         with pytest.raises(BackupException):
             backup_manager._validate_incremental_backup_configs()
-
         # no exception is raised when summarize_wal is on
         backup_manager._validate_incremental_backup_configs()
+
+    @pytest.mark.parametrize(
+        ("backup_method", "should_raise_ex"),
+        [
+            ("any_non_postgres_method", True),
+            ("postgres", False),
+        ],
+    )
+    def test_validate_incremental_backup_configs_postgres_method(
+        self,
+        backup_method,
+        should_raise_ex,
+    ):
+        """
+        Test that 'backup_method = postgres' on Postgres incremental backups
+        """
+        backup_manager = build_backup_manager(
+            global_conf={"backup_method": backup_method}
+        )
+        backup_manager.executor.server.postgres.get_setting.return_value = "on"
+        if should_raise_ex:
+            with pytest.raises(BackupException):
+                backup_manager._validate_incremental_backup_configs()
+        else:
+            backup_manager._validate_incremental_backup_configs()
 
 
 class TestWalCleanup(object):
