@@ -216,6 +216,7 @@ class TestCloudBackupShow(object):
             "xlog_segment_size": 16777216,
             "backup_id": "backup_id_1",
             "summarize_wal": None,
+            "cluster_size": None,
         }
 
     @pytest.mark.parametrize("extra_args", [[], ["--format", "json"]])
