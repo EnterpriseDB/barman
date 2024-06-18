@@ -1787,6 +1787,9 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
             summarize_wal = self.postgres.get_setting("summarize_wal")
             backup_info.set_attribute("summarize_wal", summarize_wal)
 
+        # Set total size of the PostgreSQL server
+        backup_info.set_attribute("cluster_size", self.postgres.current_size)
+
     @staticmethod
     def _backup_info_from_start_location(backup_info, start_info):
         """
