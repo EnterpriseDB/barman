@@ -77,6 +77,7 @@ EXPECTED_MINIMAL = {
             "summarize_wal": None,
             "parent_backup_id": None,
             "children_backup_ids": None,
+            "cluster_size": None,
         }
     },
     "config": {},
