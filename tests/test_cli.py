@@ -55,7 +55,9 @@ from barman.server import Server
 from testing_helpers import (
     build_config_dictionary,
     build_config_from_dicts,
+    build_mocked_server,
     build_real_server,
+    build_test_backup_info,
 )
 
 
@@ -883,6 +885,59 @@ class TestCli(object):
             # AND if we expected success, the server config recovery staging
             # path matches expectations
             assert server.recovery_staging_path == expected_recovery_staging_path
+
+    @pytest.mark.parametrize(
+        ("status", "should_error"),
+        [
+            (BackupInfo.DONE, False),
+            (BackupInfo.WAITING_FOR_WALS, False),
+            (BackupInfo.FAILED, True),
+            (BackupInfo.EMPTY, True),
+            (BackupInfo.SYNCING, True),
+            (BackupInfo.STARTED, True),
+        ],
+    )
+    @patch("barman.output.error")
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_recover_backup_status(
+        self,
+        get_server_mock,
+        parse_backup_id_mock,
+        error_mock,
+        status,
+        should_error,
+        mock_recover_args,
+    ):
+
+        server = build_mocked_server(name="test_server")
+
+        get_server_mock.return_value = server
+
+        backup_info = build_test_backup_info(
+            server=server,
+            backup_id="test_backup_id",
+            status=status,
+        )
+
+        parse_backup_id_mock.return_value = backup_info
+        mock_recover_args.backup_id = "test_backup_id"
+        mock_recover_args.snapshot_recovery_instance = None
+
+        with pytest.raises(
+            SystemExit,
+        ):
+            recover(mock_recover_args)
+
+        if should_error:
+            error_mock.assert_called_once_with(
+                "Cannot recover from backup '%s' of server "
+                "'%s': backup status is not DONE",
+                "test_backup_id",
+                "test_server",
+            )
+        else:
+            error_mock.assert_not_called()
 
     @pytest.mark.parametrize(
         (
