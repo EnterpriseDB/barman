@@ -922,13 +922,22 @@ class LocalBackupInfo(BackupInfo):
             return
         yield self
 
-    def walk_to_root(self):
+    def walk_to_root(self, return_self=True):
         """
         Walk through all the parent backups of the current backup.
+
+        .. note::
+            The objects are returned with a bottom-up approach, including all
+            parents backups plus the caller backup if *return_self* is ``True``.
+
+        :param bool return_self: Whether to return the current backup.
+            Default to ``True``.
 
         :yield: a generator of :class:`LocalBackupInfo` objects for each parent backup.
         """
 
+        if return_self:
+            yield self
         backup_info = self.get_parent_backup_info()
         while backup_info:
             yield backup_info
@@ -956,3 +965,41 @@ class LocalBackupInfo(BackupInfo):
         ):
             return True
         return False
+
+
+class SyntheticBackupInfo(LocalBackupInfo):
+    def __init__(
+        self, server, base_directory, backup_id=None, info_file=None, **kwargs
+    ):
+        """
+        Stores meta information about a single synthetic backup.
+        
+        .. note::
+            A synthetic backup is a base backup which was artificially created
+            through ``pg_combinebackup``. A synthetic backup is not part of
+            the Barman backup catalog, and only exists so we are able to
+            recover a backup created by ``pg_combinebackup`` utility, as
+            almost all functions and methods require a backup info object.
+
+        The only difference from this class to its parent :class:`LocalBackupInfo`
+        is that it accepts a custom base directory for the backup as synthetic
+        backups are expected to live on directories other than the default
+        ``<server_name>/base`` path.
+
+        :param barman.server.Server server: the server that owns the
+            synthetic backup
+        :param str base_directory: the root directory where this synthetic
+            backup resides, essentially an override to the
+            ``server.config.basebackups_directory`` configuration.
+        :param str|None backup_id: the backup id of this backup
+        :param None|str|TextIO info_file: path or file descriptor of an existing
+            synthetic ``backup.info`` file
+        """
+        self.base_directory = base_directory
+        super(SyntheticBackupInfo, self).__init__(
+            server, info_file, backup_id, **kwargs
+        )
+
+    def get_basebackup_directory(self):
+        """Get the backup directory based on its base directory"""
+        return os.path.join(self.base_directory, self.backup_id)

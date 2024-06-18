@@ -24,6 +24,8 @@ from __future__ import print_function
 
 import collections
 import datetime
+
+from functools import partial
 import logging
 import os
 import re
@@ -37,7 +39,7 @@ import dateutil.tz
 
 from barman import output, xlog
 from barman.cloud_providers import get_snapshot_interface_from_backup_info
-from barman.command_wrappers import RsyncPgData
+from barman.command_wrappers import PgCombineBackup, RsyncPgData
 from barman.config import RecoveryOptions
 from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (
@@ -58,8 +60,8 @@ from barman.compression import (
     NoneCompression,
 )
 import barman.fs as fs
-from barman.infofile import BackupInfo, LocalBackupInfo
-from barman.utils import force_str, mkpath
+from barman.infofile import BackupInfo, LocalBackupInfo, SyntheticBackupInfo
+from barman.utils import force_str, mkpath, total_seconds
 
 # generic logger for this module
 _logger = logging.getLogger(__name__)
@@ -1417,6 +1419,7 @@ class TarballRecoveryExecutor(RemoteConfigRecoveryExecutor):
         output.info(
             "Staging compressed backup files on the recovery host in: %s", staging_dir
         )
+
         recovery_info["cmd"].create_dir_if_not_exists(staging_dir, mode="700")
         recovery_info["cmd"].validate_file_mode(staging_dir, mode="700")
         recovery_info["staging_dir"] = staging_dir
@@ -1807,6 +1810,310 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
             raise DataTransferFailure.from_command_error("rsync", e, msg)
 
 
+class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
+    """
+    Recovery executor for recovery of Postgres incremental backups.
+
+    This class implements the combine backup process as well as the
+    recovery of the newly combined backup by reusing some of the logic
+    from the :class:`RecoveryExecutor` class.
+    """
+
+    def __init__(self, backup_manager):
+        """
+        Constructor
+
+        :param barman.backup.BackupManager backup_manager: the :class:`BackupManager`
+            owner of the executor
+        """
+        super(IncrementalRecoveryExecutor, self).__init__(backup_manager)
+        self.combine_start_time = None
+        self.combine_end_time = None
+
+    def recover(self, backup_info, dest, remote_command=None, **kwargs):
+        """
+        Performs the recovery of an incremental backup.
+
+        It first combines all backups in the backup chain, full to incremental,
+        then proceeds with the recovery of the generated synthetic backup.
+
+        This method should be called in a :func:`contextlib.closing` context.
+
+        :param barman.infofile.BackupInfo backup_info: the incremental
+            backup to recover
+        :param str dest: the destination directory
+        :param str|None remote_command: The remote command to recover
+            the base backup, in case of remote backup.
+        :return dict: ``recovery_info`` dictionary, holding the values related
+            with the recovery process.
+        """
+        # First combine the backups, generating a new synthetic backup in the staging area
+        combine_directory = self.config.recovery_staging_path
+        synthetic_backup_info = self._combine_backups(backup_info, combine_directory)
+
+        # Add the backup directory created in the staging area to be deleted after recovery
+        synthetic_backup_dir = synthetic_backup_info.get_basebackup_directory()
+        self.temp_dirs.append(fs.LocalLibPathDeletionCommand(synthetic_backup_dir))
+
+        # Perform the standard recovery process passing the synthetic backup
+        return super(IncrementalRecoveryExecutor, self).recover(
+            synthetic_backup_info, dest, remote_command=remote_command, **kwargs
+        )
+
+    def _combine_backups(self, backup_info, dest):
+        """
+        Combines the backup chain into a single synthetic backup using the
+        ``pg_combinebackup`` utility.
+
+        :param barman.infofile.LocalBackupInfo backup_info: the incremental
+            backup to be recovered
+        :param str dest: the directory where the synthetic backup is going
+            to be mounted on
+        :return barman.infofile.SyntheticBackupInfo: the backup info file of the
+            combined backup
+        """
+        self.combine_start_time = datetime.datetime.now()
+
+        # Build the synthetic backup info from the incremental backup as it has
+        # the most recent data relevant to the recovery. Also, the combine process
+        # should be transparent to the end user so e.g. the .barman-recover.info file
+        # that is created on destination and also the backup_id that is appended to the
+        # manifest file in further steps of the recovery should be the same as the incremental
+        synthetic_backup_info = SyntheticBackupInfo(
+            self.server,
+            base_directory=dest,
+            backup_id=backup_info.backup_id,
+        )
+        synthetic_backup_info.load(filename=backup_info.filename)
+
+        dest_dirs = [synthetic_backup_info.get_data_directory()]
+
+        # Maps the tablespaces from the old backup directory to the new synthetic
+        # backup directory. This mapping is passed to the pg_combinebackup as input
+        tbs_map = {}
+        if backup_info.tablespaces:
+            for tablespace in backup_info.tablespaces:
+                source = backup_info.get_data_directory(tablespace_oid=tablespace.oid)
+                destination = synthetic_backup_info.get_data_directory(
+                    tablespace_oid=tablespace.oid
+                )
+                tbs_map[source] = destination
+                dest_dirs.append(destination)
+
+        # Prepare the destination directories for pgdata and tablespaces
+        for _dir in dest_dirs:
+            self._prepare_destination(_dir)
+
+        # Retrieve pg_combinebackup version information
+        remote_status = self._fetch_remote_status()
+
+        # Get the backup chain data paths to be passed to the pg_combinebackup
+        backups_chain = self._get_backup_chain_paths(backup_info)
+
+        self._start_message(synthetic_backup_info)
+
+        pg_combinebackup = PgCombineBackup(
+            destination=synthetic_backup_info.get_data_directory(),
+            command=remote_status["pg_combinebackup_path"],
+            version=remote_status["pg_combinebackup_version"],
+            app_name=None,
+            tbs_mapping=tbs_map,
+            retry_times=self.config.basebackup_retry_times,
+            retry_sleep=self.config.basebackup_retry_sleep,
+            retry_handler=partial(self._retry_handler, dest_dirs),
+            out_handler=PgCombineBackup.make_logging_handler(logging.INFO),
+            args=backups_chain,
+        )
+
+        # Do the actual combine
+        try:
+            pg_combinebackup()
+        except CommandFailedException as e:
+            msg = "Combine action failure on directory '%s'" % dest
+            raise DataTransferFailure.from_command_error("pg_combinebackup", e, msg)
+
+        self._end_message(synthetic_backup_info)
+
+        self.combine_end_time = datetime.datetime.now()
+        combine_time = total_seconds(self.combine_end_time - self.combine_start_time)
+        synthetic_backup_info.copy_stats = {
+            "combine_time": combine_time,
+        }
+
+        return synthetic_backup_info
+
+    def _backup_copy(
+        self,
+        backup_info,
+        dest,
+        tablespaces=None,
+        remote_command=None,
+        **kwargs,
+    ):
+        """
+        Perform the actual copy/move of the synthetic backup to destination
+
+        :param barman.infofile.SyntheticBackupInfo backup_info: the synthetic
+            backup info file
+        :param str dest: the destination directory
+        :param dict[str,str]|None tablespaces: a tablespace
+            name -> location map (for relocation)
+        :param str|None remote_command: default ``None``. The remote command to
+            recover the backup, in case of remote backup
+        """
+        # If it is a remote recovery we just follow the standard rsync copy process
+        if remote_command:
+            super(IncrementalRecoveryExecutor, self)._backup_copy(
+                backup_info, dest, tablespaces, remote_command, **kwargs
+            )
+            return
+        # If it is a local recovery we move the content from staging to destination
+        # Starts with tablespaces
+        if backup_info.tablespaces:
+            for tablespace in backup_info.tablespaces:
+                # By default a tablespace goes in the same location where
+                # it was on the source server when the backup was taken
+                destination = tablespace.location
+                # If a relocation has been requested for this tablespace
+                # use the user provided target directory
+                if tablespaces and tablespace.name in tablespaces:
+                    destination = tablespaces[tablespace.name]
+                # Move the content of the tablespace directory to destination directory
+                self._prepare_destination(destination)
+                tbs_source = backup_info.get_data_directory(
+                    tablespace_oid=tablespace.oid
+                )
+                self._move_to_destination(source=tbs_source, destination=destination)
+
+        # Then procede to move the content of the data directory
+        # We don't move the pg_tblspc as the _prepare_tablespaces method called earlier
+        # in the process already created this directory and required symlinks in the destination
+        data_source = backup_info.get_data_directory()
+        self._move_to_destination(
+            source=data_source, destination=dest, exclude_path_names={"pg_tblspc"}
+        )
+
+    def _move_to_destination(self, source, destination, exclude_path_names=set()):
+        """
+        Move all files and directories contained within *source* to *destination*.
+
+        :param str source: the source directory path from which underlying
+            files and directories will be moved
+        :param str destination: the destination directory path where to move the
+            files and directories contained within *source*
+        :param set[str] exclude_path_names: name of directories or files to be
+            excluded from the moving action.
+        """
+        for file_or_dir in os.listdir(source):
+            if file_or_dir not in exclude_path_names:
+                file_or_dir_path = os.path.join(source, file_or_dir)
+                try:
+                    shutil.move(file_or_dir_path, destination)
+                except shutil.Error:
+                    output.error(
+                        "Destination directory '%s' must be empty." % destination
+                    )
+                    output.close_and_exit()
+
+    def _get_backup_chain_paths(self, backup_info):
+        """
+        Get the path of each backup in the chain, from the full backup to
+        the specified incremental backup.
+
+        :param barman.infofile.LocalBackupInfo backup_info: The incremental backup
+        :return Iterator[barman.infofile.LocalBackupInfo]: iterator of paths of
+            the backups in the chain, going from the full to the incremental backup
+            pointed by *backup_info*
+        """
+        return reversed(
+            [backup.get_data_directory() for backup in backup_info.walk_to_root()]
+        )
+
+    def _prepare_destination(self, dest_dir):
+        """
+        Prepare the destination directory or file before moving it.
+
+        This method is responsible for removing a directory if it already
+        exists, then (re)creating it and ensuring the correct permissions
+        on the directory.
+
+        :param str dest_dir: destination directory
+        """
+        # Remove a dir if exists. Ignore eventual errors
+        shutil.rmtree(dest_dir, ignore_errors=True)
+        # create the dir
+        mkpath(dest_dir)
+        # Ensure the right permissions to the destination directory
+        # chmod 0700 octal
+        os.chmod(dest_dir, 448)
+
+    def _retry_handler(self, dest_dirs, attempt):
+        """
+        Handler invoked during a combine backup in case of retry.
+
+        The method simply warn the user of the failure and
+        remove the already existing directories of the backup.
+
+        :param list[str] dest_dirs: destination directories
+        :param int attempt: attempt number (starting from 0)
+        """
+        output.warning(
+            "Failure combining backups using pg_combinebackup (attempt %s)", attempt
+        )
+        output.warning(
+            "The files created so far will be removed and "
+            "the combine process will restart in %s seconds",
+            "30",
+        )
+        # Remove all the destination directories and reinit the backup
+        for _dir in dest_dirs:
+            self._prepare_destination(_dir)
+
+    def _fetch_remote_status(self):
+        """
+        Gather info from the remote server.
+
+        This method does not raise any exception in case of errors,
+        but set the missing values to ``None`` in the resulting dictionary.
+
+        :return dict[str, str|bool]: the pg_combinebackup client information
+            of the remote server.
+        """
+        remote_status = dict.fromkeys(
+            (
+                "pg_combinebackup_installed",
+                "pg_combinebackup_path",
+                "pg_combinebackup_version",
+            ),
+            None,
+        )
+
+        # Test pg_combinebackup existence
+        version_info = PgCombineBackup.get_version_info(self.server.path)
+
+        if version_info["full_path"]:
+            remote_status["pg_combinebackup_installed"] = True
+            remote_status["pg_combinebackup_path"] = version_info["full_path"]
+            remote_status["pg_combinebackup_version"] = version_info["full_version"]
+        else:
+            remote_status["pg_combinebackup_installed"] = False
+
+        return remote_status
+
+    def _start_message(self, backup_info):
+        output.info(
+            "Start combining backup via pg_combinebackup for backup %s on %s",
+            backup_info.backup_id,
+            backup_info.base_directory,
+        )
+
+    def _end_message(self, backup_info):
+        output.info(
+            "End combining backup via pg_combinebackup for backup %s",
+            backup_info.backup_id,
+        )
+
+
 def recovery_executor_factory(backup_manager, command, backup_info):
     """
     Method in charge of building adequate RecoveryExecutor depending on the context
@@ -1814,6 +2121,8 @@ def recovery_executor_factory(backup_manager, command, backup_info):
     :param: command barman.fs.UnixLocalCommand
     :return: RecoveryExecutor instance
     """
+    if backup_info.parent_backup_id is not None:
+        return IncrementalRecoveryExecutor(backup_manager)
     if backup_info.snapshots_info is not None:
         return SnapshotRecoveryExecutor(backup_manager)
     compression = backup_info.compression
