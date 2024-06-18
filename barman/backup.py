@@ -604,6 +604,13 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
         :raises BackupException: if a required configuration is missing
         """
+        if self.config.backup_method != "postgres":
+            raise BackupException(
+                "Backup using the `--incremental` flag is available only for "
+                "'backup_method = postgres'. Check Barman's documentation for "
+                "more help on this topic."
+            )
+
         summarize_wal = self.server.postgres.get_setting("summarize_wal")
         if summarize_wal != "on":
             raise BackupException(
