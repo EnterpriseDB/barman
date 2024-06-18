@@ -1748,6 +1748,72 @@ class TestPostgres(object):
         # THEN a None value was returned
         assert has_monitoring is None
 
+    @pytest.mark.parametrize(
+        ("backup_privilege", "expected", "should_fetchone"),
+        [(False, None, False), (True, 2048, True)],
+    )
+    @patch("barman.postgres.PostgreSQLConnection.connect")
+    @patch(
+        "barman.postgres.PostgreSQLConnection.has_backup_privileges",
+        new_callable=PropertyMock,
+    )
+    def test_current_size(
+        self,
+        has_backup_privileges_mock,
+        conn_mock,
+        backup_privilege,
+        expected,
+        should_fetchone,
+    ):
+        """
+        Test the current_size method
+        """
+        any_size = 2048
+
+        has_backup_privileges_mock.return_value = backup_privilege
+
+        # Build a server
+        server = build_real_server()
+        cursor_mock = conn_mock.return_value.cursor.return_value
+        cursor_mock.fetchone.side_effect = [[any_size]]
+
+        result = server.postgres.current_size
+        assert result == expected
+        if should_fetchone:
+            cursor_mock.execute.assert_called_once_with(
+                "SELECT sum(pg_tablespace_size(oid)) FROM pg_tablespace"
+            )
+        else:
+            cursor_mock.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "expected_error", (psycopg2.Error, PostgresConnectionError)
+    )
+    @patch("barman.postgres._logger.debug")
+    @patch("barman.postgres.PostgreSQLConnection.connect")
+    @patch(
+        "barman.postgres.PostgreSQLConnection.has_backup_privileges",
+        new_callable=PropertyMock,
+    )
+    def test_current_size_error(
+        self, has_backup_privileges_mock, conn_mock, logger_mock, expected_error
+    ):
+        """
+        Test the current_size method
+        """
+        has_backup_privileges_mock.return_value = True
+
+        # Build a server
+        server = build_real_server()
+        cursor_mock = conn_mock.return_value.cursor.return_value
+        cursor_mock.fetchone.side_effect = expected_error
+
+        result = server.postgres.current_size
+        logger_mock.assert_called_once_with(
+            "Error retrieving PostgreSQL total size: %s", ""
+        )
+        assert result is None
+
 
 # noinspection PyMethodMayBeStatic
 class TestStreamingConnection(object):
