@@ -44,6 +44,7 @@ from barman.compression import CompressionManager
 from barman.config import BackupOptions
 from barman.exceptions import (
     AbortedRetryHookScript,
+    BackupException,
     CompressionIncompatibility,
     LockFileBusy,
     SshCommandException,
@@ -583,6 +584,32 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         script.run()
 
         return True
+
+    def validate_backup_args(self, **kwargs):
+        """
+        Validate backup arguments and Postgres configurations. Arguments
+        might be syntactically correct but still be invalid if necessary
+        Postgres configurations are not met.
+
+        :kwparam str parent_backup_id: id of the parent backup when taking a
+            Postgres incremental backup
+        :raises BackupException: if a command argument is considered invalid
+        """
+        if "parent_backup_id" in kwargs:
+            self._validate_incremental_backup_configs()
+
+    def _validate_incremental_backup_configs(self):
+        """
+        Check required configurations for a Postgres incremental backup
+
+        :raises BackupException: if a required configuration is missing
+        """
+        summarize_wal = self.server.postgres.get_setting("summarize_wal")
+        if summarize_wal != "on":
+            raise BackupException(
+                "'summarize_wal' option has to be enabled in the Postgres server "
+                "to perform an incremental backup using the Postgres backup method"
+            )
 
     def backup(self, wait=False, wait_timeout=None, name=None, **kwargs):
         """
