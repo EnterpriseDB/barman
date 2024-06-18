@@ -44,6 +44,7 @@ from barman.command_wrappers import BarmanSubProcess, Command, Rsync
 from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (
     ArchiverFailure,
+    BackupException,
     BadXlogSegmentName,
     CommandFailedException,
     ConninfoException,
@@ -1606,6 +1607,8 @@ class Server(RemoteStatusMixin):
         assert not self.passive_node
 
         try:
+            # validate arguments, raise BackupException if any error is found
+            self.backup_manager.validate_backup_args(**kwargs)
             # Default strategy for check in backup is CheckStrategy
             # This strategy does not print any output - it only logs checks
             strategy = CheckStrategy()
@@ -1618,6 +1621,9 @@ class Server(RemoteStatusMixin):
                 return
             # check required backup directories exist
             self._make_directories()
+        except BackupException as e:
+            output.error("failed to start backup: %s", force_str(e))
+            return
         except OSError as e:
             output.error("failed to create %s directory: %s", e.filename, e.strerror)
             return

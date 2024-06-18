@@ -33,6 +33,7 @@ import barman.utils
 from barman.annotations import KeepManager
 from barman.config import BackupOptions
 from barman.exceptions import (
+    BackupException,
     CompressionIncompatibility,
     RecoveryInvalidTargetException,
     CommandFailedException,
@@ -890,6 +891,47 @@ class TestBackup(object):
             "SOME_CHILD_BACKUP_ID",
             backup_info.backup_id,
         ]
+
+    @patch("barman.backup.BackupManager._validate_incremental_backup_configs")
+    def test_validate_backup_args(self, mock_validate_incremental):
+        """
+        Test the validate_backup_args method, ensuring that validations are passed
+        correctly to all responsible methods according to the parameters received.
+        """
+        backup_manager = build_backup_manager(global_conf={"backup_method": "postgres"})
+
+        # incremental backup validation is skipped when no parent backup is present
+        incremental_kwargs = {}
+        backup_manager.validate_backup_args(**incremental_kwargs)
+        mock_validate_incremental.assert_not_called()
+
+        # incremental backup validation is called when a parent backup is present
+        mock_validate_incremental.reset_mock()
+        incremental_kwargs = {"parent_backup_id": Mock()}
+        backup_manager.validate_backup_args(**incremental_kwargs)
+        mock_validate_incremental.assert_called_once()
+
+    def test_validate_incremental_backup_configs(self):
+        """
+        Test Postgres incremental backup validations
+        """
+        backup_manager = build_backup_manager(global_conf={"backup_method": "postgres"})
+
+        # change the behavior of get_setting("summarize_wal") function call
+        backup_manager.executor.server.postgres.get_setting.side_effect = [
+            None,
+            "off",
+            "on",
+        ]
+
+        # ensure incremental backup with summarize_wal disabled raises exception
+        with pytest.raises(BackupException):
+            backup_manager._validate_incremental_backup_configs()
+        with pytest.raises(BackupException):
+            backup_manager._validate_incremental_backup_configs()
+
+        # no exception is raised when summarize_wal is on
+        backup_manager._validate_incremental_backup_configs()
 
 
 class TestWalCleanup(object):
