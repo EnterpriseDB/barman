@@ -911,17 +911,44 @@ class TestBackup(object):
         backup_manager.validate_backup_args(**incremental_kwargs)
         mock_validate_incremental.assert_called_once()
 
+    def test_validate_incremental_backup_configs_pg_version(self):
+        """
+        Test Postgres incremental backup validations for Postgres
+        server version
+        """
+        backup_manager = build_backup_manager(global_conf={"backup_method": "postgres"})
+
+        # mock the postgres object to set server version
+        mock_postgres = Mock()
+        backup_manager.executor.server.postgres = mock_postgres
+
+        # mock enabled summarize_wal option
+        backup_manager.executor.server.postgres.get_setting.side_effect = ["on"]
+
+        # ensure no exception is raised when Postgres version >= 17
+        mock_postgres.configure_mock(server_version=180500)
+        backup_manager._validate_incremental_backup_configs()
+
+        # ensure BackupException is raised when Postgres version is < 17
+        mock_postgres.configure_mock(server_version=160000)
+        with pytest.raises(BackupException):
+            backup_manager._validate_incremental_backup_configs()
+
     def test_validate_incremental_backup_configs_summarize_wal(self):
         """
         Test that summarize_wal is enabled on Postgres incremental backup
         """
         backup_manager = build_backup_manager(global_conf={"backup_method": "postgres"})
 
+        # mock the postgres object to set server version
+        mock_postgres = Mock()
+        backup_manager.executor.server.postgres = mock_postgres
+        mock_postgres.configure_mock(server_version=170000)
+
         # change the behavior of get_setting("summarize_wal") function call
         backup_manager.executor.server.postgres.get_setting.side_effect = [
             None,
             "off",
-            "on",
             "on",
         ]
 
