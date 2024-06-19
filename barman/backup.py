@@ -30,6 +30,7 @@ from glob import glob
 
 import dateutil.parser
 import dateutil.tz
+from distutils.version import LooseVersion as Version
 
 from barman import output, xlog
 from barman.annotations import KeepManager, KeepManagerMixin
@@ -609,6 +610,12 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             raise BackupException(
                 "'summarize_wal' option has to be enabled in the Postgres server "
                 "to perform an incremental backup using the Postgres backup method"
+            )
+
+        if Version(self.server.postgres.server_txt_version) < "17":
+            raise BackupException(
+                "Postgres version 17 or greater is required for incremental backups "
+                "using the Postgres backup method"
             )
 
     def backup(self, wait=False, wait_timeout=None, name=None, **kwargs):
