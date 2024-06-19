@@ -961,7 +961,7 @@ class LocalBackupInfo(BackupInfo):
         :return bool: True if it's a full backup or False if not.
         """
         if (
-            self.backup_manager.config.backup_method == "postgres"
+            self.mode == "postgres"
             and self.summarize_wal == "on"
             and not self.parent_backup_id
         ):
