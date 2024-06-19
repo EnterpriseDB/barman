@@ -878,6 +878,39 @@ class LocalBackupInfo(BackupInfo):
 
         return None
 
+    def walk_backups_tree(self):
+        """
+        Walk through all the children backups of the current backup.
+
+        .. note::
+            The objects are returned with a bottom-up approach, including all children
+            backups plus the caller backup.
+
+        :yield: a generator of :class:`LocalBackupInfo` objects for each backup, walking
+           from the leaves to self.
+        """
+
+        if self.children_backup_ids:
+            for child_backup_id in self.children_backup_ids:
+                backup_info = LocalBackupInfo(
+                    self.server,
+                    backup_id=child_backup_id,
+                )
+                yield from backup_info.walk_backups_tree()
+        yield self
+
+    def walk_to_root(self):
+        """
+        Walk through all the parent backups of the current backup.
+
+        :yield: a generator of :class:`LocalBackupInfo` objects for each parent backup.
+        """
+
+        backup_info = self.get_parent_backup_info()
+        while backup_info:
+            yield backup_info
+            backup_info = backup_info.get_parent_backup_info()
+
     def is_full_and_eligible_for_incremental(self):
         """
         Used to filter out backups that have a parent backup id and are not
