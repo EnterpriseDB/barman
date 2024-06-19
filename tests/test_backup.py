@@ -920,6 +920,7 @@ class TestBackup(object):
         # mock the postgres object
         mock_postgres = Mock()
         backup_manager.executor.server.postgres = mock_postgres
+        mock_postgres.configure_mock(server_version=170000)
 
         # change the behavior of get_setting("summarize_wal") function call
         backup_manager.executor.server.postgres.get_setting.side_effect = [
@@ -937,12 +938,12 @@ class TestBackup(object):
 
         # no exception is raised when summarize_wal is on
         # and Postgres version >= 17
-        backup_manager.executor.server.postgres.server_txt_version = "18.5"
+        mock_postgres.configure_mock(server_version=180500)
         backup_manager._validate_incremental_backup_configs()
 
         # ensure BackupException is raised when Postgres version is < 17
         # and summarize_wal is on
-        backup_manager.executor.server.postgres.server_txt_version = "16"
+        mock_postgres.configure_mock(server_version=160000)
         with pytest.raises(BackupException):
             backup_manager._validate_incremental_backup_configs()
 

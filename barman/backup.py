@@ -605,17 +605,17 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
         :raises BackupException: if a required configuration is missing
         """
+        if self.server.postgres.server_version < 170000:
+            raise BackupException(
+                "Postgres version 17 or greater is required for incremental backups "
+                "using the Postgres backup method"
+            )
+
         summarize_wal = self.server.postgres.get_setting("summarize_wal")
         if summarize_wal != "on":
             raise BackupException(
                 "'summarize_wal' option has to be enabled in the Postgres server "
                 "to perform an incremental backup using the Postgres backup method"
-            )
-
-        if Version(self.server.postgres.server_txt_version) < "17":
-            raise BackupException(
-                "Postgres version 17 or greater is required for incremental backups "
-                "using the Postgres backup method"
             )
 
     def backup(self, wait=False, wait_timeout=None, name=None, **kwargs):
@@ -735,7 +735,6 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
         finally:
             if backup_info:
-
                 # IF is an incremental backup, we save here child backup info id
                 # inside the parent list of children. no matter if the backup
                 # is successful or not. This is needed to be able to retrieve

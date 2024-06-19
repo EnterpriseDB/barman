@@ -1763,9 +1763,9 @@ class TestSnapshotRecoveryExecutor(object):
             attached_volumes["disk0"].mount_point = "/opt/disk0"
             attached_volumes["disk0"].mount_options = "rw,noatime"
 
-        attached_volumes["disk0"].resolve_mounted_volume.side_effect = (
-            mock_resolve_mounted_volume
-        )
+        attached_volumes[
+            "disk0"
+        ].resolve_mounted_volume.side_effect = mock_resolve_mounted_volume
         mock_get_snapshot_interface.return_value.get_attached_volumes.return_value = (
             attached_volumes
         )
@@ -2195,9 +2195,9 @@ class TestSnapshotRecoveryExecutor(object):
             # If resolved_mount_info should raise an exception then just set it as the
             # side effect
             if isinstance(resolved_mount_info, Exception):
-                attached_volumes[disk].resolve_mounted_volume.side_effect = (
-                    resolved_mount_info
-                )
+                attached_volumes[
+                    disk
+                ].resolve_mounted_volume.side_effect = resolved_mount_info
             # Otherwise, create a partial which sets the mount point and options to the
             # values at the current index
             else:
