@@ -627,6 +627,12 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
         :raises BackupException: if a required configuration is missing
         """
+        if self.server.postgres.server_version < 170000:
+            raise BackupException(
+                "Postgres version 17 or greater is required for incremental backups "
+                "using the Postgres backup method"
+            )
+
         if self.config.backup_method != "postgres":
             raise BackupException(
                 "Backup using the `--incremental` flag is available only for "
@@ -768,7 +774,6 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
         finally:
             if backup_info:
-
                 # IF is an incremental backup, we save here child backup info id
                 # inside the parent list of children. no matter if the backup
                 # is successful or not. This is needed to be able to retrieve
