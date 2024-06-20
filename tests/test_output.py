@@ -32,7 +32,7 @@ from barman.cloud_providers.google_cloud_storage import (
 )
 from barman.infofile import BackupInfo
 from barman.utils import BarmanEncoder, pretty_size
-from testing_helpers import build_test_backup_info, find_by_attr, mock_backup_ext_info
+from testing_helpers import build_backup_manager, build_test_backup_info, find_by_attr, mock_backup_ext_info
 
 # Color output constants
 RED = "\033[31m"
@@ -624,6 +624,10 @@ class TestOutputAPI(object):
 
 # noinspection PyMethodMayBeStatic
 class TestConsoleWriter(object):
+    row = "  {:<23}: {}"
+    header_row = "  {}:"
+    nested_row = "    {:<21}: {}"
+
     def test_debug(self, capsys):
         writer = output.ConsoleOutputWriter(debug=True)
 
@@ -1216,16 +1220,29 @@ class TestConsoleWriter(object):
 
     def test_result_show_backup(self, capsys):
         # mock the backup ext info
-        wal_per_second = 0.01
-        ext_info = mock_backup_ext_info(
-            children_timelines=(mock.Mock(tli="1"),),
-            copy_stats={"analysis_time": 2, "copy_time": 1},
+        backup_manager = build_backup_manager(
+            main_conf={"backup_options": "concurrent_backup"}
+        )
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            backup_id="12345",
+            summarize_wal="on",
+            cluster_size=2048,
             deduplicated_size=1234,
             status=BackupInfo.DONE,
             systemid="systemid",
+            data_checksums="on",
+        )
+
+        wal_per_second = 0.01
+        ext_info = mock_backup_ext_info(
+            backup_info=backup_info,
+            children_timelines=(mock.Mock(tli="1"), mock.Mock(tli="2")),
             wal_until_next_compression_ratio=1.5,
             wals_per_second=wal_per_second,
-            data_checksums="on",
+            est_dedup_size=1024,
+            deduplication_ratio=0.99,
+            wal_rate=wal_per_second * 3600,
         )
 
         writer = output.ConsoleOutputWriter()
@@ -1239,10 +1256,11 @@ class TestConsoleWriter(object):
         assert ext_info["status"] in out
         assert str(ext_info["end_time"]) in out
         assert ext_info["systemid"] in out
-        assert "Checksums              : %s" % ext_info["data_checksums"] in out
+        assert TestConsoleWriter.nested_row.format("Checksums", ext_info["data_checksums"]) in out
+
         for name, _, location in ext_info["tablespaces"]:
             assert "{:<21}: {}".format(name, location) in out
-        assert (pretty_size(ext_info["size"] + ext_info["wal_size"])) in out
+        assert (pretty_size(ext_info["deduplicated_size"] + ext_info["wal_size"])) in out
         assert (pretty_size(ext_info["deduplicated_size"])) in out
         assert (pretty_size(ext_info["wal_until_next_size"])) in out
         assert "WAL rate             : %0.2f/hour" % (wal_per_second * 3600) in out
@@ -1255,6 +1273,7 @@ class TestConsoleWriter(object):
             backup_name="named backup",
             status=BackupInfo.DONE,
             wals_per_second=0.1,
+            cluster_size=2048
         )
 
         # WHEN the list_backup output is generated in Plain form
@@ -1293,6 +1312,7 @@ class TestConsoleWriter(object):
             snapshots_info=snapshots_info,
             status=BackupInfo.DONE,
             wals_per_second=0.1,
+            cluster_size=2048
         )
 
         # WHEN the show output is generated in Plain form

@@ -65,6 +65,7 @@ class TestCloudBackupShow(object):
                 ],
             ),
             version=150000,
+            cluster_size=2048,
         )
         backup_info.mode = "concurrent"
         cloud_backup_catalog = mock.Mock()
@@ -97,7 +98,11 @@ class TestCloudBackupShow(object):
             "  Status                 : DONE\n"
             "  PostgreSQL Version     : 150000\n"
             "  PGDATA directory       : /pgdata/location\n"
-            "  Checksums              : on\n"
+            "  Estimated Cluster Size : 2.0 KiB\n"
+            "\n"
+            "  Server information:\n"
+            "    Checksums            : on\n"
+            "    WAL summarizer       : not supported\n"
             "\n"
             "  Snapshot information:\n"
             "    provider             : gcp\n"
@@ -120,6 +125,7 @@ class TestCloudBackupShow(object):
             "    tbs2                 : /another/location (oid: 16405)\n"
             "\n"
             "  Base backup information:\n"
+            "    Backup Method        : concurrent\n"
             "    Timeline             : 1\n"
             "    Begin WAL            : 000000010000000000000002\n"
             "    End WAL              : 000000010000000000000004\n"
@@ -219,7 +225,7 @@ class TestCloudBackupShow(object):
             "xlog_segment_size": 16777216,
             "backup_id": "backup_id_1",
             "summarize_wal": None,
-            "cluster_size": None,
+            "cluster_size": 2048,
         }
 
     @pytest.mark.parametrize("extra_args", [[], ["--format", "json"]])
