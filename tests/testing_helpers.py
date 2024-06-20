@@ -153,6 +153,16 @@ def mock_backup_ext_info(
     wal_until_next_compression_ratio=0.0,
     children_timelines=[],
     copy_stats={},
+    root_backup_id=None,
+    chain_size=None,
+    est_dedup_size=None,
+    deduplication_ratio=None,
+    wal_rate=None,
+    backup_type=None,
+    copy_time=None,
+    analysis_time=None,
+    number_of_workers=None,
+    estimated_throughput=None,
     **kwargs
 ):
     # make a dictionary with all the arguments
