@@ -767,6 +767,26 @@ class LocalBackupInfo(BackupInfo):
             return "rsync"
         return "incremental" if self.is_incremental else "full"
 
+    @property
+    def deduplication_ratio(self):
+        """
+        Returns a value between and including 0 and 1 related to the estimate
+        deduplication ratio of the backup.
+
+        .. note::
+            For `rsync` backups, the `size` of the backup, which is the sum of
+            all file sizes in basebackup directory, is used to calculate the
+            ratio. For `postgres` backups, the `cluster_size` is used.
+
+        :return float: The backup deduplication ratio.
+        """
+        if self.mode != "postgres":
+            size = self.size
+        else:
+            size = self.cluster_size
+        if size and self.deduplicated_size:
+            return 1 - (self.deduplicated_size / size)
+
     def get_list_of_files(self, target):
         """
         Get the list of files for the current backup
