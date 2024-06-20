@@ -492,6 +492,12 @@ class RecoveryExecutor(object):
                         tzinfo=dateutil.tz.tzlocal()
                     )
 
+                    output.warning(
+                        "No time zone has been specified through '--target-time' "
+                        "command-line option. Barman assumed the same time zone from "
+                        "the Barman host.",
+                    )
+
                 # Check if the target time is reachable from the
                 # selected backup
                 if backup_info.end_time > target_datetime:
@@ -1048,7 +1054,19 @@ class RecoveryExecutor(object):
 
         # Writes recovery target
         if target_time:
-            recovery_conf_lines.append("recovery_target_time = '%s'" % target_time)
+            # 'target_time' is the value as it came from '--target-time' command-line
+            # option, which may be without a time zone. When writing the actual Postgres
+            # configuration we should use a value with an explicit time zone set, so we
+            # avoid hitting pitfalls. We use the 'target_datetime' which was prevously
+            # added to 'recovery_info'. It already handles the cases where the user
+            # specifies no time zone, and uses the Barman host time zone as a fallback.
+            # In short: if 'target_time' is present it means the user asked for a
+            # specific point in time, but we need a sanitized value to use in the
+            # Postgres configuration, so we use 'target_datetime'.
+            # See '_set_pitr_targets'.
+            recovery_conf_lines.append(
+                "recovery_target_time = '%s'" % recovery_info["target_datetime"],
+            )
         if target_xid:
             recovery_conf_lines.append("recovery_target_xid = '%s'" % target_xid)
         if target_lsn:
