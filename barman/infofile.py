@@ -793,8 +793,9 @@ class LocalBackupInfo(BackupInfo):
             size = self.size
         else:
             size = self.cluster_size
-        if size and self.deduplicated_size:
+        if size is not None and self.deduplicated_size is not None:
             return 1 - (self.deduplicated_size / size)
+        return 0
 
     def get_list_of_files(self, target):
         """
