@@ -1513,50 +1513,96 @@ class Server(RemoteStatusMixin):
         output.result("show_server", self.config.name, result)
 
     def delete_backup(self, backup):
-        """Deletes a backup
-
-        :param backup: the backup to delete
         """
+        Deletes a backup.
+
+        Performs some checks to confirm that the backup can indeed be deleted
+        and if so it is deleted along with all backups that depend on it, if any.
+
+        :param barman.infofile.LocalBackupInfo backup: the backup to delete
+        :return bool: True if deleted, False if could not delete the backup
+        """
+        if self.backup_manager.should_keep_backup(backup.backup_id):
+            output.warning(
+                "Skipping delete of backup %s for server %s "
+                "as it has a current keep request. If you really "
+                "want to delete this backup please remove the keep "
+                "and try again.",
+                backup.backup_id,
+                self.config.name,
+            )
+            return False
+
+        # Honour minimum required redundancy
+        available_backups = self.get_available_backups(status_filter=(BackupInfo.DONE,))
+        minimum_redundancy = self.config.minimum_redundancy
+        if backup.status == BackupInfo.DONE and minimum_redundancy >= len(
+            available_backups
+        ):
+            output.warning(
+                "Skipping delete of backup %s for server %s "
+                "due to minimum redundancy requirements "
+                "(minimum redundancy = %s, "
+                "current redundancy = %s)",
+                backup.backup_id,
+                self.config.name,
+                minimum_redundancy,
+                len(available_backups),
+            )
+            return False
+
+        if backup.children_backup_ids:
+            output.warning(
+                "Backup %s has incremental backups which depend on it. "
+                "Deleting all backups in the tree",
+                backup.backup_id,
+            )
+
         try:
-            # Lock acquisition: if you can acquire a ServerBackupLock
-            # it means that no other processes like a backup or another delete
-            # are running on that server for that backup id,
-            # so there is no need to check the backup status.
-            # Simply proceed with the normal delete process.
-            server_backup_lock = ServerBackupLock(
-                self.config.barman_lock_directory, self.config.name
-            )
-            server_backup_lock.acquire(
-                server_backup_lock.raise_if_fail, server_backup_lock.wait
-            )
-            server_backup_lock.release()
+            # Lock acquisition: if you can acquire a ServerBackupLock it means
+            # that no other processes like a backup or another delete is running
+            with ServerBackupLock(self.config.barman_lock_directory, self.config.name):
+                # Delete the backup along with all its descendants in the
+                # backup tree i.e. all its subsequent incremental backups.
+                # If it has no descendants or it is an rsync backup then
+                # only the current backup is deleted.
+                deleted = False
+                backups_to_delete = backup.walk_backups_tree()
+                for del_backup in backups_to_delete:
+                    deleted = self.perform_delete_backup(del_backup)
+                    if not deleted and del_backup.backup_id != backup.backup_id:
+                        output.error(
+                            "Failed to delete one of its incremental backups. Make sure "
+                            "all its dependent backups are deletable and try again."
+                        )
+                        break
+
+                return deleted
 
         except LockFileBusy:
-            # Otherwise if the lockfile is busy, a backup process is actually
-            # running on that server. To be sure that it's safe
-            # to delete the backup, we must check its status and its position
-            # in the catalogue.
-            # If it is the first and it is STARTED or EMPTY, we are trying to
-            # remove a running backup. This operation must be forbidden.
-            # Otherwise, normally delete the backup.
-            first_backup_id = self.get_first_backup_id(BackupInfo.STATUS_ALL)
-            if backup.backup_id == first_backup_id and backup.status in (
-                BackupInfo.STARTED,
-                BackupInfo.EMPTY,
-            ):
-                output.error(
-                    "Another action is in progress for the backup %s"
-                    " of server %s. Impossible to delete the backup."
-                    % (backup.backup_id, self.config.name)
-                )
-                return
+            # Otherwise if the lockfile is busy, a backup process is actually running
+            output.error(
+                "Another process in running on server %s. "
+                "Impossible to delete the backup." % self.config.name
+            )
+            return False
 
         except LockFilePermissionDenied as e:
             # We cannot access the lockfile.
             # Exit without removing the backup.
             output.error("Permission denied, unable to access '%s'" % e)
-            return
+            return False
 
+    def perform_delete_backup(self, backup):
+        """
+        Performs the deletion of a backup.
+
+        Deletes a single backup, ensuring that no other process can access
+        the backup simultaneously during its deletion.
+
+        :param barman.infofile.LocalBackupInfo backup: the backup to delete
+        :return bool: True if deleted, False if could not delete the backup
+        """
         try:
             # Take care of the backup lock.
             # Only one process can modify a backup at a time
@@ -1582,13 +1628,13 @@ class Server(RemoteStatusMixin):
                 "Another process is holding the lock for "
                 "backup %s of server %s." % (backup.backup_id, self.config.name)
             )
-            return
+            return False
 
         except LockFilePermissionDenied as e:
             # We cannot access the lockfile.
             # warn the user and terminate
             output.error("Permission denied, unable to access '%s'" % e)
-            return
+            return False
 
     def backup(self, wait=False, wait_timeout=None, backup_name=None, **kwargs):
         """
