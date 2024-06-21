@@ -740,9 +740,7 @@ class ConsoleOutputWriter(object):
         """
         output_fun(header_row.format("Server information"))
         output_fun(nested_row.format("Checksums", backup_info["data_checksums"]))
-        if backup_info["summarize_wal"] is None:
-            output_fun(nested_row.format("WAL summarizer", "not supported"))
-        else:
+        if backup_info["summarize_wal"] is not None:
             output_fun(
                 nested_row.format("WAL summarizer", backup_info["summarize_wal"])
             )
@@ -821,29 +819,9 @@ class ConsoleOutputWriter(object):
         output_fun(header_row.format("Base backup information"))
         if backup_info["mode"] is not None:
             output_fun(nested_row.format("Backup Method", backup_info["mode"]))
-        # Information only for postgres backups
+
         if backup_info["mode"] == "postgres" and "backup_type" in backup_info:
             output_fun(nested_row.format("Backup Type", backup_info["backup_type"]))
-            if backup_info["backup_type"] == "incremental":
-                output_fun(
-                    nested_row.format("Root Backup Id", backup_info["root_backup_id"])
-                )
-                output_fun(
-                    nested_row.format(
-                        "Parent Backup Id", backup_info["parent_backup_id"]
-                    )
-                )
-                output_fun(
-                    nested_row.format("Backup chain size", backup_info["chain_size"])
-                )
-            if backup_info["children_backup_ids"] is not None:
-                output_fun(
-                    nested_row.format(
-                        "Children Backup Id(s)",
-                        backup_info["children_backup_ids"],
-                    )
-                )
-
         # The backup_info["deduplicated_size"] is the size of the backup. For
         # rsync backups, the first one has
         # backup_info["deduplicated_size"] == backup_info["size"]
@@ -853,6 +831,7 @@ class ConsoleOutputWriter(object):
         # backup_info["deduplicated_size"] == backup_info["size"]. This is the
         # reason cluster_size is also used to estimate resource savings for
         # postgres backups.
+        backup_size = None
         if "deduplicated_size" in backup_info:
             backup_size = backup_info["deduplicated_size"]
             if backup_size is not None:
@@ -867,18 +846,18 @@ class ConsoleOutputWriter(object):
                             "WAL Size", pretty_size(backup_info["wal_size"])
                         )
                     )
-            if "est_dedup_size" in backup_info and "deduplication_ratio" in backup_info:
-                dedupe_output = "{} ({})".format(
-                    pretty_size(backup_info["est_dedup_size"]),
-                    "{percent:.2%}".format(percent=backup_info["deduplication_ratio"]),
-                )
         # Only show Resource saving for Postgres incremental backups and
         # rsync backups
-        if "backup_type" in backup_info and backup_info["backup_type"] in (
-            "rsync",
-            "incremental",
-        ):
-            output_fun(nested_row.format("Resource savings", dedupe_output))
+        if "est_dedup_size" in backup_info and "deduplication_ratio" in backup_info:
+            dedupe_output = "{} ({})".format(
+                pretty_size(backup_info["est_dedup_size"]),
+                "{percent:.2%}".format(percent=backup_info["deduplication_ratio"]),
+            )
+            if "backup_type" in backup_info and backup_info["backup_type"] in (
+                "rsync",
+                "incremental",
+            ):
+                output_fun(nested_row.format("Resource savings", dedupe_output))
 
         output_fun(nested_row.format("Timeline", backup_info["timeline"]))
         output_fun(nested_row.format("Begin WAL", backup_info["begin_wal"]))
@@ -911,7 +890,6 @@ class ConsoleOutputWriter(object):
             value = human_readable_timedelta(
                 datetime.timedelta(seconds=backup_info["copy_time"])
             )
-            # Show analysis time if it is more than a second
             if "analysis_time" in backup_info and backup_info["analysis_time"]:
                 value += " + {} startup".format(
                     human_readable_timedelta(
@@ -1041,6 +1019,25 @@ class ConsoleOutputWriter(object):
                 "WARNING: WAL information is inaccurate due to "
                 "multiple timelines interacting with this backup"
             )
+
+        # Information only for postgres backups
+        if "backup_type" in backup_info and backup_info["backup_type"] == "incremental":
+            output_fun("")
+            output_fun(nested_row.format("Root Backup", backup_info["root_backup_id"]))
+            output_fun(
+                nested_row.format("Parent Backup", backup_info["parent_backup_id"])
+            )
+            output_fun(
+                nested_row.format("Backup chain size", backup_info["chain_size"])
+            )
+        if "mode" in backup_info and backup_info["mode"] == "postgres":
+            if backup_info["children_backup_ids"] is not None:
+                output_fun(
+                    nested_row.format(
+                        "Children Backup(s)",
+                        ",".join(backup_info["children_backup_ids"]),
+                    )
+                )
 
     @staticmethod
     def render_show_backup(backup_info, output_fun):
@@ -1584,7 +1581,8 @@ class JsonOutputWriter(ConsoleOutputWriter):
         Output all available information about a backup in show-backup command
         in json format.
 
-        The argument has to be the result of a Server.get_backup_ext_info() call
+        The argument has to be the result of a
+        :meth:`barman.server.Server.get_backup_ext_info` call
 
         :param dict backup_ext_info: a dictionary containing
             the info to display
@@ -1602,9 +1600,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
         # Server information
         output["server_information"] = dict(
             data_checksums=data["data_checksums"],
-            summarize_wal=(
-                data["summarize_wal"] if data["summarize_wal"] else "not supported"
-            ),
+            summarize_wal=(data["summarize_wal"]),
         )
         if "backup_name" in data and data["backup_name"]:
             output.update({"backup_name": data["backup_name"]})
@@ -1656,17 +1652,24 @@ class JsonOutputWriter(ConsoleOutputWriter):
                 end_lsn=data["end_xlog"],
             )
             # Json second layer info
-            # Base Backup information - only for postgres backups
-            if data["backup_type"] != "rsync":
+            # Base Backup information - only for incremental backups
+            if data["backup_type"] == "incremental":
                 output["base_backup_information"].update(
                     dict(
                         root_backup_id=data["root_backup_id"],
                         parent_backup_id=data["parent_backup_id"],
                         chain_size=data["chain_size"],
-                        children_backup_ids=data["children_backup_ids"],
                     )
                 )
             # Json second layer info
+            # Base Backup information - only for postgres backups
+            if data["mode"] == "postgres":
+                output["base_backup_information"].update(
+                    dict(
+                        children_backup_ids=data["children_backup_ids"],
+                    )
+                )
+
             if data["wal_compression_ratio"] > 0:
                 # Json second layer info
                 # Base Backup information
