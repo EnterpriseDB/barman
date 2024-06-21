@@ -459,33 +459,6 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
           backups.
         :return bool: True if deleted, False if could not delete the backup
         """
-        if self.should_keep_backup(backup.backup_id):
-            output.warning(
-                "Skipping delete of backup %s for server %s "
-                "as it has a current keep request. If you really "
-                "want to delete this backup please remove the keep "
-                "and try again.",
-                backup.backup_id,
-                self.config.name,
-            )
-            return False
-        available_backups = self.get_available_backups(status_filter=(BackupInfo.DONE,))
-        minimum_redundancy = self.server.config.minimum_redundancy
-        # Honour minimum required redundancy
-        if backup.status == BackupInfo.DONE and minimum_redundancy >= len(
-            available_backups
-        ):
-            output.warning(
-                "Skipping delete of backup %s for server %s "
-                "due to minimum redundancy requirements "
-                "(minimum redundancy = %s, "
-                "current redundancy = %s)",
-                backup.backup_id,
-                self.config.name,
-                minimum_redundancy,
-                len(available_backups),
-            )
-            return False
         # Keep track of when the delete operation started.
         delete_start_time = datetime.datetime.now()
 
@@ -576,6 +549,14 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             delete_start_time.ctime(),
             human_readable_timedelta(delete_end_time - delete_start_time),
         )
+
+        # remove its reference from its parent if it is an incremental backup
+        parent_backup = backup.get_parent_backup_info()
+        if parent_backup:
+            parent_backup.children_backup_ids.remove(backup.backup_id)
+            if not parent_backup.children_backup_ids:
+                parent_backup.children_backup_ids = None
+            parent_backup.save()
 
         # Remove the sync lockfile if exists
         sync_lock = ServerBackupSyncLock(
