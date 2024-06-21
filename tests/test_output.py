@@ -1375,15 +1375,15 @@ class TestConsoleWriter(object):
             # Output for 'full' and 'incremental' backup type
             full = [
                 ("Backup Type", ext_info["backup_type"]),
-                ("Children Backup Id(s)", ext_info["children_backup_ids"]),
+                ("Children Backup(s)", ",".join(ext_info["children_backup_ids"])),
             ]
             for n_row in full:
                 assert TestConsoleWriter.nested_row.format(n_row[0], n_row[1]) in out
 
             # Output only for 'incremental' backup type
             incremental = [
-                ("Root Backup Id", ext_info["root_backup_id"]),
-                ("Parent Backup Id", ext_info["parent_backup_id"]),
+                ("Root Backup", ext_info["root_backup_id"]),
+                ("Parent Backup", ext_info["parent_backup_id"]),
                 ("Backup chain size", ext_info["chain_size"]),
             ]
             if ext_info["backup_type"] == "incremental":
@@ -2213,12 +2213,14 @@ class TestJsonWriter(object):
 
         assert ext_info["mode"] == base_information["backup_method"]
         assert ext_info["backup_type"] == base_information["backup_type"]
-        assert ext_info["root_backup_id"] == base_information["root_backup_id"]
-        assert ext_info["parent_backup_id"] == base_information["parent_backup_id"]
-        assert ext_info["chain_size"] == base_information["chain_size"]
-        assert (
-            ext_info["children_backup_ids"] == base_information["children_backup_ids"]
-        )
+        if ext_info["backup_type"] == "incremental":
+            assert ext_info["root_backup_id"] == base_information["root_backup_id"]
+            assert ext_info["parent_backup_id"] == base_information["parent_backup_id"]
+            assert ext_info["chain_size"] == base_information["chain_size"]
+        if ext_info["mode"] == "postgres": 
+            assert (
+                ext_info["children_backup_ids"] == base_information["children_backup_ids"]
+            )
 
         assert (
             pretty_size(ext_info["deduplicated_size"])
