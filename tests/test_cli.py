@@ -1347,6 +1347,7 @@ class TestKeepCli(object):
         """Verify barman keep command calls keep_backup"""
         mock_args.target = "standalone"
         mock_parse_backup_id.return_value.backup_id = "test_backup_id"
+        mock_parse_backup_id.return_value.parent_backup_id = None
         mock_parse_backup_id.return_value.status = BackupInfo.DONE
         keep(mock_args)
         mock_get_server.return_value.backup_manager.keep_backup.assert_called_once_with(
@@ -1363,6 +1364,7 @@ class TestKeepCli(object):
         are provided.
         """
         mock_parse_backup_id.return_value.backup_id = "test_backup_id"
+        mock_parse_backup_id.return_value.parent_backup_id = None
         mock_parse_backup_id.return_value.status = BackupInfo.DONE
         with pytest.raises(SystemExit):
             keep(mock_args)
@@ -1384,6 +1386,7 @@ class TestKeepCli(object):
         """Verify barman keep command will not add keep if backup is not done"""
         mock_args.target = "standalone"
         mock_parse_backup_id.return_value.backup_id = "test_backup_id"
+        mock_parse_backup_id.return_value.parent_backup_id = None
         mock_parse_backup_id.return_value.status = BackupInfo.WAITING_FOR_WALS
         with pytest.raises(SystemExit):
             keep(mock_args)
@@ -1401,6 +1404,7 @@ class TestKeepCli(object):
     ):
         """Verify `barman keep --release` command calls release_keep"""
         mock_parse_backup_id.return_value.backup_id = "test_backup_id"
+        mock_parse_backup_id.return_value.parent_backup_id = None
         mock_args.release = True
         keep(mock_args)
         mock_get_server.return_value.backup_manager.release_keep.assert_called_once_with(
@@ -1419,6 +1423,7 @@ class TestKeepCli(object):
     ):
         """Verify `barman keep --status` command prints get_keep_target output"""
         mock_parse_backup_id.return_value.backup_id = "test_backup_id"
+        mock_parse_backup_id.return_value.parent_backup_id = None
         mock_get_server.return_value.backup_manager.get_keep_target.return_value = (
             "standalone"
         )
@@ -1442,6 +1447,7 @@ class TestKeepCli(object):
     ):
         """Verify `barman keep --status` command prints get_keep_target output"""
         mock_parse_backup_id.return_value.backup_id = "test_backup_id"
+        mock_parse_backup_id.return_value.parent_backup_id = None
         mock_get_server.return_value.backup_manager.get_keep_target.return_value = None
         mock_args.status = True
         keep(mock_args)
@@ -1450,6 +1456,41 @@ class TestKeepCli(object):
         )
         out, _err = capsys.readouterr()
         assert "nokeep" in out
+
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_barman_keep_incremental_backup(
+        self, mock_get_server, mock_parse_backup_id, mock_args, capsys
+    ):
+        """Verify barman keep command will not add keep if backup is incremental"""
+        mock_args.target = "standalone"
+        mock_parse_backup_id.return_value.backup_id = "test_backup_id"
+        mock_parse_backup_id.return_value.parent_backup_id = "parent_backup_id"
+        mock_parse_backup_id.return_value.status = BackupInfo.DONE
+
+        with pytest.raises(SystemExit):
+            keep(mock_args)
+        _out, err = capsys.readouterr()
+        assert (
+            "Unable to execute the keep command on backup test_backup_id: is an incremental backup.\n"
+            "Only full backups are eligible for the use of the keep command."
+        ) in err
+        mock_get_server.return_value.backup_manager.keep_backup.assert_not_called()
+
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_barman_keep_full_backup(
+        self, mock_get_server, mock_parse_backup_id, mock_args
+    ):
+        """Verify barman keep command will add keep if backup is not incremental"""
+        mock_parse_backup_id.return_value.backup_id = "test_backup_id"
+        mock_parse_backup_id.return_value.parent_backup_id = None
+        mock_parse_backup_id.return_value.status = BackupInfo.DONE
+        mock_args.release = True
+        keep(mock_args)
+        mock_get_server.return_value.backup_manager.release_keep.assert_called_once_with(
+            "test_backup_id"
+        )
 
 
 class TestCliHelp(object):
