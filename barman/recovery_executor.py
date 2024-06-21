@@ -260,6 +260,7 @@ class RecoveryExecutor(object):
                         None,
                         None,
                         target_lsn,
+                        target_immediate,
                     )
                 )
 
