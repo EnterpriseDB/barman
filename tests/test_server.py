@@ -289,6 +289,7 @@ class TestServer(object):
             "target_time",
             "target_xid",
             "target_lsn",
+            "target_immediate",
             "expected_indices",
         ],
         [
@@ -310,6 +311,8 @@ class TestServer(object):
                 None,
                 # AND no target_lsn
                 None,
+                # AND target_immediate is False
+                False,
                 # WHEN get_required_xlog_files runs for a backup on tli 2
                 # the WAL on tli 2 is returned along with all history files
                 [1, 2, 3, 5],
@@ -333,6 +336,8 @@ class TestServer(object):
                 None,
                 # AND no target_lsn
                 None,
+                # AND target_immediate is False
+                False,
                 # WHEN get_required_xlog_files runs for a backup on tli 2
                 # all WALs on tli 2 are returned along with all history files
                 [1, 2, 3, 4, 6],
@@ -357,6 +362,8 @@ class TestServer(object):
                 None,
                 # AND no target_lsn
                 None,
+                # AND target_immediate is False
+                False,
                 # WHEN get_required_xlog_files runs for a backup on tli 2
                 # all WALs on tli 2 are returned along with all history files.
                 # All WALs on tli 2 are returned because there is no reliable
@@ -385,6 +392,8 @@ class TestServer(object):
                 None,
                 # AND no target_lsn
                 None,
+                # AND target_immediate is False
+                False,
                 # WHEN get_required_xlog_files runs for a backup on tli 2
                 # all WALs on timelines 2 and 10 are returned along with all history
                 # files.
@@ -412,6 +421,8 @@ class TestServer(object):
                 "100",
                 # AND no target_lsn
                 None,
+                # AND target_immediate is False
+                False,
                 # WHEN get_required_xlog_files runs for a backup on tli 2
                 # all WALs on tli 2 are returned along with all history files.
                 # All WALs on tli 2 are returned because there is no reliable
@@ -442,10 +453,41 @@ class TestServer(object):
                 None,
                 # AND a target_lsn of '0/07000000'
                 "0/07000000",
+                # AND target_immediate is False
+                False,
                 # WHEN get_required_xlog_files runs for a backup on tli 2
                 # all WALs on tli 2 up to the requested LSN are returned along
                 # with all history files.
                 [1, 2, 3, 4, 7, 9],
+            ),
+            (
+                # GIVEN The following WALs
+                [
+                    create_fake_info_file("000000010000000000000002", 42, 43),
+                    create_fake_info_file("00000001.history", 42, 43),
+                    create_fake_info_file("000000020000000000000003", 42, 44),
+                    create_fake_info_file("000000020000000000000005", 42, 45),
+                    create_fake_info_file("000000020000000000000007", 42, 45),
+                    create_fake_info_file("000000020000000000000009", 42, 45),
+                    create_fake_info_file("000000020000000000000010", 42, 46),
+                    create_fake_info_file("00000002.history", 42, 44),
+                    create_fake_info_file("0000000A0000000000000005", 42, 47),
+                    create_fake_info_file("0000000A.history", 42, 47),
+                ],
+                # AND target_tli values None, 2 and current
+                (None, 2, "current"),
+                # AND no target_time
+                None,
+                # AND no target_xid
+                None,
+                # AND no target_lsn
+                None,
+                # AND target_immediate is True
+                True,
+                # WHEN get_required_xlog_files runs for a backup on tli 2
+                # all WALs on tli 2 up to the end_xlog from the backup are
+                # returned along with all history files.
+                [1, 2, 7, 9],
             ),
         ],
     )
@@ -456,6 +498,7 @@ class TestServer(object):
         target_time,
         target_xid,
         target_lsn,
+        target_immediate,
         expected_indices,
         tmpdir,
     ):
@@ -508,6 +551,7 @@ class TestServer(object):
                 target_time,
                 target_xid,
                 target_lsn,
+                target_immediate=target_immediate,
             ):
                 # get the result of the xlogdb read
                 wals.append(wal_file.name)
