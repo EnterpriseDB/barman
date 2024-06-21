@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import copy
 import json
 import os
 import warnings
@@ -1025,6 +1026,115 @@ class TestLocalBackupInfo:
                 backup_info.server,
                 backup_id="SOME_CHILD_ID_1",
             )
+
+    def test_walk_to_root(self, backup_info):
+        """
+        Unit test for :meth:`LocalBackupInfo.walk_to_root` method.
+
+        This test checks if the method correctly walks through all the parent backups
+        of the current backup and returns a generator of :class:`LocalBackupInfo`
+        objects for each parent backup.
+        """
+        # Create a LocalBackupInfo used as a model for the parent backups
+        # inside the side_effect function `provide_parent_backup_info`
+        model_backup_info = LocalBackupInfo(
+            backup_info.server, backup_id="model_backup"
+        )
+
+        def provide_parent_backup_info(server, backup_id):
+            """
+            Helper function to provide a :class:`LocalBackupInfo` object for a given
+            backup ID.
+            """
+            next_backup_id = int(backup_id[-1]) + 1
+            parent_backup_info = copy.copy(model_backup_info)
+            parent_backup_info.backup_id = backup_id
+            parent_backup_info.status = BackupInfo.DONE
+            if next_backup_id < 4:
+                parent_backup_info.parent_backup_id = (
+                    "parent_backup_id%s" % next_backup_id
+                )
+            else:
+                parent_backup_info.parent_backup_id = None
+            return parent_backup_info
+
+        # Create parent backup info objects
+        backup_info.parent_backup_id = "parent_backup_id1"
+        with mock.patch(
+            "barman.infofile.LocalBackupInfo",
+            side_effect=provide_parent_backup_info,
+        ):
+            # Call the walk_to_root method
+            result = list(backup_info.walk_to_root())
+
+            # Check if the method correctly walks through all the parent backups
+            # in the correct order
+            assert len(result) == 3
+            assert result[0].backup_id == "parent_backup_id1"
+            assert result[1].backup_id == "parent_backup_id2"
+            assert result[2].backup_id == "parent_backup_id3"
+
+    def test_walk_backups_tree(self):
+        """
+        Unit test for the :meth:`LocalBackupInfo.walk_backups_tree` method.
+        """
+        # Create a mock server
+        server = build_mocked_server()
+        # Create a LocalBackupInfo used as a model for the parent backups
+        # inside the side_effect function `provide_parent_backup_info`
+        model_backup_info = LocalBackupInfo(server, backup_id="model_backup")
+
+        def provide_child_backup_info(server, backup_id):
+            """
+            Helper function to provide a :class:`LocalBackupInfo` object for a given
+            backup ID of a child backup.
+            """
+            if backup_id == "child_backup1":
+                child1_backup_info = copy.copy(model_backup_info)
+                child1_backup_info.backup_id = "child_backup1"
+                child1_backup_info.status = BackupInfo.DONE
+                child1_backup_info.parent_backup_id = "root_backup"
+                child1_backup_info.children_backup_ids = ["child_backup3"]
+                return child1_backup_info
+            if backup_id == "child_backup2":
+                child2_backup_info = copy.copy(model_backup_info)
+                child2_backup_info.backup_id = "child_backup2"
+                child2_backup_info.status = BackupInfo.DONE
+                child2_backup_info.parent_backup_id = "root_backup"
+                return child2_backup_info
+            if backup_id == "child_backup3":
+                child3_backup_info = copy.copy(model_backup_info)
+                child3_backup_info.backup_id = "child_backup3"
+                child3_backup_info.status = BackupInfo.DONE
+                child3_backup_info.parent_backup_id = "child_backup1"
+                child3_backup_info.children_backup_ids = []
+                return child3_backup_info
+
+        # Create a root backup info object
+        # the final structure of the backups tree is:
+        #          root_backup
+        #          /         \
+        #   child_backup1 child_backup2
+        #       /
+        # child_backup3
+        root_backup_info = LocalBackupInfo(server, backup_id="root_backup")
+        root_backup_info.status = BackupInfo.DONE
+        root_backup_info.children_backup_ids = ["child_backup1", "child_backup2"]
+
+        # Mock the `LocalBackupInfo` constructor to return the corresponding backup info objects
+        with patch(
+            "barman.infofile.LocalBackupInfo",
+            side_effect=provide_child_backup_info,
+        ):
+            # Call the `walk_backups_tree` method on the root backup info
+            backups = list(root_backup_info.walk_backups_tree())
+            # Assert that the backups are returned in the correct order
+            # We want to walk through the tree in a depth-first post order,
+            # so leaf nodes are visited first, then their parent, and so on.
+            assert backups[0].backup_id == "child_backup3"
+            assert backups[1].backup_id == "child_backup1"
+            assert backups[2].backup_id == "child_backup2"
+            assert backups[3].backup_id == "root_backup"
 
     def test_true_is_full_and_eligible_for_incremental(self):
         """
