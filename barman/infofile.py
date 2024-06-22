@@ -791,8 +791,8 @@ class LocalBackupInfo(BackupInfo):
         """
         size = self.cluster_size or 0
         if self.backup_type != "full":
-            size = self.size
-        if size > 0 and self.deduplicated_size is not None:
+            size = self.size or 0
+        if size and self.deduplicated_size:
             return 1 - (self.deduplicated_size / size)
         return 0
 

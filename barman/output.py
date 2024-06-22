@@ -723,11 +723,13 @@ class ConsoleOutputWriter(object):
         if backup_info["status"] in BackupInfo.STATUS_COPY_DONE:
             output_fun(row.format("PostgreSQL Version", backup_info["version"]))
             output_fun(row.format("PGDATA directory", backup_info["pgdata"]))
-            output_fun(
-                row.format(
-                    "Estimated Cluster Size", pretty_size(backup_info["cluster_size"])
+            cluster_size = backup_info.get("cluster_size")
+            if cluster_size:
+                output_fun(
+                    row.format(
+                        "Estimated Cluster Size", pretty_size(cluster_size)
+                    )
                 )
-            )
         output_fun("")
 
     @staticmethod
@@ -852,7 +854,7 @@ class ConsoleOutputWriter(object):
             output_fun(nested_row.format("WAL Size", pretty_size(wal_size)))
         # Only show Resource saving for Postgres incremental backups and
         # rsync backups
-        if backup_type != "full":
+        if "est_dedup_size" in backup_info and backup_type != "full":
             dedupe_output = "{} ({})".format(
                 pretty_size(backup_info["est_dedup_size"]),
                 "{percent:.2%}".format(percent=backup_info["deduplication_ratio"]),

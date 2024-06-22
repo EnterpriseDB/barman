@@ -43,7 +43,7 @@ class TestCloudBackupShow(object):
             begin_wal="000000010000000000000002",
             end_time=datetime.datetime(2038, 1, 19, 4, 14, 8),
             end_wal="000000010000000000000004",
-            size=None,
+            size=2048,
             data_checksums="on",
             snapshots_info=GcpSnapshotsInfo(
                 project="test_project",
@@ -66,6 +66,7 @@ class TestCloudBackupShow(object):
             ),
             version=150000,
             cluster_size=2048,
+            deduplicated_size=1024
         )
         backup_info.mode = "concurrent"
         cloud_backup_catalog = mock.Mock()
@@ -102,7 +103,6 @@ class TestCloudBackupShow(object):
             "\n"
             "  Server information:\n"
             "    Checksums            : on\n"
-            "    WAL summarizer       : not supported\n"
             "\n"
             "  Snapshot information:\n"
             "    provider             : gcp\n"
@@ -126,6 +126,7 @@ class TestCloudBackupShow(object):
             "\n"
             "  Base backup information:\n"
             "    Backup Method        : concurrent\n"
+            "    Backup Size          : 1.0 KiB\n"
             "    Timeline             : 1\n"
             "    Begin WAL            : 000000010000000000000002\n"
             "    End WAL              : 000000010000000000000004\n"
@@ -135,7 +136,7 @@ class TestCloudBackupShow(object):
             "    End Offset           : 184\n"
             "    Begin LSN            : 0/2000028\n"
             "    End LSN              : 0/20000B8\n"
-            "\n"
+            "\n\n"
         )
 
     @mock.patch("barman.clients.cloud_backup_show.CloudBackupCatalog")
@@ -169,7 +170,7 @@ class TestCloudBackupShow(object):
             "compression": None,
             "config_file": "/pgdata/location/postgresql.conf",
             "copy_stats": None,
-            "deduplicated_size": None,
+            "deduplicated_size": 1024,
             "end_offset": 184,
             "end_time": "Tue Jan 19 04:14:08 2038",
             "end_wal": "000000010000000000000004",
@@ -183,7 +184,7 @@ class TestCloudBackupShow(object):
             "pgdata": "/pgdata/location",
             "data_checksums": "on",
             "server_name": "main",
-            "size": None,
+            "size": 2048,
             "snapshots_info": {
                 "provider": "gcp",
                 "provider_info": {

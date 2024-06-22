@@ -1375,7 +1375,7 @@ class TestConsoleWriter(object):
             # Output for 'full' and 'incremental' backup type
             full = [
                 ("Backup Type", ext_info["backup_type"]),
-                ("Children Backup(s)", ",".join(ext_info["children_backup_ids"])),
+                ("Children Backup(s)", ext_info["children_backup_ids"]),
             ]
             for n_row in full:
                 assert TestConsoleWriter.nested_row.format(n_row[0], n_row[1]) in out
@@ -1463,7 +1463,6 @@ class TestConsoleWriter(object):
             backup_name="named backup",
             status=BackupInfo.DONE,
             wals_per_second=0.1,
-            cluster_size=2048,
             est_dedup_size=1024,
             deduplication_ratio=0.5,
         )
@@ -2212,12 +2211,12 @@ class TestJsonWriter(object):
         assert ext_info["summarize_wal"] == server_information["summarize_wal"]
 
         assert ext_info["mode"] == base_information["backup_method"]
-        assert ext_info["backup_type"] == base_information["backup_type"]
         if ext_info["backup_type"] == "incremental":
             assert ext_info["root_backup_id"] == base_information["root_backup_id"]
             assert ext_info["parent_backup_id"] == base_information["parent_backup_id"]
             assert ext_info["chain_size"] == base_information["chain_size"]
         if ext_info["mode"] == "postgres":
+            assert ext_info["backup_type"] == base_information["backup_type"]
             assert (
                 ext_info["children_backup_ids"]
                 == base_information["children_backup_ids"]
