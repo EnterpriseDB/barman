@@ -789,11 +789,10 @@ class LocalBackupInfo(BackupInfo):
 
         :return float: The backup deduplication ratio.
         """
-        if self.mode != "postgres":
+        size = self.cluster_size or 0
+        if self.backup_type != "full":
             size = self.size
-        else:
-            size = self.cluster_size
-        if size is not None and self.deduplicated_size is not None:
+        if size > 0 and self.deduplicated_size is not None:
             return 1 - (self.deduplicated_size / size)
         return 0
 

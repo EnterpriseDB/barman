@@ -3077,42 +3077,36 @@ class Server(RemoteStatusMixin):
 
             backup_ext_info["children_timelines"] = children_timelines
 
-            # If copy statistics are available, get summary
-            copy_stats = backup_info.copy_stats
+            # If copy statistics are available, copy_stats added info
+            copy_stats = backup_ext_info.get("copy_stats")
             if copy_stats:
+                analysis_time = copy_stats.get("analysis_time", 0)
+                if analysis_time >= 1:
+                    backup_ext_info["analysis_time"] = analysis_time
                 copy_time = copy_stats.get("copy_time", 0)
-                if copy_time:
+                if copy_time > 0:
                     backup_ext_info["copy_time"] = copy_time
-                    # Get analysis time if it is more than a second
-                    analysis_time = copy_stats.get("analysis_time", 0)
-                    if analysis_time is not None and analysis_time >= 1:
-                        backup_ext_info["analysis_time"] = analysis_time
-
-                    if backup_info.deduplicated_size is not None:
-                        estimated_throughput = backup_info.deduplicated_size / copy_time
+                    dedup_size = backup_ext_info.get("deduplicated_size", 0)
+                    if dedup_size > 0:
+                        estimated_throughput = dedup_size / copy_time
                         backup_ext_info["estimated_throughput"] = estimated_throughput
                         number_of_workers = copy_stats.get("number_of_workers", 1)
                         if number_of_workers > 1:
                             backup_ext_info["number_of_workers"] = number_of_workers
 
-            # Info needed after incremental backups was released in Postgres 17
-            backup_ext_info["parent_backup_id"] = backup_info.parent_backup_id
-            backup_ext_info["children_backup_ids"] = backup_info.children_backup_ids
-            backup_ext_info["cluster_size"] = backup_info.cluster_size
-            backup_ext_info["mode"] = backup_info.mode
-
             backup_chain = [backup for backup in backup_info.walk_to_root()]
-
             chain_size = len(backup_chain)
             # last is root
             root_backup_info = backup_chain[-1]
+            # "incremental" added info
             backup_ext_info["root_backup_id"] = root_backup_info.backup_id
             backup_ext_info["chain_size"] = chain_size
+            # "rsync" and "incremental added info"
+            backup_ext_info["backup_type"] = backup_info.backup_type
             backup_ext_info["deduplication_ratio"] = backup_info.deduplication_ratio
             backup_ext_info["est_dedup_size"] = (
-                backup_info.cluster_size * backup_info.deduplication_ratio
+                backup_ext_info["cluster_size"] * backup_ext_info["deduplication_ratio"]
             )
-            backup_ext_info["backup_type"] = backup_info.backup_type
         return backup_ext_info
 
     def show_backup(self, backup_info):
