@@ -287,6 +287,7 @@ class TestServer(object):
             "wal_info_files",
             "target_tlis",
             "target_time",
+            "target_xid",
             "target_lsn",
             "expected_indices",
         ],
@@ -304,6 +305,8 @@ class TestServer(object):
                 # AND target_tli values None, 2 and current
                 (None, 2, "current"),
                 # AND no target_time
+                None,
+                # AND no target_xid
                 None,
                 # AND no target_lsn
                 None,
@@ -325,6 +328,8 @@ class TestServer(object):
                 # AND target_tli values None, 2 and current
                 (None, 2, "current"),
                 # AND no target_time
+                None,
+                # AND no target_xid
                 None,
                 # AND no target_lsn
                 None,
@@ -348,6 +353,8 @@ class TestServer(object):
                 (None, 2, "current"),
                 # AND a target_time of 44
                 44,
+                # AND no target_xid
+                None,
                 # AND no target_lsn
                 None,
                 # WHEN get_required_xlog_files runs for a backup on tli 2
@@ -374,6 +381,8 @@ class TestServer(object):
                 (10, "latest"),
                 # AND no target_time
                 None,
+                # AND no target_xid
+                None,
                 # AND no target_lsn
                 None,
                 # WHEN get_required_xlog_files runs for a backup on tli 2
@@ -399,6 +408,38 @@ class TestServer(object):
                 (None, 2, "current"),
                 # AND no target_time
                 None,
+                # AND target_xid of 100
+                "100",
+                # AND no target_lsn
+                None,
+                # WHEN get_required_xlog_files runs for a backup on tli 2
+                # all WALs on tli 2 are returned along with all history files.
+                # All WALs on tli 2 are returned because there is no reliable
+                # way of determining the required WAL files based on target_xid
+                # other than inspecting pg_waldump, which would put a lot of
+                # overhead
+                [1, 2, 3, 4, 5, 6, 7, 9],
+            ),
+            (
+                # GIVEN The following WALs
+                [
+                    create_fake_info_file("000000010000000000000002", 42, 43),
+                    create_fake_info_file("00000001.history", 42, 43),
+                    create_fake_info_file("000000020000000000000003", 42, 44),
+                    create_fake_info_file("000000020000000000000005", 42, 45),
+                    create_fake_info_file("000000020000000000000007", 42, 45),
+                    create_fake_info_file("000000020000000000000009", 42, 45),
+                    create_fake_info_file("000000020000000000000010", 42, 46),
+                    create_fake_info_file("00000002.history", 42, 44),
+                    create_fake_info_file("0000000A0000000000000005", 42, 47),
+                    create_fake_info_file("0000000A.history", 42, 47),
+                ],
+                # AND target_tli values None, 2 and current
+                (None, 2, "current"),
+                # AND no target_time
+                None,
+                # AND no target_xid
+                None,
                 # AND a target_lsn of '0/07000000'
                 "0/07000000",
                 # WHEN get_required_xlog_files runs for a backup on tli 2
@@ -413,6 +454,7 @@ class TestServer(object):
         wal_info_files,
         target_tlis,
         target_time,
+        target_xid,
         target_lsn,
         expected_indices,
         tmpdir,
@@ -464,7 +506,7 @@ class TestServer(object):
                 backup,
                 target_tli,
                 target_time,
-                None,
+                target_xid,
                 target_lsn,
             ):
                 # get the result of the xlogdb read
