@@ -30,7 +30,6 @@ import re
 import shutil
 import socket
 import tempfile
-import time
 from io import BytesIO
 
 import dateutil.parser
@@ -254,7 +253,8 @@ class RecoveryExecutor(object):
                 # Retrieve a list of required log files
                 required_xlog_files = tuple(
                     self.server.get_required_xlog_files(
-                        backup_info, target_tli, recovery_info["target_epoch"]
+                        backup_info,
+                        target_tli,
                     )
                 )
 
@@ -448,7 +448,6 @@ class RecoveryExecutor(object):
             is reached
         :param str|None target_action: recovery target action for PITR
         """
-        target_epoch = None
         target_datetime = None
 
         # Calculate the integer value of TLI if a keyword is provided
@@ -507,8 +506,6 @@ class RecoveryExecutor(object):
                         % (target_datetime, backup_info.end_time)
                     )
 
-                ms = target_datetime.microsecond / 1000000.0
-                target_epoch = time.mktime(target_datetime.timetuple()) + ms
                 targets["time"] = str(target_datetime)
             if target_xid:
                 targets["xid"] = str(target_xid)
@@ -578,7 +575,6 @@ class RecoveryExecutor(object):
                     "Can't enable recovery target action when PITR is not required"
                 )
 
-        recovery_info["target_epoch"] = target_epoch
         recovery_info["target_datetime"] = target_datetime
 
     def _retrieve_safe_horizon(self, recovery_info, backup_info, dest):

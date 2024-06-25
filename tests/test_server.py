@@ -339,10 +339,12 @@ class TestServer(object):
                 # AND a target_time of 44
                 44,
                 # WHEN get_required_xlog_files runs for a backup on tli 2
-                # the first two WALs on tli 2 are returned along with all history
-                # files. The WAL on tli 2 which starts after the target_time is
-                # not returned.
-                [1, 2, 3, 5, 7],
+                # all WALs on tli 2 are returned along with all history files.
+                # All WALs on tli 2 are returned because there is no reliable
+                # way of determining the required WAL files based on target_time
+                # other than inspecting pg_waldump, which would put a lot of
+                # overhead
+                [1, 2, 3, 4, 5, 7],
             ),
             (
                 # Verify both WALs on timeline 2 are returned plus all history files
