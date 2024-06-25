@@ -283,7 +283,13 @@ class TestServer(object):
         assert full_path == str(tmpdir.join("wals").join(wal_hash).join(wal_name))
 
     @pytest.mark.parametrize(
-        ["wal_info_files", "target_tlis", "target_time", "expected_indices"],
+        [
+            "wal_info_files",
+            "target_tlis",
+            "target_time",
+            "target_lsn",
+            "expected_indices",
+        ],
         [
             (
                 # GIVEN The following WALs
@@ -298,6 +304,8 @@ class TestServer(object):
                 # AND target_tli values None, 2 and current
                 (None, 2, "current"),
                 # AND no target_time
+                None,
+                # AND no target_lsn
                 None,
                 # WHEN get_required_xlog_files runs for a backup on tli 2
                 # the WAL on tli 2 is returned along with all history files
@@ -317,6 +325,8 @@ class TestServer(object):
                 # AND target_tli values None, 2 and current
                 (None, 2, "current"),
                 # AND no target_time
+                None,
+                # AND no target_lsn
                 None,
                 # WHEN get_required_xlog_files runs for a backup on tli 2
                 # all WALs on tli 2 are returned along with all history files
@@ -338,6 +348,8 @@ class TestServer(object):
                 (None, 2, "current"),
                 # AND a target_time of 44
                 44,
+                # AND no target_lsn
+                None,
                 # WHEN get_required_xlog_files runs for a backup on tli 2
                 # all WALs on tli 2 are returned along with all history files.
                 # All WALs on tli 2 are returned because there is no reliable
@@ -362,15 +374,48 @@ class TestServer(object):
                 (10, "latest"),
                 # AND no target_time
                 None,
+                # AND no target_lsn
+                None,
                 # WHEN get_required_xlog_files runs for a backup on tli 2
                 # all WALs on timelines 2 and 10 are returned along with all history
                 # files.
                 [1, 2, 3, 4, 5, 6],
             ),
+            (
+                # GIVEN The following WALs
+                [
+                    create_fake_info_file("000000010000000000000002", 42, 43),
+                    create_fake_info_file("00000001.history", 42, 43),
+                    create_fake_info_file("000000020000000000000003", 42, 44),
+                    create_fake_info_file("000000020000000000000005", 42, 45),
+                    create_fake_info_file("000000020000000000000007", 42, 45),
+                    create_fake_info_file("000000020000000000000009", 42, 45),
+                    create_fake_info_file("000000020000000000000010", 42, 46),
+                    create_fake_info_file("00000002.history", 42, 44),
+                    create_fake_info_file("0000000A0000000000000005", 42, 47),
+                    create_fake_info_file("0000000A.history", 42, 47),
+                ],
+                # AND target_tli values None, 2 and current
+                (None, 2, "current"),
+                # AND no target_time
+                None,
+                # AND a target_lsn of '0/07000000'
+                "0/07000000",
+                # WHEN get_required_xlog_files runs for a backup on tli 2
+                # all WALs on tli 2 up to the requested LSN are returned along
+                # with all history files.
+                [1, 2, 3, 4, 7, 9],
+            ),
         ],
     )
     def test_get_required_xlog_files(
-        self, wal_info_files, target_tlis, target_time, expected_indices, tmpdir
+        self,
+        wal_info_files,
+        target_tlis,
+        target_time,
+        target_lsn,
+        expected_indices,
+        tmpdir,
     ):
         """
         Tests get_required_xlog_files function.
@@ -416,7 +461,11 @@ class TestServer(object):
         for target_tli in target_tlis:
             wals = []
             for wal_file in server.get_required_xlog_files(
-                backup, target_tli, target_time
+                backup,
+                target_tli,
+                target_time,
+                None,
+                target_lsn,
             ):
                 # get the result of the xlogdb read
                 wals.append(wal_file.name)

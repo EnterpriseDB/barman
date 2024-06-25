@@ -255,6 +255,9 @@ class RecoveryExecutor(object):
                     self.server.get_required_xlog_files(
                         backup_info,
                         target_tli,
+                        None,
+                        None,
+                        target_lsn,
                     )
                 )
 

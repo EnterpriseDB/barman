@@ -1793,13 +1793,32 @@ class Server(RemoteStatusMixin):
         return self.backup_manager.get_next_backup(backup_id)
 
     def get_required_xlog_files(
-        self, backup, target_tli=None, target_time=None, target_xid=None
+        self,
+        backup,
+        target_tli=None,
+        target_time=None,
+        target_xid=None,
+        target_lsn=None,
     ):
         """
-        Get the xlog files required for a recovery
-        params: BackupInfo backup: a backup object
-        params: target_tli : target timeline
-        param: target_time: target time
+        Get the xlog files required for a recovery.
+
+        .. note::
+            *target_time* and *target_xid* are ignored by this method. As it can be very
+            expensive to parse WAL dumps to identify which WAL files are required to
+            honor the specific targets, we simply copy all WAL files up to the
+            calculated target timeline, so we make sure recovery will be able to finish
+            successfully (assuming the archived WALs honor the specified targets).
+
+            On the other hand, *target_tli* and *target_lsn* are easier to handle, so we
+            only copy the WALs required to reach the requested targets.
+
+        :param BackupInfo backup: a backup object
+        :param target_tli : target timeline, either a timeline ID or one of the keywords
+            supported by Postgres
+        :param target_time: target time, in epoch
+        :param target_xid: target transaction ID
+        :param target_lsn: target LSN
         """
         begin = backup.begin_wal
         end = backup.end_wal
@@ -1820,6 +1839,16 @@ class Server(RemoteStatusMixin):
         if not target_tli:
             target_tli, _, _ = xlog.decode_segment_name(end)
             calculated_target_tli = target_tli
+
+        # If a target LSN was specified, get the name of the last WAL file that is
+        # required for the recovery process
+        if target_lsn:
+            target_wal = xlog.location_to_xlogfile_name_offset(
+                target_lsn,
+                calculated_target_tli,
+                backup.xlog_segment_size,
+            )["file_name"]
+
         with self.xlogdb() as fxlogdb:
             for line in fxlogdb:
                 wal_info = WalFileInfo.from_xlogdb_line(line)
@@ -1836,6 +1865,8 @@ class Server(RemoteStatusMixin):
                 yield wal_info
                 if wal_info.name > end:
                     end = wal_info.name
+                    if target_lsn and wal_info.name >= target_wal:
+                        break
             # return all the remaining history files
             for line in fxlogdb:
                 wal_info = WalFileInfo.from_xlogdb_line(line)
