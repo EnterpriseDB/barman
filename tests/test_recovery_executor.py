@@ -19,7 +19,6 @@
 from functools import partial
 import os
 import shutil
-import time
 from contextlib import closing
 
 import dateutil
@@ -390,7 +389,6 @@ class TestRecoveryExecutor(object):
             recovery_info, backup_info, dest.strpath, "", "", "", "", "", False, None
         )
         # Test with empty values (no PITR)
-        assert recovery_info["target_epoch"] is None
         assert recovery_info["target_datetime"] is None
         assert recovery_info["wal_dest"] == wal_dest.strpath
 
@@ -408,12 +406,8 @@ class TestRecoveryExecutor(object):
             None,
         )
         target_datetime = dateutil.parser.parse("2015-06-03 16:11:03.710380+02:00")
-        target_epoch = time.mktime(target_datetime.timetuple()) + (
-            target_datetime.microsecond / 1000000.0
-        )
 
         assert recovery_info["target_datetime"] == target_datetime
-        assert recovery_info["target_epoch"] == target_epoch
         assert recovery_info["wal_dest"] == dest.join("barman_wal").strpath
 
         # Test for PITR targets with implicit target time
@@ -431,12 +425,8 @@ class TestRecoveryExecutor(object):
         )
         target_datetime = dateutil.parser.parse("2015-06-03 16:11:03.710380")
         target_datetime = target_datetime.replace(tzinfo=dateutil.tz.tzlocal())
-        target_epoch = time.mktime(target_datetime.timetuple()) + (
-            target_datetime.microsecond / 1000000.0
-        )
 
         assert recovery_info["target_datetime"] == target_datetime
-        assert recovery_info["target_epoch"] == target_epoch
         assert recovery_info["wal_dest"] == dest.join("barman_wal").strpath
 
         # Test for too early PITR target
@@ -1325,7 +1315,6 @@ class TestRecoveryExecutor(object):
                     ),
                 ],
             },
-            "target_epoch": None,
             "configuration_files": ["postgresql.conf", "postgresql.auto.conf"],
             "target_datetime": None,
             "safe_horizon": None,
@@ -1374,7 +1363,6 @@ class TestRecoveryExecutor(object):
                     ),
                 ],
             },
-            "target_epoch": None,
             "configuration_files": ["postgresql.conf", "postgresql.auto.conf"],
             "target_datetime": None,
             "safe_horizon": None,

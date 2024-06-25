@@ -1836,8 +1836,6 @@ class Server(RemoteStatusMixin):
                 yield wal_info
                 if wal_info.name > end:
                     end = wal_info.name
-                    if target_time and wal_info.time > target_time:
-                        break
             # return all the remaining history files
             for line in fxlogdb:
                 wal_info = WalFileInfo.from_xlogdb_line(line)
