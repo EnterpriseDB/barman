@@ -1329,5 +1329,3 @@ def full_command_quote(command, args=None):
         return "%s %s" % (command, " ".join([shell_quote(arg) for arg in args]))
     else:
         return command
-
-
