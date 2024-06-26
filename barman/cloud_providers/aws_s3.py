@@ -101,7 +101,7 @@ class S3CloudInterface(CloudInterface):
         self,
         url,
         encryption=None,
-        irsa=False,
+        aws_irsa=False,
         jobs=2,
         profile_name=None,
         endpoint_url=None,
