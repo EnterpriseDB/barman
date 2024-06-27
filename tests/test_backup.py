@@ -339,6 +339,33 @@ class TestBackup(object):
             assert os.path.exists(wal_history_file03.strpath)
             assert os.path.exists(wal_history_file04.strpath)
 
+        # Test 7: ensure a child backup has its referenced removed from
+        # the parent when removed successfully
+        parent_backup = build_test_backup_info(
+            backup_id="parent_backup_id",
+            server=backup_manager.server,
+        )
+        build_backup_directories(parent_backup)
+        child_backup = build_test_backup_info(
+            backup_id="child_backup_id",
+            server=backup_manager.server,
+            parent_backup_id=parent_backup.backup_id,
+        )
+        build_backup_directories(child_backup)
+        parent_backup.set_attribute(
+            "children_backup_ids", [child_backup.backup_id, "another_backup_id"]
+        )
+        mock_available_backups.return_value = {
+            parent_backup.backup_id: parent_backup,
+            child_backup.backup_id: child_backup,
+        }
+        with patch("barman.infofile.LocalBackupInfo.get_parent_backup_info") as mock:
+            mock.return_value = parent_backup
+            deleted = backup_manager.delete_backup(child_backup)
+
+        assert deleted is True
+        assert child_backup.backup_id not in parent_backup.children_backup_ids
+
     def test_available_backups(self, tmpdir):
         """
         Test the get_available_backups that retrieves all the
