@@ -2268,28 +2268,30 @@ class TestIncrementalRecoveryExecutor(object):
         # GIVEN an IncrementalRecoveryExecutor instance and a mocked backup_info chain
         backup_manager = mock.Mock()
         executor = IncrementalRecoveryExecutor(backup_manager)
-        
+
         # Mocking backup_info objects to simulate a backup chain from full to incremental
         full_backup_info = mock.Mock(
-            backup_id="full_backup",
-            walk_to_root=mock.Mock(return_value=[])
-            )  # Full backup has no parent
+            backup_id="full_backup", walk_to_root=mock.Mock(return_value=[])
+        )  # Full backup has no parent
         parent_backup_info = mock.Mock(
             backup_id="parent_backup",
-            walk_to_root=mock.Mock(return_value=[full_backup_info])
-            )
+            walk_to_root=mock.Mock(return_value=[full_backup_info]),
+        )
         incremental_backup_info = mock.Mock(
             backup_id="incremental_backup",
-            walk_to_root=mock.Mock(return_value=[parent_backup_info, full_backup_info])
-            )
-        
+            walk_to_root=mock.Mock(return_value=[parent_backup_info, full_backup_info]),
+        )
+
         # WHEN get_backup_chain is called with the incremental backup_info
         result_chain = executor.get_backup_chain(incremental_backup_info)
-        
+
         # THEN the returned chain starts with the full backup and includes all backups in the correct order
-        assert [backup.backup_id for backup in result_chain] == ["full_backup",
-                                                                 "parent_backup",
-                                                                 "incremental_backup"]
+        assert [backup.backup_id for backup in result_chain] == [
+            "full_backup",
+            "parent_backup",
+            "incremental_backup",
+        ]
+
 
 class TestRecoveryExecutorFactory(object):
     @pytest.mark.parametrize(
