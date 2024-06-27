@@ -1826,7 +1826,7 @@ class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
             owner of the executor
         :param compression Compression.
         """
-        super(TarballRecoveryExecutor, self).__init__(backup_manager)
+        super(IncrementalRecoveryExecutor, self).__init__(backup_manager)
 
     # TODO
     # When recovering, we need to:
@@ -1836,8 +1836,23 @@ class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
     # 3. temporarily store this in a folder from barman server
     # 4. copy the backup to a node
 
-    def get_backup_chain(self):
-        pass
+    def get_backup_chain(self, backup_info):
+        """
+        Get the backup chain for the provided incremental backup, returning it as a list
+        starting from the full backup, through the parent backups up until the provided
+        incremental backup.
+
+        :param backup_info: The backup_info object for the incremental backup.
+        :return: A list of backup_info objects from the root to the provided incremental backup.
+        """
+        backup_chain = []
+        # Use the walk_to_root method to walk through all parent backups
+        # Reverse the iteration to start from the root backup
+        for parent_backup_info in reversed(backup_info.walk_to_root()):
+            backup_chain.append(parent_backup_info)
+        # Add the provided (incremental) backup to the chain
+        backup_chain.append(backup_info)
+        return backup_chain
 
     # this can be inside get_synthetic or apart
     def _check_output_valid(self):
