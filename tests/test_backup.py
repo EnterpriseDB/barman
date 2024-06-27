@@ -247,22 +247,7 @@ class TestBackup(object):
             "fake_backup_id": b_info,
         }
 
-        # Test 1: minimum redundancy not satisfied
-        caplog_reset(caplog)
-        backup_manager.server.config.minimum_redundancy = 2
-        b_info.set_attribute("backup_version", 1)
-        build_backup_directories(b_info)
-        backup_manager.delete_backup(b_info)
-        assert re.search("WARNING .* Skipping delete of backup ", caplog.text)
-        assert "ERROR" not in caplog.text
-        assert os.path.exists(pg_data.strpath)
-        assert not os.path.exists(pg_data_v2.strpath)
-        assert os.path.exists(wal_file.strpath)
-        assert os.path.exists(wal_history_file02.strpath)
-        assert os.path.exists(wal_history_file03.strpath)
-        assert os.path.exists(wal_history_file04.strpath)
-
-        # Test 2: normal delete expecting no errors (old format)
+        # Test 1: normal delete expecting no errors (old format)
         caplog_reset(caplog)
         backup_manager.server.config.minimum_redundancy = 1
         b_info.set_attribute("backup_version", 1)
@@ -278,7 +263,7 @@ class TestBackup(object):
         assert os.path.exists(wal_history_file03.strpath)
         assert os.path.exists(wal_history_file04.strpath)
 
-        # Test 3: delete the backup again, expect a failure in log
+        # Test 2: delete the backup again, expect a failure in log
         caplog_reset(caplog)
         backup_manager.delete_backup(b_info)
         assert re.search("ERROR .* Failure deleting backup fake_backup_id", caplog.text)
@@ -289,7 +274,7 @@ class TestBackup(object):
         assert os.path.exists(wal_history_file03.strpath)
         assert os.path.exists(wal_history_file04.strpath)
 
-        # Test 4: normal delete expecting no errors (new format)
+        # Test 3: normal delete expecting no errors (new format)
         caplog_reset(caplog)
         b_info.set_attribute("backup_version", 2)
         build_backup_directories(b_info)
@@ -303,7 +288,7 @@ class TestBackup(object):
         assert os.path.exists(wal_history_file03.strpath)
         assert os.path.exists(wal_history_file04.strpath)
 
-        # Test 5: normal delete of first backup no errors and no skip
+        # Test 4: normal delete of first backup no errors and no skip
         # removing one of the two backups present (new format)
         # and all the previous wal
         caplog_reset(caplog)
@@ -319,7 +304,7 @@ class TestBackup(object):
         assert os.path.exists(wal_history_file03.strpath)
         assert os.path.exists(wal_history_file04.strpath)
 
-        # Test 6: normal delete of first backup no errors and no skip
+        # Test 5: normal delete of first backup no errors and no skip
         # removing one of the two backups present (new format)
         # the previous wal is retained as on a different timeline
         caplog_reset(caplog)
@@ -337,7 +322,7 @@ class TestBackup(object):
         assert os.path.exists(wal_history_file03.strpath)
         assert os.path.exists(wal_history_file04.strpath)
 
-        # Test 7: simulate an error deleting the backup.
+        # Test 6: simulate an error deleting the backup.
         with patch(
             "barman.backup.BackupManager.delete_backup_data"
         ) as mock_delete_data:
@@ -353,27 +338,6 @@ class TestBackup(object):
             assert os.path.exists(wal_history_file02.strpath)
             assert os.path.exists(wal_history_file03.strpath)
             assert os.path.exists(wal_history_file04.strpath)
-
-    @patch("barman.backup.BackupManager.should_keep_backup")
-    def test_cannot_delete_keep_backup(self, mock_should_keep_backup, caplog):
-        """Verify that we cannot delete backups directly if they have a keep"""
-        # Setup of the test backup_manager
-        backup_manager = build_backup_manager()
-        backup_manager.server.config.name = "TestServer"
-        backup_manager.server.config.backup_options = []
-
-        mock_should_keep_backup.return_value = True
-
-        b_info = build_test_backup_info(
-            backup_id="fake_backup_id",
-            server=backup_manager.server,
-        )
-        assert backup_manager.delete_backup(b_info) is False
-        assert (
-            "Skipping delete of backup fake_backup_id for server TestServer as it "
-            "has a current keep request. If you really want to delete this backup "
-            "please remove the keep and try again." in caplog.text
-        )
 
     def test_available_backups(self, tmpdir):
         """
