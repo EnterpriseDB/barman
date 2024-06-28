@@ -1845,14 +1845,11 @@ class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
         :param backup_info: The backup_info object for the incremental backup.
         :return: A list of backup_info objects from the root to the provided incremental backup.
         """
-        backup_chain = []
-        # Use the walk_to_root method to walk through all parent backups
-        # Reverse the iteration to start from the root backup
-        for parent_backup_info in reversed(backup_info.walk_to_root()):
-            backup_chain.append(parent_backup_info)
-        # Add the provided (incremental) backup to the chain
-        backup_chain.append(backup_info)
-        return backup_chain
+        # Convert the generator to a list and reverse it to start from the root backup
+        return [
+            backup
+            for backup in reversed(list(backup_info.walk_to_root(include_self=True)))
+        ]
 
     # this can be inside get_synthetic or apart
     def _check_output_valid(self):

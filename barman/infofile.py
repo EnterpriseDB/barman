@@ -899,13 +899,16 @@ class LocalBackupInfo(BackupInfo):
                 yield from backup_info.walk_backups_tree()
         yield self
 
-    def walk_to_root(self):
+    def walk_to_root(self, include_self=False):
         """
         Walk through all the parent backups of the current backup.
 
+        :param include_self: If False, does not include the current backup in the walk.
         :yield: a generator of :class:`LocalBackupInfo` objects for each parent backup.
         """
 
+        if include_self:
+            yield self
         backup_info = self.get_parent_backup_info()
         while backup_info:
             yield backup_info
