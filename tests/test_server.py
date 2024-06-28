@@ -1241,58 +1241,137 @@ class TestServer(object):
         out, err = capsys.readouterr()
         assert "Permission denied, unable to access" in err
 
-    @patch("barman.server.Server.get_first_backup_id")
+    @patch("barman.backup.BackupManager.should_keep_backup")
+    def test_cannot_delete_keep_backup(self, mock_should_keep_backup, caplog, tmpdir):
+        """Verify that we cannot delete backups directly if they have a keep"""
+        server = build_real_server({"barman_home": tmpdir.strpath})
+        backup_info = build_test_backup_info(
+            backup_id="fake_backup_id",
+            status=BackupInfo.DONE,
+            server=server,
+        )
+        backup_info.save()
+
+        mock_should_keep_backup.return_value = True
+
+        assert server.delete_backup(backup_info) is False
+        assert (
+            "Skipping delete of backup %s for server %s as it has a current "
+            "keep request. If you really want to delete this backup please remove "
+            "the keep and try again." % (backup_info.backup_id, server.config.name)
+            in caplog.text
+        )
+
+    @patch("barman.backup.BackupManager.get_available_backups")
+    def test_cannot_delete_backup_due_to_minimum_redundancy(
+        self, mock_get_available_backups, caplog, tmpdir
+    ):
+        """
+        Verify that we cannot delete a backup if it does not satisfy the server's
+        minimum redundancy policy
+        """
+        server = build_real_server({"barman_home": tmpdir.strpath})
+        server.config.minimum_redundancy = 2
+        backup_info = build_test_backup_info(
+            backup_id="fake_backup_id",
+            status=BackupInfo.DONE,
+            server=server,
+        )
+        backup_info.save()
+
+        mock_get_available_backups.return_value = {backup_info.backup_id: backup_info}
+
+        assert server.delete_backup(backup_info) is False
+        assert (
+            "Skipping delete of backup %s for server %s due to minimum redundancy "
+            "requirements (minimum redundancy = 2, current redundancy = 1)"
+            % (backup_info.backup_id, server.config.name)
+            in caplog.text
+        )
+
     @patch("barman.server.BackupManager.delete_backup")
+    @patch("barman.backup.BackupManager.get_available_backups")
     def test_delete_running_backup(
-        self, delete_mock, get_first_backup_mock, tmpdir, capsys
+        self, get_available_backups, delete_mock, tmpdir, capsys
     ):
         """
         Simple test for the deletion of a running backup.
         We want to test the behaviour of the server.delete_backup method
         when invoked on a running backup
         """
-        # Test the removal of a running backup. status STARTED
+        # Test the removal of a running backup
         server = build_real_server({"barman_home": tmpdir.strpath})
-        backup_info_started = build_test_backup_info(
-            status=BackupInfo.STARTED, server_name=server.config.name
-        )
-        get_first_backup_mock.return_value = backup_info_started.backup_id
-        with ServerBackupLock(tmpdir.strpath, server.config.name):
-            server.delete_backup(backup_info_started)
-            out, err = capsys.readouterr()
-            assert (
-                "Another action is in progress for the backup %s"
-                " of server %s. Impossible to delete the backup."
-                % (backup_info_started.backup_id, server.config.name)
-                in err
-            )
-
-        # Test the removal of a running backup. status EMPTY
-        backup_info_empty = build_test_backup_info(
-            status=BackupInfo.EMPTY, server_name=server.config.name
-        )
-        get_first_backup_mock.return_value = backup_info_empty.backup_id
-        with ServerBackupLock(tmpdir.strpath, server.config.name):
-            server.delete_backup(backup_info_empty)
-            out, err = capsys.readouterr()
-            assert (
-                "Another action is in progress for the backup %s"
-                " of server %s. Impossible to delete the backup."
-                % (backup_info_started.backup_id, server.config.name)
-                in err
-            )
-
-        # Test the removal of a running backup. status DONE
-        backup_info_done = build_test_backup_info(
+        backup_info = build_test_backup_info(
             status=BackupInfo.DONE, server_name=server.config.name
         )
+        get_available_backups.return_value = {backup_info.backup_id: backup_info}
         with ServerBackupLock(tmpdir.strpath, server.config.name):
-            server.delete_backup(backup_info_done)
-            delete_mock.assert_called_with(backup_info_done)
+            server.delete_backup(backup_info)
+            out, err = capsys.readouterr()
+            assert (
+                "Another process in running on server %s. Impossible to delete the backup."
+                % server.config.name
+                in err
+            )
 
-        # Test the removal of a backup not running. status STARTED
-        server.delete_backup(backup_info_started)
-        delete_mock.assert_called_with(backup_info_started)
+        # Test the removal of a backup not running
+        server.delete_backup(backup_info)
+        delete_mock.assert_called_with(backup_info)
+
+    def test_delete_backup_with_children(self, tmpdir):
+        """
+        Test that a parent backup is deleted along with its descendants
+        """
+        server = build_real_server({"barman_home": tmpdir.strpath})
+        server.backup_manager.delete_backup = Mock()
+
+        # This test works with the following backup tree structure:
+        #            root
+        #             |
+        #      -----------------
+        #     |                 |
+        #   child1            child2
+        #    |                  |
+        #    |                child2.1
+        # child1.1 child1.2
+
+        # Mounts the tree. key = backup_id, value = tuple(parent_id, children_ids)
+        backup_tree = {
+            "root": (None, ["child1", "child2"]),
+            "child1": ("root", ["child1.1", "child1.2"]),
+            "child1.1": ("child1", None),
+            "child1.2": ("child1", None),
+            "child2": ("root", ["child2.1"]),
+            "child2.1": ("child2", None),
+        }
+        for backup_id, attributes in backup_tree.items():
+            backup_info_object = build_test_backup_info(
+                backup_id=backup_id,
+                server=server,
+                parent_backup_id=attributes[0],
+                children_backup_ids=attributes[1],
+            )
+            backup_info_object.save()
+            backup_tree[backup_id] = backup_info_object
+
+        # Test 1: deleting the root backup should also delete all its children
+        root_backup = backup_tree["root"]
+        server.delete_backup(root_backup)
+        # assert that the backup manager mock received the expected backups for deletion
+        manager_delete_calls = server.backup_manager.delete_backup.call_args_list
+        to_delete = ["child1.1", "child1.2", "child1", "child2.1", "child2", "root"]
+        for n_call, call_obj in enumerate(manager_delete_calls):
+            assert call_obj.args[0].backup_id == to_delete[n_call]
+
+        # Test 2: deleting a leaf backup should only delete that one
+        server.backup_manager.delete_backup.reset_mock()
+        leaf_backup = backup_tree["child2.1"]
+        server.delete_backup(leaf_backup)
+        server.backup_manager.delete_backup.assert_called_once_with(leaf_backup)
+
+        # We could have additional tests with other backups in different positions in the tree
+        # but then we would essentially be testing the tree-walk algorithm instead.
+        # This test only ensures that children are being deleted along with the parent when they exist
 
     @patch("subprocess.Popen")
     def test_archive_wal_lock_acquisition(self, subprocess_mock, tmpdir, capsys):
