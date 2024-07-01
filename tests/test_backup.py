@@ -25,7 +25,7 @@ import dateutil.parser
 import dateutil.tz
 import mock
 import pytest
-from mock import Mock, patch
+from mock import Mock, call, patch
 from barman.backup import BackupManager
 from barman.lockfile import ServerBackupIdLock
 
@@ -742,6 +742,80 @@ class TestBackup(object):
         delete_backup.assert_called_once_with(
             available_backups["obsolete_backup"], skip_wal_cleanup_if_standalone=False
         )
+
+    @patch("barman.backup.BackupManager.delete_backup")
+    @patch("barman.backup.BackupManager.get_available_backups")
+    def test_cron_retention_only_deletes_OBSOLETE_backups_with_incrementals(
+        self, get_available_backups, delete_backup, tmpdir
+    ):
+        """
+        Verify only backups with retention status OBSOLETE are deleted by
+        retention policy.
+        """
+        backup_manager = build_backup_manager()
+        backup_manager.server.config.name = "TestServer"
+        backup_manager.server.config.barman_lock_directory = tmpdir.strpath
+        backup_manager.server.config.backup_options = []
+        backup_manager.server.config.retention_policy = Mock()
+        retention_policies = {
+            "keep_full_backup": BackupInfo.KEEP_FULL,
+            "keep_standalone_backup": BackupInfo.KEEP_STANDALONE,
+            "valid_backup": BackupInfo.VALID,
+            "none_backup": BackupInfo.NONE,
+            "obsolete_backup": BackupInfo.OBSOLETE,
+            "potentially_obsolete_backup": BackupInfo.POTENTIALLY_OBSOLETE,
+        }
+        # Create all available backup and add one child to each
+        available_backups = dict(
+            (
+                key,
+                build_test_backup_info(
+                    server=backup_manager.server,
+                    backup_id=key,
+                    children_backup_ids=[f"child_{index}"],
+                ),
+            )
+            for index, key in enumerate(retention_policies)
+        )
+        # Create one child per available backup
+        available_children = dict(
+            (
+                f"child_{index}",
+                build_test_backup_info(
+                    server=backup_manager.server,
+                    backup_id=f"child_{index}",
+                    parent_backup_id=key,
+                ),
+            )
+            for index, key in enumerate(retention_policies)
+        )
+        # Update available backups
+        available_backups.update(available_children)
+        get_available_backups.return_value = available_backups
+
+        children_retention_policies = {
+            "child_0": BackupInfo.VALID,
+            "child_1": BackupInfo.VALID,
+            "child_2": BackupInfo.VALID,
+            "child_3": BackupInfo.VALID,
+            "child_4": BackupInfo.OBSOLETE,
+            "child_5": BackupInfo.VALID,
+        }
+        # Update retention_policies with children status
+        retention_policies.update(children_retention_policies)
+        backup_manager.config.retention_policy.report.return_value = retention_policies
+
+        backup_manager.cron_retention_policy()
+
+        delete_backup.call_count == 2
+        expected_calls = [
+            call(available_backups["child_4"], skip_wal_cleanup_if_standalone=False),
+            call(
+                available_backups["obsolete_backup"],
+                skip_wal_cleanup_if_standalone=False,
+            ),
+        ]
+        delete_backup.assert_has_calls(expected_calls, any_order=False)
 
     @patch("barman.backup.BackupManager.delete_backup")
     @patch("barman.backup.BackupManager.get_available_backups")

@@ -731,6 +731,24 @@ class LocalBackupInfo(BackupInfo):
                 e,
             )
 
+    @property
+    def is_incremental(self):
+        """
+        Only checks if the backup_info is an incremental backup
+
+        :return bool: ``True`` if this backup has a parent, ``False`` otherwise.
+        """
+        return self.parent_backup_id is not None
+
+    @property
+    def has_children(self):
+        """
+        Only checks if the backup_info has children
+
+        :return bool: ``True`` if this backup has at least one child, ``False`` otherwise.
+        """
+        return self.children_backup_ids is not None
+
     def get_list_of_files(self, target):
         """
         Get the list of files for the current backup
@@ -878,7 +896,7 @@ class LocalBackupInfo(BackupInfo):
 
         return None
 
-    def walk_backups_tree(self):
+    def walk_backups_tree(self, return_root=True):
         """
         Walk through all the children backups of the current backup.
 
@@ -897,6 +915,8 @@ class LocalBackupInfo(BackupInfo):
                     backup_id=child_backup_id,
                 )
                 yield from backup_info.walk_backups_tree()
+        if return_root is False and self.parent_backup_id is None:
+            return
         yield self
 
     def walk_to_root(self):
