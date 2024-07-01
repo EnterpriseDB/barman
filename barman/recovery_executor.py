@@ -1829,7 +1829,7 @@ class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
         super(IncrementalRecoveryExecutor, self).__init__(backup_manager)
         self.combine_start_time = None
         self.combine_end_time = None
-    
+
     def get_backup_chain(self, backup_info):
         """
         Get the backup chain for the provided incremental backup, returning it as a list
@@ -2025,11 +2025,12 @@ class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
     # TODO
     def get_synthetic_backup_info(self, backup_info):
         pass
+
     #    try:
     #        self.create_synthetic_backup(backup_info)
     #    except CommandFailedException as e:
     #        raise e
-#
+    #
     #    combined_backup_info = LocalBackupInfo(
     #        self.server, info_file=backup_info.get_filename(basedir=False)
     #    )
