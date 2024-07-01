@@ -38,13 +38,14 @@ from barman.exceptions import (
     RecoveryTargetActionException,
     SnapshotBackupException,
 )
-from barman.infofile import BackupInfo, WalFileInfo
+from barman.infofile import BackupInfo, WalFileInfo, LocalBackupInfo
 from barman.recovery_executor import (
     Assertion,
     RecoveryExecutor,
     RemoteConfigRecoveryExecutor,
     SnapshotRecoveryExecutor,
     TarballRecoveryExecutor,
+    IncrementalRecoveryExecutor,
     ConfigurationFileMangeler,
     recovery_executor_factory,
 )
@@ -2260,6 +2261,44 @@ class TestSnapshotRecoveryExecutor(object):
                 )
             # AND the message matches the expected error message
             assert str(exc.value) == expected_error
+
+
+class TestIncrementalRecoveryExecutor(object):
+    @mock.patch("barman.infofile.LocalBackupInfo")
+    def test_get_backup_chain(self, mock_local_backup_info):
+        # GIVEN an IncrementalRecoveryExecutor instance and a mocked backup_info object
+        backup_manager = mock.Mock()
+        executor = IncrementalRecoveryExecutor(backup_manager)
+        backup_info = mock.Mock()
+
+        # Mock the walk_to_root method to return a generator of mocked backup_info objects
+        expected_backup_chain = [
+            mock.Mock(backup_id="incremental_backup_id"),
+            mock.Mock(backup_id="parent_backup_id1"),
+            mock.Mock(backup_id="parent_backup_id2"),
+            mock.Mock(backup_id="full_backup_id"),
+        ]
+        # Mock the walk_to_root method on the backup_info object to return a generator
+        backup_info.walk_to_root.return_value = (
+            backup for backup in expected_backup_chain
+        )
+
+        # WHEN calling get_backup_chain with the mocked backup_info
+        result = executor.get_backup_chain(backup_info)
+
+        # THEN walk_to_root is called with include_self=True on the backup_info object
+        backup_info.walk_to_root.assert_called_once_with(include_self=True)
+
+        # AND the result should be the reversed list of backup_info objects
+        assert result == list(reversed(expected_backup_chain))
+
+        # AND the backup_ids should be in the correct order from oldest to newest
+        assert [backup.backup_id for backup in result] == [
+            "full_backup_id",
+            "parent_backup_id2",
+            "parent_backup_id1",
+            "incremental_backup_id",
+        ]
 
 
 class TestRecoveryExecutorFactory(object):

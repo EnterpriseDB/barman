@@ -899,13 +899,16 @@ class LocalBackupInfo(BackupInfo):
                 yield from backup_info.walk_backups_tree()
         yield self
 
-    def walk_to_root(self):
+    def walk_to_root(self, include_self=False):
         """
         Walk through all the parent backups of the current backup.
 
+        :param include_self: If False, does not include the current backup in the walk.
         :yield: a generator of :class:`LocalBackupInfo` objects for each parent backup.
         """
 
+        if include_self:
+            yield self
         backup_info = self.get_parent_backup_info()
         while backup_info:
             yield backup_info
@@ -933,3 +936,26 @@ class LocalBackupInfo(BackupInfo):
         ):
             return True
         return False
+
+
+class SynthethicBackupInfo(LocalBackupInfo):
+    def __init__(self, server, info_file=None, backup_id=None, **kwargs):
+        """
+        Stores meta information about a single backup
+
+        :param Server server:
+        :param file,str,None info_file:
+        :param str,None backup_id:
+        :raise BackupInfoBadInitialisation: if the info_file content is invalid
+            or neither backup_info or
+        """
+        # Initialises the attributes for the object
+        # based on the predefined keys
+        super(SynthethicBackupInfo, self).__init__(backup_id=backup_id, **kwargs)
+
+    def get_basebackup_directory(self):
+        """
+        Get the default filename for the backup.info file based on
+        backup ID and server directory for base backups
+        """
+        return os.path.join(self.config.syntheticbackups_directory, self.backup_id)

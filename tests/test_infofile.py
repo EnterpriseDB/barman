@@ -1074,6 +1074,24 @@ class TestLocalBackupInfo:
             assert result[1].backup_id == "parent_backup_id2"
             assert result[2].backup_id == "parent_backup_id3"
 
+        # Test case for when the method is set to also return the provided incremental
+        backup_info.backup_id = "incremental_backup_id"
+        backup_info.parent_backup_id = "parent_backup_id1"
+        with mock.patch(
+            "barman.infofile.LocalBackupInfo",
+            side_effect=provide_parent_backup_info,
+        ):
+            # Call the walk_to_root method with include_self=True
+            result = list(backup_info.walk_to_root(include_self=True))
+
+            # Check if the method includes the current backup and walks through all
+            # the parent backups in the correct order
+            assert len(result) == 4
+            assert result[0].backup_id == "incremental_backup_id"
+            assert result[1].backup_id == "parent_backup_id1"
+            assert result[2].backup_id == "parent_backup_id2"
+            assert result[3].backup_id == "parent_backup_id3"
+
     def test_walk_backups_tree(self):
         """
         Unit test for the :meth:`LocalBackupInfo.walk_backups_tree` method.

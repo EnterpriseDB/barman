@@ -1150,6 +1150,71 @@ class PgVerifyBackup(PostgreSQLClient):
             self.args += args
 
 
+class PgCombineBackup(PostgreSQLClient):
+    """
+    Wrapper class for the pg_combinebackup system command
+    """
+
+    COMMAND_ALTERNATIVES = ["pg_combinebackup"]
+
+    def __init__(
+        self,
+        connection,
+        destination,
+        command,
+        version=None,
+        app_name=None,
+        tbs_mapping=None,
+        check=True,
+        args=None,
+        **kwargs
+    ):
+        """
+        Constructor
+
+        :param PostgreSQL connection: an object representing
+          a database connection
+        :param str destination: destination directory path
+        :param str command: the command to use
+        :param Version version: the command version
+        :param str app_name: the application name to use for the connection
+        :param str bwlimit: bandwidth limit for pg_basebackup
+        :param Dict[str, str] tbs_mapping: used for tablespace
+        :param bool immediate: fast checkpoint identifier for pg_basebackup
+        :param bool check: check if the return value is in the list of
+          allowed values of the Command obj
+        :param barman.compression.PgBaseBackupCompression compression:
+          the pg_basebackup compression options used for this backup
+        :param str parent_backup_manifest_path:
+          the path to a backup_manifest file from a previous backup which can
+          be used to perform an incremental backup
+        :param List[str] args: additional arguments
+        """
+        PostgreSQLClient.__init__(
+            self,
+            connection=connection,
+            command=command,
+            version=version,
+            app_name=app_name,
+            check=check,
+            **kwargs
+        )
+
+        # Set the backup destination
+        self.args += ["--output=%s" % destination]
+
+        # The tablespace mapping option is repeated once for each tablespace
+        if tbs_mapping:
+            for tbs_source, tbs_destination in tbs_mapping.items():
+                self.args.append(
+                    "--tablespace-mapping=%s=%s" % (tbs_source, tbs_destination)
+                )
+
+        # Manage additional args
+        if args:
+            self.args += args
+
+
 class BarmanSubProcess(object):
     """
     Wrapper class for barman sub instances
