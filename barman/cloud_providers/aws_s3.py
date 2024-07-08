@@ -17,6 +17,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>
 
 import logging
+import math
 import shutil
 from io import RawIOBase
 
@@ -462,18 +463,31 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
         https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-creating-snapshot.html
     """
 
-    def __init__(self, profile_name=None, region=None):
+    def __init__(self, profile_name=None, region=None, await_snapshots_timeout=3600):
         """
         Creates the client necessary for creating and managing snapshots.
 
         :param str profile_name: AWS auth profile identifier.
         :param str region: The AWS region in which snapshot resources are located.
+        :param int await_snapshots_timeout: The maximum time in seconds to wait for
+            snapshots to complete.
         """
         self.session = boto3.Session(profile_name=profile_name)
         # If a specific region was provided then this overrides any region which may be
         # defined in the profile
         self.region = region or self.session.region_name
         self.ec2_client = self.session.client("ec2", region_name=self.region)
+        self.await_snapshots_timeout = await_snapshots_timeout
+
+    def _get_waiter_config(self):
+        delay = 15
+        # Use ceil so that we always wait for at least the specified timeout
+        max_attempts = math.ceil(self.await_snapshots_timeout / delay)
+        return {
+            "Delay": delay,
+            # Ensure we always try waiting at least once
+            "MaxAttempts": max(max_attempts, 1),
+        }
 
     def _get_instance_metadata(self, instance_identifier):
         """
@@ -764,7 +778,10 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
         snapshot_ids = [snapshot.identifier for snapshot in snapshots]
         logging.info("Waiting for completion of snapshots: %s", ", ".join(snapshot_ids))
         waiter = self.ec2_client.get_waiter("snapshot_completed")
-        waiter.wait(Filters=[{"Name": "snapshot-id", "Values": snapshot_ids}])
+        waiter.wait(
+            Filters=[{"Name": "snapshot-id", "Values": snapshot_ids}],
+            WaiterConfig=self._get_waiter_config(),
+        )
 
         backup_info.snapshots_info = AwsSnapshotsInfo(
             snapshots=snapshots,

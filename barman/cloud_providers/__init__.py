@@ -197,7 +197,12 @@ def get_snapshot_interface(config):
     elif config.cloud_provider == "aws-s3":
         from barman.cloud_providers.aws_s3 import AwsCloudSnapshotInterface
 
-        return AwsCloudSnapshotInterface(config.aws_profile, config.aws_region)
+        args = [
+            config.aws_profile,
+            config.aws_region,
+            config.aws_await_snapshots_timeout,
+        ]
+        return AwsCloudSnapshotInterface(*args)
     else:
         raise CloudProviderUnsupported(
             "No snapshot provider for cloud provider: %s" % config.cloud_provider
@@ -245,7 +250,9 @@ def get_snapshot_interface_from_server_config(server_config):
         from barman.cloud_providers.aws_s3 import AwsCloudSnapshotInterface
 
         return AwsCloudSnapshotInterface(
-            server_config.aws_profile, server_config.aws_region
+            server_config.aws_profile,
+            server_config.aws_region,
+            server_config.aws_await_snapshots_timeout,
         )
     else:
         raise CloudProviderUnsupported(
