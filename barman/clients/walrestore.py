@@ -31,7 +31,6 @@ import shutil
 import subprocess
 import sys
 import time
-from pathlib import Path
 
 import barman
 from barman.utils import force_str
@@ -75,7 +74,7 @@ def main(args=None):
         return  # never reached
 
     # If the file is present in SPOOL_DIR use it and terminate
-    try_deliver_from_spool(config, dest_file)
+    try_deliver_from_spool(config, dest_file.name)
 
     # If required load the list of files to download in parallel
     additional_files = peek_additional_files(config)
@@ -242,12 +241,12 @@ def try_deliver_from_spool(config, dest_file):
     return otherwise.
 
     :param argparse.Namespace config: the configuration from command line
-    :param dest_file: The destination file object
+    :param dest_file: The path to the destination file
     """
-    spool_file = Path(config.spool_dir, config.wal_name)
+    spool_file = str(os.path.join(config.spool_dir, config.wal_name))
 
     # id the file is not present, give up
-    if not spool_file.exists():
+    if not os.path.exists(spool_file):
         return
 
     try:
@@ -255,7 +254,7 @@ def try_deliver_from_spool(config, dest_file):
         sys.exit(0)
     except IOError as e:
         exit_with_error(
-            "Failure copying %s to %s: %s" % (spool_file, dest_file.name, e)
+            "Failure moving %s to %s: %s" % (spool_file, dest_file, e)
         )
 
 
