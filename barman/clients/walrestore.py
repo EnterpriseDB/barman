@@ -31,6 +31,7 @@ import shutil
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import barman
 from barman.utils import force_str
@@ -243,15 +244,14 @@ def try_deliver_from_spool(config, dest_file):
     :param argparse.Namespace config: the configuration from command line
     :param dest_file: The destination file object
     """
-    spool_file = os.path.join(config.spool_dir, config.wal_name)
+    spool_file = Path(config.spool_dir, config.wal_name)
 
     # id the file is not present, give up
-    if not os.path.exists(spool_file):
+    if not spool_file.exists():
         return
 
     try:
-        shutil.copyfileobj(open(spool_file, "rb"), dest_file)
-        os.unlink(spool_file)
+        shutil.move(spool_file, dest_file)
         sys.exit(0)
     except IOError as e:
         exit_with_error(
