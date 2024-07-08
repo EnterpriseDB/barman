@@ -412,6 +412,13 @@ def parse_arguments(args=None):
         help="The name of the AWS region containing the EC2 VM and storage volumes "
         "defined by the --snapshot-instance and --snapshot-disk arguments.",
     )
+    s3_arguments.add_argument(
+        "--aws-await-snapshots-timeout",
+        default=3600,
+        help="The length of time in seconds to wait for snapshots to be created in AWS before "
+        "timing out (default: 3600 seconds)",
+        type=check_positive,
+    )
     azure_arguments.add_argument(
         "--encryption-scope",
         help="The name of an encryption scope defined in the Azure Blob Storage "
