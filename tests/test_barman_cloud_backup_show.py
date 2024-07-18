@@ -215,6 +215,7 @@ class TestCloudBackupShow(object):
             "version": 150000,
             "xlog_segment_size": 16777216,
             "backup_id": "backup_id_1",
+            "data_checksums": None,
             "summarize_wal": None,
             "cluster_size": None,
         }
