@@ -838,9 +838,11 @@ class TestStrategy(object):
         # Given a PostgreSQL connection of the specified version
         mock_postgres = mock.Mock()
         mock_postgres.server_version = server_version
-        # Mock postgres server.get_setting() call
+        # Mock the get_setting("data_directory"), get_setting("data_checksums") and
+        # get_setting("summarize_wal") calls, respectively
         mock_postgres.get_setting.side_effect = [
             "data_directory",
+            "off",
             expected_value,
         ]
 
@@ -876,12 +878,18 @@ class TestStrategy(object):
         mock_postgres.get_tablespaces.assert_called_once()
         mock_postgres.get_configuration_files.assert_called_once()
         if mock_postgres.server_version < 170000:
-            mock_postgres.get_setting.assert_called_once_with("data_directory")
+            calls = [call("data_directory"), call("data_checksums")]
+            mock_postgres.get_setting.assert_has_calls(calls, any_order=False)
+            assert mock_postgres.get_setting.call_count == 2
             assert backup_info.summarize_wal is None
             assert backup_info.version == 160000
         else:
-            calls = [call("data_directory"), call("summarize_wal")]
-            assert mock_postgres.get_setting.call_count == 2
+            calls = [
+                call("data_directory"),
+                call("data_checksums"),
+                call("summarize_wal"),
+            ]
+            assert mock_postgres.get_setting.call_count == 3
             mock_postgres.get_setting.assert_has_calls(calls, any_order=False)
             assert backup_info.summarize_wal == "on"
             assert backup_info.version == 170000
@@ -1334,10 +1342,11 @@ class TestPostgresBackupExecutor(object):
         """
         # Test: start concurrent backup
         backup_manager = build_backup_manager(global_conf={"backup_method": "postgres"})
-        # Mock server.get_pg_setting('data_directory') call
+        # Mock the get_setting("data_directory") and get_setting("data_checksums") calls
         postgres_mock = backup_manager.server.postgres
         postgres_mock.get_setting.side_effect = [
             "/test/fake_data_dir",
+            "off",
         ]
         # Mock server.get_pg_configuration_files() call
         postgres_mock.get_configuration_files.return_value = dict(

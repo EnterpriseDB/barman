@@ -69,6 +69,7 @@ def build_test_backup_info(
     server=None,
     systemid=None,
     copy_stats=None,
+    data_checksums=None,
     summarize_wal=None,
     parent_backup_id=None,
     children_backup_ids=None,
@@ -105,6 +106,7 @@ def build_test_backup_info(
     :param int version: postgres version of the backup
     :param barman.server.Server|None server: Server object for the backup
     :param dict|None: Copy stats dictionary
+    :param str|None data_checksums: The checksum state (on/off)
     :param str|None: summarize_wal status flag
     :param str|None: parent_backup_id status flag
     :param list|None: children_backup_ids status flag
