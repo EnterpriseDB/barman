@@ -1166,6 +1166,52 @@ class TestLocalBackupInfo:
             assert backups[1].backup_id == "child_backup1"
             assert backups[2].backup_id == "child_backup2"
 
+    @pytest.mark.parametrize(
+        # The following are data_checksum configurations for 4 different backups of a chain
+        # root_backup incremental1 incremental2 incremental3 expected_result
+        ("conf_root", "conf_inc1", "conf_inc2", "conf_inc3", "expected"),
+        (
+            # Case 1: checksums were disabled in the most recent backup
+            # so the chain is considered consistent automatically
+            ("on", "on", "on", "off", True),
+            # Case 2: checksums were enabled in the most recent backup and on all
+            # previous backups in the chain, so the chain is considered consistent
+            ("on", "on", "on", "on", True),
+            # Case 3: checksums were enabled in the most recent backup and disabled in
+            # one or more backups in the chain, so the chain is considered inconsistent
+            ("off", "off", "on", "on", False),
+        ),
+    )
+    def test_is_checksum_consistent(
+        self, conf_root, conf_inc1, conf_inc2, conf_inc3, expected
+    ):
+        """
+        Test checksum configuration consistency between Postgres incremental backups of a chain
+        """
+        backup_manager = build_backup_manager(main_conf={"backup_method": "postgres"})
+        root_backup = build_test_backup_info(
+            server=backup_manager.server, data_checksums=conf_root
+        )
+        incremental1 = build_test_backup_info(
+            server=backup_manager.server,
+            data_checksums=conf_inc1,
+            parent_backup_id=root_backup.backup_id,
+        )
+        incremental2 = build_test_backup_info(
+            server=backup_manager.server,
+            data_checksums=conf_inc2,
+            parent_backup_id=incremental1.backup_id,
+        )
+        incremental3 = build_test_backup_info(
+            server=backup_manager.server,
+            data_checksums=conf_inc3,
+            parent_backup_id=incremental2.backup_id,
+        )
+
+        with patch("barman.infofile.LocalBackupInfo.walk_to_root") as walk_mock:
+            walk_mock.return_value = (incremental2, incremental1, root_backup)
+            assert incremental3.is_checksum_consistent() is expected
+
     def test_true_is_full_and_eligible_for_incremental(self):
         """
         Test that the function applies the correct conditions for a full backup
