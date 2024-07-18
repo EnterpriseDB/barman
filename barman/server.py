@@ -1705,6 +1705,16 @@ class Server(RemoteStatusMixin):
             if not previous_backup:
                 self.backup_manager.remove_wal_before_backup(backup_info)
 
+            # check if the backup chain (in case it is a Postgres incremental) is consistent
+            # with their checksums configurations
+            if not backup_info.is_checksum_consistent():
+                output.warning(
+                    "This is an incremental backup taken with `data_checksums = on` whereas "
+                    "some previous backups in the chain were taken with `data_checksums = off`. "
+                    "This can lead to potential recovery issues. Consider taking a new full backup "
+                    "to avoid having inconsistent backup chains."
+                )
+
             if backup_info.status == BackupInfo.WAITING_FOR_WALS:
                 output.warning(
                     "IMPORTANT: this backup is classified as "

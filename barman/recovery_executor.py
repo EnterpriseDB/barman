@@ -1856,9 +1856,20 @@ class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
         self.temp_dirs.append(fs.LocalLibPathDeletionCommand(synthetic_backup_dir))
 
         # Perform the standard recovery process passing the synthetic backup
-        return super(IncrementalRecoveryExecutor, self).recover(
+        recovery_info = super(IncrementalRecoveryExecutor, self).recover(
             synthetic_backup_info, dest, remote_command=remote_command, **kwargs
         )
+
+        # If the checksum configuration is not consistent among all backups in the chain, we
+        # raise a warning at the end so the user can optionally take action about it
+        if not backup_info.is_checksum_consistent():
+            output.warning(
+                "You recovered from an incremental backup where checksums were enabled on "
+                "that backup, but not all backups in the chain. It is advised to disable, and "
+                "optionally re-enable, checksums on the destination directory to avoid failures."
+            )
+
+        return recovery_info
 
     def _combine_backups(self, backup_info, dest):
         """
