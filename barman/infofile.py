@@ -522,7 +522,7 @@ class BackupInfo(FieldListFile):
     snapshots_info = Field(
         "snapshots_info", load=load_snapshots_info, dump=output_snapshots_info
     )
-
+    data_checksums = Field("data_checksums")
     summarize_wal = Field("summarize_wal")
     parent_backup_id = Field("parent_backup_id")
     children_backup_ids = Field(

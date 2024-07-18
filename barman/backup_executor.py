@@ -1780,6 +1780,10 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
                 msg = "\t%s, %s, %s" % (item.oid, item.name, item.location)
                 _logger.info(msg)
 
+        # Set data_checksums state
+        data_checksums = self.postgres.get_setting("data_checksums")
+        backup_info.set_attribute("data_checksums", data_checksums)
+
         # Get summarize_wal information for incremental backups
         # Postgres major version should be >= 17
         backup_info.set_attribute("summarize_wal", None)
