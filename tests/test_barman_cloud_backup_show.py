@@ -44,6 +44,7 @@ class TestCloudBackupShow(object):
             end_time=datetime.datetime(2038, 1, 19, 4, 14, 8),
             end_wal="000000010000000000000004",
             size=None,
+            data_checksums="on",
             snapshots_info=GcpSnapshotsInfo(
                 project="test_project",
                 snapshots=[
@@ -96,6 +97,7 @@ class TestCloudBackupShow(object):
             "  Status                 : DONE\n"
             "  PostgreSQL Version     : 150000\n"
             "  PGDATA directory       : /pgdata/location\n"
+            "  Checksums              : on\n"
             "\n"
             "  Snapshot information:\n"
             "    provider             : gcp\n"
@@ -173,6 +175,7 @@ class TestCloudBackupShow(object):
             "mode": "concurrent",
             "parent_backup_id": None,
             "pgdata": "/pgdata/location",
+            "data_checksums": "on",
             "server_name": "main",
             "size": None,
             "snapshots_info": {
@@ -215,7 +218,6 @@ class TestCloudBackupShow(object):
             "version": 150000,
             "xlog_segment_size": 16777216,
             "backup_id": "backup_id_1",
-            "data_checksums": None,
             "summarize_wal": None,
             "cluster_size": None,
         }

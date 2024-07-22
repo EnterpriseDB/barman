@@ -1189,6 +1189,7 @@ class TestConsoleWriter(object):
             systemid="systemid",
             wal_until_next_compression_ratio=1.5,
             wals_per_second=wal_per_second,
+            data_checksums="on",
         )
 
         writer = output.ConsoleOutputWriter()
@@ -1202,6 +1203,7 @@ class TestConsoleWriter(object):
         assert ext_info["status"] in out
         assert str(ext_info["end_time"]) in out
         assert ext_info["systemid"] in out
+        assert "Checksums              : %s" % ext_info["data_checksums"] in out
         for name, _, location in ext_info["tablespaces"]:
             assert "{:<21}: {}".format(name, location) in out
         assert (pretty_size(ext_info["size"] + ext_info["wal_size"])) in out
@@ -1882,6 +1884,7 @@ class TestJsonWriter(object):
         assert server_name in json_output
         assert ext_info["backup_id"] == json_output[server_name]["backup_id"]
         assert ext_info["status"] == json_output[server_name]["status"]
+        assert ext_info["data_checksums"] == json_output[server_name]["data_checksums"]
         assert str(ext_info["end_time"]) == base_information["end_time"]
         assert self.end_epoch == base_information["end_time_timestamp"]
         assert self.begin_epoch == base_information["begin_time_timestamp"]

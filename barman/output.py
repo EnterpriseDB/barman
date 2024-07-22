@@ -715,6 +715,7 @@ class ConsoleOutputWriter(object):
         if backup_info["status"] in BackupInfo.STATUS_COPY_DONE:
             output_fun(row.format("PostgreSQL Version", backup_info["version"]))
             output_fun(row.format("PGDATA directory", backup_info["pgdata"]))
+            output_fun(row.format("Checksums", backup_info["data_checksums"]))
             output_fun("")
 
     @staticmethod
@@ -1520,6 +1521,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
                 dict(
                     postgresql_version=data["version"],
                     pgdata_directory=data["pgdata"],
+                    data_checksums=data["data_checksums"],
                     tablespaces=[],
                 )
             )
