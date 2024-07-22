@@ -253,9 +253,7 @@ def try_deliver_from_spool(config, dest_file):
         shutil.move(spool_file, dest_file)
         sys.exit(0)
     except IOError as e:
-        exit_with_error(
-            "Failure moving %s to %s: %s" % (spool_file, dest_file, e)
-        )
+        exit_with_error("Failure moving %s to %s: %s" % (spool_file, dest_file, e))
 
 
 def exit_with_error(message, status=2, sleep=0):
