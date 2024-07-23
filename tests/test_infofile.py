@@ -1277,6 +1277,23 @@ class TestLocalBackupInfo:
 
         assert not backup_info.is_full_and_eligible_for_incremental()
 
+    @pytest.mark.parametrize(
+        ("mode", "parent_backup_id", "expected_backup_type"),
+        [
+            ("rsync", None, "rsync"),
+            ("postgres", "some_id", "incremental"),
+            ("postgres", None, "full"),
+        ],
+    )
+    def test_backup_type(self, mode, parent_backup_id, expected_backup_type):
+        """
+        Ensure :meth:`LocalBackupInfo.backup_type` returns the correct backup type label.
+        """
+        backup_info = build_test_backup_info(parent_backup_id=parent_backup_id)
+        backup_info.mode = mode
+
+        assert backup_info.backup_type == expected_backup_type
+
 
 class TestSyntheticBackupInfo:
     """
