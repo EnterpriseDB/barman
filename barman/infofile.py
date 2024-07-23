@@ -751,6 +751,22 @@ class LocalBackupInfo(BackupInfo):
         """
         return self.children_backup_ids is not None
 
+    @property
+    def backup_type(self):
+        """
+        Returns a string with the backup type label.
+
+        The backup type can be one of the following:
+        - ``rsync``: If the backup mode is "rsync``.
+        - ``incremental``: If the mode is ``postgres`` and the backup is incremental.
+        - ``full``: If the mode is ``postgres`` and the backup is not incremental.
+
+        :return str: The backup type label.
+        """
+        if self.mode != "postgres":
+            return "rsync"
+        return "incremental" if self.is_incremental else "full"
+
     def get_list_of_files(self, target):
         """
         Get the list of files for the current backup

@@ -19,6 +19,7 @@
 import json
 
 import mock
+from mock import PropertyMock
 import pytest
 
 from datetime import datetime
@@ -1155,9 +1156,7 @@ class TestConsoleWriter(object):
         writer.close()
         (out, err) = capsys.readouterr()
         assert not writer.minimal
-        assert bi.server_name in out
-        assert bi.backup_id in out
-        assert bi.status in out
+        assert "%s %s - R - %s" % (bi.server_name, bi.backup_id, bi.status) in out
 
     def test_result_list_backup_with_backup_name(self, capsys):
         # GIVEN a backup info with a backup_name
@@ -1176,7 +1175,44 @@ class TestConsoleWriter(object):
 
         # THEN the console output contains the backup name
         out, _err = capsys.readouterr()
-        assert "%s %s '%s'" % (bi.server_name, bi.backup_id, bi.backup_name) in out
+        assert (
+            "%s %s '%s' - R - " % (bi.server_name, bi.backup_id, bi.backup_name) in out
+        )
+
+    def test_result_list_backup_types(self, capsys):
+        # GIVEN a backup info with a specific backup type
+        backup_types = ["rsync", "incremental", "full"]
+        backup_size = 12345
+        wal_size = 54321
+        retention_status = "test status"
+
+        for backup_type in backup_types:
+            bi = build_test_backup_info(
+                server_name="test_server",
+                backup_id="test_backup_id",
+                status="DONE",
+            )
+
+            # Mock the backup_type property
+            type_mock = PropertyMock(return_value=backup_type)
+            type(bi).backup_type = type_mock
+
+            # WHEN the list_backup output is generated
+            console_writer = output.ConsoleOutputWriter()
+            console_writer.init_list_backup(bi.server_name, False)
+            console_writer.result_list_backup(
+                bi, backup_size, wal_size, retention_status
+            )
+            console_writer.close()
+
+            # Capture the output
+            out, err = capsys.readouterr()
+
+            # THEN the console output contains the correct backup type label
+            type_mock.assert_called_once()
+            expected_label = f" - {backup_type[0].upper()} - "
+            assert expected_label in out
+            assert err == ""
 
     def test_result_show_backup(self, capsys):
         # mock the backup ext info
@@ -1858,6 +1894,42 @@ class TestJsonWriter(object):
 
         assert json_output[bi.server_name][0]["backup_id"] == bi.backup_id
         assert json_output[bi.server_name][0]["backup_name"] == bi.backup_name
+
+    def test_result_list_backup_types(self, capsys):
+        # GIVEN a backup info with specific backup types
+        backup_types = ["rsync", "incremental", "full"]
+        backup_size = 12345
+        wal_size = 54321
+        retention_status = "test status"
+
+        for backup_type in backup_types:
+            bi = build_test_backup_info(
+                server_name="test_server",
+                backup_id="test_backup_id",
+                status="DONE",
+            )
+
+            # Mock the backup_type property
+            type_mock = PropertyMock(return_value=backup_type)
+            type(bi).backup_type = type_mock
+
+            # WHEN the list_backup output is generated
+            json_writer = output.JsonOutputWriter()
+            json_writer.init_list_backup(bi.server_name, False)
+            json_writer.result_list_backup(bi, backup_size, wal_size, retention_status)
+            json_writer.close()
+
+            # Capture the output
+            out, err = capsys.readouterr()
+
+            # THEN the JSON output contains the correct backup type
+            json_output = json.loads(out)
+            backup = find_by_attr(
+                json_output[bi.server_name], "backup_id", bi.backup_id
+            )
+            assert backup["backup_type"] == backup_type
+            assert err == ""
+            type_mock.assert_called_once()
 
     @mock.patch.dict("os.environ", {"TZ": "US/Eastern"})
     def test_result_show_backup(self, capsys):
