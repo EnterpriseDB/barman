@@ -1564,6 +1564,10 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             )
             backup_info.status = BackupInfo.FAILED
             backup_info.save()
+            output.error(
+                "This backup has been marked as FAILED due to the "
+                "following reason: %s" % backup_info.error
+            )
             return
 
         if end_wal <= last_archived_wal:

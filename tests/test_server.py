@@ -2014,7 +2014,7 @@ class TestServer(object):
     @patch("barman.infofile.BackupInfo.save")
     @patch("os.path.exists")
     def test_check_backup(
-        self, mock_exists, backup_info_save, tmpdir, orig_exists=os.path.exists
+        self, mock_exists, backup_info_save, tmpdir, capsys, orig_exists=os.path.exists
     ):
         """
         Test the check_backup method
@@ -2090,6 +2090,8 @@ class TestServer(object):
             "The first missing WAL file is "
             "000000010000000000000003"
         )
+        _, err = capsys.readouterr()
+        assert backup_info.error in err
         backup_info_save.reset_mock()
 
         # Case 4: the more recent WAL archived is more recent than the end
@@ -2129,6 +2131,8 @@ class TestServer(object):
             "The first missing WAL file is "
             "000000010000000000000004"
         )
+        _, err = capsys.readouterr()
+        assert backup_info.error in err
         backup_info_save.reset_mock()
 
         # Case 4.3: we have all the files, but the backup is marked as
