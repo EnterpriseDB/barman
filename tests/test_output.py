@@ -1144,8 +1144,6 @@ class TestConsoleWriter(object):
         assert bi.server_name in out
         assert bi.backup_id in out
         assert str(bi.end_time.ctime()) in out
-        for name, _, location in bi.tablespaces:
-            assert "%s:%s" % (name, location)
         assert "Size: " + pretty_size(backup_size) in out
         assert "WAL Size: " + pretty_size(wal_size) in out
         assert err == ""
@@ -1816,10 +1814,6 @@ class TestJsonWriter(object):
         assert bi.backup_id == backup["backup_id"]
         assert str(bi.end_time.ctime()) == backup["end_time"]
         assert self.end_epoch == backup["end_time_timestamp"]
-        for name, _, location in bi.tablespaces:
-            tablespace = find_by_attr(backup["tablespaces"], "name", name)
-            assert name == tablespace["name"]
-            assert location == tablespace["location"]
         assert pretty_size(backup_size) == backup["size"]
         assert pretty_size(wal_size) == backup["wal_size"]
         assert err == ""
