@@ -687,12 +687,6 @@ class ConsoleOutputWriter(object):
                 "%s - Size: %s - WAL Size: %s"
                 % (end_time, pretty_size(backup_size), pretty_size(wal_size))
             )
-            if backup_info.tablespaces:
-                tablespaces = [
-                    ("%s:%s" % (tablespace.name, tablespace.location))
-                    for tablespace in backup_info.tablespaces
-                ]
-                out_list.append(" (tablespaces: %s)" % ", ".join(tablespaces))
             if backup_info.status == BackupInfo.WAITING_FOR_WALS:
                 out_list.append(" - %s" % BackupInfo.WAITING_FOR_WALS)
             if retention_status and retention_status != BackupInfo.NONE:
@@ -1496,12 +1490,6 @@ class JsonOutputWriter(ConsoleOutputWriter):
                     retention_status=retention_status or BackupInfo.NONE,
                 )
             )
-            output["tablespaces"] = []
-            if backup_info.tablespaces:
-                for tablespace in backup_info.tablespaces:
-                    output["tablespaces"].append(
-                        dict(name=tablespace.name, location=tablespace.location)
-                    )
         else:
             output.update(dict(status=backup_info.status))
 
