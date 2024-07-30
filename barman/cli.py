@@ -485,6 +485,13 @@ def backup_completer(prefix, parsed_args, **kwargs):
             type=check_non_negative,
         ),
         argument(
+            "--keepalive-interval",
+            help="An interval, in seconds, at which a heartbeat query will be sent "
+            "to the server to keep the libpq connection alive during an Rsync backup.",
+            dest="keepalive_interval",
+            type=check_non_negative,
+        ),
+        argument(
             "--name",
             help="a name which can be used to reference this backup in barman "
             "commands such as recover and delete",
@@ -534,6 +541,8 @@ def backup(args):
             server.config.basebackup_retry_sleep = args.retry_sleep
         if args.retry_times is not None:
             server.config.basebackup_retry_times = args.retry_times
+        if args.keepalive_interval is not None:
+            server.config.keepalive_interval = args.keepalive_interval
         if hasattr(args, "immediate_checkpoint"):
             # As well as overriding the immediate_checkpoint value in the config
             # we must also update the immediate_checkpoint attribute on the
