@@ -305,6 +305,7 @@ def build_config_dictionary(config_keys=None):
         "gcp_zone": None,
         "immediate_checkpoint": False,
         "incoming_wals_directory": "/some/barman/home/main/incoming",
+        "keepalive_interval": 60,
         "max_incoming_wals_queue": None,
         "minimum_redundancy": "0",
         "name": "main",
