@@ -25,6 +25,10 @@ import datetime
 import logging
 from abc import ABCMeta
 from multiprocessing import Process, Queue
+import os
+import signal
+import threading
+import time
 
 try:
     from queue import Empty
@@ -40,6 +44,7 @@ from barman.exceptions import (
     ConninfoException,
     PostgresAppNameError,
     PostgresConnectionError,
+    PostgresConnectionLost,
     PostgresDuplicateReplicationSlot,
     PostgresException,
     PostgresInvalidReplicationSlot,
@@ -457,6 +462,8 @@ class PostgreSQLConnection(PostgreSQL):
     WALSTREAMER = 2
     ANY_STREAMING_CLIENT = (STANDBY, WALSTREAMER)
 
+    HEARTBEAT_QUERY = "SELECT 1"
+
     def __init__(
         self,
         conninfo,
@@ -497,6 +504,11 @@ class PostgreSQLConnection(PostgreSQL):
             except psycopg2.ProgrammingError as e:
                 raise PostgresAppNameError(force_str(e).strip())
         return self._conn
+
+    @property
+    def has_connection(self):
+        """Checks if the Postgres connection has already been set"""
+        return True if self._conn is not None else False
 
     @property
     def server_txt_version(self):
@@ -1602,6 +1614,26 @@ class PostgreSQLConnection(PostgreSQL):
             # the format of the synchronous_standby_names content
             return [x.strip().strip('"') for x in names_list.split(",")]
 
+    def send_heartbeat_query(self):
+        """
+        Sends a heartbeat query to the server with the already opened connection.
+
+        :returns tuple[bool, Exception|None]: A tuple where the first value is a boolean
+            indicating if the query executed successfully or not and the second is the
+            exception raised by ``psycopg2`` in case it did not succeed.
+        """
+        try:
+            with self._conn.cursor() as cursor:
+                cursor.execute(self.HEARTBEAT_QUERY)
+                _logger.debug("Sent heartbeat query to maintain the current connection")
+            return True, None
+        except psycopg2.Error as ex:
+            _logger.debug(
+                "Failed to execute heartbeat query on the current connection: %s"
+                % force_str(ex)
+            )
+            return False, ex
+
     @property
     def name_map(self):
         """
@@ -1813,3 +1845,108 @@ class StandbyPostgreSQLConnection(PostgreSQLConnection):
         return self._stop_backup(
             super(StandbyPostgreSQLConnection, self).stop_exclusive_backup
         )
+
+
+class PostgresKeepAlive:
+    """
+    Context manager to maintain a Postgres connection alive.
+
+    A child thread is spawned to execute heartbeat queries in the background
+    at a specified interval during its living context.
+
+    It does not open or close any connections on its own. Instead, it waits for the
+    specified connection to be opened on the main thread before start sending any query.
+
+    :cvar THREAD_NAME: The name identifying the keep-alive thread.
+    """
+
+    THREAD_NAME = "barman_keepalive_thread"
+
+    def __init__(self, postgres, interval, raise_exception=False):
+        """
+        Constructor.
+
+        :param barman.postgres.PostgreSQLConnection postgres: The
+            Postgres connection to keep alive.
+        :param int interval: An interval in seconds at which a
+            heartbeat query will be sent to keep the connection alive.
+            A value <= ``0`` won't start the keepalive.
+        :param bool raise_exception: A boolean indicating if an exception
+            should be raised in case the connection is lost. If ``True``, a
+            ``PostgresConnectionLost`` exception will be raised as soon as
+            it's noticed a connection failure. If ``False``, it will keep executing
+            normally until the context exits.
+        """
+        self.postgres = postgres
+        self.interval = interval
+        self.raise_exception = raise_exception
+        self._stop_thread = threading.Event()
+        self._thread = threading.Thread(
+            target=self._run_keep_alive,
+            name=self.THREAD_NAME,
+        )
+
+    def _prepare_signal_handler(self):
+        """
+        Set up a signal handler to raise an exception on the main thread when
+        the keep-alive thread wishes to interrupt it. This method listens for a
+        ``SIGUSR1`` signal and, when received, raises a ``PostgresConnectionLost``
+        exception.
+
+        .. note::
+            This code is, and only works if, executed while on the main thread. We
+            are not able to set a signal listener on a child thread, therefore this
+            method must be executed before the keep-alive thread starts.
+        """
+
+        def raise_exception(signum, frame):
+            raise PostgresConnectionLost("Connection to Postgres server was lost.")
+
+        signal.signal(signal.SIGUSR1, raise_exception)
+
+    def _raise_exception_on_main(self):
+        """
+        Trigger an exception on the main thread at whatever frame is being executed
+        at the moment. This is done by sending a ``SIGUSR1`` signal to the process,
+        which will be caught by the signal handler set previously in this class.
+
+        .. note::
+            This is an alternative way of interrupting the main thread's work, since
+            there is no direct way of killing or raising exceptions on the main thread
+            from a child thread in Python. A handler for this signal has been set
+            beforehand by the ``_prepare_signal_handler`` method in this class.
+        """
+        os.kill(os.getpid(), signal.SIGUSR1)
+
+    def _run_keep_alive(self):
+        """Runs the keepalive until a stop-thread event is set"""
+        while not self._stop_thread.is_set():
+            if not self.postgres.has_connection:
+                # Wait for the connection to be opened on the main thread
+                time.sleep(1)
+                continue
+
+            success, ex = self.postgres.send_heartbeat_query()
+
+            if not success and self.raise_exception:
+                # If one of the below exeptions was raised by psycopg2, it most likely
+                # means that the connection (and consequently, the session) was lost. In
+                # such cases, we can stop the keep-alive exection and raise the exception
+                if isinstance(ex, (psycopg2.InterfaceError, psycopg2.OperationalError)):
+                    self._stop_thread.set()
+                    self._raise_exception_on_main()
+
+            self._stop_thread.wait(self.interval)
+
+    def __enter__(self):
+        """Enters context. Starts the thread"""
+        if self.interval > 0:
+            if self.raise_exception:
+                self._prepare_signal_handler()
+            self._thread.start()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exits context. Makes sure the thread is terminated"""
+        if self.interval > 0:
+            self._stop_thread.set()
+            self._thread.join()

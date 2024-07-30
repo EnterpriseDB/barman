@@ -257,6 +257,12 @@ class PostgresConnectionError(PostgresException):
             return ""
 
 
+class PostgresConnectionLost(PostgresException):
+    """
+    The Postgres connection was lost during an execution
+    """
+
+
 class PostgresAppNameError(PostgresConnectionError):
     """
     Error setting application name with PostgreSQL server
