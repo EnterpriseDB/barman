@@ -58,6 +58,7 @@ from barman.exceptions import (
 )
 from barman.fs import UnixLocalCommand, UnixRemoteCommand, unix_command_factory
 from barman.infofile import BackupInfo
+from barman.postgres import PostgresKeepAlive
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import (
@@ -1190,6 +1191,19 @@ class RsyncBackupExecutor(ExternalBackupExecutor):
             self.server.config.update_msg_list_and_disable_server(
                 "backup_compression option is not supported by rsync backup_method"
             )
+
+    def backup(self, *args, **kwargs):
+        """
+        Perform an Rsync backup.
+
+        .. note::
+            This method currently only calls the parent backup method but inside a keepalive
+            context to ensure the connection does not become idle long enough to get dropped
+            by a firewall, for instance. This is important to ensure that ``pg_backup_start()``
+            and ``pg_backup_stop()`` are called within the same session.
+        """
+        with PostgresKeepAlive(self.server.postgres, self.config.keepalive_interval):
+            super(RsyncBackupExecutor, self).backup(*args, **kwargs)
 
     def backup_copy(self, backup_info):
         """
