@@ -51,6 +51,7 @@ from barman.exceptions import (
     DataTransferFailure,
     FsOperationFailed,
     PostgresConnectionError,
+    PostgresConnectionLost,
     PostgresIsInRecovery,
     SnapshotBackupException,
     SshCommandException,
@@ -58,6 +59,7 @@ from barman.exceptions import (
 )
 from barman.fs import UnixLocalCommand, UnixRemoteCommand, unix_command_factory
 from barman.infofile import BackupInfo
+from barman.postgres import PostgresKeepAlive
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import (
@@ -866,6 +868,7 @@ class ExternalBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
             self._update_action_from_strategy()
             raise
 
+        connection_error = False
         try:
             # save any metadata changed by start_backup() call
             # This must be inside the try-except, because it could fail
@@ -894,6 +897,12 @@ class ExternalBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
             # the begin_wal value is surely known. Doing it twice is safe
             # because this function is useful only during the first backup.
             self._purge_unused_wal_files(backup_info)
+
+        except PostgresConnectionLost:
+            # This exception is most likely to be raised by the PostgresKeepAlive,
+            # meaning that we lost the connection (and session) during the backup.
+            connection_error = True
+            raise
         except BaseException:
             # we do not need to do anything here besides re-raising the
             # exception. It will be handled in the external try block.
@@ -902,12 +911,15 @@ class ExternalBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         else:
             self.current_action = "issuing stop of the backup"
         finally:
-            output.info("Asking PostgreSQL server to finalize the backup.")
-            try:
-                self.strategy.stop_backup(backup_info)
-            except BaseException:
-                self._update_action_from_strategy()
-                raise
+            # If a connection error has been raised, it means we lost our session in the
+            # Postgres server. In such cases, it's useless to try a backup stop command.
+            if not connection_error:
+                output.info("Asking PostgreSQL server to finalize the backup.")
+                try:
+                    self.strategy.stop_backup(backup_info)
+                except BaseException:
+                    self._update_action_from_strategy()
+                    raise
 
     def _local_check(self, check_strategy):
         """
@@ -1189,6 +1201,26 @@ class RsyncBackupExecutor(ExternalBackupExecutor):
         if self.server.config.backup_compression:
             self.server.config.update_msg_list_and_disable_server(
                 "backup_compression option is not supported by rsync backup_method"
+            )
+
+    def backup(self, *args, **kwargs):
+        """
+        Perform an Rsync backup.
+
+        .. note::
+            This method currently only calls the parent backup method but inside a keepalive
+            context to ensure the connection does not become idle long enough to get dropped
+            by a firewall, for instance. This is important to ensure that ``pg_backup_start()``
+            and ``pg_backup_stop()`` are called within the same session.
+        """
+        try:
+            with PostgresKeepAlive(
+                self.server.postgres, self.config.keepalive_interval, True
+            ):
+                super(RsyncBackupExecutor, self).backup(*args, **kwargs)
+        except PostgresConnectionLost:
+            raise BackupException(
+                "Connection to the Postgres server was lost during the backup."
             )
 
     def backup_copy(self, backup_info):
