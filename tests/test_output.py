@@ -1465,7 +1465,7 @@ class TestConsoleWriter(object):
             wals_per_second=0.1,
             cluster_size=2048,
             est_dedup_size=1024,
-            deduplication_ratio=0.5
+            deduplication_ratio=0.5,
         )
 
         # WHEN the list_backup output is generated in Plain form
@@ -1506,7 +1506,7 @@ class TestConsoleWriter(object):
             wals_per_second=0.1,
             cluster_size=2048,
             est_dedup_size=1024,
-            deduplication_ratio=0.5
+            deduplication_ratio=0.5,
         )
 
         # WHEN the show output is generated in Plain form

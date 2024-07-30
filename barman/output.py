@@ -922,7 +922,10 @@ class ConsoleOutputWriter(object):
 
             if backup_size is not None and "estimated_throughput" in backup_info:
                 value = "{}/s".format(pretty_size(backup_info["estimated_throughput"]))
-                if "number_of_workers" in backup_info and backup_info["number_of_workers"]:
+                if (
+                    "number_of_workers" in backup_info
+                    and backup_info["number_of_workers"]
+                ):
                     value += " (%s jobs)" % backup_info["number_of_workers"]
                 output_fun(nested_row.format("Estimated throughput", value))
 
