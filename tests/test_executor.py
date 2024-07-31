@@ -205,6 +205,9 @@ class TestRsyncBackupExecutor(object):
                 "backup_options": "exclusive_backup",
             }
         )
+        # mocks the keep-alive query
+        backup_manager.server.postgres.send_heartbeat_query.return_value = True, None
+
         backup_info = LocalBackupInfo(backup_manager.server, backup_id="fake_backup_id")
         backup_info.begin_xlog = "0/2000028"
         backup_info.begin_wal = "000000010000000000000002"
