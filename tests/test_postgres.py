@@ -17,7 +17,9 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import datetime
+import time
 from multiprocessing import Queue
+from unittest.mock import MagicMock
 
 try:
     from queue import Queue as SyncQueue
@@ -31,6 +33,7 @@ from psycopg2.errorcodes import DUPLICATE_OBJECT, UNDEFINED_OBJECT
 
 from barman.exceptions import (
     PostgresConnectionError,
+    PostgresConnectionLost,
     PostgresDuplicateReplicationSlot,
     PostgresException,
     PostgresInvalidReplicationSlot,
@@ -42,6 +45,7 @@ from barman.exceptions import (
 )
 from barman.postgres import (
     PostgreSQLConnection,
+    PostgresKeepAlive,
     StandbyPostgreSQLConnection,
     PostgreSQL,
 )
@@ -1814,6 +1818,38 @@ class TestPostgres(object):
         )
         assert result is None
 
+    @patch("barman.postgres._logger.debug")
+    def test_send_heartbeat_query(self, logger_mock):
+        """Test sending a heartbeat query to the current connection"""
+        server = build_real_server()
+        # Mock an already opened connection
+        conn_mock = MagicMock()
+        server.postgres._conn = conn_mock
+        # Mock the cursor to be used
+        cursor_mock = MagicMock()
+        conn_mock.cursor.return_value.__enter__.return_value = cursor_mock
+
+        # Case 1: the connection is working and the query executes successfully
+        result, ex = server.postgres.send_heartbeat_query()
+        cursor_mock.execute.assert_called_once_with("SELECT 1")
+        logger_mock.assert_called_once_with(
+            "Sent heartbeat query to maintain the current connection"
+        )
+        assert result is True and ex is None
+
+        cursor_mock.reset_mock()
+        logger_mock.reset_mock()
+
+        # Case 2: a database error occurred when executing the query
+        ex_to_raise = psycopg2.DatabaseError("some database error")
+        cursor_mock.execute.side_effect = ex_to_raise
+        result, ex = server.postgres.send_heartbeat_query()
+        cursor_mock.execute.assert_called_once_with("SELECT 1")
+        logger_mock.assert_called_once_with(
+            "Failed to execute heartbeat query on the current connection: some database error"
+        )
+        assert result is False and ex is ex_to_raise
+
 
 # noinspection PyMethodMayBeStatic
 class TestStreamingConnection(object):
@@ -2193,3 +2229,154 @@ class TestStandbyPostgreSQLConnection(object):
 
         # AND mock_done_q.put is called exactly once with the argument True
         mock_done_q.put.assert_called_once_with(True)
+
+
+class TestPostgresKeepAlive(object):
+    """Test the PostgresKeepAlive class"""
+
+    def _something_that_takes_some_time(self):
+        time.sleep(0.1)
+
+    def _something_that_takes_a_bunch_of_time(self):
+        time.sleep(1)
+
+    @patch("barman.postgres.PostgreSQLConnection")
+    def test_keepalive_runs_successfully(self, postgres_mock):
+        """Basic test. Ensures the keep-alive works in the ideal scenario"""
+        # Mock a Postgres with a connection already opened
+        postgres_mock.has_connection = True
+        postgres_mock.send_heartbeat_query.return_value = True, None
+        keepalive = PostgresKeepAlive(postgres_mock, 1)
+        keepalive._thread = Mock(wraps=keepalive._thread)
+        keepalive._stop_thread = Mock(wraps=keepalive._stop_thread)
+        with keepalive:
+            # Simulate something that takes a while, just so it allows some context switch
+            self._something_that_takes_some_time()
+            # The thread has started
+            keepalive._thread.start.assert_called_once()
+            assert keepalive._thread.is_alive() is True
+            # It sent a heartbeat query
+            postgres_mock.send_heartbeat_query.assert_called()
+            # It slept after the query
+            keepalive._stop_thread.wait.assert_called_with(1)
+        # The context manager exited, the thread should now be terminated
+        # The stop-thread event has been set, the thread stopped doing its work
+        assert keepalive._stop_thread.is_set()
+        # The thread is indeed terminated
+        assert keepalive._thread.is_alive() is False
+        # The main thread joined and can continue its work alone from now on
+        keepalive._thread.join.assert_called_once()
+
+    @patch("barman.postgres.PostgreSQLConnection")
+    def test_do_nothing_if_interval_less_or_equal_zero(self, postgres_mock):
+        """Ensures nothing happens if an interval <= ``0`` is given"""
+        postgres_mock.has_connection = True
+        postgres_mock.send_heartbeat_query.return_value = True, None
+        keepalive = PostgresKeepAlive(postgres_mock, 0)
+        keepalive._thread = Mock(wraps=keepalive._thread)
+        with keepalive:
+            self._something_that_takes_some_time()
+            # The thread was never started
+            keepalive._thread.start.assert_not_called()
+            assert keepalive._thread.is_alive() is False
+            # No queries were sent by the keep-alive
+            postgres_mock.send_heartbeat_query.assert_not_called()
+
+    @patch("barman.postgres.PostgreSQLConnection")
+    def test_wait_connection_open_to_send_queries(self, postgres_mock):
+        """Ensures the keep-alive only starts when the connection is opnened on the main thread"""
+        postgres_mock.has_connection = False
+        postgres_mock.send_heartbeat_query.return_value = True, None
+        keepalive = PostgresKeepAlive(postgres_mock, 1)
+        keepalive._thread = Mock(wraps=keepalive._thread)
+        with keepalive:
+            self._something_that_takes_some_time()
+            # The thread has started but it's waiting for the connection to
+            # be opened so no query is executed yet
+            keepalive._thread.start.assert_called_once()
+            assert keepalive._thread.is_alive() is True
+            postgres_mock.send_heartbeat_query.assert_not_called()
+            # The connection opens and now it should start sending queries
+            postgres_mock.has_connection = True
+            # we simulate something that takes more time here, since the keep-alive sleeps
+            # for 1 second before checking the connection again
+            self._something_that_takes_a_bunch_of_time()
+            postgres_mock.send_heartbeat_query.assert_called()
+
+    @patch("barman.postgres.PostgreSQLConnection")
+    def test_raise_exception_when_needed(self, postgres_mock):
+        """Ensures the keep-alive raises exceptions only when set to do so"""
+        # Mock a Postgres with a connection that fails in the first query
+        postgres_mock.has_connection = True
+        postgres_mock.send_heartbeat_query.return_value = (
+            False,
+            psycopg2.OperationalError("some connection error"),
+        )
+        # Case 1: Raises an exception when set do so
+        keepalive = PostgresKeepAlive(postgres_mock, 1, True)
+        keepalive._thread = Mock(wraps=keepalive._thread)
+        with pytest.raises(PostgresConnectionLost):
+            with keepalive:
+                self._something_that_takes_some_time()
+                keepalive._thread.start.assert_called_once()
+                assert keepalive._thread.is_alive() is True
+                # it sent a heartbeat query, but failed, the exception is raised
+                postgres_mock.send_heartbeat_query.assert_called()
+
+        # Case 2: Don't raise any exceptions if not set. In this case, it will just
+        # ignore the errors and keep executing until the context exits
+        keepalive = PostgresKeepAlive(postgres_mock, 1)
+        keepalive._thread = Mock(wraps=keepalive._thread)
+        with keepalive:
+            self._something_that_takes_some_time()
+            keepalive._thread.start.assert_called_once()
+            assert keepalive._thread.is_alive() is True
+            # It sent a heartbeat query, but failed, no exception is raised
+            postgres_mock.send_heartbeat_query.assert_called()
+
+    @patch("barman.postgres.PostgreSQLConnection")
+    def test_thread_is_always_terminated(self, postgres_mock):
+        """Ensures the keep-alive thread is stopped in all cases"""
+        postgres_mock.has_connection = True
+        postgres_mock.send_heartbeat_query.return_value = True, None
+        # Case 1: A normal execution, the stop-thread event is set when exiting
+        # the context manager and the thread is terminated
+        keepalive = PostgresKeepAlive(postgres_mock, 1)
+        keepalive._thread = Mock(wraps=keepalive._thread)
+        with keepalive:
+            self._something_that_takes_some_time()
+            keepalive._thread.start.assert_called_once()
+            assert keepalive._thread.is_alive() is True
+        assert keepalive._stop_thread.is_set()
+        assert keepalive._thread.is_alive() is False
+
+        # Case 2: If something goes wrong on main, the thread should also
+        # stop its work as soon as the context manager exits
+        keepalive = PostgresKeepAlive(postgres_mock, 1)
+        keepalive._thread = Mock(wraps=keepalive._thread)
+        try:
+            with keepalive:
+                self._something_that_takes_some_time()
+                keepalive._thread.start.assert_called_once()
+                assert keepalive._thread.is_alive() is True
+                raise Exception  # oops! something went wrong here
+        except Exception:
+            pass
+        assert keepalive._stop_thread.is_set()
+        assert keepalive._thread.is_alive() is False
+
+        # Case 3: When the keep-alive itself raises an exception it should
+        # also stop itself immediately
+        postgres_mock.send_heartbeat_query.return_value = (
+            False,
+            psycopg2.OperationalError("some connection error"),
+        )
+        keepalive = PostgresKeepAlive(postgres_mock, 1, True)
+        keepalive._thread = Mock(wraps=keepalive._thread)
+        with pytest.raises(PostgresConnectionLost):
+            with keepalive:
+                self._something_that_takes_some_time()
+                keepalive._thread.start.assert_called_once()
+                assert keepalive._thread.is_alive() is True
+        assert keepalive._stop_thread.is_set()
+        assert keepalive._thread.is_alive() is False
