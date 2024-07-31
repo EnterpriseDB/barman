@@ -526,6 +526,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 remove_until, timelines_to_protect, wal_ranges_to_protect
             ):
                 output.info("\t%s", name)
+
         # As last action, remove the backup directory,
         # ending the delete operation
         try:
@@ -558,6 +559,22 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 parent_backup.children_backup_ids = None
             parent_backup.save()
 
+        # rsync backups can have deduplication at filesystem level by using
+        # "reuse_backup = link". The deduplication size is calculated at the
+        # time the backup is taken. If we remove a backup, it may be the case
+        # that the next backup in the catalog is a rsync backup which was taken
+        # with the "link" option. With that possibility in mind, we re-calculate the
+        # deduplicated size of the next rsync backup because the removal of the
+        # previous backup can impact on that number.
+        # Note: we have no straight forward way of identifying if the next rsync
+        # backup in the catalog was taken with "link" or not because
+        # "reuse_backup" value is not stored in the "backup.info" file. In any
+        # case, the "re-calculation" can still be performed even if "link" was not
+        # used, and the only drawback is that we will waste some (small) amount
+        # of CPU/disk usage.
+        if next_backup and next_backup.backup_type == "rsync":
+            self._set_backup_sizes(next_backup)
+
         # Remove the sync lockfile if exists
         sync_lock = ServerBackupSyncLock(
             self.config.barman_lock_directory, self.config.name, backup.backup_id
@@ -588,6 +605,36 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         script.run()
 
         return True
+
+    def _set_backup_sizes(self, backup_info, fsync=False):
+        """
+        Set the actual size on disk of a backup.
+
+        Optionally fsync all files in the backup.
+
+        :param LocalBackupInfo backup_info: the backup to update
+        :param bool fsync: whether to fsync files to disk
+        """
+        backup_size = 0
+        deduplicated_size = 0
+        backup_dest = backup_info.get_basebackup_directory()
+        for dir_path, _, file_names in os.walk(backup_dest):
+            if fsync:
+                # If fsync, execute fsync() on the containing directory
+                fsync_dir(dir_path)
+            for filename in file_names:
+                file_path = os.path.join(dir_path, filename)
+                # If fsync, execute fsync() on all the contained files
+                file_stat = fsync_file(file_path) if fsync else os.stat(file_path)
+                backup_size += file_stat.st_size
+                # Excludes hard links from real backup size and only counts
+                # unique files for deduplicated size
+                if file_stat.st_nlink == 1:
+                    deduplicated_size += file_stat.st_size
+        # Save size into BackupInfo object
+        backup_info.set_attribute("size", backup_size)
+        backup_info.set_attribute("deduplicated_size", deduplicated_size)
+        backup_info.save()
 
     def validate_backup_args(self, **kwargs):
         """
@@ -1469,23 +1516,10 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         # Calculate the base backup size
         self.executor.current_action = "calculating backup size"
         _logger.debug(self.executor.current_action)
-        backup_size = 0
-        deduplicated_size = 0
-        backup_dest = backup_info.get_basebackup_directory()
-        for dir_path, _, file_names in os.walk(backup_dest):
-            # execute fsync() on the containing directory
-            fsync_dir(dir_path)
-            # execute fsync() on all the contained files
-            for filename in file_names:
-                file_path = os.path.join(dir_path, filename)
-                file_stat = fsync_file(file_path)
-                backup_size += file_stat.st_size
-                # Excludes hard links from real backup size
-                if file_stat.st_nlink == 1:
-                    deduplicated_size += file_stat.st_size
-        # Save size into BackupInfo object
-        backup_info.set_attribute("size", backup_size)
-        backup_info.set_attribute("deduplicated_size", deduplicated_size)
+        # Set backup sizes with fsync. We need to fsync files here to make sure
+        # the backup files are persisted to disk, so we don't lose the backup in
+        # the event of a system crash.
+        self._set_backup_sizes(backup_info, fsync=True)
         if backup_info.size > 0:
             deduplication_ratio = 1 - (
                 float(backup_info.deduplicated_size) / backup_info.size
