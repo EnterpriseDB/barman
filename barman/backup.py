@@ -526,6 +526,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 remove_until, timelines_to_protect, wal_ranges_to_protect
             ):
                 output.info("\t%s", name)
+
         # As last action, remove the backup directory,
         # ending the delete operation
         try:
@@ -558,6 +559,10 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 parent_backup.children_backup_ids = None
             parent_backup.save()
 
+        # Update next rsync backup size information
+        if next_backup and next_backup.backup_type == "rsync":
+            self._set_backup_sizes(next_backup)
+
         # Remove the sync lockfile if exists
         sync_lock = ServerBackupSyncLock(
             self.config.barman_lock_directory, self.config.name, backup.backup_id
@@ -588,6 +593,30 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         script.run()
 
         return True
+
+    def _set_backup_sizes(self, backup_info, fsync=False):
+        """
+        Set the actual size on disk of a backup.
+        Optionally fsync all files in the backup.
+
+        :param LocalBackupInfo backup_info: the backup to update
+        :param bool fsync: whether to fsync files to disk
+        """
+        backup_size = 0
+        deduplicated_size = 0
+        backup_dest = backup_info.get_basebackup_directory()
+        for dir_path, _, file_names in os.walk(backup_dest):
+            if fsync:
+                fsync_dir(dir_path)
+            for filename in file_names:
+                file_path = os.path.join(dir_path, filename)
+                file_stat = fsync_file(file_path) if fsync else os.stat(file_path)
+                backup_size += file_stat.st_size
+                if file_stat.st_nlink == 1:
+                    deduplicated_size += file_stat.st_size
+        backup_info.set_attribute("size", backup_size)
+        backup_info.set_attribute("deduplicated_size", deduplicated_size)
+        backup_info.save()
 
     def validate_backup_args(self, **kwargs):
         """
@@ -1456,23 +1485,11 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         # Calculate the base backup size
         self.executor.current_action = "calculating backup size"
         _logger.debug(self.executor.current_action)
-        backup_size = 0
-        deduplicated_size = 0
-        backup_dest = backup_info.get_basebackup_directory()
-        for dir_path, _, file_names in os.walk(backup_dest):
-            # execute fsync() on the containing directory
-            fsync_dir(dir_path)
-            # execute fsync() on all the contained files
-            for filename in file_names:
-                file_path = os.path.join(dir_path, filename)
-                file_stat = fsync_file(file_path)
-                backup_size += file_stat.st_size
-                # Excludes hard links from real backup size
-                if file_stat.st_nlink == 1:
-                    deduplicated_size += file_stat.st_size
+        # Set backup sizes with fsync
+        self._set_backup_sizes(backup_info, fsync=True)
         # Save size into BackupInfo object
-        backup_info.set_attribute("size", backup_size)
-        backup_info.set_attribute("deduplicated_size", deduplicated_size)
+        backup_info.set_attribute("size", backup_info.size)
+        backup_info.set_attribute("deduplicated_size", backup_info.deduplicated_size)
         if backup_info.size > 0:
             deduplication_ratio = 1 - (
                 float(backup_info.deduplicated_size) / backup_info.size
