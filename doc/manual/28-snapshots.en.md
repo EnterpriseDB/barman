@@ -157,6 +157,7 @@ The following optional parameters can be set when using AWS:
 ``` ini
 aws_region = AWS_REGION
 aws_profile = AWS_PROFILE_NAME
+aws_await_snapshots_timeout = TIMEOUT_IN_SECONDS
 ```
 
 If `aws_profile` is used it should be set to the name of a section in the AWS credentials file.
@@ -164,6 +165,8 @@ If `aws_profile` is not used then the default profile will be used.
 If no credentials file exists then credentials will be sourced from the environment.
 
 If `aws_region` is specified it will override any region that may be defined in the AWS profile.
+
+If `aws_await_snapshots_timeout` is not set, the default of `3600` seconds will be used.
 
 ### Taking a snapshot backup
 
