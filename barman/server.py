@@ -2934,12 +2934,12 @@ class Server(RemoteStatusMixin):
         except LockFileBusy:
             # If another process is running for this server,
             if reset:
-                output.info(
+                output.error(
                     "Unable to reset the status of receive-wal "
                     "for server %s. Process is still running" % self.config.name
                 )
             else:
-                output.info(
+                output.error(
                     "Another receive-wal process is already running "
                     "for server %s." % self.config.name
                 )
