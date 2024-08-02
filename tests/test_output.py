@@ -2217,9 +2217,10 @@ class TestJsonWriter(object):
             assert ext_info["root_backup_id"] == base_information["root_backup_id"]
             assert ext_info["parent_backup_id"] == base_information["parent_backup_id"]
             assert ext_info["chain_size"] == base_information["chain_size"]
-        if ext_info["mode"] == "postgres": 
+        if ext_info["mode"] == "postgres":
             assert (
-                ext_info["children_backup_ids"] == base_information["children_backup_ids"]
+                ext_info["children_backup_ids"]
+                == base_information["children_backup_ids"]
             )
 
         assert (
