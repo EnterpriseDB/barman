@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import sys
 import logging
 import re
 import shutil
@@ -265,8 +266,11 @@ class UnixLocalCommand(object):
 
         self.cmd("uname", args=["-a"])
         result["kernel_ver"] = self.internal_cmd.out.rstrip()
-        self.cmd("python", args=["--version", "2>&1"])
-        result["python_ver"] = self.internal_cmd.out.rstrip()
+        result["python_ver"] = "Python %s.%s.%s" % (
+            sys.version_info.major,
+            sys.version_info.minor,
+            sys.version_info.micro,
+        )
         self.cmd("rsync", args=["--version", "2>&1"])
         try:
             result["rsync_ver"] = self.internal_cmd.out.splitlines(True)[0].rstrip()
