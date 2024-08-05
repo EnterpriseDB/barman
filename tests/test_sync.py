@@ -752,7 +752,10 @@ class TestSync(object):
 
         # Add a backup to the remote response
         primary_info = dict(EXPECTED_MINIMAL)
-        backup_info_dict = LocalBackupInfo(server, backup_id="1234567891",).to_json()
+        backup_info_dict = LocalBackupInfo(
+            server,
+            backup_id="1234567891",
+        ).to_json()
         primary_info["backups"]["1234567891"] = backup_info_dict
         command_mock.return_value.out = json.dumps(primary_info)
         server.cron()

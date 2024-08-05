@@ -726,9 +726,7 @@ class ConsoleOutputWriter(object):
             cluster_size = backup_info.get("cluster_size")
             if cluster_size:
                 output_fun(
-                    row.format(
-                        "Estimated Cluster Size", pretty_size(cluster_size)
-                    )
+                    row.format("Estimated Cluster Size", pretty_size(cluster_size))
                 )
         output_fun("")
 
@@ -750,9 +748,7 @@ class ConsoleOutputWriter(object):
 
         backup_name = backup_info.get("summarize_wal")
         if backup_name:
-            output_fun(
-                nested_row.format("WAL summarizer", backup_name)
-            )
+            output_fun(nested_row.format("WAL summarizer", backup_name))
         output_fun("")
 
     @staticmethod
@@ -1687,9 +1683,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
                         copy_time_seconds=cp_time,
                         throughput="%s/s"
                         % pretty_size(data["deduplicated_size"] / cp_time),
-                        throughput_bytes=int(
-                            data["deduplicated_size"] / cp_time
-                        ),
+                        throughput_bytes=int(data["deduplicated_size"] / cp_time),
                     )
                 )
             ans_time = data.get("analysis_time")

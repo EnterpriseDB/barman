@@ -66,7 +66,7 @@ class TestCloudBackupShow(object):
             ),
             version=150000,
             cluster_size=2048,
-            deduplicated_size=1024
+            deduplicated_size=1024,
         )
         backup_info.mode = "concurrent"
         cloud_backup_catalog = mock.Mock()
