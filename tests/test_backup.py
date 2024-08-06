@@ -954,6 +954,57 @@ class TestBackup(object):
         # no exception is raised when summarize_wal is on
         backup_manager._validate_incremental_backup_configs()
 
+    @pytest.mark.parametrize(
+        ("parent_backup_compression", "backup_compression"),
+        [("gzip", None), ("gzip", "gzip"), (None, "gzip"), (None, None)],
+    )
+    @patch("barman.backup.BackupManager.get_backup")
+    def test_validate_incremental_backup_configs_backup_compression(
+        self,
+        mock_get_backup,
+        parent_backup_compression,
+        backup_compression,
+    ):
+        """
+        Test the behaviour of backups taken with backup_compression set
+        for incremental backups and/or parent backups.
+        """
+        # set backup_compression option in global config
+        backup_manager = build_backup_manager(
+            global_conf={
+                "backup_method": "postgres",
+                "backup_compression": backup_compression,
+            }
+        )
+
+        # mock the postgres object to set server version
+        mock_postgres = Mock()
+        backup_manager.executor.server.postgres = mock_postgres
+        mock_postgres.configure_mock(server_version=170000)
+
+        # mock enabled summarize_wal option
+        backup_manager.executor.server.postgres.get_setting.side_effect = ["on"]
+        err_msg = ""
+
+        mock_get_backup.return_value = build_test_backup_info(
+            compression=parent_backup_compression, summarize_wal="on"
+        )
+        # ensure incremental backup with backup_compression set raises exception
+        if backup_compression:
+            err_msg = "Incremental backups cannot be taken with "
+            "'backup_compression' set in the configuration options."
+            with pytest.raises(BackupException, match=err_msg):
+                backup_manager._validate_incremental_backup_configs()
+        elif parent_backup_compression:
+            err_msg = (
+                "Incremental backups cannot be taken on top of compressed backups."
+            )
+            with pytest.raises(BackupException, match=err_msg):
+                backup_manager._validate_incremental_backup_configs()
+        else:
+            # no exception is raised when backup_compression is None
+            backup_manager._validate_incremental_backup_configs()
+
     @patch("barman.backup.BackupManager.get_available_backups")
     def test_get_last_full_backup_id(self, get_available_backups):
         """
