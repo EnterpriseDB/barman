@@ -728,7 +728,7 @@ class ConsoleOutputWriter(object):
                 output_fun(
                     row.format("Estimated Cluster Size", pretty_size(cluster_size))
                 )
-        output_fun("")
+                output_fun("")
 
     @staticmethod
     def render_show_backup_server(backup_info, output_fun, header_row, nested_row):
@@ -743,10 +743,13 @@ class ConsoleOutputWriter(object):
         :param str nested_row: format string which allows for `key: value` rows to be
             formatted
         """
-        output_fun(header_row.format("Server information"))
-        output_fun(nested_row.format("Checksums", backup_info["data_checksums"]))
 
+        data_checksums = backup_info.get("data_checksums")
         summarize_wal = backup_info.get("summarize_wal")
+        if data_checksums or summarize_wal:
+            output_fun(header_row.format("Server information"))
+        if data_checksums:
+            output_fun(nested_row.format("Checksums", backup_info["data_checksums"]))
         if summarize_wal:
             output_fun(nested_row.format("WAL summarizer", summarize_wal))
         output_fun("")
