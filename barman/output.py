@@ -746,9 +746,9 @@ class ConsoleOutputWriter(object):
         output_fun(header_row.format("Server information"))
         output_fun(nested_row.format("Checksums", backup_info["data_checksums"]))
 
-        backup_name = backup_info.get("summarize_wal")
-        if backup_name:
-            output_fun(nested_row.format("WAL summarizer", backup_name))
+        summarize_wal = backup_info.get("summarize_wal")
+        if summarize_wal:
+            output_fun(nested_row.format("WAL summarizer", summarize_wal))
         output_fun("")
 
     @staticmethod
@@ -827,17 +827,10 @@ class ConsoleOutputWriter(object):
             output_fun(nested_row.format("Backup Method", backup_method))
 
         backup_type = backup_info.get("backup_type")
+        # Show only for postgres backups
         if backup_method == "postgres":
             output_fun(nested_row.format("Backup Type", backup_type))
-        # The backup_info["deduplicated_size"] is the size of the backup. For
-        # rsync backups, the first one has
-        # backup_info["deduplicated_size"] == backup_info["size"]
-        # and the following backups will get incremental optimization
-        # with hard link, backup_info["deduplicated_size"] < backup_info["size"].
-        # For postgres backups, all backups will have
-        # backup_info["deduplicated_size"] == backup_info["size"]. This is the
-        # reason cluster_size is also used to estimate resource savings for
-        # postgres backups.
+
         backup_size = backup_info.get("deduplicated_size")
         wal_size = backup_info.get("wal_size")
         backup_size_output = "{}".format(pretty_size(backup_size))
@@ -848,9 +841,10 @@ class ConsoleOutputWriter(object):
         output_fun(nested_row.format("Backup Size", backup_size_output))
         if wal_size:
             output_fun(nested_row.format("WAL Size", pretty_size(wal_size)))
-        # Only show Resource saving for Postgres incremental backups and
-        # rsync backups
-        if "est_dedup_size" in backup_info and backup_type != "full":
+
+        # Show only for incremental and rsync backups
+        est_dedup_size = backup_info.get("est_dedup_size")
+        if est_dedup_size and backup_type != "full":
             dedupe_output = "{} ({})".format(
                 pretty_size(backup_info["est_dedup_size"]),
                 "{percent:.2%}".format(percent=backup_info["deduplication_ratio"]),
@@ -1017,8 +1011,9 @@ class ConsoleOutputWriter(object):
                 "multiple timelines interacting with this backup"
             )
         output_fun("")
-        # Information only for postgres backups
+
         backup_type = backup_info.get("backup_type")
+        # Show only for incremental backups
         if backup_type == "incremental":
             output_fun(nested_row.format("Root Backup", backup_info["root_backup_id"]))
             output_fun(
@@ -1028,6 +1023,7 @@ class ConsoleOutputWriter(object):
                 nested_row.format("Backup chain size", backup_info["chain_size"])
             )
         backup_method = backup_info.get("mode")
+        # Show only for postgres backups
         if backup_method == "postgres":
             if backup_info["children_backup_ids"] is not None:
                 output_fun(
@@ -1587,40 +1583,37 @@ class JsonOutputWriter(ConsoleOutputWriter):
         """
         data = dict(backup_ext_info)
 
-        # Json top layer info
         server_name = data["server_name"]
 
-        # Json second layer info
+        # General information
         output = self.json_output[server_name] = dict(
             backup_id=data["backup_id"], status=data["status"]
         )
-        # Json second layer info
+        backup_name = data.get("backup_name")
+        if backup_name:
+            output.update({"backup_name": backup_name})
+        system_id = data.get("systemid")
+        if system_id:
+            output.update({"system_id": system_id})
+
         # Server information
         output["server_information"] = dict(
             data_checksums=data["data_checksums"],
             summarize_wal=data["summarize_wal"],
         )
-
-        backup_name = data.get("backup_name")
-        if backup_name:
-            output.update({"backup_name": backup_name})
-
-        system_id = data.get("systemid")
-        if system_id:
-            output.update({"system_id": system_id})
-
+        
         if data["status"] in BackupInfo.STATUS_COPY_DONE:
-            # Json second layer info
             # General information
             output.update(
                 dict(
                     postgresql_version=data["version"],
                     pgdata_directory=data["pgdata"],
-                    cluster_size=data["cluster_size"],
+                    cluster_size=pretty_size(data["cluster_size"]),
+                    cluster_size_bytes=data["cluster_size"],
                     tablespaces=[],
                 )
             )
-            # Json second layer info
+
             # Base Backup information
             output["base_backup_information"] = dict(
                 backup_method=data["mode"],
@@ -1646,9 +1639,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
                 begin_lsn=data["begin_xlog"],
                 end_lsn=data["end_xlog"],
             )
-            # Json second layer info
-            # Base Backup information - only for rsync and incremental
-            # backups
+
             backup_type = data.get("backup_type")
             if backup_type != "full":
                 output["base_backup_information"].update(
@@ -1660,10 +1651,9 @@ class JsonOutputWriter(ConsoleOutputWriter):
                         ),
                     )
                 )
+
             wal_comp_ratio = data.get("wal_compression_ratio", 0)
             if wal_comp_ratio > 0:
-                # Json second layer info
-                # Base Backup information
                 output["base_backup_information"].update(
                     dict(
                         wal_compression_ratio="{percent:.2%}".format(
@@ -1671,8 +1661,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
                         )
                     )
                 )
-            # Json second layer info
-            # Base Backup information - copy statistics
+
             cp_time = data.get("copy_time")
             if cp_time:
                 output["base_backup_information"].update(
@@ -1688,8 +1677,6 @@ class JsonOutputWriter(ConsoleOutputWriter):
                 )
             ans_time = data.get("analysis_time")
             if ans_time:
-                # Json second layer info
-                # Base Backup information
                 output["base_backup_information"].update(
                     dict(
                         analysis_time=human_readable_timedelta(
@@ -1700,23 +1687,20 @@ class JsonOutputWriter(ConsoleOutputWriter):
                 )
             num_workers = data.get("number_of_workers")
             if num_workers:
-                # Json second layer info
-                # Base Backup information
                 output["base_backup_information"].update(
                     dict(
                         number_of_workers=num_workers,
                     )
                 )
 
+            # Tablespace information
             if data["tablespaces"]:
                 for item in data["tablespaces"]:
-                    # Json second layer info
-                    # Tablespaces info
                     output["tablespaces"].append(
                         dict(name=item.name, location=item.location, oid=item.oid)
                     )
-            # Json second layer info
-            # Catalog information
+
+            # Backups catalog information
             previous_backup_id = data.setdefault("previous_backup_id", "not available")
             next_backup_id = data.setdefault("next_backup_id", "not available")
             output["catalog_information"] = {
@@ -1725,8 +1709,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
                 or "- (this is the oldest base backup)",
                 "next_backup": next_backup_id or "- (this is the latest base backup)",
             }
-            # Json second layer info
-            # Catalog information - only for incremental backups
+
             if backup_type == "incremental":
                 output["catalog_information"].update(
                     dict(
@@ -1735,16 +1718,18 @@ class JsonOutputWriter(ConsoleOutputWriter):
                         chain_size=data["chain_size"],
                     )
                 )
-            # Json second layer info
-            # Catalog information - only for postgres backups
+
             if data["mode"] == "postgres":
+                children_bkp_ids = None
+                if data["children_backup_ids"]:
+                    children_bkp_ids = data["children_backup_ids"].split(",")
                 output["catalog_information"].update(
                     dict(
-                        children_backup_ids=data["children_backup_ids"].split(","),
+                        children_backup_ids=children_bkp_ids,
                         backup_type=backup_type,
                     )
                 )
-            # Json second layer info
+
             # WAL information
             wal_output = output["wal_information"] = dict(
                 no_of_files=data["wal_until_next_num"],
@@ -1776,7 +1761,6 @@ class JsonOutputWriter(ConsoleOutputWriter):
                 for history in data["children_timelines"]:
                     wal_output["timelines"].append(str(history.tli))
 
-            # Json second layer info
             # Snapshots information
             if "snapshots_info" in data and data["snapshots_info"]:
                 output["snapshots_info"] = data["snapshots_info"]
