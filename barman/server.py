@@ -3037,8 +3037,9 @@ class Server(RemoteStatusMixin):
          * the Server.get_wal_info() return value
          * the context in the catalog (if available)
          * the retention policy status
+         * the copy statistics
          * the incremental backups information
-         * copy_stats and size information
+         * extra backup.info properties
 
         :param backup_info: the target backup
         :rtype dict: all information about a backup
@@ -3077,7 +3078,7 @@ class Server(RemoteStatusMixin):
 
             backup_ext_info["children_timelines"] = children_timelines
 
-            # If copy statistics are available, copy_stats added info
+            # If copy statistics are available
             copy_stats = backup_ext_info.get("copy_stats")
             if copy_stats:
                 analysis_time = copy_stats.get("analysis_time", 0)
@@ -3098,10 +3099,10 @@ class Server(RemoteStatusMixin):
             chain_size = len(backup_chain)
             # last is root
             root_backup_info = backup_chain[-1]
-            # "incremental" added info
+            # "Incremental" backups
             backup_ext_info["root_backup_id"] = root_backup_info.backup_id
             backup_ext_info["chain_size"] = chain_size
-            # "rsync" and "incremental added info"
+            # Properties added to the result dictionary
             backup_ext_info["backup_type"] = backup_info.backup_type
             backup_ext_info["deduplication_ratio"] = backup_info.deduplication_ratio
             backup_ext_info["est_dedup_size"] = (
