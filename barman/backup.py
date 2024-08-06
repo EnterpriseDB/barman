@@ -628,15 +628,28 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 "to perform an incremental backup using the Postgres backup method"
             )
 
+        if self.config.backup_compression is not None:
+            raise BackupException(
+                "Incremental backups cannot be taken with "
+                "'backup_compression' set in the configuration options."
+            )
+
         parent_backup_id = kwargs.get("parent_backup_id")
         parent_backup_info = self.get_backup(parent_backup_id)
 
-        if parent_backup_info and parent_backup_info.summarize_wal != "on":
-            raise BackupException(
-                "The specified backup is not eligible as a parent for an "
-                "incremental backup because WAL summaries were not enabled "
-                "when that backup was taken."
-            )
+        if parent_backup_info:
+            if parent_backup_info.summarize_wal != "on":
+                raise BackupException(
+                    "The specified backup is not eligible as a parent for an "
+                    "incremental backup because WAL summaries were not enabled "
+                    "when that backup was taken."
+                )
+            if parent_backup_info.compression is not None:
+                raise BackupException(
+                    "The specified backup cannot be a parent for an "
+                    "incremental backup. Reason: "
+                    "Compressed backups are not eligible as parents of incremental backups."
+                )
 
     def backup(self, wait=False, wait_timeout=None, name=None, **kwargs):
         """
