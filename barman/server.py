@@ -3105,8 +3105,15 @@ class Server(RemoteStatusMixin):
             # Properties added to the result dictionary
             backup_ext_info["backup_type"] = backup_info.backup_type
             backup_ext_info["deduplication_ratio"] = backup_info.deduplication_ratio
+            # A new field "cluster_size" was added to backup.info to be
+            # able to calculate the resource saved by "incremental" backups
+            # introduced in Postgres 17.
+            # To keep backward compatibility between versions, barman relies
+            # on two possible values to calculate "est_dedup_size",
+            # "size" being used for older versions when "cluster_size"
+            # is non existent (None).
             backup_ext_info["est_dedup_size"] = (
-                backup_ext_info["cluster_size"] * backup_ext_info["deduplication_ratio"]
+                (backup_ext_info["cluster_size"] or backup_ext_info["size"]) * backup_ext_info["deduplication_ratio"]
             )
         return backup_ext_info
 
