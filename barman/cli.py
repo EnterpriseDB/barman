@@ -891,6 +891,7 @@ def rebuild_xlogdb(args):
             "volumes for recovery of a snapshot backup",
         ),
         argument(
+            # TODO: change name of flag after definition
             "--local-staging-path",
             dest="local_staging_path",
             help=(
@@ -920,47 +921,66 @@ def recover(args):
         )
         output.close_and_exit()
 
-    # If the backup to be recovered is compressed or an incremental then
-    # there are additional checks to be carried out
-    if backup_id.compression is not None or backup_id.parent_backup_id is not None:
-        # Set the recovery staging path from the cli if it is set
-        if args.recovery_staging_path is not None:
-            try:
-                recovery_staging_path = parse_staging_path(
-                    args.recovery_staging_path
-                )
-            except ValueError as exc:
-                output.error("Cannot parse recovery staging path: %s", str(exc))
-                output.close_and_exit()
-            server.config.recovery_staging_path = recovery_staging_path
+    # If the user sets both flags, we output an error and exit.
+    # This prevents from staging_path being overwritten in the
+    # code "block" below.
+    if args.local_staging_path is not None and args.recovery_staging_path is not None:
+        output.error(
+            "Cannot set `recovery_staging_path` and "
+            "`local_staging_path` to recover.",
+        )
+        output.close_and_exit()
 
-        # If no staging path is found then we need to display a proper error
-        # according to the backup type (compressed or incremental)
-        if server.config.recovery_staging_path is None:
-            if backup_id.parent_backup_id is not None:
-                output.error(
-                    "Cannot recover from backup '%s' of server '%s': "
-                    "backup will be combined with pg_combinebackup in the "
-                    "barman host but no recovery staging path is provided. "
-                    "Either set recovery_staging_path in the Barman config "
-                    "or use the --recovery-staging-path argument.",
-                    args.backup_id,
-                    server.config.name,
-                )
-                output.close_and_exit()
+    staging_path = None
+    # This is an incremental backup recover
+    if args.local_staging_path is not None:
+        staging_path = args.local_staging_path
+    # This is a compressed backup recover
+    if args.recovery_staging_path is not None:
+        staging_path = args.recovery_staging_path
 
-            if backup_id.compression is not None:
-                output.error(
-                    "Cannot recover from backup '%s' of server '%s': "
-                    "backup is compressed with %s compression but no recovery "
-                    "staging path is provided. Either set recovery_staging_path "
-                    "in the Barman config or use the --recovery-staging-path "
-                    "argument.",
-                    args.backup_id,
-                    server.config.name,
-                    backup_id.compression,
-                )
-                output.close_and_exit()
+    # Parse staging_path and set to the correct configuration depending
+    # on the type of backup (compressed or incremental).
+    if staging_path is not None:
+        try:
+            parsed_staging_path = parse_staging_path(staging_path)
+        except ValueError as exc:
+            output.error("Cannot parse staging path: %s", str(exc))
+            output.close_and_exit()
+
+        if backup_id.parent_backup_id is not None:
+            server.config.local_staging_path = parsed_staging_path
+
+        if backup_id.compression is not None:
+            server.config.recovery_staging_path = parsed_staging_path
+
+    if server.config.local_staging_path is None:
+        if backup_id.parent_backup_id is not None:
+            output.error(
+                # TODO: change name of flag after definition
+                "Cannot recover from backup '%s' of server '%s': "
+                "backup will be combined with pg_combinebackup in the "
+                "barman host but no local staging path is provided. "
+                "Either set local_staging_path in the Barman config "
+                "or use the --local-staging-path argument.",
+                args.backup_id,
+                server.config.name,
+            )
+            output.close_and_exit()
+
+    if server.config.recovery_staging_path is None:
+        if backup_id.compression is not None:
+            output.error(
+                "Cannot recover from backup '%s' of server '%s': "
+                "backup is compressed with %s compression but no recovery "
+                "staging path is provided. Either set recovery_staging_path "
+                "in the Barman config or use the --recovery-staging-path "
+                "argument.",
+                args.backup_id,
+                server.config.name,
+                backup_id.compression,
+            )
+            output.close_and_exit()
 
     # decode the tablespace relocation rules
     tablespaces = {}
