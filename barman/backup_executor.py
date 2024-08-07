@@ -1203,7 +1203,9 @@ class RsyncBackupExecutor(ExternalBackupExecutor):
             and ``pg_backup_stop()`` are called within the same session.
         """
         try:
-            with PostgresKeepAlive(self.server.postgres, self.config.keepalive_interval, True):
+            with PostgresKeepAlive(
+                self.server.postgres, self.config.keepalive_interval, True
+            ):
                 super(RsyncBackupExecutor, self).backup(*args, **kwargs)
         except KeyboardInterrupt:
             raise BackupException(
