@@ -25,7 +25,7 @@ import datetime
 import logging
 from abc import ABCMeta
 from multiprocessing import Process, Queue
-import threading
+import threading, _thread
 
 try:
     from queue import Empty
@@ -1619,13 +1619,13 @@ class PostgreSQLConnection(PostgreSQL):
             try:
                 cursor.execute(self.HEARTBEAT_QUERY)
                 _logger.debug("Sent heartbeat query to maintain the current connection")
-                return True
-            except psycopg2.DatabaseError as ex:
+                return True, None
+            except psycopg2.Error as ex:
                 _logger.debug(
                     "Failed to execute heartbeat query on the current connection: %s"
                     % force_str(ex)
                 )
-                return False
+                return False, ex
 
     @property
     def name_map(self):
@@ -1854,7 +1854,7 @@ class PostgresKeepAlive:
 
     THREAD_NAME = "barman_keepalive_thread"
 
-    def __init__(self, postgres, interval):
+    def __init__(self, postgres, interval, raise_exception=True):
         """
         Constructor.
 
@@ -1862,10 +1862,16 @@ class PostgresKeepAlive:
             Postgres connection to keep alive.
         :param int interval: An interval in seconds at which a
             heartbeat query will be sent to keep the connection alive.
-            A value <= 0 won't start the keepalive.
+            A value <= ``0`` won't start the keepalive.
+        :param bool raise_exception: A boolean indicating if an exception
+            should be raised when the connection is lost. If ``True``, a
+            KeyboardInterruptException will be raised as soon as it notices
+            the connection is no longer able to execute queries. If ``False``,
+            it will keep reatempting until the context exits.
         """
         self.postgres = postgres
         self.interval = interval
+        self.raise_excepton = raise_exception
         self._stop_thread = threading.Event()
         self._thread = threading.Thread(
             target=self._run_keep_alive,
@@ -1878,7 +1884,18 @@ class PostgresKeepAlive:
             if not self.postgres.has_connection:
                 # Wait for the connection to be opened on the main thread
                 continue
-            self.postgres.send_heartbeat_query()
+
+            success, ex = self.postgres.send_heartbeat_query()
+
+            if self.raise_excepton:
+                # If one of the below exeptions was raised, it most likely means that
+                # the connection (and consequently, the session) was lost.
+                if not success and isinstance(
+                    ex, (psycopg2.InterfaceError, psycopg2.OperationalError)
+                ):
+                    self._stop_thread.set()
+                    _thread.interrupt_main()
+
             self._stop_thread.wait(self.interval)
 
     def __enter__(self):

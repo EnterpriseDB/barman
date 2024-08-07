@@ -1202,8 +1202,13 @@ class RsyncBackupExecutor(ExternalBackupExecutor):
             by a firewall, for instance. This is important to ensure that ``pg_backup_start()``
             and ``pg_backup_stop()`` are called within the same session.
         """
-        with PostgresKeepAlive(self.server.postgres, self.config.keepalive_interval):
-            super(RsyncBackupExecutor, self).backup(*args, **kwargs)
+        try:
+            with PostgresKeepAlive(self.server.postgres, self.config.keepalive_interval, True):
+                super(RsyncBackupExecutor, self).backup(*args, **kwargs)
+        except KeyboardInterrupt:
+            raise BackupException(
+                "The connection to the Postgres server was lost during the backup"
+            )
 
     def backup_copy(self, backup_info):
         """
