@@ -39,6 +39,7 @@ import dateutil.tz
 
 import barman
 from barman import output, xlog
+from barman.annotations import KeepManager
 from barman.backup import BackupManager
 from barman.command_wrappers import BarmanSubProcess, Command, Rsync
 from barman.copy_controller import RsyncCopyController
@@ -2140,9 +2141,17 @@ class Server(RemoteStatusMixin):
         :kwparam str|None recovery_conf_filename: filename for storing recovery
             configurations
         """
-        return self.backup_manager.recover(
-            backup_info, dest, tablespaces, remote_command, **kwargs
+        # Add keep annotation before recover
+        self.backup_manager.keep_backup(
+            backup_id=backup_info.backup_id, target=KeepManager.TARGET_FULL
         )
+        try:
+            return self.backup_manager.recover(
+                backup_info, dest, tablespaces, remote_command, **kwargs
+            )
+        # Release keep annotation after recover
+        finally:
+            self.backup_manager.release_keep(backup_id=backup_info.backup_id)
 
     def get_wal(
         self,
