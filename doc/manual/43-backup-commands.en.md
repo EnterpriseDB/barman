@@ -354,6 +354,37 @@ the `--recovery-staging-path` option with the `barman recover` command. If
 you do neither of these things and attempt to recover a compressed backup
 then Barman will fail rather than try to guess a suitable location.
 
+### Recovering incremental backups
+
+If a backup is incremental, `barman recover` is able to combine the chain
+of backups on recovery through `pg_combinebackup`.
+A chain of backups is the tree branch that goes from the full backup
+to the one requested for the recovery. This is a multi-step process:
+
+1. The chain of backups is combined into a new synthetic backup. A
+   folder named with the ID of the incremental backup being recovered is
+   created inside a given staging directory on the local server using
+   `pg_combinebackup`. For any type of recover (local or remote), the
+   synthetic backup is created locally in the barman server.
+2. If it's a remote recover, the content is copied to the final destination
+   using Rsync. Otherwise, when it's a local recover, the content is just
+   moved to the final destination.
+3. The folder named with the ID of the incremental backup being recovered, which
+    was created inside the provided staging directory, is removed at the end of the
+    recovery process.
+
+When recovering from an incremental backup, you *must* therefore
+either set `local_staging_path` in the global/server config *or* use
+the `--local-staging-path` option with the `barman recover` command. If
+you do neither of these things and attempt to recover an incremental backup
+then Barman fails rather than trying to guess a suitable location.
+
+> **IMPORTANT:**
+> If any of the backups in the chain were taken with checksums
+> disabled, but the final backup was taken with checksums enabled, the
+> resulting directory may contain pages with invalid checksums.
+> [Follow up the `limitations` section in pg_basebackup documentation](https://www.postgresql.org/docs/17/app-pgcombinebackup.html).
+
 ## `show-backup`
 
 You can retrieve all the available information for a particular backup of

@@ -106,6 +106,14 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
         This option is *required* when recovering from compressed backups and
         has no effect otherwise.
 
+    --local-staging-path *STAGING_PATH*
+    :   A path to a location on the barman host where the chain of backups will
+        be combined before being copied to the destination directory. Contents
+        created inside the staging path are removed at the
+        end of the recovery process. This option is *required* when recovering
+        from incremental backups (backup_method=postgres) and has no effect 
+        otherwise.
+
     --recovery-conf-filename *RECOVERY_CONF_FILENAME*
     :   The name of the file where Barman should write the PostgreSQL recovery
         options when recovering backups for PostgreSQL versions 12 and later.
