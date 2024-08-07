@@ -3113,8 +3113,8 @@ class Server(RemoteStatusMixin):
             # "size" being used for older versions when "cluster_size"
             # is non existent (None).
             backup_ext_info["est_dedup_size"] = (
-                (backup_ext_info["cluster_size"] or backup_ext_info["size"]) * backup_ext_info["deduplication_ratio"]
-            )
+                backup_ext_info["cluster_size"] or backup_ext_info["size"]
+            ) * backup_ext_info["deduplication_ratio"]
         return backup_ext_info
 
     def show_backup(self, backup_info):
