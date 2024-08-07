@@ -539,6 +539,21 @@ Retention policy based on recovery window
     backups required to allow point-in-time recovery back to 9:30 AM
     on the previous Friday.
 
+> **IMPORTANT:**
+> Incremental backups are not considered for retention policy. This is
+> due to the fact that an `incremental backup` is only valid if the
+> entire chain of backups are intact. So, the only backup considered
+> for retention policy is the `root backup` (also called `full backup`).
+>
+> How does it work?
+>
+> When the retention policy is enforced, barman will ignore the
+> incremental backups and check for the status of the
+> `root backup`. If the status is `KEEP:FULL` or `KEEP:STANDALONE`,
+> the status `VALID` will be propagated to the whole chain of children
+> backups, otherwise the current status of the `root backup` will be
+> propagated.
+
 #### Scope
 
 Retention policies can be defined for:
