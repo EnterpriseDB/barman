@@ -47,7 +47,7 @@ EXPECTED_MINIMAL = {
             "size": 12345,
             "server_name": "main",
             "begin_xlog": "0/2000028",
-            "deduplicated_size": None,
+            "deduplicated_size": 1024,
             "version": 90302,
             "ident_file": "/pgdata/location/pg_ident.conf",
             "end_time": "Wed Jul 23 12:00:43 2014",
@@ -78,7 +78,7 @@ EXPECTED_MINIMAL = {
             "summarize_wal": None,
             "parent_backup_id": None,
             "children_backup_ids": None,
-            "cluster_size": None,
+            "cluster_size": 2048,
         }
     },
     "config": {},
@@ -752,7 +752,10 @@ class TestSync(object):
 
         # Add a backup to the remote response
         primary_info = dict(EXPECTED_MINIMAL)
-        backup_info_dict = LocalBackupInfo(server, backup_id="1234567891").to_json()
+        backup_info_dict = LocalBackupInfo(
+            server,
+            backup_id="1234567891",
+        ).to_json()
         primary_info["backups"]["1234567891"] = backup_info_dict
         command_mock.return_value.out = json.dumps(primary_info)
         server.cron()
