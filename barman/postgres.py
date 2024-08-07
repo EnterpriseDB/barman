@@ -25,6 +25,7 @@ import datetime
 import logging
 from abc import ABCMeta
 from multiprocessing import Process, Queue
+import threading, _thread
 
 try:
     from queue import Empty
@@ -457,6 +458,8 @@ class PostgreSQLConnection(PostgreSQL):
     WALSTREAMER = 2
     ANY_STREAMING_CLIENT = (STANDBY, WALSTREAMER)
 
+    HEARTBEAT_QUERY = "SELECT 1"
+
     def __init__(
         self,
         conninfo,
@@ -497,6 +500,10 @@ class PostgreSQLConnection(PostgreSQL):
             except psycopg2.ProgrammingError as e:
                 raise PostgresAppNameError(force_str(e).strip())
         return self._conn
+
+    @property
+    def has_connection(self):
+        return True if self._conn is not None else False
 
     @property
     def server_txt_version(self):
@@ -1602,6 +1609,24 @@ class PostgreSQLConnection(PostgreSQL):
             # the format of the synchronous_standby_names content
             return [x.strip().strip('"') for x in names_list.split(",")]
 
+    def send_heartbeat_query(self):
+        """
+        Sends a heartneat query to the server with the already opened connection.
+
+        :returns bool: A boolean indicating if the query executed successfully or not
+        """
+        with self._conn.cursor() as cursor:
+            try:
+                cursor.execute(self.HEARTBEAT_QUERY)
+                _logger.debug("Sent heartbeat query to maintain the current connection")
+                return True, None
+            except psycopg2.Error as ex:
+                _logger.debug(
+                    "Failed to execute heartbeat query on the current connection: %s"
+                    % force_str(ex)
+                )
+                return False, ex
+
     @property
     def name_map(self):
         """
@@ -1813,3 +1838,77 @@ class StandbyPostgreSQLConnection(PostgreSQLConnection):
         return self._stop_backup(
             super(StandbyPostgreSQLConnection, self).stop_exclusive_backup
         )
+
+
+class PostgresKeepAlive:
+    """
+    Context manager to maintain a Postgres connection alive.
+
+    A child thread is spawned to execute heartbeat queries in the background
+    at a specified interval during its living context.
+
+    It does not open or close any connections on its own. Instead, it waits for the
+    specified connection to be opened in the main thread, making use of the same
+    current transaction.
+    """
+
+    THREAD_NAME = "barman_keepalive_thread"
+
+    def __init__(self, postgres, interval, raise_exception=True):
+        """
+        Constructor.
+
+        :param barman.postgres.PostgreSQLConnection postgres: The
+            Postgres connection to keep alive.
+        :param int interval: An interval in seconds at which a
+            heartbeat query will be sent to keep the connection alive.
+            A value <= ``0`` won't start the keepalive.
+        :param bool raise_exception: A boolean indicating if an exception
+            should be raised when the connection is lost. If ``True``, a
+            KeyboardInterruptException will be raised as soon as it notices
+            the connection is no longer able to execute queries. If ``False``,
+            it will keep reatempting until the context exits.
+        """
+        self.postgres = postgres
+        self.interval = interval
+        self.raise_excepton = raise_exception
+        self._exc = None
+        self._stop_thread = threading.Event()
+        self._thread = threading.Thread(
+            target=self._run_keep_alive,
+            name=self.THREAD_NAME,
+        )
+
+    def _run_keep_alive(self):
+        """Runs the keepalive until a stop-thread event is set"""
+        while not self._stop_thread.is_set():
+            if not self.postgres.has_connection:
+                # Wait for the connection to be opened on the main thread
+                continue
+
+            success, ex = self.postgres.send_heartbeat_query()
+
+            if self.raise_excepton:
+                # If one of the below exeptions was raised, it most likely means that
+                # the connection (and consequently, the session) was lost.
+                if not success and isinstance(
+                    ex, (psycopg2.InterfaceError, psycopg2.OperationalError)
+                ):
+                    self._exc = ex
+                    self._stop_thread.set()
+
+            self._stop_thread.wait(self.interval)
+
+    def __enter__(self):
+        """Enters context. Starts the thread"""
+        if self.interval > 0:
+            self._thread.start()
+            self._thread.join()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exits context. Makes sure the thread is terminated"""
+        if self.interval > 0:
+            self._stop_thread.set()
+            self._thread.join()
+            if self._exc is not None:
+                raise self._exc
