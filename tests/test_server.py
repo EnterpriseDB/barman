@@ -26,6 +26,7 @@ from collections import namedtuple
 import dateutil.tz
 from io import BytesIO
 
+import mock
 import pytest
 from mock import MagicMock, Mock, PropertyMock, patch
 from psycopg2.tz import FixedOffsetTimezone
@@ -2823,6 +2824,101 @@ class TestServer(object):
             "\tbackup minimum size: FAILED (last backup size 41 B < 42 B minimum)\n"
             in out
         )
+
+    @patch("barman.infofile.LocalBackupInfo.walk_to_root")
+    @patch("barman.server.Server.get_children_timelines")
+    @patch("barman.server.Server.get_wal_info")
+    @patch("barman.backup.BackupManager.get_next_backup")
+    @patch("barman.backup.BackupManager.get_previous_backup")
+    def test_get_backup_ext_info(
+        self,
+        prev_backup_mock,
+        next_backup_mock,
+        wal_info_mock,
+        children_timeline_mock,
+        walk_to_root_mock,
+    ):
+        """
+        Unit test for the get_backup_ext_info method that creates a dict
+        to be used as an input to render outputs.
+
+        This unit tests checks if all fields read or created are present
+        in the final dict.
+
+        :param prev_backup_mock: get_previous_backup mock parameter
+        :param next_backup_mock: get_next_backup mock parameter
+        :param wal_info_mock: get_wal_info mock parameter
+        :param children_timeline_mock: get_children_timelines mock parameter
+        :param walk_to_root_mock: walk_to_root mock parameter
+        """
+        prev_backup_id = prev_backup_mock.return_value.backup_id = "12345"
+        next_backup_id = next_backup_mock.return_value.backup_id = "12347"
+        wal_info_mock.return_value = dict(
+            wal_num=1,
+            wal_size=1024,
+            wal_until_next_num=12,
+            wal_until_next_size=1024,
+            wal_until_next_compression_ratio=0.5,
+            wal_compression_ratio=0.5,
+        )
+        children_tlis = children_timeline_mock.return_value = [
+            mock.Mock(tli="1"),
+            mock.Mock(tli="2"),
+        ]
+
+        server = build_real_server(main_conf={"backup_options": "concurrent_backup"})
+
+        wtr_list = walk_to_root_mock.return_value = [
+            build_test_backup_info(
+                backup_id="b%s" % i,
+                server=server,
+                parent_backup_id=(None if i == 0 else "b" + str(i - 1)),
+            )
+            for i in range(2)
+        ]
+        root_backup_id = wtr_list[-1].backup_id
+        chain_size = len(wtr_list)
+
+        backup_info = build_test_backup_info(
+            server=server,
+            backup_id="b2",
+            summarize_wal="on",
+            cluster_size=2048,
+            deduplicated_size=1234,
+            systemid="systemid",
+            data_checksums="on",
+            copy_stats={"analysis_time": 2, "copy_time": 1, "number_of_workers": 2},
+            parent_backup_id="b1",
+        )
+        analysis_time = backup_info.copy_stats["analysis_time"]
+        copy_time = backup_info.copy_stats["copy_time"]
+        number_of_workers = backup_info.copy_stats["number_of_workers"]
+        est_throughput = backup_info.deduplicated_size * copy_time
+        ext_info = server.get_backup_ext_info(backup_info)
+        key_pairs_check = [
+            ("previous_backup_id", prev_backup_id),
+            ("next_backup_id", next_backup_id),
+            ("retention_policy_status", None),
+            ("children_timelines", children_tlis),
+            ("copy_time", copy_time),
+            ("analysis_time", analysis_time),
+            ("estimated_throughput", est_throughput),
+            ("number_of_workers", number_of_workers),
+            ("mode", backup_info.mode),
+            ("parent_backup_id", backup_info.parent_backup_id),
+            ("children_backup_ids", backup_info.children_backup_ids),
+            ("cluster_size", backup_info.cluster_size),
+            ("root_backup_id", root_backup_id),
+            ("chain_size", chain_size),
+            ("deduplication_ratio", backup_info.deduplication_ratio),
+            (
+                "est_dedup_size",
+                backup_info.cluster_size * backup_info.deduplication_ratio,
+            ),
+            ("backup_type", backup_info.backup_type),
+        ]
+        for field in key_pairs_check:
+            assert field[0] in ext_info and field[1] == ext_info[field[0]]
 
 
 class TestCheckStrategy(object):
