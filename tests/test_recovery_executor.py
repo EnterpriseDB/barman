@@ -2407,10 +2407,10 @@ class TestIncrementalRecoveryExecutor(object):
     )
     @mock.patch("barman.infofile.LocalBackupInfo.get_data_directory")
     @mock.patch("barman.infofile.FieldListFile.load")
-    @mock.patch("barman.config.parse_recovery_staging_path")
+    @mock.patch("barman.config.parse_staging_path")
     def test__combine_backups(
         self,
-        mock_parse_recovery_stg_path,
+        mock_parse_staging_path,
         mock_load_fields,
         mock_get_data_dir,
         mock__prepare_dest,
@@ -2439,7 +2439,7 @@ class TestIncrementalRecoveryExecutor(object):
         :param executor: executor mock fixture
         :param server: server mock fixture
         """
-        mock_parse_recovery_stg_path.return_value = "/home/fake/path/data"
+        mock_parse_staging_path.return_value = "/home/fake/path/data"
 
         mock_backup_info = testing_helpers.build_test_backup_info(
             backup_id="backup",

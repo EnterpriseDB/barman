@@ -52,7 +52,7 @@ from barman.annotations import KeepManager
 from barman.config import (
     ConfigChangesProcessor,
     RecoveryOptions,
-    parse_recovery_staging_path,
+    parse_staging_path,
 )
 from barman.exceptions import (
     BadXlogSegmentName,
@@ -890,6 +890,17 @@ def rebuild_xlogdb(args):
             help="The name of the AWS region containing the EC2 VM and storage "
             "volumes for recovery of a snapshot backup",
         ),
+        argument(
+            "--local-staging-path",
+            dest="local_staging_path",
+            help=(
+                "A path to a location on the local host where incremental backups "
+                "will be combined during the recovery. This location must have "
+                "enough available space to temporarily hold the new synthetic "
+                "backup. This option is *required* when recovering from an "
+                "incremental backup."
+            ),
+        ),
     ]
 )
 def recover(args):
@@ -915,7 +926,7 @@ def recover(args):
         # Set the recovery staging path from the cli if it is set
         if args.recovery_staging_path is not None:
             try:
-                recovery_staging_path = parse_recovery_staging_path(
+                recovery_staging_path = parse_staging_path(
                     args.recovery_staging_path
                 )
             except ValueError as exc:
