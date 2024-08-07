@@ -22,7 +22,7 @@ import mock
 from mock import PropertyMock
 import pytest
 
-from datetime import datetime
+import datetime
 from dateutil import tz
 
 from barman import output
@@ -31,8 +31,13 @@ from barman.cloud_providers.google_cloud_storage import (
     GcpSnapshotsInfo,
 )
 from barman.infofile import BackupInfo
-from barman.utils import BarmanEncoder, pretty_size
-from testing_helpers import build_test_backup_info, find_by_attr, mock_backup_ext_info
+from barman.utils import BarmanEncoder, human_readable_timedelta, pretty_size
+from testing_helpers import (
+    build_backup_manager,
+    build_test_backup_info,
+    find_by_attr,
+    mock_backup_ext_info,
+)
 
 # Color output constants
 RED = "\033[31m"
@@ -624,6 +629,10 @@ class TestOutputAPI(object):
 
 # noinspection PyMethodMayBeStatic
 class TestConsoleWriter(object):
+    row = "  {:<23}: {}"
+    header_row = "  {}:"
+    nested_row = "    {:<21}: {}"
+
     def test_debug(self, capsys):
         writer = output.ConsoleOutputWriter(debug=True)
 
@@ -1175,57 +1184,41 @@ class TestConsoleWriter(object):
 
         # THEN the console output contains the backup name
         out, _err = capsys.readouterr()
-        assert (
-            "%s %s '%s' - S - " % (bi.server_name, bi.backup_id, bi.backup_name) in out
+        assert "%s %s '%s'" % (bi.server_name, bi.backup_id, bi.backup_name) in out
+
+    def test_result_show_backup_any_mode(self, capsys):
+        """
+        Unit test for the show-backup command that display information in the
+        console that are common between any type of backup method.
+
+        This unit tests checks if the fields common to any backup mode/method are
+        correctly rendered to the standard output.
+
+        :param capsys: mock fixture for stdout/stderr
+        """
+        backup_manager = build_backup_manager(
+            main_conf={"backup_options": "concurrent_backup"}
+        )
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            backup_id="12345",
+            summarize_wal="on",
+            cluster_size=2048,
+            deduplicated_size=1234,
+            systemid="systemid",
+            data_checksums="on",
         )
 
-    def test_result_list_backup_types(self, capsys):
-        # GIVEN a backup info with a specific backup type
-        backup_types = ["rsync", "incremental", "full", "snapshot"]
-        backup_size = 12345
-        wal_size = 54321
-        retention_status = "test status"
-
-        for backup_type in backup_types:
-            bi = build_test_backup_info(
-                server_name="test_server",
-                backup_id="test_backup_id",
-                status="DONE",
-            )
-
-            # Mock the backup_type property
-            type_mock = PropertyMock(return_value=backup_type)
-            type(bi).backup_type = type_mock
-
-            # WHEN the list_backup output is generated
-            console_writer = output.ConsoleOutputWriter()
-            console_writer.init_list_backup(bi.server_name, False)
-            console_writer.result_list_backup(
-                bi, backup_size, wal_size, retention_status
-            )
-            console_writer.close()
-
-            # Capture the output
-            out, err = capsys.readouterr()
-
-            # THEN the console output contains the correct backup type label
-            type_mock.assert_called_once()
-            expected_label = f" - {backup_type[0].upper()} - "
-            assert expected_label in out
-            assert err == ""
-
-    def test_result_show_backup(self, capsys):
-        # mock the backup ext info
         wal_per_second = 0.01
         ext_info = mock_backup_ext_info(
-            children_timelines=(mock.Mock(tli="1"),),
-            copy_stats={"analysis_time": 2, "copy_time": 1},
-            deduplicated_size=1234,
-            status=BackupInfo.DONE,
-            systemid="systemid",
+            backup_info=backup_info,
+            children_timelines=(mock.Mock(tli="1"), mock.Mock(tli="2")),
             wal_until_next_compression_ratio=1.5,
             wals_per_second=wal_per_second,
-            data_checksums="on",
+            est_dedup_size=1024,
+            deduplication_ratio=0.99,
+            wal_rate=wal_per_second * 3600,
+            wal_compression_ratio=0.5,
         )
 
         writer = output.ConsoleOutputWriter()
@@ -1234,19 +1227,230 @@ class TestConsoleWriter(object):
         writer.result_show_backup(ext_info)
         writer.close()
         (out, err) = capsys.readouterr()
-        assert ext_info["server_name"] in out
-        assert ext_info["backup_id"] in out
-        assert ext_info["status"] in out
-        assert str(ext_info["end_time"]) in out
-        assert ext_info["systemid"] in out
-        assert "Checksums              : %s" % ext_info["data_checksums"] in out
+        assert f'Backup {ext_info["backup_id"]}' in out
+
+        # Header rows
+        header_rows = [
+            "Server information",
+            "Tablespaces",
+            "Base backup information",
+            "WAL information",
+            "Catalog information",
+        ]
+        for h_row in header_rows:
+            assert TestConsoleWriter.header_row.format(h_row) in out
+
+        # Rows
+        rows = [
+            ("Server Name", ext_info["server_name"]),
+            ("System Id", ext_info["systemid"]),
+            ("Status", ext_info["status"]),
+            ("PostgreSQL Version", ext_info["version"]),
+            ("PGDATA directory", ext_info["pgdata"]),
+            ("Estimated Cluster Size", pretty_size(ext_info["cluster_size"])),
+        ]
+
+        for _row in rows:
+            assert TestConsoleWriter.row.format(_row[0], _row[1]) in out
+
+        backup_size_output = "{} ({} with WALs)".format(
+            pretty_size(ext_info["deduplicated_size"]),
+            pretty_size(ext_info["deduplicated_size"] + ext_info["wal_size"]),
+        )
+        wal_compression_output = "{percent:.2%}".format(
+            percent=ext_info["wal_compression_ratio"]
+        )
+        compression_rate_output = "{percent:.2%}".format(
+            percent=ext_info["wal_until_next_compression_ratio"]
+        )
+
+        # Nested rows
+        nested_rows = [
+            ("Checksums", ext_info["data_checksums"]),
+            ("WAL summarizer", ext_info["summarize_wal"]),
+            ("Backup Method", ext_info["mode"]),
+            ("Backup Size", backup_size_output),
+            ("WAL Size", pretty_size(ext_info["wal_size"])),
+            ("Timeline", str(ext_info["timeline"])),
+            ("Begin WAL", ext_info["begin_wal"]),
+            ("End WAL", ext_info["end_wal"]),
+            ("WAL number", ext_info["wal_num"]),
+            ("WAL compression ratio", wal_compression_output),
+            ("Begin time", str(ext_info["begin_time"])),
+            ("End time", str(ext_info["end_time"])),
+            ("Begin Offset", str(ext_info["begin_offset"])),
+            ("End Offset", str(ext_info["end_offset"])),
+            ("Begin LSN", str(ext_info["begin_xlog"])),
+            ("End LSN", str(ext_info["end_xlog"])),
+            ("No of files", ext_info["wal_until_next_num"]),
+            ("Disk usage", pretty_size(ext_info["wal_until_next_size"])),
+            ("WAL rate", "%0.2f/hour" % (wal_per_second * 3600)),
+            ("Compression ratio", compression_rate_output),
+            ("Last available", ext_info["wal_last"]),
+            ("Reachable timelines", "1, 2"),
+            ("Retention Policy", "not enforced"),
+            ("Previous Backup", "- (this is the oldest base backup)"),
+            ("Next Backup", "- (this is the latest base backup)"),
+        ]
         for name, _, location in ext_info["tablespaces"]:
-            assert "{:<21}: {}".format(name, location) in out
-        assert (pretty_size(ext_info["size"] + ext_info["wal_size"])) in out
-        assert (pretty_size(ext_info["deduplicated_size"])) in out
-        assert (pretty_size(ext_info["wal_until_next_size"])) in out
-        assert "WAL rate             : %0.2f/hour" % (wal_per_second * 3600) in out
-        # TODO: this test can be expanded
+            nested_rows.append((name, location))
+
+        for n_row in nested_rows:
+            assert TestConsoleWriter.nested_row.format(n_row[0], n_row[1]) in out
+        assert err == ""
+
+    @pytest.mark.parametrize(
+        ("backup_method", "backup_type", "parent_backup_id", "chidren_backup_ids"),
+        [
+            ("postgres", "full", None, ["1234", "123456"]),
+            ("postgres", "incremental", 12345, ["1234", "123456"]),
+            ("rsync", None, None, None),
+        ],
+    )
+    def test_result_show_backup_specific_fields_by_backup_type(
+        self, backup_method, backup_type, parent_backup_id, chidren_backup_ids, capsys
+    ):
+        """
+        Unit test for the show-backup command that display specific information
+        in the console for each type of the following backups: 'rsync',
+        'incremental' and 'full'.
+
+        This unit tests checks if the fields that are related to those types of
+        backups are correctly rendered to the standard output.
+
+        :param backup_method: backup_method mock parameter
+        :param backup_type: backup_type mock parameter
+        :param parent_backup_id: parent_backup_id mock parameter
+        :param chidren_backup_ids: chidren_backup_ids mock parameter
+        :param capsys: mock fixture for stdout/stderr
+        """
+        backup_manager = build_backup_manager(
+            main_conf={
+                "backup_method": backup_method,
+                "backup_options": "concurrent_backup",
+            }
+        )
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            backup_id="1",
+            summarize_wal="on",
+            cluster_size=2048,
+            deduplicated_size=1234,
+            systemid="systemid",
+            parent_backup_id=parent_backup_id,
+            children_backup_ids=chidren_backup_ids,
+        )
+
+        wal_per_second = 0.01
+        ext_info = mock_backup_ext_info(
+            backup_info=backup_info,
+            root_backup_id="root",
+            chain_size="2",
+            est_dedup_size=1024,
+            deduplication_ratio=0.99,
+            wal_rate=wal_per_second * 3600,
+            backup_type=backup_type,
+        )
+
+        writer = output.ConsoleOutputWriter()
+
+        writer.result_show_backup(ext_info)
+        writer.close()
+        (out, err) = capsys.readouterr()
+
+        resource_savings_output = "{} ({})".format(
+            pretty_size(ext_info["est_dedup_size"]),
+            "{percent:.2%}".format(percent=ext_info["deduplication_ratio"]),
+        )
+
+        # Output for both 'rsync' and 'incremental' backup type
+        if ext_info["backup_type"] in ("rsync", "incremental"):
+            assert (
+                TestConsoleWriter.nested_row.format(
+                    "Resource savings", resource_savings_output
+                )
+                in out
+            )
+        # Output for 'postgres' backup method
+        if ext_info["mode"] == "postgres":
+            # Output for 'full' and 'incremental' backup type
+            full = [
+                ("Backup Type", ext_info["backup_type"]),
+                ("Children Backup(s)", ext_info["children_backup_ids"]),
+            ]
+            for n_row in full:
+                assert TestConsoleWriter.nested_row.format(n_row[0], n_row[1]) in out
+
+            # Output only for 'incremental' backup type
+            incremental = [
+                ("Root Backup", ext_info["root_backup_id"]),
+                ("Parent Backup", ext_info["parent_backup_id"]),
+                ("Backup chain size", ext_info["chain_size"]),
+            ]
+            if ext_info["backup_type"] == "incremental":
+                for n_row in incremental:
+                    assert (
+                        TestConsoleWriter.nested_row.format(n_row[0], n_row[1]) in out
+                    )
+        assert err == ""
+
+    def test_result_show_backup_any_mode_copy_stats(self, capsys):
+        """
+        Unit test for the show-backup command that display information in the
+        console about copy statistics.
+
+        This unit tests checks if the copy statistics are correctly rendered
+        to the standard output.
+
+        :param capsys: mock fixture for stdout/stderr
+        """
+        backup_manager = build_backup_manager(
+            main_conf={"backup_options": "concurrent_backup"}
+        )
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            backup_id="12345",
+            cluster_size=2048,
+            copy_stats={"analysis_time": 2, "copy_time": 1, "number_of_workers": 1},
+            deduplicated_size=1234,
+            systemid="systemid",
+        )
+        ext_info = mock_backup_ext_info(
+            backup_info=backup_info,
+            est_dedup_size=1024,
+            deduplication_ratio=0.99,
+            copy_time=backup_info.copy_stats["copy_time"],
+            analysis_time=backup_info.copy_stats["analysis_time"],
+            number_of_workers=backup_info.copy_stats["number_of_workers"],
+            estimated_throughput=1,
+        )
+
+        writer = output.ConsoleOutputWriter()
+
+        writer.result_show_backup(ext_info)
+        writer.close()
+        (out, err) = capsys.readouterr()
+
+        copy_time_output = human_readable_timedelta(
+            datetime.timedelta(seconds=ext_info["copy_time"])
+        )
+        copy_time_output += " + {} startup".format(
+            human_readable_timedelta(
+                datetime.timedelta(seconds=ext_info["analysis_time"])
+            )
+        )
+        assert TestConsoleWriter.nested_row.format("Copy time", copy_time_output) in out
+        est_throughput_output = "{}/s".format(
+            pretty_size(ext_info["estimated_throughput"])
+        )
+        if "number_of_workers" in ext_info and ext_info["number_of_workers"] > 1:
+            est_throughput_output += " (%s jobs)" % ext_info["number_of_workers"]
+        assert (
+            TestConsoleWriter.nested_row.format(
+                "Estimated throughput", est_throughput_output
+            )
+            in out
+        )
         assert err == ""
 
     def test_result_show_backup_with_backup_name(self, capsys):
@@ -1255,6 +1459,8 @@ class TestConsoleWriter(object):
             backup_name="named backup",
             status=BackupInfo.DONE,
             wals_per_second=0.1,
+            est_dedup_size=1024,
+            deduplication_ratio=0.5,
         )
 
         # WHEN the list_backup output is generated in Plain form
@@ -1293,6 +1499,9 @@ class TestConsoleWriter(object):
             snapshots_info=snapshots_info,
             status=BackupInfo.DONE,
             wals_per_second=0.1,
+            cluster_size=2048,
+            est_dedup_size=1024,
+            deduplication_ratio=0.5,
         )
 
         # WHEN the show output is generated in Plain form
@@ -1406,9 +1615,9 @@ class TestConsoleWriter(object):
 # noinspection PyMethodMayBeStatic
 class TestJsonWriter(object):
     # Fixed start and end timestamps for backup/recovery timestamps
-    begin_time = datetime(2022, 7, 4, 9, 15, 35, tzinfo=tz.tzutc())
+    begin_time = datetime.datetime(2022, 7, 4, 9, 15, 35, tzinfo=tz.tzutc())
     begin_epoch = "1656926135"
-    end_time = datetime(2022, 7, 4, 9, 22, 37, tzinfo=tz.tzutc())
+    end_time = datetime.datetime(2022, 7, 4, 9, 22, 37, tzinfo=tz.tzutc())
     end_epoch = "1656926557"
 
     def test_debug(self, capsys):
@@ -1933,13 +2142,48 @@ class TestJsonWriter(object):
 
     @mock.patch.dict("os.environ", {"TZ": "US/Eastern"})
     def test_result_show_backup(self, capsys):
-        # mock the backup ext info
-        wal_per_second = 0.01
-        ext_info = mock_backup_ext_info(
-            status=BackupInfo.DONE,
-            wals_per_second=wal_per_second,
+        """
+        Unit test for the show-backup command that display information about a
+        backup with a json format.
+
+        This unit tests checks if all fields of a backup are correctly in
+        the result dict to be rendered as json.
+
+        :param capsys: mock fixture for stdout/stderr
+        """
+        backup_manager = build_backup_manager(
+            main_conf={"backup_options": "concurrent_backup"}
+        )
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            backup_id="12345",
+            summarize_wal="on",
+            cluster_size=2048,
+            deduplicated_size=1234,
+            systemid="systemid",
+            data_checksums="on",
             begin_time=self.begin_time,
             end_time=self.end_time,
+        )
+
+        wal_per_second = 0.01
+        ext_info = mock_backup_ext_info(
+            backup_info=backup_info,
+            children_timelines=(mock.Mock(tli="1"), mock.Mock(tli="2")),
+            wal_until_next_compression_ratio=1.5,
+            wals_per_second=wal_per_second,
+            est_dedup_size=1024,
+            deduplication_ratio=0.99,
+            wal_rate=wal_per_second * 3600,
+            wal_compression_ratio=0.5,
+            copy_time=1,
+            analysis_time=2,
+            number_of_workers=1,
+            backup_type="incremental",
+            root_backup_id="1234",
+            retention_policy_status="VALID",
+            previous_backup_id="12345",
+            next_backup_id="123456",
         )
         server_name = ext_info["server_name"]
 
@@ -1952,14 +2196,108 @@ class TestJsonWriter(object):
 
         base_information = json_output[server_name]["base_backup_information"]
         wal_information = json_output[server_name]["wal_information"]
+        server_information = json_output[server_name]["server_information"]
+        catalog_information = json_output[server_name]["catalog_information"]
 
         assert server_name in json_output
         assert ext_info["backup_id"] == json_output[server_name]["backup_id"]
         assert ext_info["status"] == json_output[server_name]["status"]
-        assert ext_info["data_checksums"] == json_output[server_name]["data_checksums"]
+        assert ext_info["systemid"] == json_output[server_name]["system_id"]
+        assert ext_info["version"] == json_output[server_name]["postgresql_version"]
+        assert ext_info["pgdata"] == json_output[server_name]["pgdata_directory"]
+        assert (
+            pretty_size(ext_info["cluster_size"])
+            == json_output[server_name]["cluster_size"]
+        )
+        assert (
+            ext_info["cluster_size"] == json_output[server_name]["cluster_size_bytes"]
+        )
+
+        assert ext_info["data_checksums"] == server_information["data_checksums"]
+        assert ext_info["summarize_wal"] == server_information["summarize_wal"]
+
+        assert ext_info["mode"] == base_information["backup_method"]
+        if ext_info["backup_type"] == "incremental":
+            assert ext_info["root_backup_id"] == catalog_information["root_backup_id"]
+            assert (
+                ext_info["parent_backup_id"] == catalog_information["parent_backup_id"]
+            )
+            assert ext_info["chain_size"] == catalog_information["chain_size"]
+        if ext_info["mode"] == "postgres":
+            assert ext_info["backup_type"] == base_information["backup_type"]
+            assert (
+                ext_info["children_backup_ids"]
+                == catalog_information["children_backup_ids"]
+            )
+
+        assert (
+            pretty_size(ext_info["deduplicated_size"])
+            == base_information["backup_size"]
+        )
+        assert ext_info["deduplicated_size"] == base_information["backup_size_bytes"]
+        assert (
+            pretty_size(ext_info["deduplicated_size"] + ext_info["wal_size"])
+            == base_information["backup_size_with_wals"]
+        )
+        assert (
+            ext_info["deduplicated_size"] + ext_info["wal_size"]
+            == base_information["backup_size_with_wals_bytes"]
+        )
+        assert pretty_size(ext_info["wal_size"]) == base_information["wal_size"]
+        assert ext_info["wal_size"] == base_information["wal_size_bytes"]
+
+        assert (
+            pretty_size(ext_info["est_dedup_size"])
+            == base_information["resource_savings"]
+        )
+        assert ext_info["est_dedup_size"] == base_information["resource_savings_bytes"]
+        resource_savings_percentage = "{percent:.2%}".format(
+            percent=ext_info["deduplication_ratio"]
+        )
+        assert (
+            resource_savings_percentage
+            == base_information["resource_savings_percentage"]
+        )
+
+        assert ext_info["timeline"] == base_information["timeline"]
+        assert ext_info["begin_wal"] == base_information["begin_wal"]
+        assert ext_info["end_wal"] == base_information["end_wal"]
+        assert ext_info["wal_num"] == base_information["wal_num"]
+
+        wal_compression_ratio = "{percent:.2%}".format(
+            percent=ext_info["wal_compression_ratio"]
+        )
+        assert wal_compression_ratio == base_information["wal_compression_ratio"]
+
+        assert str(ext_info["begin_time"]) == base_information["begin_time"]
         assert str(ext_info["end_time"]) == base_information["end_time"]
+
         assert self.end_epoch == base_information["end_time_timestamp"]
         assert self.begin_epoch == base_information["begin_time_timestamp"]
+
+        copy_time = human_readable_timedelta(
+            datetime.timedelta(seconds=ext_info["copy_time"])
+        )
+        analysis_time = human_readable_timedelta(
+            datetime.timedelta(seconds=ext_info["analysis_time"])
+        )
+        assert copy_time == base_information["copy_time"]
+        assert analysis_time == base_information["analysis_time"]
+        assert ext_info["copy_time"] == base_information["copy_time_seconds"]
+        throughput_output = "%s/s" % pretty_size(
+            ext_info["deduplicated_size"] / ext_info["copy_time"]
+        )
+        assert throughput_output == base_information["throughput"]
+        assert (
+            ext_info["deduplicated_size"] / ext_info["copy_time"]
+            == base_information["throughput_bytes"]
+        )
+        assert ext_info["number_of_workers"] == base_information["number_of_workers"]
+
+        assert ext_info["begin_offset"] == base_information["begin_offset"]
+        assert ext_info["end_offset"] == base_information["end_offset"]
+        assert ext_info["begin_xlog"] == base_information["begin_lsn"]
+        assert ext_info["end_xlog"] == base_information["end_lsn"]
 
         for name, _, location in ext_info["tablespaces"]:
             tablespace = find_by_attr(
@@ -1968,24 +2306,49 @@ class TestJsonWriter(object):
             assert name == tablespace["name"]
             assert location == tablespace["location"]
 
+        assert ext_info["wal_until_next_num"] == wal_information["no_of_files"]
         assert (
-            pretty_size(ext_info["size"] + ext_info["wal_size"])
-        ) == base_information["disk_usage_with_wals"]
-        assert (pretty_size(ext_info["wal_until_next_size"])) == wal_information[
-            "disk_usage"
-        ]
-        assert "%0.2f/hour" % (wal_per_second * 3600) == wal_information["wal_rate"]
+            pretty_size(ext_info["wal_until_next_size"])
+            == wal_information["disk_usage"]
+        )
+        assert ext_info["wal_until_next_size"] == wal_information["disk_usage_bytes"]
+
+        wal_rate = "%0.2f/hour" % (ext_info["wals_per_second"] * 3600)
+        assert wal_rate == wal_information["wal_rate"]
+        assert ext_info["wals_per_second"] == wal_information["wal_rate_per_second"]
+
+        compression_ratio = "{percent:.2%}".format(
+            percent=ext_info["wal_until_next_compression_ratio"]
+        )
+        assert compression_ratio == wal_information["compression_ratio"]
+        assert ext_info["wal_last"] == wal_information["last_available"]
+
+        assert (
+            ext_info["retention_policy_status"]
+            == catalog_information["retention_policy"]
+        )
+        assert ext_info["previous_backup_id"] == catalog_information["previous_backup"]
+        assert ext_info["next_backup_id"] == catalog_information["next_backup"]
 
         assert err == ""
 
     def test_result_show_backup_with_backup_name(self, capsys):
-        # GIVEN a backup info with a backup_name
-        ext_info = mock_backup_ext_info(
+        backup_manager = build_backup_manager(
+            main_conf={"backup_options": "concurrent_backup"}
+        )
+        backup_info = build_test_backup_info(
             backup_name="named backup",
-            status=BackupInfo.DONE,
-            wals_per_second=0.1,
-            begin_time=self.begin_time,
-            end_time=self.end_time,
+            server=backup_manager.server,
+            cluster_size=2048,
+            deduplicated_size=1234,
+        )
+
+        wal_per_second = 0.01
+        ext_info = mock_backup_ext_info(
+            backup_info=backup_info,
+            est_dedup_size=1024,
+            deduplication_ratio=0.99,
+            wal_rate=wal_per_second * 3600,
         )
 
         # WHEN the list_backup output is generated in JSON form
@@ -2027,10 +2390,22 @@ class TestJsonWriter(object):
                 ),
             ],
         )
-        ext_info = mock_backup_ext_info(
+        backup_manager = build_backup_manager(
+            main_conf={"backup_options": "concurrent_backup"}
+        )
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            cluster_size=2048,
+            deduplicated_size=1234,
             snapshots_info=snapshots_info,
-            status=BackupInfo.DONE,
-            wals_per_second=0.1,
+        )
+
+        wal_per_second = 0.01
+        ext_info = mock_backup_ext_info(
+            backup_info=backup_info,
+            est_dedup_size=1024,
+            deduplication_ratio=0.99,
+            wal_rate=wal_per_second * 3600,
         )
 
         # WHEN the show backup output is generated in JSON form
