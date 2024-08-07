@@ -1601,7 +1601,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
             data_checksums=data["data_checksums"],
             summarize_wal=data["summarize_wal"],
         )
-        
+
         if data["status"] in BackupInfo.STATUS_COPY_DONE:
             # General information
             output.update(
