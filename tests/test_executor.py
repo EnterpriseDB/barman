@@ -871,7 +871,7 @@ class TestStrategy(object):
             Tablespace(name="tbs2", oid=16405, location="/another/location"),
         ]
         assert backup_info.summarize_wal is None
-        assert backup_info.cluster_size is None
+        assert backup_info.cluster_size == 2048
 
         strategy._pg_get_metadata(backup_info)
 

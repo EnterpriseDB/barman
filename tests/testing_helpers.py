@@ -45,7 +45,7 @@ def build_test_backup_info(
     begin_wal="000000010000000000000002",
     begin_xlog="0/2000028",
     config_file="/pgdata/location/postgresql.conf",
-    deduplicated_size=None,
+    deduplicated_size=1024,
     end_offset=184,
     end_time=None,
     end_wal="000000010000000000000002",
@@ -73,7 +73,7 @@ def build_test_backup_info(
     summarize_wal=None,
     parent_backup_id=None,
     children_backup_ids=None,
-    cluster_size=None,
+    cluster_size=2048,
 ):
     """
     Create an 'Ad Hoc' BackupInfo object for testing purposes.
@@ -153,6 +153,15 @@ def mock_backup_ext_info(
     wal_until_next_compression_ratio=0.0,
     children_timelines=[],
     copy_stats={},
+    root_backup_id=None,
+    chain_size=None,
+    est_dedup_size=None,
+    deduplication_ratio=None,
+    backup_type=None,
+    copy_time=None,
+    analysis_time=None,
+    number_of_workers=None,
+    estimated_throughput=None,
     **kwargs
 ):
     # make a dictionary with all the arguments
