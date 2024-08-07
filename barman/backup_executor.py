@@ -1203,6 +1203,7 @@ class RsyncBackupExecutor(ExternalBackupExecutor):
             and ``pg_backup_stop()`` are called within the same session.
         """
         import psycopg2
+
         try:
             with PostgresKeepAlive(
                 self.server.postgres, self.config.keepalive_interval, True
@@ -1363,6 +1364,7 @@ class RsyncBackupExecutor(ExternalBackupExecutor):
         self.copy_end_time = datetime.datetime.now()
 
         import time
+
         time.sleep(60)
 
         # Store statistics about the copy
