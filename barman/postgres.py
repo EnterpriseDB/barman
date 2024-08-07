@@ -1872,6 +1872,7 @@ class PostgresKeepAlive:
         self.postgres = postgres
         self.interval = interval
         self.raise_excepton = raise_exception
+        self._exc = None
         self._stop_thread = threading.Event()
         self._thread = threading.Thread(
             target=self._run_keep_alive,
@@ -1893,8 +1894,8 @@ class PostgresKeepAlive:
                 if not success and isinstance(
                     ex, (psycopg2.InterfaceError, psycopg2.OperationalError)
                 ):
+                    self._exc = ex
                     self._stop_thread.set()
-                    _thread.interrupt_main()
 
             self._stop_thread.wait(self.interval)
 
@@ -1902,9 +1903,12 @@ class PostgresKeepAlive:
         """Enters context. Starts the thread"""
         if self.interval > 0:
             self._thread.start()
+            self._thread.join()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exits context. Makes sure the thread is terminated"""
         if self.interval > 0:
             self._stop_thread.set()
             self._thread.join()
+            if self._exc is not None:
+                raise self._exc
