@@ -539,6 +539,24 @@ Retention policy based on recovery window
     backups required to allow point-in-time recovery back to 9:30 AM
     on the previous Friday.
 
+> **IMPORTANT:**
+> Block-level incremental backups are not considered during the retention
+> policy processing. This is because this kind of incremental backups
+> depends on all of its parent backups, up to the full backup which generates
+> the chain, in order to be recoverable. To maintain the consistency of backup
+> chains, only full backups are taken into account when applying retention
+> policies.
+>
+> How It Works
+>
+> When the retention policy is applied, Barman ignores incremental backups
+> and focuses only on the status of the full backups.
+>
+> If the full backup is marked as KEEP:FULL, KEEP:STANDALONE, or VALID,
+> the status VALID is marked to all dependent incremental backups.
+> If the full backup is marked as OBSOLETE, then all incremental backups
+> that depend on it will also be marked as OBSOLETE and removed.
+
 #### Scope
 
 Retention policies can be defined for:
