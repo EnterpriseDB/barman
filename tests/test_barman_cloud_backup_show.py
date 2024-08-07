@@ -43,8 +43,9 @@ class TestCloudBackupShow(object):
             begin_wal="000000010000000000000002",
             end_time=datetime.datetime(2038, 1, 19, 4, 14, 8),
             end_wal="000000010000000000000004",
-            size=None,
+            size=2048,
             data_checksums="on",
+            summarize_wal="on",
             snapshots_info=GcpSnapshotsInfo(
                 project="test_project",
                 snapshots=[
@@ -65,6 +66,8 @@ class TestCloudBackupShow(object):
                 ],
             ),
             version=150000,
+            cluster_size=2048,
+            deduplicated_size=1024,
         )
         backup_info.mode = "concurrent"
         cloud_backup_catalog = mock.Mock()
@@ -97,7 +100,11 @@ class TestCloudBackupShow(object):
             "  Status                 : DONE\n"
             "  PostgreSQL Version     : 150000\n"
             "  PGDATA directory       : /pgdata/location\n"
-            "  Checksums              : on\n"
+            "  Estimated Cluster Size : 2.0 KiB\n"
+            "\n"
+            "  Server information:\n"
+            "    Checksums            : on\n"
+            "    WAL summarizer       : on\n"
             "\n"
             "  Snapshot information:\n"
             "    provider             : gcp\n"
@@ -120,6 +127,8 @@ class TestCloudBackupShow(object):
             "    tbs2                 : /another/location (oid: 16405)\n"
             "\n"
             "  Base backup information:\n"
+            "    Backup Method        : concurrent\n"
+            "    Backup Size          : 1.0 KiB\n"
             "    Timeline             : 1\n"
             "    Begin WAL            : 000000010000000000000002\n"
             "    End WAL              : 000000010000000000000004\n"
@@ -160,10 +169,12 @@ class TestCloudBackupShow(object):
             "begin_wal": "000000010000000000000002",
             "begin_xlog": "0/2000028",
             "children_backup_ids": None,
+            "cluster_size": 2048,
             "compression": None,
             "config_file": "/pgdata/location/postgresql.conf",
             "copy_stats": None,
-            "deduplicated_size": None,
+            "data_checksums": "on",
+            "deduplicated_size": 1024,
             "end_offset": 184,
             "end_time": "Tue Jan 19 04:14:08 2038",
             "end_wal": "000000010000000000000004",
@@ -175,9 +186,8 @@ class TestCloudBackupShow(object):
             "mode": "concurrent",
             "parent_backup_id": None,
             "pgdata": "/pgdata/location",
-            "data_checksums": "on",
             "server_name": "main",
-            "size": None,
+            "size": 2048,
             "snapshots_info": {
                 "provider": "gcp",
                 "provider_info": {
@@ -209,6 +219,7 @@ class TestCloudBackupShow(object):
                 ],
             },
             "status": "DONE",
+            "summarize_wal": "on",
             "systemid": None,
             "tablespaces": [
                 ["tbs1", 16387, "/fake/location"],
@@ -218,8 +229,6 @@ class TestCloudBackupShow(object):
             "version": 150000,
             "xlog_segment_size": 16777216,
             "backup_id": "backup_id_1",
-            "summarize_wal": None,
-            "cluster_size": None,
         }
 
     @pytest.mark.parametrize("extra_args", [[], ["--format", "json"]])
