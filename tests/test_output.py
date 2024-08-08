@@ -1156,7 +1156,7 @@ class TestConsoleWriter(object):
         writer.close()
         (out, err) = capsys.readouterr()
         assert not writer.minimal
-        assert "%s %s - R - %s" % (bi.server_name, bi.backup_id, bi.status) in out
+        assert "%s %s - S - %s" % (bi.server_name, bi.backup_id, bi.status) in out
 
     def test_result_list_backup_with_backup_name(self, capsys):
         # GIVEN a backup info with a backup_name
@@ -1176,12 +1176,12 @@ class TestConsoleWriter(object):
         # THEN the console output contains the backup name
         out, _err = capsys.readouterr()
         assert (
-            "%s %s '%s' - R - " % (bi.server_name, bi.backup_id, bi.backup_name) in out
+            "%s %s '%s' - S - " % (bi.server_name, bi.backup_id, bi.backup_name) in out
         )
 
     def test_result_list_backup_types(self, capsys):
         # GIVEN a backup info with a specific backup type
-        backup_types = ["rsync", "incremental", "full"]
+        backup_types = ["rsync", "incremental", "full", "snapshot"]
         backup_size = 12345
         wal_size = 54321
         retention_status = "test status"
@@ -1897,7 +1897,7 @@ class TestJsonWriter(object):
 
     def test_result_list_backup_types(self, capsys):
         # GIVEN a backup info with specific backup types
-        backup_types = ["rsync", "incremental", "full"]
+        backup_types = ["rsync", "incremental", "full", "snapshot"]
         backup_size = 12345
         wal_size = 54321
         retention_status = "test status"
