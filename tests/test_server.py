@@ -31,6 +31,7 @@ from mock import MagicMock, Mock, PropertyMock, patch
 from psycopg2.tz import FixedOffsetTimezone
 
 from barman import output
+from barman.annotations import KeepManager
 from barman.exceptions import (
     CommandFailedException,
     LockFileBusy,
@@ -2823,6 +2824,37 @@ class TestServer(object):
             "\tbackup minimum size: FAILED (last backup size 41 B < 42 B minimum)\n"
             in out
         )
+
+    @patch("barman.annotations.KeepManagerMixin.release_keep")
+    @patch("barman.annotations.KeepManagerMixin.keep_backup")
+    @patch("barman.backup.BackupManager.recover")
+    def test_add_and_release_keep_annotation_when_recover(
+        self, recover_mock, keep_backup_mock, release_keep_mock, server
+    ):
+        backup_info = build_test_backup_info(
+            backup_id="backup_id",
+            server=server,
+        )
+
+        keep_before_recover = server.backup_manager.should_keep_backup(
+            backup_info.backup_id
+        )
+        assert keep_before_recover is False
+
+        server.recover(backup_info, "fake/destination/path")
+
+        keep_after_recover = server.backup_manager.should_keep_backup(
+            backup_info.backup_id
+        )
+        assert keep_after_recover is False
+
+        keep_backup_mock.assert_called_once_with(
+            backup_id=backup_info.backup_id, target=KeepManager.TARGET_FULL
+        )
+        recover_mock.assert_called_once_with(
+            backup_info, "fake/destination/path", None, None
+        )
+        release_keep_mock.assert_called_once_with(backup_id=backup_info.backup_id)
 
 
 class TestCheckStrategy(object):
