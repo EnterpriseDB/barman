@@ -339,6 +339,33 @@ the `--recovery-staging-path` option with the `barman recover` command. If
 you do neither of these things and attempt to recover a compressed backup
 then Barman will fail rather than try to guess a suitable location.
 
+### Recovering incremental backups
+
+> **IMPORTANT:**
+> If any of the backups used for reconstruction were taken with checksums
+> disabled, but the final backup was taken with checksums enabled, the
+> resulting directory may contain pages with invalid checksums.
+> [Follow up the `limitations` section in pg_basebackup documentation](https://www.postgresql.org/docs/17/app-pgcombinebackup.html).
+
+If a backup is incremental, `barman recover` is able to combine the
+backup on recovery using `pg_combinebackup` and the chain of backups.
+A chain of backup is the tree branch that goes from the full backup
+to the one requested for the recovery. This is a multi-step process:
+
+1. The chain of backups is combined into a new synthetic backup in a
+   staging directory on the local server using `pg_combinebackup`.
+2. For any type of recover (local or remote), the synthetic backup is created
+   locally in the barman server. If it's a remote recover, the content is
+   copied to the final destination using Rsync. Otherwise, when it's a local
+   recover, the content is just moved to the final destination.
+3. The staging directory for the backup is removed.
+
+If you recovering from an incremental backup, you *must* therefore
+either set `recovery_staging_path` in the global/server config *or* use
+the `--recovery-staging-path` option with the `barman recover` command. If
+you do neither of these things and attempt to recover an incremental backup
+then Barman will fail rather than try to guess a suitable location.
+
 ## `show-backup`
 
 You can retrieve all the available information for a particular backup of
