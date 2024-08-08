@@ -757,13 +757,16 @@ class LocalBackupInfo(BackupInfo):
         Returns a string with the backup type label.
 
         The backup type can be one of the following:
-        - ``rsync``: If the backup mode is "rsync``.
+        - ``snapshot``: If the backup mode is ``snapshot``.
+        - ``rsync``: If the backup mode is ``rsync``.
         - ``incremental``: If the mode is ``postgres`` and the backup is incremental.
         - ``full``: If the mode is ``postgres`` and the backup is not incremental.
 
         :return str: The backup type label.
         """
-        if self.mode != "postgres":
+        if self.mode == "snapshot":
+            return "snapshot"
+        elif self.mode != "postgres":
             return "rsync"
         return "incremental" if self.is_incremental else "full"
 
