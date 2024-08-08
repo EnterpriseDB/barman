@@ -25,7 +25,7 @@ import dateutil.parser
 import dateutil.tz
 import mock
 import pytest
-from mock import Mock, patch
+from mock import Mock, patch, mock_open, call
 from barman.backup import BackupManager
 from barman.lockfile import ServerBackupIdLock
 
@@ -38,7 +38,7 @@ from barman.exceptions import (
     RecoveryInvalidTargetException,
     CommandFailedException,
 )
-from barman.infofile import BackupInfo
+from barman.infofile import BackupInfo, LocalBackupInfo
 from barman.retention_policies import RetentionPolicyFactory
 from testing_helpers import (
     build_backup_directories,
@@ -365,6 +365,209 @@ class TestBackup(object):
 
         assert deleted is True
         assert child_backup.backup_id not in parent_backup.children_backup_ids
+
+        # Test 8: Update next rsync backup information
+        given_backup = build_test_backup_info(
+            backup_id="parent_backup_id",
+            server=backup_manager.server,
+        )
+        build_backup_directories(given_backup)
+        next_backup = build_test_backup_info(
+            backup_id="next_backup_id",
+            server=backup_manager.server,
+        )
+        build_backup_directories(next_backup)
+        with patch("barman.backup.BackupManager.get_next_backup") as mock:
+            with patch(
+                "barman.backup.BackupManager._set_backup_sizes"
+            ) as set_backup_sizes:
+                mock.return_value = next_backup
+                deleted = backup_manager.delete_backup(given_backup)
+        assert deleted is True
+        set_backup_sizes.assert_called_with(next_backup)
+
+    @patch("os.walk")
+    @patch("os.stat")
+    @patch("barman.utils.fsync_file")
+    @patch("barman.utils.fsync_dir")
+    @patch(
+        "builtins.open",
+        new_callable=mock_open,
+        read_data=b"backup_label = 'test_backup'\nbegin_offset = 40\nbegin_time = '2024-08-07 15:55:36'\n",
+    )
+    @patch("os.rename")
+    @patch("os.makedirs")
+    @patch("barman.infofile.LocalBackupInfo.set_attribute")
+    @patch("barman.infofile.LocalBackupInfo.save")
+    @patch("os.fsync")
+    def test_set_backup_sizes(
+        self,
+        mock_fsync,
+        mock_save,
+        mock_set_attribute,
+        mock_makedirs,
+        mock_rename,
+        mock_open,
+        mock_fsync_dir,
+        mock_fsync_file,
+        mock_stat,
+        mock_walk,
+    ):
+        """
+        Test the _set_backup_sizes method when fsync is set to False.
+        """
+        # Setup
+        backup_manager = build_backup_manager()
+        backup_info = build_test_backup_info(
+            backup_id="backup_id",
+            server=backup_manager.server,
+        )
+        # Mock os.stat to return file stats
+        mock_stat.return_value = os.stat_result(
+            (0o100644, 0, 0, 0, 0, 0, 1024, 0, 0, 0, 0)
+        )
+        build_backup_directories(backup_info)
+        backup_dest_path = "/mocked/path/backup_dest"
+        backup_info.size = Mock()
+        backup_info.size = 1000
+        backup_info.deduplicated_size = Mock()
+        backup_info.deduplicated_size = 800
+
+        # Mock os.walk to simulate directory structure
+        mock_walk.return_value = [
+            (backup_dest_path, ["subdir"], ["file1", "file2"]),
+            (os.path.join(backup_dest_path, "subdir"), [], ["file3"]),
+        ]
+
+        with patch.object(
+            LocalBackupInfo, "get_basebackup_directory", return_value=backup_dest_path
+        ) as mock_get_basebackup_directory:
+            backup_manager._set_backup_sizes(backup_info)
+
+            # Assertions
+            mock_get_basebackup_directory.assert_called_once()
+            mock_walk.assert_called_once_with(backup_dest_path)
+            mock_stat.assert_called()
+            mock_fsync.assert_not_called()
+            mock_set_attribute.assert_has_calls(
+                [
+                    call("size", 3072),
+                    call("deduplicated_size", 0),
+                ]
+            )
+            mock_save.assert_called_once()
+
+            # Test case with single hard link
+            mock_stat.return_value = os.stat_result(
+                (0o100644, 0, 0, 1, 0, 0, 1024, 0, 0, 0, 0)
+            )
+            backup_manager._set_backup_sizes(backup_info)
+            mock_set_attribute.assert_has_calls(
+                [
+                    call("size", 3072),
+                    call("deduplicated_size", 3072),
+                ]
+            )
+            mock_save.assert_called()
+
+    @patch("os.walk")
+    @patch("os.stat")
+    @patch("barman.utils.fsync_file")
+    @patch("barman.utils.fsync_dir")
+    @patch(
+        "builtins.open",
+        new_callable=mock_open,
+        read_data=b"backup_label = 'test_backup'\nbegin_offset = 40\nbegin_time = '2024-08-07 15:55:36'\n",
+    )
+    @patch("os.rename")
+    @patch("os.makedirs")
+    @patch("barman.infofile.LocalBackupInfo.set_attribute")
+    @patch("barman.infofile.LocalBackupInfo.save")
+    @patch("os.open")
+    @patch("os.fsync")
+    @patch("os.close")
+    @patch("os.fstat")
+    def test_set_backup_sizes_with_fsync(
+        self,
+        mock_fstat,
+        mock_close,
+        mock_fsync,
+        mock_open_os,
+        mock_save,
+        mock_set_attribute,
+        mock_makedirs,
+        mock_rename,
+        mock_open,
+        mock_fsync_dir,
+        mock_fsync_file,
+        mock_stat,
+        mock_walk,
+    ):
+        """
+        Test the _set_backup_sizes method when called with fsync option.
+        """
+        # Setup
+        backup_manager = build_backup_manager()
+        backup_info = build_test_backup_info(
+            backup_id="backup_id",
+            server=backup_manager.server,
+        )
+
+        # Mock os.stat to return file stats
+        mock_stat.return_value = os.stat_result(
+            (0o100644, 0, 0, 0, 0, 0, 1024, 0, 0, 0, 0)
+        )
+        mock_fstat.return_value = os.stat_result(
+            (0o100644, 0, 0, 0, 0, 0, 1024, 0, 0, 0, 0)
+        )
+        build_backup_directories(backup_info)
+        backup_dest_path = "/mocked/path/backup_dest"
+        backup_info.size = Mock()
+        backup_info.size = 1000
+        backup_info.deduplicated_size = Mock()
+        backup_info.deduplicated_size = 800
+
+        # Mock os.walk to simulate directory structure
+        mock_walk.return_value = [
+            (backup_dest_path, ["subdir"], ["file1", "file2"]),
+            (os.path.join(backup_dest_path, "subdir"), [], ["file3"]),
+        ]
+
+        mock_fsync_dir.side_effect = lambda dir_path: None
+        mock_fsync_file.side_effect = lambda file_path: mock_fstat.return_value
+
+        with patch.object(
+            LocalBackupInfo, "get_basebackup_directory", return_value=backup_dest_path
+        ) as mock_get_basebackup_directory:
+            backup_manager._set_backup_sizes(backup_info, fsync=True)
+
+            # Assertions
+            mock_get_basebackup_directory.assert_called_once()
+            mock_walk.assert_called_once_with(backup_dest_path)
+            mock_stat.assert_called()
+            assert mock_fsync.call_count == 5
+            mock_set_attribute.assert_has_calls(
+                [
+                    call("size", 3072),
+                    call("deduplicated_size", 0),
+                ]
+            )
+            mock_save.assert_called_once()
+
+            # Test case with single hard link
+            mock_stat.return_value = os.stat_result(
+                (0o100644, 0, 0, 1, 0, 0, 1024, 0, 0, 0, 0)
+            )
+            backup_info.size = 0
+            backup_info.deduplicated_size = 0
+            backup_manager._set_backup_sizes(backup_info, fsync=True)
+            mock_set_attribute.assert_has_calls(
+                [
+                    call("size", 3072),
+                    call("deduplicated_size", 0),
+                ]
+            )
+            mock_save.assert_called()
 
     def test_available_backups(self, tmpdir):
         """
@@ -990,6 +1193,57 @@ class TestBackup(object):
         last_full_backup = backup_manager.get_last_full_backup_id()
         get_available_backups.assert_called_once()
         assert last_full_backup == "20241011T180000"
+
+    @patch("barman.backup._logger")
+    @patch("barman.backup.output")
+    @patch("barman.backup.BackupManager._set_backup_sizes")
+    @patch("os.makedirs")
+    @patch(
+        "barman.infofile.LocalBackupInfo.get_data_directory",
+        return_value="/some/directory",
+    )
+    def test_backup_fsync_and_set_sizes(
+        self,
+        mock_get_data_directory,
+        mock_makedirs,
+        mock_set_backup_sizes,
+        mock_output,
+        mock_logger,
+    ):
+        """
+        Test the function for correct backup size setting and logging.
+        """
+        backup_manager = build_backup_manager()
+        backup_manager.executor.current_action = "calculating backup size"
+        backup_info = build_test_backup_info(
+            backup_id="backup_id",
+            server=backup_manager.server,
+        )
+        build_backup_directories(backup_info)
+        backup_info.size = Mock()
+        backup_info.size = 1000
+        backup_info.deduplicated_size = Mock()
+        backup_info.deduplicated_size = 800
+        backup_manager.config = Mock()
+        backup_manager.config.reuse_backup = "link"
+
+        with patch("barman.infofile.BackupInfo.set_attribute") as mock_set_attribute:
+            backup_manager.backup_fsync_and_set_sizes(backup_info)
+
+            # Assertions when reuse_backup is "link"
+            mock_set_backup_sizes.assert_called_once_with(backup_info, fsync=True)
+            mock_set_attribute.assert_any_call("size", 1000)
+            mock_set_attribute.assert_any_call("deduplicated_size", 800)
+            mock_output.info.assert_called_once_with(
+                "Backup size: %s. Actual size on disk: %s (-%s deduplication ratio)."
+                % ("1000 B", "800 B", "20.00%")
+            )
+            mock_logger.debug.assert_called_once_with("calculating backup size")
+
+            # Test case when reuse_backup is not "link"
+            backup_manager.config.reuse_backup = "copy"
+            backup_manager.backup_fsync_and_set_sizes(backup_info)
+            mock_output.info.assert_called_with("Backup size: %s" % "1000 B")
 
 
 class TestWalCleanup(object):
