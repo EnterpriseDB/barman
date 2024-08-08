@@ -40,7 +40,7 @@ from barman.config import (
     parse_backup_compression_format,
     parse_backup_compression_location,
     parse_si_suffix,
-    parse_recovery_staging_path,
+    parse_staging_path,
     parse_slot_name,
     parse_snapshot_disks,
     parse_time_interval,
@@ -644,14 +644,14 @@ class TestConfig(object):
                 symlink += 1
         assert symlink == 1
 
-    def test_parse_recovery_staging_path(self):
+    def test_parse_staging_path(self):
         """
-        Test the parse_recovery_staging_path method
+        Test the parse_staging_path method
         """
-        assert parse_recovery_staging_path(None) is None
-        assert parse_recovery_staging_path("/any/path") == "/any/path"
+        assert parse_staging_path(None) is None
+        assert parse_staging_path("/any/path") == "/any/path"
         with pytest.raises(ValueError):
-            parse_recovery_staging_path("here/it/is")
+            parse_staging_path("here/it/is")
 
     def test_parse_slot_name(self):
         """
@@ -1368,6 +1368,7 @@ class TestModelConfig:
             "last_backup_maximum_age": None,
             "last_backup_minimum_size": None,
             "last_wal_maximum_age": None,
+            "local_staging_path": None,
             "max_incoming_wals_queue": None,
             "minimum_redundancy": None,
             "model": True,
@@ -1455,6 +1456,7 @@ class TestModelConfig:
             "last_backup_maximum_age": {"source": "SOME_SOURCE", "value": None},
             "last_backup_minimum_size": {"source": "SOME_SOURCE", "value": None},
             "last_wal_maximum_age": {"source": "SOME_SOURCE", "value": None},
+            "local_staging_path": {"source": "SOME_SOURCE", "value": None},
             "max_incoming_wals_queue": {"source": "SOME_SOURCE", "value": None},
             "minimum_redundancy": {"source": "SOME_SOURCE", "value": None},
             "model": {"source": "SOME_SOURCE", "value": True},
