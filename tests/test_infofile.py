@@ -1283,6 +1283,7 @@ class TestLocalBackupInfo:
             ("rsync", None, "rsync"),
             ("postgres", "some_id", "incremental"),
             ("postgres", None, "full"),
+            ("snapshot", None, "snapshot"),
         ],
     )
     def test_backup_type(self, mode, parent_backup_id, expected_backup_type):

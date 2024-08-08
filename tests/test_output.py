@@ -1181,7 +1181,7 @@ class TestConsoleWriter(object):
 
     def test_result_list_backup_types(self, capsys):
         # GIVEN a backup info with a specific backup type
-        backup_types = ["rsync", "incremental", "full"]
+        backup_types = ["rsync", "incremental", "full", "snapshot"]
         backup_size = 12345
         wal_size = 54321
         retention_status = "test status"
@@ -1897,7 +1897,7 @@ class TestJsonWriter(object):
 
     def test_result_list_backup_types(self, capsys):
         # GIVEN a backup info with specific backup types
-        backup_types = ["rsync", "incremental", "full"]
+        backup_types = ["rsync", "incremental", "full", "snapshot"]
         backup_size = 12345
         wal_size = 54321
         retention_status = "test status"
