@@ -271,6 +271,7 @@ class UnixLocalCommand(object):
             sys.version_info.minor,
             sys.version_info.micro,
         )
+        result["python_executable"] = sys.executable
         self.cmd("rsync", args=["--version", "2>&1"])
         try:
             result["rsync_ver"] = self.internal_cmd.out.splitlines(True)[0].rstrip()
