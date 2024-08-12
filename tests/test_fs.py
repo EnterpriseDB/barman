@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import sys
 import pytest
 from mock import call, patch
 
@@ -552,6 +553,121 @@ class TestUnixLocalCommand(object):
 
         # AND the exception has the expected message
         assert str(exc.value) == "Unexpected findmnt output: {}".format(command_output)
+
+    @patch("barman.fs.Command")
+    @patch("barman.fs.UnixLocalCommand.cmd")
+    def test_get_system_info(self, cmd_mock, command_mock):
+        """Basic test for the get_system_info method."""
+        # For this test, we mock everything as if we are on an Ubuntu distro
+        # the lsb_release command succededs
+        cmd_mock.return_value = 0
+        # mock the internal_cmd.out.rstrip() calls, in sequence
+        command_mock.return_value.out.rstrip.side_effect = [
+            # lsb_release -a output
+            "Ubuntu Linux 20.04.1 LTS",
+            # uname -a output
+            "Linux version 5.4.0-54-generic (buildd@lgw01-amd64)",
+            # ssh -V output
+            "OpenSSH_8.2p1 Ubuntu-4ubuntu0.3",
+        ]
+        # rsync --version output
+        command_mock.return_value.out.splitlines.return_value = ["Rsync version 3.2.3"]
+
+        result = UnixLocalCommand().get_system_info()
+
+        assert result == {
+            "release": "Ubuntu Linux 20.04.1 LTS",
+            "python_ver": f"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+            "python_executable": sys.executable,
+            "kernel_ver": "Linux version 5.4.0-54-generic (buildd@lgw01-amd64)",
+            "rsync_ver": "Rsync version 3.2.3",
+            "ssh_ver": "OpenSSH_8.2p1 Ubuntu-4ubuntu0.3",
+        }
+
+    @patch("barman.fs.Command")
+    @patch("barman.fs.UnixLocalCommand.cmd")
+    @patch("barman.fs.UnixLocalCommand.exists")
+    def test_get_system_info_release_cases(self, exists_mock, cmd_mock, command_mock):
+        """
+        Test all possible cases for the release ouput in the system info.
+        Other configs not related to the release are abstracted in this test.
+        """
+        # Case 1: We are on an Ubuntu system
+        # the lsb_release command succededs
+        cmd_mock.return_value = 0
+        # mock the internal_cmd.out.rstrip() calls, in sequence
+        command_mock.return_value.out.rstrip.side_effect = [
+            "Ubuntu Linux 20.04.1 LTS",  # output of lsb_release -a
+            "Some output of `uname -a` command",
+            "Some output of `ssh -V` command",
+        ]
+        command_mock.return_value.out.splitlines.return_value = ["Some Rsync version"]
+        result = UnixLocalCommand().get_system_info()["release"]
+        assert result == "Ubuntu Linux 20.04.1 LTS"
+
+        # Case 2: We are on a Ubuntu system, but the lsb_release command does not exist
+        cmd_mock.reset_mock(), command_mock.reset_mock()
+        # the lsb_release command does not succeded
+        cmd_mock.return_value = 1
+        # The /etc/lsb-release path exists
+        exists_mock.return_value = True
+        # mock the internal_cmd.out.rstrip() calls, in sequence
+        command_mock.return_value.out.rstrip.side_effect = [
+            "22.04.1 LTS",  # ouput of cat /etc/lsb-release
+            "Some output of `uname -a` command",
+            "Some output of `ssh -V` command",
+        ]
+        command_mock.return_value.out.splitlines.return_value = ["Some Rsync version"]
+        result = UnixLocalCommand().get_system_info()["release"]
+        assert result == "Ubuntu Linux 22.04.1 LTS"
+
+        # Case 3: We are on a Debian system
+        cmd_mock.reset_mock(), command_mock.reset_mock(), exists_mock.reset_mock()
+        # the lsb_release command does not succeded
+        cmd_mock.return_value = 1
+        # /etc/lsb-release does not exist, /etc/debian_version exists
+        exists_mock.side_effect = [False, True]
+        # mock the internal_cmd.out.rstrip() calls, in sequence
+        command_mock.return_value.out.rstrip.side_effect = [
+            "10.7",  # output of cat /etc/debian_version
+            "Some output of `uname -a` command",
+            "Some output of `ssh -V` command",
+        ]
+        command_mock.return_value.out.splitlines.return_value = ["Some Rsync version"]
+        result = UnixLocalCommand().get_system_info()["release"]
+        assert result == "Debian GNU/Linux 10.7"
+
+        # Case 4: We are on a RHEL system
+        cmd_mock.reset_mock(), command_mock.reset_mock(), exists_mock.reset_mock()
+        # the lsb_release command does not succeded
+        cmd_mock.return_value = 1
+        # /etc/lsb-release does not exist, /etc/debian_version does not exist, /etc/redhat-release exists
+        exists_mock.side_effect = [False, False, True]
+        # mock the internal_cmd.out.rstrip() calls, in sequence
+        command_mock.return_value.out.rstrip.side_effect = [
+            "7.9.2009 (Core)",  # output of cat /etc/redhat-release
+            "Some output of `uname -a` command",
+            "Some output of `ssh -V` command",
+        ]
+        command_mock.return_value.out.splitlines.return_value = ["Some Rsync version"]
+        result = UnixLocalCommand().get_system_info()["release"]
+        assert result == "RedHat Linux 7.9.2009 (Core)"
+
+        # Case 5: We are on a MacOs system
+        cmd_mock.reset_mock(), command_mock.reset_mock(), exists_mock.reset_mock()
+        # the lsb_release command does not succeded, but all rest succeeds
+        cmd_mock.side_effect = [1, 0, 0, 0, 0]
+        # None of the releas efiles checked previously exists
+        exists_mock.side_effect = [False, False, False]
+        # mock the internal_cmd.out.rstrip() calls, in sequence
+        command_mock.return_value.out.rstrip.side_effect = [
+            "macOS 11.1",  # output of sw_vers
+            "Some output of `uname -a` command",
+            "Some output of `ssh -V` command",
+        ]
+        command_mock.return_value.out.splitlines.return_value = ["Some Rsync version"]
+        result = UnixLocalCommand().get_system_info()["release"]
+        assert result == "macOS 11.1"
 
 
 class TestFileMatchingRules(object):
