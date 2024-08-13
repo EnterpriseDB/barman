@@ -76,6 +76,21 @@ the server then you can make it an archival backup with:
 barman keep <server_name> <backup_id> [--target TARGET, --status, --release]
 ```
 
+> **NOTE:**
+> To ensure the integrity of your backup system, incremental backups
+> cannot use the keep annotation in Barman. This restriction is due to
+> the way incremental backups depend on each other. Using the keep 
+> annotation with incremental backups could result in orphaned backups,
+> which means that certain backups might exist without their necessary
+> parent backups.
+>
+> In simpler terms, if you were allowed to apply the keep annotation to
+> an incremental backup, there would be a risk that parts of the backup
+> chain would be retained without their required predecessors. This 
+> situation could create backups that would be no longer useful or
+> complete, as they would be missing the essential parent backups needed
+> to restore them properly.
+
 Possible values for `TARGET` are:
 
 * `full`: The backup can always be used to recover to the latest point in
