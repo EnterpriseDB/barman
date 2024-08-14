@@ -67,6 +67,11 @@ barman delete <server_name> <backup_id>
 
 The `delete` command accepts any [shortcut](#backup-id-shortcuts) to identify backups.
 
+> **IMPORTANT:**
+> If the specified backup has dependent block-level incremental backups,
+> those backups and all their dependents will also be deleted during this operation
+> as they would effectively become unusable for recovery with a missing parent in its chain.
+
 ## `keep`
 
 If you have a backup which you wish to keep beyond the retention policy of
