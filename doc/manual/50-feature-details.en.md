@@ -1226,6 +1226,9 @@ Backup 20230123T131430:
   PostgreSQL Version     : 140006
   PGDATA directory       : /opt/postgres/data
 
+  Server information:
+    Checksums            : on
+
   Snapshot information:
     provider             : gcp
     project              : project_id
