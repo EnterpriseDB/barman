@@ -75,6 +75,11 @@ backup *SERVER_NAME*
     :   the time, in seconds, spent waiting for the required WAL
         files to be archived before timing out
 
+    --keepalive-interval
+    :   an interval, in seconds, at which a hearbeat query will be sent to the
+        server to keep the libpq connection alive during an Rsync backup. Default
+        is 60. A value of 0 disables it.
+
     --manifest
     :   forces the creation of a backup manifest file at the end of a backup. 
         Overrides value of the parameter `autogenerate_manifest`, 
