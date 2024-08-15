@@ -34,3 +34,11 @@ To take a backup use the `barman backup` command:
 barman@backup$ barman backup pg
 ```
 
+> **NOTE:**
+> Starting with Barman 3.11.0, Barman uses a keep-alive mechanism when taking
+> rsync-based backups. It keeps sending a simple `SELECT 1` query over the
+> libpq connection where Barman runs `pg_backup_start`/`pg_backup_stop`
+> low-level API functions, and it's in place to reduce the probability of a firewall or
+> a router dropping that connection as it can be idle for a long time while the base
+> backup is being copied. You can control the interval of the hearbeats, or even
+> disable the mechanism, through the `keepalive_interval` configuration option.
