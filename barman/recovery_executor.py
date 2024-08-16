@@ -2133,7 +2133,7 @@ def recovery_executor_factory(backup_manager, command, backup_info):
     :param: command barman.fs.UnixLocalCommand
     :return: RecoveryExecutor instance
     """
-    if backup_info.parent_backup_id is not None:
+    if backup_info.is_incremental:
         return IncrementalRecoveryExecutor(backup_manager)
     if backup_info.snapshots_info is not None:
         return SnapshotRecoveryExecutor(backup_manager)

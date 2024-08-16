@@ -957,7 +957,7 @@ def recover(args):
 
     # If the backup to be recovered is incremental then there are additional
     # checks to be carried out
-    if backup_id.parent_backup_id is not None:
+    if backup_id.is_incremental:
         # Set the local staging path from the cli if it is set
         if args.local_staging_path is not None:
             try:
@@ -1863,7 +1863,7 @@ def keep(args):
             ) % (backup_info.backup_id, backup_info.status)
             output.error(msg)
             output.close_and_exit()
-        if backup_info.parent_backup_id:
+        if backup_info.is_incremental:
             msg = (
                 "Unable to execute the keep command on backup %s: is an incremental backup.\n"
                 "Only full backups are eligible for the use of the keep command."

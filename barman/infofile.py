@@ -903,14 +903,15 @@ class LocalBackupInfo(BackupInfo):
 
     def get_parent_backup_info(self):
         """
-        If the backup has a parent (incremental backup), build the LocalBackupInfo
-        object for the parent backup and return it.
-        if the parent backup does not exist or its status is `EMPTY`, return None.
+        If the backup is incremental, build the :class:`LocalBackupInfo` object
+        for the parent backup and return it.
+        If the backup is not incremental OR the status of the parent
+        backup is ``EMPTY``, return ``None``.
 
         :return LocalBackupInfo|None: the parent backup info object,
             or None if it does not exist or is empty.
         """
-        if self.parent_backup_id:
+        if self.is_incremental:
             backup_info = LocalBackupInfo(
                 self.server,
                 backup_id=self.parent_backup_id,
@@ -1011,7 +1012,7 @@ class LocalBackupInfo(BackupInfo):
 
             :return bool: ``True`` if it is consistent, ``False`` otherwise.
         """
-        if self.data_checksums != "on" or not self.parent_backup_id:
+        if self.data_checksums != "on" or not self.is_incremental:
             return True
         for backup in self.walk_to_root(return_self=False):
             if backup.data_checksums == "off":
@@ -1020,8 +1021,8 @@ class LocalBackupInfo(BackupInfo):
 
     def is_full_and_eligible_for_incremental(self):
         """
-        Used to filter out backups that have a parent backup id and are not
-        considered as FULL backups.
+        Check if this is a full backup taken with `postgres` method and which is
+        eligible to be a parent for an incremental backup.
 
         .. note::
             Only consider backups which are eligible for Postgres core
@@ -1029,14 +1030,14 @@ class LocalBackupInfo(BackupInfo):
 
             * backup_method = ``postgres``
             * summarize_wal = ``on``
-            * parent_backup_id = ``None``
+            * is_incremental = ``False``
 
         :return bool: True if it's a full backup or False if not.
         """
         if (
             self.mode == "postgres"
             and self.summarize_wal == "on"
-            and not self.parent_backup_id
+            and not self.is_incremental
         ):
             return True
         return False
