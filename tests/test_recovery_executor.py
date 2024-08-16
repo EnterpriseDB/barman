@@ -2271,28 +2271,28 @@ class TestRecoveryExecutorFactory(object):
     @pytest.mark.parametrize(
         (
             "compression",
-            "parent_backup_id",
+            "is_incremental",
             "expected_executor",
             "snapshots_info",
             "should_error",
         ),
         [
             # No compression or snapshots_info should return RecoveryExecutor
-            (None, None, RecoveryExecutor, None, False),
+            (None, False, RecoveryExecutor, None, False),
             # Supported compression should return TarballRecoveryExecutor
-            ("gzip", None, TarballRecoveryExecutor, None, False),
+            ("gzip", False, TarballRecoveryExecutor, None, False),
             # Unrecognised compression should cause an error
-            ("snappy", None, None, None, True),
+            ("snappy", False, None, None, True),
             # A backup_info with snapshots_info should return SnapshotRecoveryExecutor
-            (None, None, SnapshotRecoveryExecutor, mock.Mock(), False),
+            (None, False, SnapshotRecoveryExecutor, mock.Mock(), False),
             # A backup with a parent_backup_id should return IncrementalRecoveryExecutor
-            (None, "some_parent_id", IncrementalRecoveryExecutor, None, False),
+            (None, True, IncrementalRecoveryExecutor, None, False),
         ],
     )
     def test_recovery_executor_factory(
         self,
         compression,
-        parent_backup_id,
+        is_incremental,
         expected_executor,
         snapshots_info,
         should_error,
@@ -2302,7 +2302,7 @@ class TestRecoveryExecutorFactory(object):
         mock_backup_info = mock.Mock(
             compression=compression,
             snapshots_info=snapshots_info,
-            parent_backup_id=parent_backup_id,
+            is_incremental=is_incremental,
         )
 
         # WHEN recovery_executor_factory is called with the specified compression

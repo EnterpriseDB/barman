@@ -718,6 +718,7 @@ class TestCli(object):
     ):
         # GIVEN a backup
         parse_backup_id_mock.return_value = mock_backup_info
+        mock_backup_info.is_incremental = False
         # AND a configuration with the specified recovery options
         config = build_config_from_dicts(
             global_conf={"recovery_options": recovery_options}
@@ -816,6 +817,8 @@ class TestCli(object):
     ):
         # GIVEN a backup
         parse_backup_id_mock.return_value = mock_backup_info
+        # AND the backup is not incremental
+        mock_backup_info.is_incremental = False
         # AND the backup has the specified compression
         mock_backup_info.compression = backup_is_compressed and "gzip" or None
         # AND a configuration with the specified recovery_staging_path
@@ -912,8 +915,8 @@ class TestCli(object):
     ):
         # GIVEN a backup
         parse_backup_id_mock.return_value = mock_backup_info
-        # AND the backup has a parent backup
-        mock_backup_info.parent_backup_id = backup_is_incremental and "some_id" or None
+        # AND the backup is incremental
+        mock_backup_info.is_incremental = backup_is_incremental
         # AND a configuration with the specified local_staging_path
         config = build_config_from_dicts(
             global_conf={"local_staging_path": local_staging_path_config},
@@ -1517,13 +1520,17 @@ class TestKeepCli(object):
     @patch("barman.cli.parse_backup_id")
     @patch("barman.cli.get_server")
     def test_barman_keep(
-        self, mock_get_server, mock_parse_backup_id, mock_args, monkeypatch_config
+        self,
+        mock_get_server,
+        mock_parse_backup_id,
+        mock_args,
+        monkeypatch_config,
     ):
         """Verify barman keep command calls keep_backup"""
         mock_args.target = "standalone"
         mock_parse_backup_id.return_value.backup_id = "test_backup_id"
-        mock_parse_backup_id.return_value.parent_backup_id = None
         mock_parse_backup_id.return_value.status = BackupInfo.DONE
+        mock_parse_backup_id.return_value.is_incremental = False
         keep(mock_args)
         mock_get_server.return_value.backup_manager.keep_backup.assert_called_once_with(
             "test_backup_id", "standalone"
@@ -1532,14 +1539,18 @@ class TestKeepCli(object):
     @patch("barman.cli.parse_backup_id")
     @patch("barman.cli.get_server")
     def test_barman_keep_fails_if_no_target_release_or_status_provided(
-        self, mock_get_server, mock_parse_backup_id, mock_args, capsys
+        self,
+        mock_get_server,
+        mock_parse_backup_id,
+        mock_args,
+        capsys,
     ):
         """
         Verify barman keep command fails if none of --release, --status or --target
         are provided.
         """
         mock_parse_backup_id.return_value.backup_id = "test_backup_id"
-        mock_parse_backup_id.return_value.parent_backup_id = None
+        mock_parse_backup_id.return_value.is_incremental = False
         mock_parse_backup_id.return_value.status = BackupInfo.DONE
         with pytest.raises(SystemExit):
             keep(mock_args)
@@ -1561,7 +1572,7 @@ class TestKeepCli(object):
         """Verify barman keep command will not add keep if backup is not done"""
         mock_args.target = "standalone"
         mock_parse_backup_id.return_value.backup_id = "test_backup_id"
-        mock_parse_backup_id.return_value.parent_backup_id = None
+        mock_parse_backup_id.return_value.is_incremental = False
         mock_parse_backup_id.return_value.status = BackupInfo.WAITING_FOR_WALS
         with pytest.raises(SystemExit):
             keep(mock_args)
@@ -1575,11 +1586,14 @@ class TestKeepCli(object):
     @patch("barman.cli.parse_backup_id")
     @patch("barman.cli.get_server")
     def test_barman_keep_release(
-        self, mock_get_server, mock_parse_backup_id, mock_args, monkeypatch_config
+        self,
+        mock_get_server,
+        mock_parse_backup_id,
+        mock_args,
+        monkeypatch_config,
     ):
         """Verify `barman keep --release` command calls release_keep"""
         mock_parse_backup_id.return_value.backup_id = "test_backup_id"
-        mock_parse_backup_id.return_value.parent_backup_id = None
         mock_args.release = True
         keep(mock_args)
         mock_get_server.return_value.backup_manager.release_keep.assert_called_once_with(
@@ -1598,7 +1612,7 @@ class TestKeepCli(object):
     ):
         """Verify `barman keep --status` command prints get_keep_target output"""
         mock_parse_backup_id.return_value.backup_id = "test_backup_id"
-        mock_parse_backup_id.return_value.parent_backup_id = None
+        mock_parse_backup_id.return_value.is_incremental = False
         mock_get_server.return_value.backup_manager.get_keep_target.return_value = (
             "standalone"
         )
@@ -1622,7 +1636,7 @@ class TestKeepCli(object):
     ):
         """Verify `barman keep --status` command prints get_keep_target output"""
         mock_parse_backup_id.return_value.backup_id = "test_backup_id"
-        mock_parse_backup_id.return_value.parent_backup_id = None
+        mock_parse_backup_id.return_value.is_incremental = False
         mock_get_server.return_value.backup_manager.get_keep_target.return_value = None
         mock_args.status = True
         keep(mock_args)
@@ -1635,12 +1649,16 @@ class TestKeepCli(object):
     @patch("barman.cli.parse_backup_id")
     @patch("barman.cli.get_server")
     def test_barman_keep_incremental_backup(
-        self, mock_get_server, mock_parse_backup_id, mock_args, capsys
+        self,
+        mock_get_server,
+        mock_parse_backup_id,
+        mock_args,
+        capsys,
     ):
         """Verify barman keep command will not add keep if backup is incremental"""
         mock_args.target = "standalone"
         mock_parse_backup_id.return_value.backup_id = "test_backup_id"
-        mock_parse_backup_id.return_value.parent_backup_id = "parent_backup_id"
+        mock_parse_backup_id.return_value.is_incremental = True
         mock_parse_backup_id.return_value.status = BackupInfo.DONE
 
         with pytest.raises(SystemExit):
@@ -1659,7 +1677,7 @@ class TestKeepCli(object):
     ):
         """Verify barman keep command will add keep if backup is not incremental"""
         mock_parse_backup_id.return_value.backup_id = "test_backup_id"
-        mock_parse_backup_id.return_value.parent_backup_id = None
+        mock_parse_backup_id.return_value.is_incremental = False
         mock_parse_backup_id.return_value.status = BackupInfo.DONE
         mock_args.release = True
         keep(mock_args)
