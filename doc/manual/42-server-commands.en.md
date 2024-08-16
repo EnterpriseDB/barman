@@ -280,7 +280,8 @@ barman list-backups <server_name>
 > **TIP:** You can request a full list of the backups of all servers
 > using `all` as the server name.
 
-To have a machine-readable output you can use the `--minimal` option.
+To have a machine-readable output you can use the `--minimal` option, 
+and to have the output in JSON format use the `--format=json` option.
 
 ## `rebuild-xlogdb`
 
