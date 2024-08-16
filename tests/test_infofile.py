@@ -25,7 +25,7 @@ from datetime import datetime
 import mock
 import pytest
 from dateutil.tz import tzlocal, tzoffset
-from mock import patch
+from mock import PropertyMock, patch
 from barman.cloud_providers.aws_s3 import AwsSnapshotMetadata, AwsSnapshotsInfo
 from barman.cloud_providers.azure_blob_storage import (
     AzureSnapshotMetadata,
@@ -947,19 +947,24 @@ class TestLocalBackupInfo:
         mock_get_data_dir.return_value = "/some/random/path"
         assert backup_info.get_backup_manifest_path() == expected
 
-    def test_get_parent_backup_info_no_parent(self, backup_info):
+    @patch("barman.infofile.LocalBackupInfo.is_incremental", new_callable=PropertyMock)
+    def test_get_parent_backup_info_no_parent(self, mock_is_incremental, backup_info):
         """
         Ensure :meth:`LocalBackupInfo.get_parent_backup_info` returns ``None`` if the
-        backup doesn't have a parent backup.
+        backup is not incremental.
         """
-        backup_info.parent_backup_id = None
+        mock_is_incremental.return_value = False
         assert backup_info.get_parent_backup_info() is None
 
-    def test_get_parent_backup_info_empty_parent(self, backup_info):
+    @patch("barman.infofile.LocalBackupInfo.is_incremental", new_callable=PropertyMock)
+    def test_get_parent_backup_info_empty_parent(
+        self, mock_is_incremental, backup_info
+    ):
         """
         Ensure :meth:`LocalBackupInfo.get_parent_backup_info` returns ``None`` if the
-        backup has a parent backup, but the parent backup is empty.
+        backup is incremental and has a parent backup, but the parent backup is empty.
         """
+        mock_is_incremental.return_value = True
         backup_info.parent_backup_id = "SOME_ID"
 
         with patch("barman.infofile.LocalBackupInfo") as mock:
@@ -967,11 +972,13 @@ class TestLocalBackupInfo:
             assert backup_info.get_parent_backup_info() is None
             mock.assert_called_once_with(backup_info.server, backup_id="SOME_ID")
 
-    def test_get_parent_backup_info_parent_ok(self, backup_info):
+    @patch("barman.infofile.LocalBackupInfo.is_incremental", new_callable=PropertyMock)
+    def test_get_parent_backup_info_parent_ok(self, mock_is_incremental, backup_info):
         """
         Ensure :meth:`LocalBackupInfo.get_parent_backup_info` returns the backup info
         object of the parent.
         """
+        mock_is_incremental.return_value = True
         backup_info.parent_backup_id = "SOME_ID"
 
         with patch("barman.infofile.LocalBackupInfo") as mock:
@@ -1182,12 +1189,14 @@ class TestLocalBackupInfo:
             ("off", "off", "on", "on", False),
         ),
     )
+    @patch("barman.infofile.LocalBackupInfo.is_incremental", new_callable=PropertyMock)
     def test_is_checksum_consistent(
-        self, conf_root, conf_inc1, conf_inc2, conf_inc3, expected
+        self, mock_is_incremental, conf_root, conf_inc1, conf_inc2, conf_inc3, expected
     ):
         """
         Test checksum configuration consistency between Postgres incremental backups of a chain
         """
+        mock_is_incremental.return_value = True
         backup_manager = build_backup_manager(main_conf={"backup_method": "postgres"})
         root_backup = build_test_backup_info(
             server=backup_manager.server, data_checksums=conf_root
@@ -1212,15 +1221,16 @@ class TestLocalBackupInfo:
             walk_mock.return_value = (incremental2, incremental1, root_backup)
             assert incremental3.is_checksum_consistent() is expected
 
-    def test_true_is_full_and_eligible_for_incremental(self):
+    @patch("barman.infofile.LocalBackupInfo.is_incremental", new_callable=PropertyMock)
+    def test_true_is_full_and_eligible_for_incremental(self, mock_is_incremental):
         """
         Test that the function applies the correct conditions for a full backup
         that is eligible for incremental mode. The backup_method should be `postgres`,
-        the summarize_wal should be `on` and parent_backup_id should be `None`
+        the summarize_wal should be ``on`` and backup should be incremental.
         """
+        mock_is_incremental.return_value = False
         backup_method = "postgres"
         summarize_wal = "on"
-        parent_backup_id = None
 
         pg_backup_manager = build_backup_manager(
             main_conf={"backup_method": backup_method}
@@ -1229,25 +1239,33 @@ class TestLocalBackupInfo:
         backup_info = build_test_backup_info(
             server=pg_backup_manager.server,
             backup_id="12345",
-            parent_backup_id=parent_backup_id,
             summarize_wal=summarize_wal,
         )
 
         assert backup_info.is_full_and_eligible_for_incremental()
 
     @pytest.mark.parametrize(
-        ("summarize_wal", "parent_backup_id"),
-        (("on", "12345678"), ("off", None), ("off", "12345678")),
+        ("backup_method", "summarize_wal", "is_incremental"),
+        [
+            ("postgres", "on", True),
+            ("postgres", "off", True),
+            ("postgres", "off", False),
+            ("rsync", "on", True),
+            ("rsync", "on", False),
+            ("rsync", "off", True),
+            ("rsync", "off", False),
+        ],
     )
+    @patch("barman.infofile.LocalBackupInfo.is_incremental", new_callable=PropertyMock)
     def test_false_is_full_and_eligible_for_incremental(
-        self, summarize_wal, parent_backup_id
+        self, mock_is_incremental, backup_method, summarize_wal, is_incremental
     ):
         """
         Test that the function applies the correct conditions for a full backup
         that is eligible for incremental mode. The backup_method should be `postgres`,
-        the summarize_wal should be `on` and parent_backup_id should be `None`
+        the summarize_wal should be `on` and backup should be incremental.
         """
-        backup_method = "postgres"
+        mock_is_incremental.return_value = is_incremental
 
         backup_manager = build_backup_manager(
             main_conf={"backup_method": backup_method}
@@ -1256,22 +1274,6 @@ class TestLocalBackupInfo:
         backup_info = build_test_backup_info(
             server=backup_manager.server,
             backup_id="12345",
-            parent_backup_id=parent_backup_id,
-            summarize_wal=summarize_wal,
-        )
-
-        assert not backup_info.is_full_and_eligible_for_incremental()
-
-        backup_method = "rsync"
-
-        backup_manager = build_backup_manager(
-            main_conf={"backup_method": backup_method}
-        )
-
-        backup_info = build_test_backup_info(
-            server=backup_manager.server,
-            backup_id="12345",
-            parent_backup_id=parent_backup_id,
             summarize_wal=summarize_wal,
         )
 
