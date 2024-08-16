@@ -359,7 +359,7 @@ def parse_backup_method(value):
     )
 
 
-def parse_recovery_staging_path(value):
+def parse_staging_path(value):
     if value is None or os.path.isabs(value):
         return value
     raise ValueError("Invalid value : '%s' (must be an absolute path)" % value)
@@ -525,6 +525,7 @@ class ServerConfig(BaseConfig):
         "last_backup_maximum_age",
         "last_backup_minimum_size",
         "last_wal_maximum_age",
+        "local_staging_path",
         "max_incoming_wals_queue",
         "minimum_redundancy",
         "network_compression",
@@ -615,6 +616,7 @@ class ServerConfig(BaseConfig):
         "last_backup_maximum_age",
         "last_backup_minimum_size",
         "last_wal_maximum_age",
+        "local_staging_path",
         "max_incoming_wals_queue",
         "minimum_redundancy",
         "network_compression",
@@ -725,6 +727,7 @@ class ServerConfig(BaseConfig):
         "last_backup_maximum_age": parse_time_interval,
         "last_backup_minimum_size": parse_si_suffix,
         "last_wal_maximum_age": parse_time_interval,
+        "local_staging_path": parse_staging_path,
         "max_incoming_wals_queue": int,
         "network_compression": parse_boolean,
         "parallel_jobs": int,
@@ -732,7 +735,7 @@ class ServerConfig(BaseConfig):
         "parallel_jobs_start_batch_size": int,
         "primary_checkpoint_timeout": int,
         "recovery_options": RecoveryOptions,
-        "recovery_staging_path": parse_recovery_staging_path,
+        "recovery_staging_path": parse_staging_path,
         "create_slot": parse_create_slot,
         "reuse_backup": parse_reuse_backup,
         "snapshot_disks": parse_snapshot_disks,
