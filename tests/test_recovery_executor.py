@@ -2384,7 +2384,7 @@ class TestIncrementalRecoveryExecutor(object):
         """
         mock_backup_info = Mock()
         mock__combine_backups.return_value = synthetic_backup_info
-        executor.config.recovery_staging_path = "fake/staging/path"
+        executor.config.local_staging_path = "fake/staging/path"
 
         with mock.patch("barman.recovery_executor.RecoveryExecutor.recover") as mock_sr:
             _ = executor.recover(
@@ -2407,10 +2407,10 @@ class TestIncrementalRecoveryExecutor(object):
     )
     @mock.patch("barman.infofile.LocalBackupInfo.get_data_directory")
     @mock.patch("barman.infofile.FieldListFile.load")
-    @mock.patch("barman.config.parse_recovery_staging_path")
+    @mock.patch("barman.config.parse_staging_path")
     def test__combine_backups(
         self,
-        mock_parse_recovery_stg_path,
+        parse_local_staging_path,
         mock_load_fields,
         mock_get_data_dir,
         mock__prepare_dest,
@@ -2429,7 +2429,7 @@ class TestIncrementalRecoveryExecutor(object):
         called with the correct parameters.
         It also tests if the result is a SyntheticBackupInfo object.
 
-        :param mock_parse_recovery_stg_path: parse_recovery_staging_path mock
+        :param mock_parse_local_stg_path: parse_local_staging_path mock
         :param mock_load_fields: load mock for backup_infos
         :param mock_get_data_dir: get_data_directory method mock
         :param mock__prepare_dest: _prepare_destination method mock
@@ -2439,7 +2439,7 @@ class TestIncrementalRecoveryExecutor(object):
         :param executor: executor mock fixture
         :param server: server mock fixture
         """
-        mock_parse_recovery_stg_path.return_value = "/home/fake/path/data"
+        parse_local_staging_path.return_value = "/home/fake/path/data"
 
         mock_backup_info = testing_helpers.build_test_backup_info(
             backup_id="backup",
