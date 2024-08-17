@@ -339,6 +339,17 @@ behaviour defined by `recovery_options`. Use `--get-wal` with `barman recover`
 to enable the fetching of WALs from the Barman server, alternatively use
 `--no-get-wal` to disable it.
 
+> **IMPORTANT:**
+> When recovering with `--no-get-wal` in conjunction with any of these
+> targets [`--target-xid`, `--target-name`, `--target-time`], Barman 
+> will copy the whole WAL archive from the Barman host to the recovery host.
+> By doing that, and assuming that all the WALs required for reaching
+> the configured target were already archived into Barman, we guarantee
+> that at least these WALs will be made available to Postgres.
+> This happens because currently there is no reliable and/or performant
+> way of determining in Barman which WALs are needed by Postgres to
+> reach those kinds of recovery targets.
+
 ### Recovering compressed backups
 
 If a backup has been compressed using the `backup_compression` option
