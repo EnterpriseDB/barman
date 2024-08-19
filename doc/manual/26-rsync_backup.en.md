@@ -1,9 +1,10 @@
 ## Backup with `rsync`/SSH
 
-The backup over `rsync` was the only available method before 2.0, and
-is currently the only backup method that supports the incremental
-backup feature. Please consult the _"Features in detail"_ section for
-more information.
+The backup over `rsync` was the only method for backups in Barman before
+version 2.0, and before 3.11 it was the only method that supported incremental
+backups. Current Barman supports file-level as well as block-level incremental backups.
+Backups using `rsync` implements the file-level backup feature. Please consult the
+_"Features in detail"_ section for more information.
 
 To take a backup using `rsync` you need to put these parameters inside
 the Barman server configuration file:

@@ -19,6 +19,11 @@ backup *SERVER_NAME*
         Overrides value of the parameter `immediate_checkpoint`, if present
         in the configuration file.
 
+    --incremental [BACKUP_ID]
+    :   performs a block-level incremental backup. A `BACKUP_ID` or [backup ID shortcut](#shortcuts)
+        of a previous backup must be provided, which references a previous backup
+        in the catalog to be used as the parent backup from which the incremental is taken.
+
     --reuse-backup [INCREMENTAL_TYPE]
     :   Overrides `reuse_backup` option behaviour. Possible values for
         `INCREMENTAL_TYPE` are:
