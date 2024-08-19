@@ -3,4 +3,4 @@ keepalive_interval
     server to keep the libpq connection alive during an Rsync backup. Default
     is 60. A value of 0 disables it.
 
-    Scope: Server.
+    Scope: Global/Server/Model.
