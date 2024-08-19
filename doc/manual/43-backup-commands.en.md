@@ -271,6 +271,10 @@ the following mutually exclusive options:
 > the start and the end of a backup, you must recover from the
 > previous backup in the catalogue.
 
+> **IMPORTANT:**
+> If no timezone is specified when using `--target-time`, the timezone of the Barman
+> host will be used.
+
 You can use the `--exclusive` option to specify whether to stop immediately
 before or immediately after the recovery target.
 
