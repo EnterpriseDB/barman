@@ -13,23 +13,20 @@ common patterns.
 
 ### Incremental backup
 
-Barman implements **file-level incremental backup**. Incremental
-backup is a type of full periodic backup which only saves data changes
-from the latest full backup available in the catalog for a specific
-PostgreSQL server. It must not be confused with differential backup,
+Incremental backup is a type of backup which uses an already existing backup as reference
+for copying only necessary data changes from the PostgreSQL server. It must not be confused with differential backup,
 which is implemented by _WAL continuous archiving_.
-
-> **NOTE:** Block level incremental backup will be available in
-> future versions.
-
-> **IMPORTANT:** The `reuse_backup` option can't be used with the
-> `postgres` backup method at this time.
 
 The main goals of incremental backups in Barman are:
 
 - Reduce the time taken for the full backup process
 - Reduce the disk space occupied by several periodic backups (**data
   deduplication**)
+
+Barman currently supports **file-level incremental backups** (using `rsync`) as well
+as **block-level incremental backups** (using `pg_basebackup`).
+
+### File-level incremental backups
 
 This feature heavily relies on `rsync` and [hard links][8], which
 must therefore be supported by both the underlying operating system
@@ -41,15 +38,15 @@ relevant savings in disk usage. This is particularly true of VLDB
 contexts and of those databases containing a high percentage of
 _read-only historical tables_.
 
-Barman implements incremental backup through a global/server option
+Rsync incremental backups can be enabled through a global/server option
 called `reuse_backup`, that transparently manages the `barman backup`
 command. It accepts three values:
 
 - `off`: standard full backup (default)
-- `link`: incremental backup, by reusing the last backup for a server
+- `link`: file-level incremental backup, by reusing the last backup for a server
   and creating a hard link of the unchanged files (for backup space
   and time reduction)
-- `copy`: incremental backup, by reusing the last backup for a server
+- `copy`: file-level incremental backup, by reusing the last backup for a server
   and creating a copy of the unchanged files (just for backup time
   reduction)
 
@@ -72,6 +69,54 @@ incremental backup as follows:
 ``` bash
 barman backup --reuse-backup=link <server_name>
 ```
+
+> **NOTE:** Unlike Postgres block-level incremental backups, Rsync file-level incremental backups are independent
+> on their own, meaning that a backup that reused a previous backup for deduplication is not compromised
+> in any way if the parent backup is deleted. As mentioned, deduplication in Rsync backups is implemented with the use
+> of hard links, so when a previously reused backup is deleted, files shared with other backups will
+> still remain on disk, only being removed when the last backup using those files is also deleted. It also
+> means that there’s no need to take full backups when a previous full backup is deleted, each backup
+> will still have all files and can be reused without any concerns.
+> Along the same lines, there is no need to ever take a full backup with rsync by using `reuse_backup = off`. If it is the first backup being taken with `reuse_backup = link`, in essence
+> it behaves like `off` because there are no existing files to create hard-links on.
+
+> **IMPORTANT:** The `reuse_backup` option must be used along with
+> `rsync` or `local-rsync` as backup method.
+
+
+### Block-level incremental backups
+
+Since version 3.11, Barman introduces support for block-level incremental
+backups, leveraging the native [incremental backup support introduced in PostgreSQL 17](https://www.postgresql.org/docs/17/continuous-archiving.html#BACKUP-INCREMENTAL-BACKUP).
+
+With block-level incremental backups, deduplication occurs at the data block level
+(pages in PostgreSQL). This means that only those pages modified since the
+last backup will need to be stored, making it a more efficient option,
+especially for large databases with spread write patterns. In PostgreSQL, this feature is
+implemented with the use of [WAL Summarization](https://www.postgresql.org/docs/17/runtime-config-wal.html#RUNTIME-CONFIG-WAL-SUMMARIZATION), therefore `summarize_wal` must be enabled
+on your database server in order to use it.
+
+You can perform block-level incremental backups in Barman using the `--incremental`
+option when running a backup command. It accepts a backup id or backup ID shortcut as argument,
+which references a previous backup (full or incremental) in the catalog to be used as a parent
+for deduplication. In addition, you can also use `last-full` or `latest-full` to reference the latest
+eligible full-backup in the catalog.
+
+``` bash
+barman backup --incremental <backup_id> <server_name>
+```
+
+To be able to perform a block-level incremental backup in Barman you must:
+
+- Have PostgreSQL 17 or later.
+- Have `summarize_wal` enabled.
+- Have `postgres` as your backup method.
+
+> **NOTE:** Compressed backups are not **yet** eligible for incremental backups in Barman.
+
+> **IMPORTANT:** If you decide to enable `data_checksums` between incremental backups,
+> it is adivised to take a new full-backup as divergent checkum configurations can potentially
+> lead to issues during recovery.
 
 ### Limiting bandwidth usage
 

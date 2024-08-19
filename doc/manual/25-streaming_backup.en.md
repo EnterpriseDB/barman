@@ -1,7 +1,9 @@
 ## Streaming backup
 
 Barman can backup a PostgreSQL server using the streaming connection,
-relying on `pg_basebackup`.
+relying on `pg_basebackup`. Since version 3.11, Barman also supports block-level
+incremental backups using the streaming connection, for more information
+consult the _"Features in detail"_ section.
 
 > **IMPORTANT:** Barman requires that `pg_basebackup` is installed in
 > the same server. It is recommended to install the last available 

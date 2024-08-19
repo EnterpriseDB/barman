@@ -64,9 +64,9 @@ Barman is able to take backups using either Rsync, which uses SSH as a transport
 Choosing one of these two methods is a decision you will need to make, however for general usage we recommend using streaming replication for all currently supported versions of PostgreSQL.
 
 > **IMPORTANT:** \newline
-> Because Barman transparently makes use of `pg_basebackup`, features such as incremental backup, parallel backup, and deduplication are currently not available. In this case, bandwidth limitation has some restrictions - compared to the traditional method via `rsync`.
+> Because Barman transparently makes use of `pg_basebackup`, features such as parallel backup are currently not available. In this case, bandwidth limitation has some restrictions - compared to the traditional method via `rsync`.
 
-Backup using `rsync`/SSH is recommended in all cases where `pg_basebackup` limitations occur (for example, a very large database that can benefit from incremental backup and deduplication).
+Backup using `rsync`/SSH is recommended in cases where `pg_basebackup` limitations pose an issue for you.
 
 The reason why we recommend streaming backup is that, based on our experience, it is easier to setup than the traditional one. Also, streaming backup allows you to backup a PostgreSQL server on Windows[^windows], and makes life easier when working with Docker.
 

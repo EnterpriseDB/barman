@@ -17,3 +17,10 @@ oldest
 
 last-failed
 :   Latest failed backup, in chronological order.
+
+last-full
+:   Latest full-backup eligible for a block-level incremental backup using
+    the `--incremental` option.
+
+latest-full
+:   same as *last-full*
