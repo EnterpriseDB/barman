@@ -75,7 +75,6 @@ BASEBACKUP_COMPRESSIONS = ["gzip", "lz4", "zstd", "none"]
 
 
 class CsvOption(set):
-
     """
     Base class for CSV options.
 
