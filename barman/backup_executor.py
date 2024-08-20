@@ -903,10 +903,15 @@ class ExternalBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
             # meaning that we lost the connection (and session) during the backup.
             connection_error = True
             raise
-        except BaseException:
+        except BaseException as ex:
             # we do not need to do anything here besides re-raising the
             # exception. It will be handled in the external try block.
             output.error("The backup has failed %s", self.current_action)
+            # As we have found that in certain corner cases the exception
+            # passing through this block is not logged or even hidden by
+            # other exceptions happening in the finally block, we are adding a
+            # debug log line to make sure that the exception is visible.
+            _logger.debug("Backup failed: %s" % ex, exc_info=True)
             raise
         else:
             self.current_action = "issuing stop of the backup"
