@@ -2582,8 +2582,8 @@ class TestIncrementalRecoveryExecutor(object):
 
         executor._backup_copy(backup_info, dest="destination/recover/path")
 
-        mock_get_data_dir.call_count == 3
-        mock_prepare_dest.call_count == 2
+        assert mock_get_data_dir.call_count == 3
+        assert mock_prepare_dest.call_count == 2
 
         tablespace_mapping = {
             "tbs1": "/home/fake/path/tablespace1",
@@ -2950,8 +2950,8 @@ class TestIncrementalRecoveryExecutor(object):
                 source=source_dir, destination=dest_dir, exclude_path_names=set()
             )
 
-        mock_path_join.call_count == 1
-        mock_sh_move.call_count == 1
+        assert mock_path_join.call_count == 1
+        assert mock_sh_move.call_count == 1
         mock_error.assert_called_once_with(
             f"Destination directory '{dest_dir}' must be empty."
         )

@@ -386,7 +386,7 @@ class TestRetentionPolicies(object):
 
         mock_walk_backups_tree.assert_called_once()
 
-        mock_logger.call_count == 5
+        assert mock_logger.call_count == 5
         # For full backups with status KEEP, we propagate VALID status to children
         if retention_status in (BackupInfo.KEEP_FULL, BackupInfo.KEEP_STANDALONE):
             retention_status = BackupInfo.VALID
