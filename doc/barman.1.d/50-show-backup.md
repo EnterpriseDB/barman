@@ -21,7 +21,7 @@ Backup 20240814T017504:
     Backup Type          : incremental
     Backup Size          : 22.3 MiB (54.3 MiB with WALs)
     WAL Size             : 32.0 MiB
-    Resource savings     : 19.5 MiB (86.80%)
+    Resources saved     : 19.5 MiB (86.80%)
     Timeline             : 1
     Begin WAL            : 0000000100000CFD000000AD
     End WAL              : 0000000100000D0D00000008
@@ -78,7 +78,7 @@ Backup 20240814T017504:
 > Below you can find a list of fields that may be shown or omitted depending
 > on the type of the backup:
 >
-> * `Resource savings`: available for "rsync" and "incremental" backups;
+> * `Resources saved`: available for "rsync" and "incremental" backups;
 > * `Root Backup`, `Parent Backup`, `Backup chain size`: available for 
 > "incremental" backups only;
 > * `Children Backup(s)`: available for "full" and "incremental" backups;

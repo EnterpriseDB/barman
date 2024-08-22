@@ -882,7 +882,7 @@ class ConsoleOutputWriter(object):
                 pretty_size(est_dedup_size),
                 "{percent:.2%}".format(percent=deduplication_ratio),
             )
-            output_fun(nested_row.format("Resource savings", dedupe_output))
+            output_fun(nested_row.format("Resources saved", dedupe_output))
 
         output_fun(nested_row.format("Timeline", backup_info["timeline"]))
         output_fun(nested_row.format("Begin WAL", backup_info["begin_wal"]))
@@ -1693,9 +1693,9 @@ class JsonOutputWriter(ConsoleOutputWriter):
             if backup_type and backup_type in {"rsync", "incremental"}:
                 output["base_backup_information"].update(
                     dict(
-                        resource_savings=pretty_size(data["est_dedup_size"]),
-                        resource_savings_bytes=int(data["est_dedup_size"]),
-                        resource_savings_percentage="{percent:.2%}".format(
+                        resources_saved=pretty_size(data["est_dedup_size"]),
+                        resources_saved_bytes=int(data["est_dedup_size"]),
+                        resources_saved_percentage="{percent:.2%}".format(
                             percent=data["deduplication_ratio"]
                         ),
                     )

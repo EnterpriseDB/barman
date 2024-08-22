@@ -1358,7 +1358,7 @@ class TestConsoleWriter(object):
         writer.close()
         (out, err) = capsys.readouterr()
 
-        resource_savings_output = "{} ({})".format(
+        resources_saved_output = "{} ({})".format(
             pretty_size(ext_info["est_dedup_size"]),
             "{percent:.2%}".format(percent=ext_info["deduplication_ratio"]),
         )
@@ -1367,7 +1367,7 @@ class TestConsoleWriter(object):
         if ext_info["backup_type"] in ("rsync", "incremental"):
             assert (
                 TestConsoleWriter.nested_row.format(
-                    "Resource savings", resource_savings_output
+                    "Resources saved", resources_saved_output
                 )
                 in out
             )
@@ -2248,15 +2248,14 @@ class TestJsonWriter(object):
 
         assert (
             pretty_size(ext_info["est_dedup_size"])
-            == base_information["resource_savings"]
+            == base_information["resources_saved"]
         )
-        assert ext_info["est_dedup_size"] == base_information["resource_savings_bytes"]
-        resource_savings_percentage = "{percent:.2%}".format(
+        assert ext_info["est_dedup_size"] == base_information["resources_saved_bytes"]
+        resources_saved_percentage = "{percent:.2%}".format(
             percent=ext_info["deduplication_ratio"]
         )
         assert (
-            resource_savings_percentage
-            == base_information["resource_savings_percentage"]
+            resources_saved_percentage == base_information["resources_saved_percentage"]
         )
 
         assert ext_info["timeline"] == base_information["timeline"]
