@@ -232,6 +232,17 @@ def parse_time_interval(value):
     return time_delta
 
 
+def parse_datetime(value):
+    """
+    Parse a string, transforming it in a datetime object.
+    Accepted format: YYYY-MM-DDThh:mm:ss.sssZ
+
+    :param str value: the string to evaluate
+    """
+
+    return datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%fZ")
+
+
 def parse_si_suffix(value):
     """
     Parse a string, transforming it into integer and multiplying by
@@ -489,6 +500,10 @@ class ServerConfig(BaseConfig):
         "archiver_batch_size",
         "autogenerate_manifest",
         "aws_await_snapshots_timeout",
+        "aws_snapshot_lock_mode",
+        "aws_snapshot_lock_duration",
+        "aws_snapshot_lock_cool_off_period",
+        "aws_snapshot_lock_expiration_date",
         "aws_profile",
         "aws_region",
         "azure_credential",
@@ -587,6 +602,10 @@ class ServerConfig(BaseConfig):
         "archiver_batch_size",
         "autogenerate_manifest",
         "aws_await_snapshots_timeout",
+        "aws_snapshot_lock_mode",
+        "aws_snapshot_lock_duration",
+        "aws_snapshot_lock_cool_off_period",
+        "aws_snapshot_lock_expiration_date",
         "aws_profile",
         "aws_region",
         "azure_credential",
@@ -710,6 +729,9 @@ class ServerConfig(BaseConfig):
         "archiver_batch_size": int,
         "autogenerate_manifest": parse_boolean,
         "aws_await_snapshots_timeout": int,
+        "aws_snapshot_lock_duration": int,
+        "aws_snapshot_lock_cool_off_period": int,
+        "aws_snapshot_lock_expiration_date": parse_datetime,
         "backup_compression": parse_backup_compression,
         "backup_compression_format": parse_backup_compression_format,
         "backup_compression_level": int,

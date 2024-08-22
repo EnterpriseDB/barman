@@ -726,6 +726,44 @@ def check_positive(value):
     return int_value
 
 
+def check_aws_snapshot_lock_duration_range(value):
+    """
+    Check for AWS Snapshot Lock duration range option
+
+    :param value: str containing the value to check
+    """
+    if value is None:
+        return None
+    try:
+        int_value = int(value)
+    except Exception:
+        raise ArgumentTypeError("'%s' is not a valid input" % value)
+
+    if int_value < 1 or int_value > 36500:
+        raise ArgumentTypeError("'%s' is outside supported range of 1-36500 days" % value)
+
+    return int_value
+
+
+def check_aws_snapshot_lock_cool_off_period_range(value):
+    """
+    Check for AWS Snapshot Lock cool-off period range option
+
+    :param value: str containing the value to check
+    """
+    if value is None:
+        return None
+    try:
+        int_value = int(value)
+    except Exception:
+        raise ArgumentTypeError("'%s' is not a valid input" % value)
+
+    if int_value < 1 or int_value > 72:
+        raise ArgumentTypeError("'%s' is outside supported range of 1-72 hours" % value)
+
+    return int_value
+
+
 def check_tli(value):
     """
     Check for a positive integer option, and also make "current" and "latest" acceptable values
@@ -781,6 +819,16 @@ def check_size(value):
     if int_value is None or int_value < 1:
         raise ArgumentTypeError("'%s' is not a valid size string" % value)
     return int_value
+
+
+def check_timestamp(value):
+    try:
+        # Attempt to parse the input date string into a datetime object
+        return datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%fZ")
+    except ValueError:
+        raise ArgumentTypeError(
+            "Invalid expiration date: '%s'. Expected format is 'YYYY-MM-DDThh:mm:ss.sssZ'." % value
+        )
 
 
 def check_backup_name(backup_name):

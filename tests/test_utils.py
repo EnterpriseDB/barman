@@ -19,6 +19,7 @@
 import decimal
 import json
 import logging
+import random
 import signal
 import sys
 import re
@@ -1020,6 +1021,39 @@ class TestCheckBackupNames(object):
         )
         # THEN None is returned
         assert backup_info is None
+
+
+class TestDateTimeTimestampFormat(object):
+    @pytest.mark.parametrize("timestamp", ["2024-01-01T00:00:00.000Z"])
+    def test_parse(self, timestamp):
+        assert isinstance(barman.utils.check_timestamp(timestamp), datetime)
+
+    @pytest.mark.parametrize("timestamp", ["2024-01-01", "2024-01-01T00:00:00", "2024-01-01T00:00:00.000"])
+    def test_parse_error(self, timestamp):
+        with pytest.raises(ArgumentTypeError):
+            barman.utils.check_timestamp(timestamp)
+
+
+class TestAWSSnapshotLockDurationRange(object):
+    @pytest.mark.parametrize("duration", ["1", random.choice(range(1, 36500)), "36500"])
+    def test_parse(self, duration):
+        assert barman.utils.check_aws_snapshot_lock_duration_range(duration) == int(duration)
+
+    @pytest.mark.parametrize("duration", ["-1", "0", "36501"])
+    def test_parse_error(self, duration):
+        with pytest.raises(ArgumentTypeError):
+            barman.utils.check_aws_snapshot_lock_duration_range(duration)
+
+
+class TestAWSSnapshotCoolOffPeriodRange(object):
+    @pytest.mark.parametrize("duration", ["1", random.choice(range(2, 71)), "72"])
+    def test_parse(self, duration):
+        assert barman.utils.check_aws_snapshot_lock_cool_off_period_range(duration) == int(duration)
+
+    @pytest.mark.parametrize("duration", ["-1", "0", "36501"])
+    def test_parse_error(self, duration):
+        with pytest.raises(ArgumentTypeError):
+            barman.utils.check_aws_snapshot_lock_cool_off_period_range(duration)
 
 
 class TestEditConfig:

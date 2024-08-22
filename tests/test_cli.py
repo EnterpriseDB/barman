@@ -1761,6 +1761,7 @@ test epilog string
         if sys.version_info < (3, 10):
             options_label = "optional arguments"
         expected_output = self._expected_help_output.format(options_label=options_label)
+
         assert expected_output == out
 
 

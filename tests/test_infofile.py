@@ -868,6 +868,7 @@ class TestBackupInfo(object):
                     device_name="/dev/sdf",
                     snapshot_name="user-assigned name",
                     snapshot_id="snap-0123",
+                    snapshot_lock_mode="compliance",
                 )
             ],
         )
@@ -884,6 +885,7 @@ class TestBackupInfo(object):
         assert snapshot0.device_name == "/dev/sdf"
         assert snapshot0.snapshot_name == "user-assigned name"
         assert snapshot0.snapshot_id == "snap-0123"
+        assert snapshot0.snapshot_lock_mode == "compliance"
 
         # AND the snapshots_info is included in the JSON output
         snapshots_json = b_info.to_json()["snapshots_info"]
@@ -895,6 +897,7 @@ class TestBackupInfo(object):
         assert snapshot0_json["provider"]["device_name"] == "/dev/sdf"
         assert snapshot0_json["provider"]["snapshot_name"] == "user-assigned name"
         assert snapshot0_json["provider"]["snapshot_id"] == "snap-0123"
+        assert snapshot0_json["provider"]["snapshot_lock_mode"] == "compliance"
 
     def test_with_no_snapshots_info(self, tmpdir):
         """

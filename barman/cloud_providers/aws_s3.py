@@ -463,7 +463,16 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
         https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-creating-snapshot.html
     """
 
-    def __init__(self, profile_name=None, region=None, await_snapshots_timeout=3600):
+    def __init__(
+        self,
+        profile_name=None,
+        region=None,
+        await_snapshots_timeout=3600,
+        lock_mode=None,
+        lock_duration=None,
+        lock_cool_off_period=None,
+        lock_expiration_date=None
+    ):
         """
         Creates the client necessary for creating and managing snapshots.
 
@@ -471,13 +480,24 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
         :param str region: The AWS region in which snapshot resources are located.
         :param int await_snapshots_timeout: The maximum time in seconds to wait for
             snapshots to complete.
+        :param str lock_mode: The lock mode to apply to the snapshot.
+        :param int lock_duration: The duration (in days) for which the snapshot
+            should be locked.
+        :param int lock_cool_off_period: The cool-off period (in hours) for the snapshot.
+        :param str lock_expiration_date: The expiration date for the snapshot in the format
+            YYYY-MM-DDThh:mm:ss.sssZ.
         """
+
         self.session = boto3.Session(profile_name=profile_name)
         # If a specific region was provided then this overrides any region which may be
         # defined in the profile
         self.region = region or self.session.region_name
         self.ec2_client = self.session.client("ec2", region_name=self.region)
         self.await_snapshots_timeout = await_snapshots_timeout
+        self.lock_mode = lock_mode
+        self.lock_duration = lock_duration
+        self.lock_cool_off_period = lock_cool_off_period
+        self.lock_expiration_date = lock_expiration_date
 
     def _get_waiter_config(self):
         delay = 15
@@ -761,10 +781,12 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
             snapshot_name, snapshot_resp = self._create_snapshot(
                 backup_info, volume_identifier, volume_metadata.id
             )
+
             snapshots.append(
                 AwsSnapshotMetadata(
                     snapshot_id=snapshot_resp["SnapshotId"],
                     snapshot_name=snapshot_name,
+                    snapshot_lock_mode=self.lock_mode,
                     device_name=attached_volumes[0]["DeviceName"],
                     mount_options=volume_metadata.mount_options,
                     mount_point=volume_metadata.mount_point,
@@ -783,13 +805,56 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
             WaiterConfig=self._get_waiter_config(),
         )
 
+        # Apply lock on snapshots if lock mode is specified
+        if self.lock_mode:
+            self._lock_snapshots(
+                snapshots,
+                self.lock_mode,
+                self.lock_duration,
+                self.lock_cool_off_period,
+                self.lock_expiration_date
+            )
+
         backup_info.snapshots_info = AwsSnapshotsInfo(
             snapshots=snapshots,
             region=self.region,
             # All snapshots will have the same OwnerId so we get it from the last
             # snapshot response.
             account_id=snapshot_resp["OwnerId"],
+
         )
+
+    def _lock_snapshots(self, snapshots, lock_mode, lock_duration, lock_cool_off_period, lock_expiration_date):
+        lock_snapshot_default_args = {
+            "LockMode": lock_mode
+        }
+
+        if lock_duration:
+            lock_snapshot_default_args["LockDuration"] = lock_duration
+
+        if lock_cool_off_period:
+            lock_snapshot_default_args["CoolOffPeriod"] = lock_cool_off_period
+
+        if lock_expiration_date:
+            lock_snapshot_default_args["ExpirationDate"] = lock_expiration_date
+
+        for snapshot in snapshots:
+            lock_snapshot_args = lock_snapshot_default_args.copy()
+            lock_snapshot_args["SnapshotId"] = snapshot.identifier
+
+            resp = self.ec2_client.lock_snapshot(**lock_snapshot_args)
+
+            logging.info(
+                "Snapshot %s locked in state '%s' (lock duration: %s days, cool-off period: %s hours, "
+                "cool-off period expires on: %s, lock expires on: %s, lock duration time: %s)",
+                snapshot.identifier,
+                resp["LockState"],
+                resp["LockDuration"],
+                resp["CoolOffPeriod"],
+                resp["CoolOffPeriodExpiresOn"],
+                resp["LockExpiresOn"],
+                resp["LockDurationStartTime"]
+            )
 
     def _delete_snapshot(self, snapshot_id):
         """
@@ -824,6 +889,16 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
                 snapshot.identifier,
                 backup_info.backup_id,
             )
+
+            if snapshot.snapshot_lock_mode is not None:
+                resp = self.ec2_client.describe_locked_snapshots(
+                    SnapshotIds=[snapshot.identifier],
+                )
+
+                if resp["Snapshots"] and resp["Snapshots"][0]["LockState"] != "expired":
+                    logging.warning("Skipping deletion of snapshot %s as it not expired yet", snapshot.identifier)
+                    continue
+
             self._delete_snapshot(snapshot.identifier)
 
     def get_attached_volumes(
@@ -1003,11 +1078,11 @@ class AwsSnapshotMetadata(SnapshotMetadata):
     """
     Specialization of SnapshotMetadata for AWS EBS snapshots.
 
-    Stores the device_name, snapshot_id and snapshot_name in the provider-specific
+    Stores the device_name, snapshot_id, snapshot_name and snapshot_lock_mode in the provider-specific
     field.
     """
 
-    _provider_fields = ("device_name", "snapshot_id", "snapshot_name")
+    _provider_fields = ("device_name", "snapshot_id", "snapshot_name", "snapshot_lock_mode")
 
     def __init__(
         self,
@@ -1016,6 +1091,7 @@ class AwsSnapshotMetadata(SnapshotMetadata):
         device_name=None,
         snapshot_id=None,
         snapshot_name=None,
+        snapshot_lock_mode=None,
     ):
         """
         Constructor saves additional metadata for AWS snapshots.
@@ -1027,12 +1103,14 @@ class AwsSnapshotMetadata(SnapshotMetadata):
         :param str device_name: The device name used in the AWS API.
         :param str snapshot_id: The snapshot ID used in the AWS API.
         :param str snapshot_name: The snapshot name stored in the `Name` tag.
+        :param str snapshot_lock_mode: The mode with which the snapshot has been locked, if set.
         :param str project: The AWS project name.
         """
         super(AwsSnapshotMetadata, self).__init__(mount_options, mount_point)
         self.device_name = device_name
         self.snapshot_id = snapshot_id
         self.snapshot_name = snapshot_name
+        self.snapshot_lock_mode = snapshot_lock_mode
 
     @property
     def identifier(self):
