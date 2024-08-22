@@ -26,6 +26,10 @@ The main goals of incremental backups in Barman are:
 Barman currently supports **file-level incremental backups** (using `rsync`) as well
 as **block-level incremental backups** (using `pg_basebackup`).
 
+> **NOTE:** Incremental backups of different backup types are currently not compatible
+> i.e. a block-level incremental backup can not be taken upon an `rsync` backup and
+> a file-level incremental backup can not be taken upon a streaming backup (taken with `pg_basebackup`).
+
 ### File-level incremental backups
 
 This feature heavily relies on `rsync` and [hard links][8], which
