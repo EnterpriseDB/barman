@@ -1,5 +1,12 @@
 Barman News - History of user-visible changes
 
+Version 3.11.1 - 22 August 2024
+
+- Bug fixes:
+
+  - Fix failures in `barman-cloud-backup-delete`. This command was failing when
+    applying retention policies due to a bug introduced by the previous release.
+
 Version 3.11.0 - 22 August 2024
 
 - Add support for Postgres 17+ incremental backups. This major feature is
