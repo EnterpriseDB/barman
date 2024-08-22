@@ -112,9 +112,9 @@ To be able to perform a block-level incremental backup in Barman you must:
 - Have `summarize_wal` enabled.
 - Have `postgres` as your backup method.
 
-> **NOTE:** Compressed backups are not **yet** eligible for incremental backups in Barman.
+> **NOTE:** Compressed backups are not **yet** eligible for block-level incremental backups in Barman.
 
-> **IMPORTANT:** If you decide to enable `data_checksums` between incremental backups,
+> **IMPORTANT:** If you decide to enable `data_checksums` between block-level incremental backups,
 > it is adivised to take a new full-backup as divergent checkum configurations can potentially
 > lead to issues during recovery.
 
@@ -594,12 +594,12 @@ Retention policy based on recovery window
 >
 > How It Works
 >
-> When the retention policy is applied, Barman ignores incremental backups
+> When the retention policy is applied, Barman ignores block-level incremental backups
 > and focuses only on the status of the full backups.
 >
 > If the full backup is marked as KEEP:FULL, KEEP:STANDALONE, or VALID,
-> the status VALID is marked to all dependent incremental backups.
-> If the full backup is marked as OBSOLETE, then all incremental backups
+> the status VALID is marked to all dependent block-level incremental backups.
+> If the full backup is marked as OBSOLETE, then all block-level incremental backups
 > that depend on it will also be marked as OBSOLETE and removed.
 
 #### Scope

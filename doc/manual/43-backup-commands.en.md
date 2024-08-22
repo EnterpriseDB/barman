@@ -82,17 +82,17 @@ barman keep <server_name> <backup_id> [--target TARGET, --status, --release]
 ```
 
 > **NOTE:**
-> To ensure the integrity of your backup system, incremental backups
+> To ensure the integrity of your backup system, block-level incremental backups
 > cannot use the keep annotation in Barman. This restriction is due to
-> the way incremental backups depend on each other. Using the keep 
-> annotation with incremental backups could result in orphaned backups,
+> the way block-level incremental backups depend on each other. Using the keep 
+> annotation on such backups could result in orphaned backups,
 > which means that certain backups might exist without their necessary
 > parent backups.
 >
 > In simpler terms, if you were allowed to apply the keep annotation to
-> an incremental backup, there would be a risk that parts of the backup
+> a block-level incremental backup, there would be a risk that parts of the backup
 > chain would be retained without their required predecessors. This 
-> situation could create backups that would be no longer useful or
+> situation could create backups that would be no longer be useful or
 > complete, as they would be missing the essential parent backups needed
 > to restore them properly.
 
@@ -374,9 +374,9 @@ the `--recovery-staging-path` option with the `barman recover` command. If
 you do neither of these things and attempt to recover a compressed backup
 then Barman will fail rather than try to guess a suitable location.
 
-### Recovering incremental backups
+### Recovering block-level incremental backups
 
-If a backup is incremental, `barman recover` is able to combine the chain
+If a backup is a block-level incremental, `barman recover` is able to combine the chain
 of backups on recovery through `pg_combinebackup`.
 A chain of backups is the tree branch that goes from the full backup
 to the one requested for the recovery. This is a multi-step process:
@@ -393,10 +393,10 @@ to the one requested for the recovery. This is a multi-step process:
     was created inside the provided staging directory, is removed at the end of the
     recovery process.
 
-When recovering from an incremental backup, you *must* therefore
+When recovering from a block-level incremental backup, you *must* therefore
 either set `local_staging_path` in the global/server config *or* use
 the `--local-staging-path` option with the `barman recover` command. If
-you do neither of these things and attempt to recover an incremental backup
+you do neither of these things and attempt to recover such backup
 then Barman fails rather than trying to guess a suitable location.
 
 > **IMPORTANT:**
