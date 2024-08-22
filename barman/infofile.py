@@ -593,6 +593,94 @@ class BackupInfo(FieldListFile):
         """
         setattr(self, key, value)
 
+    @property
+    def is_incremental(self):
+        """
+        Only checks if the backup_info is an incremental backup
+
+        .. note::
+            This property only makes sense in the context of local backups stored in the
+            Barman server. However, this property is used for retention policies
+            processing, code which is shared among local and cloud backups. As this
+            property always returns ``False`` for cloud backups, it can safely be reused
+            in their code paths as well, though.
+
+        :return bool: ``True`` if this backup has a parent, ``False`` otherwise.
+        """
+        return self.parent_backup_id is not None
+
+    @property
+    def has_children(self):
+        """
+        Only checks if the backup_info has children
+
+        .. note::
+            This property only makes sense in the context of local backups stored in the
+            Barman server. However, this property is used for retention policies
+            processing, code which is shared among local and cloud backups. As this
+            property always returns ``False`` for cloud backups, it can safely be reused
+            in their code paths as well, though.
+
+        :return bool: ``True`` if this backup has at least one child, ``False`` otherwise.
+        """
+        return self.children_backup_ids is not None
+
+    @property
+    def backup_type(self):
+        """
+        Returns a string with the backup type label.
+
+        .. note::
+            Even though this property is available in this base class, it is not
+            expected to be used in the context of cloud backups.
+
+        The backup type can be one of the following:
+        - ``snapshot``: If the backup mode starts with ``snapshot``.
+        - ``rsync``: If the backup mode starts with ``rsync``.
+        - ``incremental``: If the mode is ``postgres`` and the backup is incremental.
+        - ``full``: If the mode is ``postgres`` and the backup is not incremental.
+
+        :return str: The backup type label.
+        """
+        if self.mode.startswith("snapshot"):
+            return "snapshot"
+        elif self.mode.startswith("rsync"):
+            return "rsync"
+        return "incremental" if self.is_incremental else "full"
+
+    @property
+    def deduplication_ratio(self):
+        """
+        Returns a value between and including ``0`` and ``1`` related to the estimate
+        deduplication ratio of the backup.
+
+        .. note::
+            For ``rsync`` backups, the :attr:`size` of the backup, which is the sum of
+            all file sizes in basebackup directory, is used to calculate the
+            ratio. For ``postgres`` backups, the :attr:`cluster_size` is used, which contains
+            the estimated size of the Postgres cluster at backup time.
+
+            We perform this calculation to make an estimation of how much network and disk
+            I/O has been saved when taking an incremental backup through ``rsync`` or through
+            ``pg_basebackup``.
+
+            We abuse of the term "deduplication" here. It makes more sense to ``rsync`` than to
+            ``postgres`` method. However, the idea is the same in both cases: get an estimation
+            of resources saving.
+
+        .. note::
+            Even though this property is available in this base class, it is not
+            expected to be used in the context of cloud backups.
+
+        :return float: The backup deduplication ratio.
+        """
+        size = self.cluster_size
+        if self.backup_type == "rsync":
+            size = self.size
+        if size and self.deduplicated_size:
+            return 1 - (self.deduplicated_size / size)
+        return 0
+
     def to_dict(self):
         """
         Return the backup_info content as a simple dictionary
@@ -732,72 +820,6 @@ class LocalBackupInfo(BackupInfo):
                 "Error detecting backup_version, use default: 2. Failure reason: %s",
                 e,
             )
-
-    @property
-    def is_incremental(self):
-        """
-        Only checks if the backup_info is an incremental backup
-
-        :return bool: ``True`` if this backup has a parent, ``False`` otherwise.
-        """
-        return self.parent_backup_id is not None
-
-    @property
-    def has_children(self):
-        """
-        Only checks if the backup_info has children
-
-        :return bool: ``True`` if this backup has at least one child, ``False`` otherwise.
-        """
-        return self.children_backup_ids is not None
-
-    @property
-    def backup_type(self):
-        """
-        Returns a string with the backup type label.
-
-        The backup type can be one of the following:
-        - ``snapshot``: If the backup mode starts with ``snapshot``.
-        - ``rsync``: If the backup mode starts with ``rsync``.
-        - ``incremental``: If the mode is ``postgres`` and the backup is incremental.
-        - ``full``: If the mode is ``postgres`` and the backup is not incremental.
-
-        :return str: The backup type label.
-        """
-        if self.mode.startswith("snapshot"):
-            return "snapshot"
-        elif self.mode.startswith("rsync"):
-            return "rsync"
-        return "incremental" if self.is_incremental else "full"
-
-    @property
-    def deduplication_ratio(self):
-        """
-        Returns a value between and including ``0`` and ``1`` related to the estimate
-        deduplication ratio of the backup.
-
-        .. note::
-            For ``rsync`` backups, the :attr:`size` of the backup, which is the sum of
-            all file sizes in basebackup directory, is used to calculate the
-            ratio. For ``postgres`` backups, the :attr:`cluster_size` is used, which contains
-            the estimated size of the Postgres cluster at backup time.
-
-            We perform this calculation to make an estimation of how much network and disk
-            I/O has been saved when taking an incremental backup through ``rsync`` or through
-            ``pg_basebackup``.
-
-            We abuse of the term "deduplication" here. It makes more sense to ``rsync`` than to
-            ``postgres`` method. However, the idea is the same in both cases: get an estimation
-            of resources saving.
-
-        :return float: The backup deduplication ratio.
-        """
-        size = self.cluster_size
-        if self.backup_type == "rsync":
-            size = self.size
-        if size and self.deduplicated_size:
-            return 1 - (self.deduplicated_size / size)
-        return 0
 
     def get_list_of_files(self, target):
         """

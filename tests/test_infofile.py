@@ -520,6 +520,24 @@ class TestBackupInfo(object):
         assert b_info.tablespaces[0].oid == 16384
         assert b_info.tablespaces[0].location == "/fake_tmp/tbs"
 
+    @pytest.mark.parametrize(
+        ("mode", "parent_backup_id", "expected_backup_type"),
+        [
+            ("rsync", None, "rsync"),
+            ("postgres", "some_id", "incremental"),
+            ("postgres", None, "full"),
+            ("snapshot", None, "snapshot"),
+        ],
+    )
+    def test_backup_type(self, mode, parent_backup_id, expected_backup_type):
+        """
+        Ensure :meth:`LocalBackupInfo.backup_type` returns the correct backup type label.
+        """
+        backup_info = build_test_backup_info(parent_backup_id=parent_backup_id)
+        backup_info.mode = mode
+
+        assert backup_info.backup_type == expected_backup_type
+
     def test_backup_info_save(self, tmpdir):
         """
         Test the save method of a BackupInfo object
@@ -947,7 +965,7 @@ class TestLocalBackupInfo:
         mock_get_data_dir.return_value = "/some/random/path"
         assert backup_info.get_backup_manifest_path() == expected
 
-    @patch("barman.infofile.LocalBackupInfo.is_incremental", new_callable=PropertyMock)
+    @patch("barman.infofile.BackupInfo.is_incremental", new_callable=PropertyMock)
     def test_get_parent_backup_info_no_parent(self, mock_is_incremental, backup_info):
         """
         Ensure :meth:`LocalBackupInfo.get_parent_backup_info` returns ``None`` if the
@@ -956,7 +974,7 @@ class TestLocalBackupInfo:
         mock_is_incremental.return_value = False
         assert backup_info.get_parent_backup_info() is None
 
-    @patch("barman.infofile.LocalBackupInfo.is_incremental", new_callable=PropertyMock)
+    @patch("barman.infofile.BackupInfo.is_incremental", new_callable=PropertyMock)
     def test_get_parent_backup_info_empty_parent(
         self, mock_is_incremental, backup_info
     ):
@@ -972,7 +990,7 @@ class TestLocalBackupInfo:
             assert backup_info.get_parent_backup_info() is None
             mock.assert_called_once_with(backup_info.server, backup_id="SOME_ID")
 
-    @patch("barman.infofile.LocalBackupInfo.is_incremental", new_callable=PropertyMock)
+    @patch("barman.infofile.BackupInfo.is_incremental", new_callable=PropertyMock)
     def test_get_parent_backup_info_parent_ok(self, mock_is_incremental, backup_info):
         """
         Ensure :meth:`LocalBackupInfo.get_parent_backup_info` returns the backup info
@@ -1189,7 +1207,7 @@ class TestLocalBackupInfo:
             ("off", "off", "on", "on", False),
         ),
     )
-    @patch("barman.infofile.LocalBackupInfo.is_incremental", new_callable=PropertyMock)
+    @patch("barman.infofile.BackupInfo.is_incremental", new_callable=PropertyMock)
     def test_is_checksum_consistent(
         self, mock_is_incremental, conf_root, conf_inc1, conf_inc2, conf_inc3, expected
     ):
@@ -1221,7 +1239,7 @@ class TestLocalBackupInfo:
             walk_mock.return_value = (incremental2, incremental1, root_backup)
             assert incremental3.is_checksum_consistent() is expected
 
-    @patch("barman.infofile.LocalBackupInfo.is_incremental", new_callable=PropertyMock)
+    @patch("barman.infofile.BackupInfo.is_incremental", new_callable=PropertyMock)
     def test_true_is_full_and_eligible_for_incremental(self, mock_is_incremental):
         """
         Test that the function applies the correct conditions for a full backup
@@ -1256,7 +1274,7 @@ class TestLocalBackupInfo:
             ("rsync", "off", False),
         ],
     )
-    @patch("barman.infofile.LocalBackupInfo.is_incremental", new_callable=PropertyMock)
+    @patch("barman.infofile.BackupInfo.is_incremental", new_callable=PropertyMock)
     def test_false_is_full_and_eligible_for_incremental(
         self, mock_is_incremental, backup_method, summarize_wal, is_incremental
     ):
@@ -1278,24 +1296,6 @@ class TestLocalBackupInfo:
         )
 
         assert not backup_info.is_full_and_eligible_for_incremental()
-
-    @pytest.mark.parametrize(
-        ("mode", "parent_backup_id", "expected_backup_type"),
-        [
-            ("rsync", None, "rsync"),
-            ("postgres", "some_id", "incremental"),
-            ("postgres", None, "full"),
-            ("snapshot", None, "snapshot"),
-        ],
-    )
-    def test_backup_type(self, mode, parent_backup_id, expected_backup_type):
-        """
-        Ensure :meth:`LocalBackupInfo.backup_type` returns the correct backup type label.
-        """
-        backup_info = build_test_backup_info(parent_backup_id=parent_backup_id)
-        backup_info.mode = mode
-
-        assert backup_info.backup_type == expected_backup_type
 
 
 class TestSyntheticBackupInfo:
