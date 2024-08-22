@@ -51,15 +51,20 @@ You can use GitHub's pull requests system for this purpose.
 
 In alphabetical order:
 
-* Abhijit Menon-Sen
-* Didier Michel
-* Michael Wallace
+* Andre Marchesini
+* Barbara Leidens
+* Giulio Calacoci
+* Gustavo Oliveira
+* Israel Barth
+* Martín Marqués
 
 Past contributors (in alphabetical order):
 
+* Abhijit Menon-Sen (architect)
 * Anna Bellandi (QA/testing)
 * Britt Cole (documentation reviewer)
 * Carlo Ascani (developer)
+* Didier Michel (developer)
 * Francesco Canovai (QA/testing)
 * Gabriele Bartolini (architect)
 * Gianni Ciolli (QA/testing)
@@ -69,6 +74,7 @@ Past contributors (in alphabetical order):
 * Jonathan Battiato (QA/testing)
 * Leonardo Cecchi (developer)
 * Marco Nenciarini (project leader)
+* Michael Wallace (developer)
 * Niccolò Fei (QA/testing)
 * Rubens Souza (QA/testing)
 * Stefano Bianucci (developer)
