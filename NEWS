@@ -1,5 +1,187 @@
 Barman News - History of user-visible changes
 
+Version 3.11.0 - 22 August 2024
+
+- Add support for Postgres 17+ incremental backups. This major feature is
+  composed of several small changes:
+
+  - Add `--incremental` command-line option to `barman backup` command. This is
+    used to specify the parent backup when taking an incremental backup. The
+    parent can be either a full backup or another incremental backup.
+
+  - Add `latest-full` shortcut backup ID. Along with `latest`, this can be used
+    as a shortcut to select the parent backup for an incremental backup. While
+    `latest` takes the latest backup independently if it is full or incremental,
+    `latest-full` takes the latest full backup.
+
+  - `barman keep` command can only be applied to full backups when
+    `backup_method = postgres`. If a full backup has incremental backups that
+    depend on it, all of the incrementals are also kept by Barman.
+
+  - When deleting a backup all the incremental backups depending on it, if any,
+    are also removed.
+
+  - Retention policies do not take incremental backups into consideration. As
+    incremental backups cannot be recovered without having the complete chain of
+    backups available up to the full backup, only full backups account for
+    retention policies.
+
+  - `barman recover` needs to combine the full backup with the chain of incremental
+    backups when recovering. The new CLI option `--local-staging-path`, and the
+    corresponding `local_staging_path` configuration option, are used to specify
+    the path in the Barman host where the backups will be combined when recovering
+    an incremental backup.
+
+- Changes to `barman show-backup` output:
+
+  - Add the “Estimated cluster size” field. It's useful to have an estimation
+    of the data directory size of a cluster when restoring a backup. It’s
+    particularly useful when recovering compressed backups or incremental
+    backups, situations where the size of the backup doesn’t reflect the size of the
+    data directory in Postgres. In JSON format, this is stored as
+    `cluster_size`.
+
+  - Add the “WAL summarizer” field. This field shows if `summarize_wal` was
+    enabled in Postgres at the time the backup was taken. In JSON format, this
+    is stored as `server_information.summarize_wal`. This field is omitted for
+    Postgres 16 and older.
+
+  - Add “Data checksums” field. This shows if `data_checkums` was enabled in
+    Postgres at the time the backup was taken. In JSON format, this is stored as
+    `server_information.data_checksums`.
+
+  - Add the “Backup method” field. This shows the backup method used for this
+    backup. In JSON format, this is stored as
+    `base_backup_information.backup_method`.
+
+  - Rename the field “Disk Usage” as “Backup Size”. The latter provides a more
+    comprehensive name which represents the size of the backup in the Barman
+    host. The JSON field under `base_backup_information` was also renamed from
+    `disk_usage` to `backup_size`.
+
+  - Add the “WAL size” field. This shows the size of the WALs required by the
+    backup. In JSON format, this is stored as
+    `base_backup_information.wal_size`.
+
+  - Refactor the field “Incremental size”. It is now named “Resources saving”
+    and it now shows an estimation of resources saved when taking incremental
+    backups with `rsync` or `pg_basebackup`. It compares the backup size with
+    the estimated cluster size to estimate the amount of disk and network
+    resources that were saved by taking an incremental backup. In JSON format,
+    the field was renamed from `incremental_size` to `resource_savings` under `base_backup_information`.
+
+  - Add the `system_id` field to the JSON document. This field contains the
+    system identifier of Postgres. It was present in console format, but was
+    missing in JSON format.
+
+  - Add fields related with Postgres incremental backups:
+
+    - “Backup type”: indicates if the Postgres backup is full or incremental. In
+      JSON format, this is stored as `backup_type` under `base_backup_information`.
+
+    - “Root backup”: the ID of the full backup that is the root of a chain of
+      one or more incremental backups. In JSON format, this is stored as
+      `catalog_information.root_backup_id`.
+
+    - “Parent backup”: the ID of the full or incremental backup from which this
+      incremental backup was taken. In JSON format, this is stored as
+      `catalog_information.parent_backup_id`.
+
+    - “Children Backup(s)”: the IDs of the incremental backups that were taken
+      with this backup as the parent. In JSON format, this is stored as
+      `catalog_information.children_backup_ids`.
+
+    - “Backup chain size”: the number of backups in the chain from this
+      incremental backup up to the root backup. In JSON format, this is
+      stored as `catalog_information.chain_size`.
+
+- Changes to `barman list-backup` output:
+
+  - It now includes the backup type in the JSON output, which can be either
+    `rsync` for backups taken with rsync, `full` or `incremental` for backups
+    taken with `pg_basebackup`, or `snapshot` for cloud snapshots. When printing
+    to the console the backup type is represented by the corresponding labels
+    `R`, `F`, `I` or `S`.
+
+  - Remove tablespaces information from the output. That was bloating the
+    output. Tablespaces information can still be found in the output of 
+    `barman show-backup`.
+
+- Always set a timestamp with a time zone when configuring
+  `recovery_target_time` through `barman recover`. Previously, if no time zone
+  was explicitly set through `--target-time`, Barman would configure
+  `recovery_target_time` without a time zone in Postgres. Without a time zone,
+  Postgres would assume whatever is configured through `timezone` GUC in
+  Postgres. From now on Barman will issue a warning and configure
+  `recovery_target_time` with the time zone of the Barman host if no time zone
+  is set by the user through `--target-time` option.
+
+- When recovering a backup with the “no get wal” approach and `--target-lsn` is set,
+  copy only the WAL files required to reach the configured target. Previously
+  Barman would copy all the WAL files from its archive to Postgres.
+
+- When recovering a backup with the “no get wal” approach and `--target-immediate`
+  is set, copy only the WAL files required to reach the consistent point.
+  Previously Barman would copy all the WAL files from its archive to Postgres.
+
+- `barman-wal-restore` now moves WALs from the spool directory to `pg_wal`
+  instead of copying them. This can improve performance if the spool directory
+  and the `pg_wal` directory are in the same partition.
+
+- `barman check-backup` now shows the reason why a backup was marked as `FAILED`
+  in the output and logs. Previously for a user to know why the backup was
+  marked as `FAILED`, they would need to run `barman show-backup` command.
+
+- Add configuration option `aws_await_snapshots_timeout` and the corresponding
+  `--aws-await-snapshots-timeout` command-line option on `barman-cloud-backup`.
+  This specifies the timeout in seconds to wait for snapshot backups to reach
+  the completed state.
+
+- Add a keep-alive mechanism to rsync-based backups. Previously the Postgres
+  session created by Barman to run `pg_backup_start()` and `pg_backup_stop()` would
+  stay idle for as long as the base backup copy would take. That could lead to a
+  firewall or router dropping the connection because it was idle for a long
+  time. The keep-alive mechanism sends heartbeat queries to Postgres
+  through that connection, thus reducing the likelihood of a connection
+  getting dropped. The interval between heartbeats can be controlled through the new
+  configuration option `keepalive_interval` and the corresponding CLI
+  option `--keepalive-interval` of the `barman backup` command.
+
+- Bug fixes:
+
+  - When recovering a backup with the “no get wal” approach and `--target-time`
+    set, copy all WAL files. Previously Barman would attempt to “guess” the WAL
+    files required by Postgres to reach the configured target time. However,
+    the mechanism was not robust enough as it was based on the stats of the WAL
+    file in the Barman host (more specifically the creation time). For example:
+    if there were archiving or streaming lag between Postgres and Barman, that
+    could be enough for recovery to fail because Barman would miss to copy all
+    the required WAL files due to the weak check based on file stats.
+
+  - Pin `python-snappy` to `0.6.1` when running Barman through Python 3.6 or
+  older. Newer versions of `python-snappy` require `cramjam` version `2.7.0` or
+  newer, and these are only available for Python 3.7 or newer.
+
+  - `barman receive-wal` now exits with code `1` instead of `0` in the following
+    cases:
+
+    - Being unable to run with `--reset` flag because `pg_receivewal` is
+      running.
+
+    - Being unable to start `pg_receivewal` process because it is already
+      running.
+
+  - Fix and improve information about Python in `barman diagnose` output:
+
+    - The command now makes sure to use the same Python interpreter under which
+      Barman is installed when outputting the Python version through
+      `python_ver` JSON key. Previously, if an environment had multiple Python
+      installations and/or virtual environments, the output could eventually be
+      misleading, as it could be fetched from a different Python interpreter.
+
+    - Added a `python_executable` key to the JSON output. That contains the path
+      to the exact Python interpreter being used by Barman.
+
 Version 3.10.1 - 12 June 2024
 
 - Bug fixes:
