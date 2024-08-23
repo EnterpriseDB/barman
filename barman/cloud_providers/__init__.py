@@ -201,6 +201,7 @@ def get_snapshot_interface(config):
             config.aws_profile,
             config.aws_region,
             config.aws_await_snapshots_timeout,
+            config.tags,
         ]
         return AwsCloudSnapshotInterface(*args)
     else:
@@ -253,6 +254,7 @@ def get_snapshot_interface_from_server_config(server_config):
             server_config.aws_profile,
             server_config.aws_region,
             server_config.aws_await_snapshots_timeout,
+            server_config.tags,
         )
     else:
         raise CloudProviderUnsupported(

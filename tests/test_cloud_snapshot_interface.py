@@ -2740,6 +2740,51 @@ class TestAwsCloudSnapshotInterface(object):
             in caplog.text
         )
 
+    def test_create_snapshot_with_tags(self, caplog):
+        """
+        Verify that _create_snapshot calls boto3 with defined tags and returns the expected values.
+        """
+        # GIVEN a new AwsCloudInterface with tags defined
+        snapshot_interface = AwsCloudSnapshotInterface(tags=[
+            ("environment", "production"),
+            ("project", "my-project"),
+            ("service", "barman")
+        ])
+        # AND a backup_info for a given server name and backup ID
+        backup_info = mock.Mock(backup_id=self.backup_id, server_name=self.server_name)
+        # AND a mock create_snapshot function which returns a successful response
+        mock_ec2_client = self._mock_boto3.Session.return_value.client.return_value
+        mock_resp = mock_ec2_client.create_snapshot.return_value
+        mock_resp["State"] = "pending"
+        # AND log level is INFO
+        caplog.set_level(logging.INFO)
+
+        # WHEN _create_snapshot is called
+        volume_name = "my-pgdata-volume"
+        volume_id = "vol-0123456789abcdef01"
+        snapshot_name, _ = snapshot_interface._create_snapshot(
+            backup_info,
+            volume_name,
+            volume_id,
+        )
+
+        # THEN create_snapshot is called on the EC2 client with the expected args
+        mock_ec2_client.create_snapshot.assert_called_once()
+        mock_ec2_client.create_snapshot.assert_called_once_with(
+            TagSpecifications=[
+                {
+                    "ResourceType": "snapshot",
+                    "Tags": [
+                        {"Key": "Name", "Value": snapshot_name},
+                        {"Key": "environment", "Value": "production"},
+                        {"Key": "project", "Value": "my-project"},
+                        {"Key": "service", "Value": "barman"}
+                    ],
+                }
+            ],
+            VolumeId=volume_id,
+        )
+
     def test_create_snapshot_failed(self):
         """
         Verify that _create_snapshot calls boto3 and returns the expected values.

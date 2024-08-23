@@ -463,7 +463,7 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
         https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-creating-snapshot.html
     """
 
-    def __init__(self, profile_name=None, region=None, await_snapshots_timeout=3600):
+    def __init__(self, profile_name=None, region=None, await_snapshots_timeout=3600, tags=None):
         """
         Creates the client necessary for creating and managing snapshots.
 
@@ -478,6 +478,7 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
         self.region = region or self.session.region_name
         self.ec2_client = self.session.client("ec2", region_name=self.region)
         self.await_snapshots_timeout = await_snapshots_timeout
+        self.tags = tags
 
     def _get_waiter_config(self):
         delay = 15
@@ -710,13 +711,20 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
             volume_name,
             volume_id,
         )
+        tags = [
+            {"Key": "Name", "Value": snapshot_name},
+        ]
+
+        if self.tags is not None:
+            for tag in self.tags:
+                key, value = tag
+                tags.append({"Key": key, "Value": value})
+
         resp = self.ec2_client.create_snapshot(
             TagSpecifications=[
                 {
                     "ResourceType": "snapshot",
-                    "Tags": [
-                        {"Key": "Name", "Value": snapshot_name},
-                    ],
+                    "Tags": tags,
                 }
             ],
             VolumeId=volume_id,
