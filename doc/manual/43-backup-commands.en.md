@@ -198,6 +198,16 @@ command.
 
 The recovery command has several options that modify the command behavior.
 
+> **IMPORTANT:**
+> If you're unsure whether the backup you want to recover from will be
+> automatically deleted by retention policies during recovery,
+> mark it issuing the [keep command](#keep) using the appropriate target.
+> Once the recovery process is complete and your new PostgreSQL instance
+> has reached the desired recovery target, if you don’t want to
+> keep the backup beyond the retention policy, you can remove `keep`
+> annotation issuing the [keep command](#keep) again using the
+> `--release` option.
+
 ### Remote recovery
 
 Add the `--remote-ssh-command <COMMAND>` option to the invocation
