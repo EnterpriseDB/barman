@@ -10,3 +10,9 @@ Glossary
 
     PGDG
         Postgres Global Development Group
+
+    RHEL
+        Red Hat Enterprise Linux
+
+    RPM
+        Red Hat Package Manager
