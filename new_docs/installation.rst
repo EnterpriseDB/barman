@@ -29,4 +29,23 @@ To install Barman:
 
 .. code-block:: bash
 
-    dnf install barman
+   dnf install barman
+
+Debian-based distributions
+--------------------------
+
+Barman can be installed using :term:`DEB` packages on Debian systems as well as on
+Debian-based systems like Ubuntu.
+
+To install Barman:
+
+1. Install the PGDG APT repository. This depends on your system:
+
+   * For Debian: `PGDG Debian repository <https://www.postgresql.org/download/linux/debian/>`_.
+   * For Ubuntu: `PGDG Ubuntu repository <https://www.postgresql.org/download/linux/ubuntu/>`_.
+
+2. Install the Barman package. Run as **root**:
+
+.. code-block:: bash
+
+   apt-get install barman

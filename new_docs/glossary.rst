@@ -8,6 +8,9 @@ Glossary
     Barman
         Backup and Recovery Manager
 
+    DEB
+        Debian Package
+
     PGDG
         Postgres Global Development Group
 
