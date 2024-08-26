@@ -10,6 +10,7 @@
 *~
 \#*\#
 .*.swp
+*.bak
 
 # eclipse project files
 /.project
@@ -35,3 +36,7 @@ venv/*
 
 # pyenv
 .python-version
+
+# Sphinx docs
+new_docs/_build
+new_docs/modules

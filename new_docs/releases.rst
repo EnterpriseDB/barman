@@ -1,0 +1,4 @@
+.. _releases:
+
+Release notes
+=============
