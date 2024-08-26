@@ -1,0 +1,4 @@
+.. _configuration:
+
+Configuration reference
+=======================

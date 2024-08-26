@@ -1,0 +1,4 @@
+.. _commands:
+
+Commands reference
+==================
