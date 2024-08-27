@@ -457,8 +457,8 @@ class TestPgBaseBackupCompression(object):
         assert isinstance(base_backup_compression, expected_class)
         if base_backup_compression is not None:
             assert isinstance(base_backup_compression.options, expected_option_class)
-            assert (
-                isinstance(base_backup_compression.compression, expected_compression_class)
+            assert isinstance(
+                base_backup_compression.compression, expected_compression_class
             )
 
     def test_get_pg_basebackup_compression_not_supported(self):

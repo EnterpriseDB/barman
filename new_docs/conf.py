@@ -132,18 +132,14 @@ html_theme = "sphinx_material"
 #
 # Material theme options (see theme.conf for more information)
 html_theme_options = {
-
     # Set the name of the project to appear in the navigation.
     "nav_title": "Barman",
-
     # Set the color and the accent color
     "color_primary": "blue",
     "color_accent": "light-blue",
-
     # Set the repo location to get a badge with stats
     "repo_url": "https://github.com/EnterpriseDB/barman/",
     "repo_name": "Barman",
-
     # Visible levels of the global TOC; -1 means unlimited
     "globaltoc_depth": 3,
     # If False, expand all TOC entries
@@ -152,9 +148,7 @@ html_theme_options = {
     "globaltoc_includehidden": False,
 }
 
-html_sidebars = {
-    "**": ["globaltoc.html"]
-}
+html_sidebars = {"**": ["globaltoc.html"]}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
