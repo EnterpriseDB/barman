@@ -35,12 +35,10 @@ absolute, like shown here.
 import os
 import sys
 
-
 sys.path.insert(0, os.path.abspath(".."))
 
 
 from barman.version import __version__  # noqa: E402
-
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 module_dir = os.path.abspath(os.path.join(project_root, "barman"))
