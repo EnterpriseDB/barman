@@ -41,7 +41,7 @@ docker run --rm -u "${USERMAP}" -w "$(pwd)" -v "${BASEDIR}:${BASEDIR}" \
 pwd
 ls
 mkdir -p "${DISTDIR}"
-cp -va *.html *.pdf "${DISTDIR}"
+cp -va ./*.html ./*.pdf "${DISTDIR}"
 mkdir -p "${DISTDIR}/html-templates"
 cp -va html-templates/*.css "${DISTDIR}/html-templates"
 mkdir -p "${DISTDIR}/images"

@@ -21,6 +21,7 @@ set -eu
 
 DOCKER=false
 DATE=false
+# shellcheck disable=SC2046
 BASE="$(dirname $(cd $(dirname "$0"); pwd))"
 
 usage()
@@ -60,6 +61,7 @@ get_date() {
     else
         date_cmd="date"
     fi
+    # shellcheck disable=SC3014
     if [ "$1" == false ]
         then
         # use current day
@@ -67,13 +69,13 @@ get_date() {
     else
         release_date=$(LANG=C ${date_cmd} +"%B %-d, %Y" -d "$1")
     fi
-    echo $release_date
+    echo "$release_date"
 }
 
 
 cd "$BASE"
 release_version=$RELEASE
-release_date=$(get_date $DATE)
+release_date=$(get_date "$DATE")
 
 
 require_clean_work_tree () {
@@ -108,7 +110,7 @@ require_clean_work_tree () {
 
 require_clean_work_tree "set version"
 
-if branch=$(git symbolic-ref --short -q HEAD) && [ $branch = 'master' ]
+if branch=$(git symbolic-ref --short -q HEAD) && [ "$branch" = 'master' ]
 then
     echo "Setting version ${release_version}"
 else
@@ -135,6 +137,7 @@ sed -i -e "3s/^%.*/% ${release_date} (${release_version})/" \
 sed -i -e "s/__version__ = .*/__version__ = \"${release_version}\"/" \
     barman/version.py
 
+# shellcheck disable=SC3014
 if [ "$DOCKER" == true ]
   then
     make -C doc create-all
