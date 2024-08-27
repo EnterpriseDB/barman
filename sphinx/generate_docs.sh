@@ -17,7 +17,8 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-BASEDIR=$(cd ${0%/*}; pwd )
+# shellcheck disable=SC2164
+BASEDIR=$(cd "${0%/*}"; pwd )
 
 # modify GEN_MODE. It must be passed like parameter value
 GEN_MODE='html'
@@ -75,12 +76,14 @@ RSET='\033[0m'
 
 function red()
 {
+    # shellcheck disable=SC2059
     printf "${RED}${1}${RSET}\n"
 }
 
 
 # if -h is the parameter it shows help
 # if -t expect for a target
+# shellcheck disable=SC2214
 while getopts ht: OPT; 
 do
     case "$OPT" in
@@ -117,6 +120,7 @@ red "Cleaning the Build directory..."
 make clean
 
 red "Removing all generated files..."
+# shellcheck disable=SC2010
 ls "${BASEDIR}"/docs/*.rst | grep -v 'index.rst$' | xargs -trI X rm -f X
 
 # Generates automatically modules doc
@@ -124,6 +128,6 @@ red "Generating documentation from modules..."
 sphinx-apidoc -P -e -T -M -o docs "${BARMAN_DIR}"
 # Invokes html generation
 red "Generating ${GEN_MODE}"
-make ${GEN_MODE}
+make "${GEN_MODE}"
 
 red "DONE!!"
