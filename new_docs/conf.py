@@ -216,7 +216,72 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [(master_doc, "barman", "Barman Documentation", [author], 1)]
+man_pages = [
+    # (master_doc, "barman", "Barman Documentation", [author], 1),
+    (
+        "commands/barman_cloud/backup",
+        "barman-cloud-backup",
+        "Barman-cloud Commands",
+        [author],
+        3,
+    ),
+    (
+        "commands/barman_cloud/backup_delete",
+        "barman-cloud-backup-delete",
+        "Barman-cloud Commands",
+        [author],
+        3,
+    ),
+    (
+        "commands/barman_cloud/backup_show",
+        "barman-cloud-backup-show",
+        "Barman-cloud Commands",
+        [author],
+        3,
+    ),
+    (
+        "commands/barman_cloud/backup_list",
+        "barman-cloud-backup-list",
+        "Barman-cloud Commands",
+        [author],
+        3,
+    ),
+    (
+        "commands/barman_cloud/backup_keep",
+        "barman-cloud-backup-keep",
+        "Barman-cloud Commands",
+        [author],
+        3,
+    ),
+    (
+        "commands/barman_cloud/check_wal_archive",
+        "barman-cloud-check-wal-archive",
+        "Barman-cloud Commands",
+        [author],
+        3,
+    ),
+    (
+        "commands/barman_cloud/restore",
+        "barman-cloud-restore",
+        "Barman-cloud Commands",
+        [author],
+        3,
+    ),
+    (
+        "commands/barman_cloud/wal_archive",
+        "barman-cloud-wal-archive",
+        "Barman-cloud Commands",
+        [author],
+        3,
+    ),
+    (
+        "commands/barman_cloud/wal_restore",
+        "barman-cloud-wal-restore",
+        "Barman-cloud Commands",
+        [author],
+        3,
+    ),
+]
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {"python": ("https://docs.python.org/", None)}

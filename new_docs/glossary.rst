@@ -5,12 +5,18 @@ Glossary
 
 .. glossary::
 
+    AWS
+        Amazon Web Service
+
     Barman
         Backup and Recovery Manager.
 
     DEB
         Debian Package.
 
+    GCP
+        Google Cloud Platform
+        
     PGDG
         Postgres Global Development Group.
 
