@@ -225,10 +225,9 @@ intersphinx_mapping = {"python": ("https://docs.python.org/", None)}
 # If the builder is not "html" then add the API docs modules index to pages to be removed.
 exclude_from_builder = {
     "latex": [
-        "modules/",
+        "contributing",
     ],
     "man": [
-        "modules/",
         "concepts",
         "installation",
         "quickstart",
@@ -243,6 +242,7 @@ exclude_from_builder = {
         "faq",
         "releases",
         "license",
+        "contributing",
     ],
 }
 # Internal holding list, anything added here will always be excluded

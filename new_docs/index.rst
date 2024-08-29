@@ -32,4 +32,4 @@ reduce risk and help DBAs during the recovery phase.
    faq
    releases
    license
-   Barman API docs<modules/modules>
+   contributing
