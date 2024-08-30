@@ -1,4 +1,4 @@
-.. _glossary::
+.. _glossary:
 
 Glossary
 ========
@@ -6,16 +6,16 @@ Glossary
 .. glossary::
 
     Barman
-        Backup and Recovery Manager
+        Backup and Recovery Manager.
 
     DEB
-        Debian Package
+        Debian Package.
 
     PGDG
-        Postgres Global Development Group
+        Postgres Global Development Group.
 
     RHEL
-        Red Hat Enterprise Linux
+        Red Hat Enterprise Linux.
 
     RPM
-        Red Hat Package Manager
+        Red Hat Package Manager.
