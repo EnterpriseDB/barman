@@ -240,6 +240,7 @@ exclude_from_builder = {
         "diagnose_and_troubleshooting",
         "barman_cloud",
         "faq",
+        "glossary",
         "releases",
         "license",
         "contributing",
