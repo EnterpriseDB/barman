@@ -47,59 +47,6 @@ in square brackets. Each section can include various options.
 Models and servers must have unique identifiers, and reserved words cannot be used as
 names.
 
-.. code-block:: text
-  :caption: **/etc/barman.conf**
-  :name: /etc/barman.conf
-
-  [barman]
-  barman_user = barman
-  configuration_files_directory = /etc/barman.d
-  barman_home = /var/lib/barman
-  log_file = /var/log/barman/barman.log
-  log_level = INFO
-
-.. code-block:: text
-  :caption: **/etc/barman.d/pg13_prod.conf**
-  :name: /etc/barman.d/pg13_prod.conf
-
-  [pg13_prod1_streaming]
-  description =  "Production Server 1 - PG13 - Streaming Only"
-  conninfo = host=pg13_prod1 user=barman dbname=postgres
-  streaming_conninfo = host=pg13_prod1 user=streaming_barman
-  backup_method = postgres
-  streaming_archiver = on
-  slot_name = barman
-  cluster=archiving_cl
-
-  [pg13_prod2_archiving]
-  description =  "Production Server 2 - PG13 - Archiving Only"
-  ssh_command = ssh postgres@pg13_prod2
-  conninfo = host=pg13_prod2 user=barman dbname=postgres
-  backup_method = rsync
-  parallel_jobs = 8
-  reuse_backup = link
-  archiver = on
-
-.. code-block:: text
-  :caption: **/etc/barman.d/pg13_prod1_model.conf**
-  :name: /etc/barman.d/pg13_prod1_model.conf
-
-  [pg13_prod1:switchover_to_pg13_prod3]
-  description =  "Model to switchover streaming connection from pg13_prod1 to pg13_prod3"
-  cluster=archiving_cl
-  model=true
-  conninfo = host=pg13_prod3 user=barman dbname=postgres
-  streaming_conninfo = host=pg13_prod3 user=streaming_barman
-
-.. note::
-  The previous example is a scope of configurations. The ``/etc/barman.conf`` is where
-  global configuration is being set, while server specific configurations are in
-  ``/etc/barman.d/pg13_prod.conf`` and model specific configurations are in
-  ``/etc/barman.d/pg13_prod1_model.conf`` . In the server configuration, there is a
-  ``pg13_prod1_streaming`` server and a ``pg13_prod2_archiving`` server. In the model
-  configuration, there is the ``pg13_prod1:switchover_to_pg13_prod3`` model that will
-  override any server that has the option ``cluster=archiving_cl`` configured.
-
 **Reserved Words**
 
 The following reserved words cannot be used as server or model names:
@@ -1017,24 +964,114 @@ Retention Policies
 
   Scope: Global / Server / Model.
 
+Configuration Models
+--------------------
+
+Configuration models provide a systematic approach to manage and apply configuration
+overrides for Postgres servers by organizing them under a specific ``cluster`` name.
+
+Purpose
+"""""""
+
+The primary goal of a configuration model is to simplify the management of configuration
+settings for Postgres servers grouped by the same ``cluster``. By using a model, you can
+apply a set of common configuration overrides, enhancing operational efficiency. They are
+especially beneficial in clustered environments, allowing you to create various
+configuration models that can be utilized during failover events.
+
+Application
+"""""""""""
+
+The configurations defined in a model file can be applied to Postgres servers that share
+the same ``cluster`` name specified in the model. Consequently, any server utilizing that
+model can inherit these settings, promoting a consistent and adaptable configuration
+across all servers. 
+
+Usage
+"""""
+
+Model options can only be defined within a model section, which is identified in the same
+way as a server section. It is important to ensure that there are no conflicts between
+the identifiers of server sections and model sections.
+
+To apply a configuration model, execute the
+``barman config-switch SERVER_NAME MODEL_NAME``. This command facilitates the application
+of the model's overrides to the relevant Barman server associated with the specified
+cluster name.
+
+If you wish to remove the overrides, the deletion of the model configuration file alone
+will not have any effect, so you can do so by using the ``--reset`` argument with the
+command, as follows: ``barman config-switch SERVER_NAME --reset``.
+
+.. note::
+  The ``config-switch`` command will only succeed if model name exists and is associated
+  with the same ``cluster`` as the server. Additionally, there can be only one active
+  model at a time; if you execute the command multiple times with different models, only
+  the overrides defined in the last model will be applied.
+
+  Not all options can be configured through models. Please review the scope of the
+  available configurations to determine which settings apply to models.
+
+Benefits
+""""""""
+
+* Consistency: Ensures uniform configuration across multiple Barman servers within a
+  cluster.
+* Efficiency: Simplifies configuration management by allowing centralized updates and
+  overrides.
+* Flexibility: Allows the use of multiple model files, providing the ability to define
+  various sets of overrides as necessary.
+
 Examples
 --------
 
-Barman system configurations are common between all configured servers. So if you want to
+Barman global configurations are common between all configured servers. So if you want to
 have specific configurations, you should move it to the server scope instead of the barman
-system scope.
+global scope.
 
-**System**
+Next you can find a few examples of global, servers and models configurations with an
+explanation of the fields. 
+
+Global Configuration
+""""""""""""""""""""
+
+.. code-block:: text
+  :caption: **/etc/barman.conf**
+  :name: /etc/barman.conf
+
+  [barman]
+  
+  barman_home = /var/lib/barman
+  barman_user = barman
+  configuration_files_directory = /etc/barman.d
+  log_file = /var/log/barman/barman.log
+  log_level = INFO
+
+**barman**
   * Set configuration that will be global.
   * Configure locations for ``barman_home``, ``configuration_files_directory``,
     ``log_file``, the ``barman_user`` and the ``log_level``.
-  * All backups will compress WAL files with ``gzip``.
-  * Recovery for compressed backups will use the ``recovery_staging_path`` as the
-    intermediate location to uncompress the backup.
-  * Recovery for block-level incremental backups will use the ``local_staging_path``
-    as the intermediate location to combine the chain of backups.
 
-**Server1**
+Server Configuration - Rsync
+"""""""""""""""""""""""""""
+
+.. code-block:: text
+  :caption: **/etc/barman.d/pg_server1_rsync.conf**
+  :name: /etc/barman.d/pg_server1_rsync.conf
+  
+  [server1]
+
+  description =  "PostgreSQL server 1"
+  conninfo = host=pg1 user=barman port=5432 dbname=databasename
+  ssh_command = ssh postgres@pg1
+  backup_method = rsync
+  reuse_backup = link
+  archiver = on
+  parallel_jobs = 2
+  minimum_redundancy = 2
+  retention_policy = REDUNDANCY 4
+
+**server1**
   * Connect to Postgres from Barman using the ``conninfo``.
   * ``ssh_command`` is needed to correctly create an SSH connection from the Barman
     server to the PostgreSQL server when using rsync.
@@ -1046,60 +1083,146 @@ system scope.
   * Set the ``minimum_redundancy`` and the ``retention_policy`` for backups created
     from this server.
 
-**Server2**
-  * Connect to Postgres from Barman using the ``conninfo``.
-  * Set the ``backup_method`` as ``postgres`` and ``reuse_backup`` to enable file-level
-    incremental backups.
-  * Configure the ``streaming_archiver`` option to ship WALs using the streaming
-    replication, the ``slot_name`` that will be created in the PostgreSQL server and
-    ``create_slot`` as ``auto`` so Barman can automatically attempt to create the
-    replication slot if not present.
-  * Set the ``minimum_redundancy`` and the ``retention_policy`` for backups created
-    from this server.
+Server Configuration - pg_basebackup
+"""""""""""""""""""""""""""""""""""
 
 .. code-block:: text
-
-  [barman]
-  
-  barman_home = /some/path/for/home
-  barman_user = chopper
-  configuration_files_directory = /some/path/for/configs
-  log_file = /some/path/for/home/log/barman/barman.log 
-  log_level = INFO
-  compression = gzip
-  recovery_staging_path = /some/path/for/home/staging
-  local_staging_path = /some/path/for/home/local_staging
-
-  [server1]
-  description =  "PostgreSQL server 1"
-  conninfo = host=pg user=postgres port=5432 dbname=databasename
-  ssh_command = ssh postgres@pg
-  backup_method = rsync
-  reuse_backup = link
-  archiver = on
-  parallel_jobs = 2
-  minimum_redundancy = 2
-  retention_policy = REDUNDANCY 4
+  :caption: **/etc/barman.d/pg_server2_streaming.conf**
+  :name: /etc/barman.d/pg_server2_streaming.conf
 
   [server2]
+
   description =  "PostgreSQL server 2"
-  conninfo = host=pg2 user=postgres port=5432 dbname=databasename
-  streaming_conninfo = host=pg2 user=postgres port=5432 dbname=databasename
-  ssh_command = "ssh postgres@pg2"
+  conninfo = host=pg2 user=barman port=5432 dbname=databasename
+  streaming_conninfo = host=pg2 user=streaming_barman port=5432 dbname=databasename
   backup_method = postgres
   streaming_archiver = on
   slot_name = barman
   create_slot = auto
   minimum_redundancy = 5
   retention_policy = RECOVERY WINDOW OF 7 DAYS
+  local_staging_path = /var/lib/barman/staging
+  cluster = streaming
 
-**Server2 Model**
+**server2**
+  * Connect to Postgres using the ``conninfo``. This is used to check the status
+    of replication slots.
+  * Connect to Postgres using the ``streaming_conninfo``. This is used to create
+    ``pg_receivewal`` processes to stream WAL segments.
+  * Set the ``backup_method`` as ``postgres``.
+  * Configure the ``streaming_archiver`` option to ship WALs using the streaming
+    replication, the ``slot_name`` that will be created in the PostgreSQL server and
+    ``create_slot`` as ``auto`` so Barman can automatically attempt to create the
+    replication slot if not present.
+  * Set the ``minimum_redundancy`` and the ``retention_policy`` for backups created
+    from this server.
+  * Recovery for block-level incremental backups will use the ``local_staging_path``
+    as the intermediate location to combine the chain of backups.
+  * Group this server into the ``streaming`` cluster to be used by models.
+
+Model Configuration 1
+""""""""""""""""""""
+    
+.. code-block:: text
+  :caption: **/etc/barman.d/mdl_streaming_switchover.conf**
+  :name: /etc/barman.d/mdl_streaming_switchover.conf
+  
+  [server2:switch_over_streaming_conn_to_pg3]
+
+  cluster = streaming
+  model = true
+  wal_conninfo = host=pg3 user=barman port=5432 dbname=databasename
+  wal_streaming_conninfo = host=pg3 user=streaming_barman port=5432 dbname=databasename
+  compression = gzip
+  backup_compression = gzip
+  recovery_staging_path = /var/lib/barman/recovery_staging
+  retention_policy = RECOVERY WINDOW OF 14 DAYS
+
+**server2:switch_over_wal_streaming_conn_to_pg3**
+  * Tag this model to a cluster named ``streaming`` to override configurations.
+  * Configure this as a model (``model = true``).
+  * ``wal_conninfo`` is set, so this connection will be used specifically for monitoring
+    WAL streaming status and perform checks.
+  * ``wal_streaming_conninfo`` is set, Barman will use this instead of
+    ``streaming_conninfo`` when receiving WAL segments via streaming replication
+    protocol. If ``wal_conninfo`` was unset, this option would also be used
+    to monitor and check WAL streaming replication statuses.
+  * WAL files will be compressed with ``gzip``.
+  * All backups will be compressed with ``gzip``.
+  * Recovery for compressed backups will use the ``recovery_staging_path`` as the
+    intermediate location to uncompress the backup.
+  * Set a ``retention_policy`` for backups that are grouped in the ``streaming``
+    cluster.
+
+*In this example we have setup a model that switches the streaming connection to pg3,
+enables compression of backups and WAL files and changes the retention_policy.* **This is
+a way to stream WALs and backups from different hosts.**
+
+The final configuration will have the following settings:
 
 .. code-block:: text
+  
+  [server2]
 
-  [server2:switchover]
+  description =  "PostgreSQL server 2"
+  conninfo = host=pg2 user=barman port=5432 dbname=databasename
+  streaming_conninfo = host=pg2 user=streaming_barman port=5432 dbname=databasename
+  backup_method = postgres
+  streaming_archiver = on
+  slot_name = barman
+  create_slot = auto
+  minimum_redundancy = 5
+  retention_policy = RECOVERY WINDOW OF 14 DAYS
+  local_staging_path = /var/lib/barman/staging
+  wal_conninfo = host=pg3 user=barman port=5433 dbname=databasename 
+  wal_streaming_conninfo = host=pg3 user=streaming_barman port=5433 dbname=databasename
+  compression = gzip
+  backup_compression = gzip
+  recovery_staging_path = /var/lib/barman/recovery_staging
 
-  cluster=server2
-  model=true
-  conninfo = host=pg3 user=barman dbname=databasename
-  streaming_conninfo = host=pg3 user=streaming_barman
+Model Configuration 2
+""""""""""""""""""""
+
+.. code-block:: text
+  :caption: **/etc/barman.d/mdl_streaming_failover**
+  :name: /etc/barman.d/mdl_streaming_failover
+  
+  [server2:failover_conn_to_pg3]
+
+  cluster = streaming
+  model = true
+  conninfo = host=pg3 user=barman port=5433 dbname=databasename
+  streaming_conninfo = host=pg3 user=streaming_barman port=5433 dbname=databasename
+
+**server2:failover_conn_to_pg3**
+  * Tag this model to a cluster named ``streaming`` to override configurations.
+  * Configure this as a model (``model = true``).
+  * ``conninfo`` is set, so it will be used to switch the Postgres connection to
+    host ``pg3``.
+  * ``streaming_conninfo`` is set, so it will be used to switch the Postgres streaming
+    connection to host ``pg3``.
+  
+*In this example we have setup a model that switches the Postgres connection and
+streaming connection upon a failover from pg2 to pg3.*
+
+The final configuration will have the following settings:
+
+.. code-block:: text
+  
+  [server2]
+
+  description =  "PostgreSQL server 2"
+  conninfo = host=pg3 user=barman port=5432 dbname=databasename
+  streaming_conninfo = host=pg3 user=streaming_barman port=5432 dbname=databasename
+  backup_method = postgres
+  streaming_archiver = on
+  slot_name = barman
+  create_slot = auto
+  minimum_redundancy = 5
+  retention_policy = RECOVERY WINDOW OF 7 DAYS
+  local_staging_path = /var/lib/barman/staging
+
+.. important::
+  You will not see any in place changes in the configuration file. The overrides are
+  applied internally and you can check the current server configuration by using the
+  command ``barman show-servers SERVER_NAME`` for the complete list of settings.
