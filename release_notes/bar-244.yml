@@ -1,0 +1,15 @@
+---
+- summary: Prevent orphan files from being left from a crash while deleting a backup
+  description: |
+    This commit fixes an issue where backups could leave behind files if the system
+    crashed during the deletion of a backup.
+
+    Now, when a backup is deleted, it will get a "delete marker" at the start.
+    If a crash happens while the backup is being deleted, the marker will help
+    recognize incomplete backup removals when the server restarts.
+
+    The Barman cron job has been updated to look for these delete markers. If it finds
+    a backup with a "delete marker", it will complete the process.
+  type: minor_change
+  jira_tickets:
+    - BAR-244
