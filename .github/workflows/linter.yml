@@ -1,0 +1,92 @@
+---
+# Copyright (C) 2024 EnterpriseDB
+
+name: Linters
+
+on:
+  pull_request:
+    branches:
+      - master
+
+  push:
+    branches:
+      - master
+
+  schedule:
+    # Lint code base every Monday 12:00 am. The idea here is to catch possible
+    # issues that were not detected during the normal development workflow.
+    - cron: '0 0 * * 1'
+
+  workflow_dispatch:
+    inputs:
+      source-ref:
+        description: Source code branch/ref name
+        default: master
+        required: true
+        type: string
+
+env:
+  SOURCE_REF: ${{ inputs.source-ref || github.ref }}
+  GITHUB_TOKEN: ${{ secrets.GH_SLONIK }}
+
+jobs:
+  run-super-linter:
+    name: Run super linter
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: read
+      # To report GitHub Actions status checks
+      statuses: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_REF }}
+          # Full git history is needed to get a proper list of changed files within `super-linter`
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+
+      - name: Super-linter
+        uses: super-linter/super-linter/slim@v7
+        env:
+          # To report GitHub Actions status checks
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Linters configuration.
+          LINTER_RULES_PATH: '.'
+          # We are not interested in linting these files:
+          # * Markdown files under `doc` or `sphinx` directories, which belong to the
+          #   old docs, and are going to be replaced soon.
+          FILTER_REGEX_EXCLUDE: '(doc|sphinx)/.*\.md'
+          DOCKERFILE_HADOLINT_FILE_NAME: .hadolint.yaml
+          GITLEAKS_CONFIG_FILE: .gitleaks.toml
+          MARKDOWN_CONFIG_FILE: .markdownlint.yml
+          PYTHON_BLACK_CONFIG_FILE: .python-black
+          PYTHON_FLAKE8_CONFIG_FILE: tox.ini
+          PYTHON_ISORT_CONFIG_FILE: .isort.cfg
+          YAML_CONFIG_FILE: .yamllint.yml
+          YAML_ERROR_ON_WARNING: false
+          # On runs triggered by PRs we only lint the added/modified files.
+          VALIDATE_ALL_CODEBASE: ${{ github.event_name != 'pull_request' }}
+          # Validate file types used in the Barman repo.
+          # Bash because of bash scripts.
+          VALIDATE_BASH: true
+          VALIDATE_BASH_EXEC: true
+          # Dockerfile because we might add some of them soon.
+          VALIDATE_DOCKERFILE_HADOLINT: true
+          # Validate the own GitHub workflows and actions.
+          VALIDATE_GITHUB_ACTIONS: true
+          # Search for leaks in the repository.
+          VALIDATE_GITLEAKS: true
+          # Validate all documentation files from the repo.
+          VALIDATE_MARKDOWN: true
+          # Validate Python code.
+          VALIDATE_PYTHON_BLACK: true
+          VALIDATE_PYTHON_FLAKE8: true
+          VALIDATE_PYTHON_ISORT: true
+          # Validate YAML files from workflows.
+          VALIDATE_YAML: true
