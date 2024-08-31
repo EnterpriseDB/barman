@@ -830,7 +830,15 @@ These configuration options are related to how Barman will manage the Write-Ahea
   Scope: Global / Server / Model.
 
 **custom_compression_filter**
-  Specifies a custom compression algorithm for WAL files.
+  Specifies a custom compression algorithm for WAL files. It must be a ``string`` that
+  will be used internally to create a bash command and it will prefix to the
+  following string ``> "$2" < "$1";``. Write to standard output and do not delete input
+  files.
+
+  .. tip::
+    ``custom_compression_filter = "xz -c"``
+
+    This is the same as running ``xz -c > "$2" < "$1";``.
 
   Scope: Global / Server / Model.
 
@@ -840,11 +848,29 @@ These configuration options are related to how Barman will manage the Write-Ahea
   already been compressed with the specified algorithm. If not configured, Barman will
   apply custom compression to all WAL files, even those pre-compressed.
 
+  .. tip::
+    For example, in the ``xz`` compression algorithm, the magic number is used to detect
+    the format of ``.xz`` files.
+
+    For xz files, the magic number is the following sequence of bytes:
+      Magic Number: ``FD 37 7A 58 5A 00``
+
+    In hexadecimal representation, this can be expressed as:
+      Hex String: ``fd377a585a00``
+
+    Reference: `xz-file-format <https://tukaani.org/xz/xz-file-format-1.0.4.txt>`_
   Scope: Global / Server / Model.
 
 **custom_decompression_filter**
-  Specifies a custom decompression algorithm for compressed WAL files. This must
-  correspond with the compression algorithm used.
+  Specifies a custom decompression algorithm for compressed WAL files. It must be a
+  ``string`` that will be used internally to create a bash command and it will
+  prefix to the following string ``> "$2" < "$1";``. It must correspond with the
+  compression algorithm used.
+
+  .. tip::
+    ``custom_compression_filter = "xz -c -d"``
+
+    This is the same as running ``xz -c -d > "$2" < "$1";``.
 
   Scope: Global / Server / Model.
 
