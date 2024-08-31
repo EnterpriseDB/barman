@@ -1,0 +1,8 @@
+# MD013/line-length : Line length : https://github.com/DavidAnson/markdownlint/blob/v0.34.0/doc/md013.md
+# We don't want the linter to fail just because line-length was exceeded.
+MD013: false
+# MD024/no-duplicate-heading: https://github.com/DavidAnson/markdownlint/blob/v0.34.0/doc/md024.md
+# We don't want the linter to fail when duplicated header names are found. That is not
+# relevant for us, and actually we rely on duplicated names when generating the RELNOTES.md
+# contents.
+MD024: false
