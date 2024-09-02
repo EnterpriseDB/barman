@@ -217,6 +217,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
+    ("configuration", "barman", "Barman Configurations", [author], 5),
     ("commands", "barman", "Barman Commands", [author], 1),
     (
         "commands/barman/archive_wal",
