@@ -39,3 +39,11 @@ Glossary
 
     VLDB
         Very Large DataBase
+
+    SPOF
+        Single Point of Failure
+
+    RPO
+        Recovery Point Objective. The maximum targeted period in which data might be
+        lost from an IT service due to a major incident. In summary, it represents the
+        maximum amount of data you can afford to lose.
