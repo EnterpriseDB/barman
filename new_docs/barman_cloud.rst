@@ -58,30 +58,11 @@ Installation
 ------------
 
 To back up PostgreSQL servers directly to a cloud provider, you need to install the
-Barman client utility for the cloud on those servers.
+Barman client utility for the cloud on those servers. Keep in mind that the installation
+process varies based on the distribution you are using.
 
-To install the package on a RedHat/CentOS system, run:
-
-.. code:: bash
-
-    yum install barman-cli-cloud
-
-On Debian/Ubuntu systems, use:
-
-.. code:: bash
-
-    apt-get install barman-cli-cloud
-
-The utility package requires the appropriate library and access control for the cloud
-provider you wish to use:
-
-* `boto3 <https://github.com/boto/boto3>`_ for **AWS**.
-* `azure-storage-blob and azure-indentity (optional) <https://learn.microsoft.com/en-us/azure/storage/blobs/storage-quickstart-blobs-python?tabs=managed-identity%2Croles-azure-portal%2Csign-in-azure-cli&pivots=blob-storage-quickstart-scratch#install-the-packages>`_ for  **Azure**.
-* `google-cloud-storage <https://pypi.org/project/google-cloud-storage/>`_ for **GCP**.
-
-.. note::
-  For GCP, only authentication with ``GOOGLE_APPLICATION_CREDENTIALS`` environment
-  variable is supported at the moment.
+Refer to the :ref:`installation <installation>` section for the installation process,
+and make sure to note the important information for each distribution.
 
 .. _barman-cloud-commands-reference:
 
