@@ -182,3 +182,90 @@ handle the ``.partial`` file.
 
 Moreover, ``get-wal`` will check the ``incoming`` directory for any WAL files that have
 been sent to Barman but not yet archived.
+
+Recovering from Snapshot Backups
+--------------------------------
+
+Barman currently does not support fully automated recovery from snapshot backups. This
+limitation arises because snapshot recovery requires provisioning and managing new
+infrastructure, a task best handled by dedicated :term:`IAC` solutions like Terraform.
+
+However, you can still use the barman recover command to validate the snapshot recovery
+instance and perform post-recovery tasks, such as checking the Postgres configuration for
+unsafe settings and configuring any necessary PITR options. The command will also copy
+the ``backup_label`` file into place, as this file is not included in the volume
+snapshots, and will transfer any required WAL files--unless the ``--get-wal`` recovery
+option is specified, in which case it configures the Postgres ``restore_command`` to fetch
+the WALs.
+
+If restoring from a backup created with ``barman-cloud-backup``, you should use the
+``barman-cloud-restore`` command instead of ``barman recover``.
+
+.. note::
+  The same requirements and configurations apply for restore when working with a cloud
+  provider. See the ``Requirements and Configuration`` section and the specific cloud
+  provider you are working with in the :ref:`Cloud Snapshot Backups <cloud_snapshot_backups>` section.
+
+Recovery Steps
+""""""""""""""
+
+1. Provision a new disk for each snapshot taken during the backup.
+2. Provision a compute instance to which each disk from step 1 is attached and mounted according to the backup metadata.
+3. Use the ``barman recover`` or ``barman-cloud-restore`` command to validate and finalize the recovery.
+
+Steps 1 and 2 are ideally managed by an existing IAC system, but they can also be
+performed manually or via a custom script.
+
+Helpful Resources
+"""""""""""""""""
+
+`Example recovery script for GCP <https://github.com/EnterpriseDB/barman/blob/master/scripts/prepare_snapshot_recovery.py>`_.
+
+`Example runbook for Azure <https://github.com/EnterpriseDB/barman/blob/master/doc/runbooks/snapshot_recovery_azure.md>`_.
+
+These resources make assumptions about your backup and recovery environment and should be
+customized before use in production.
+
+Running the Recovery Command
+""""""""""""""""""""""""""""
+
+Once the recovery instance is provisioned and the disks cloned from the backup snapshots
+are attached and mounted, execute the barman recover command with the following
+additional arguments:
+
+* ``--remote-ssh-command``: The SSH command required to log into the recovery instance.
+* ``--snapshot-recovery-instance``: The name of the recovery instance as specified by
+  your cloud provider.
+* Any additional arguments specific to the snapshot provider.
+
+Example Command
+^^^^^^^^^^^^^^^
+
+.. code:: bash
+  
+  barman recover SERVER_NAME BACKUP_ID REMOTE_RECOVERY_DIRECTORY \
+    --remote-ssh-command 'ssh USER@HOST' \
+    --snapshot-recovery-instance INSTANCE_NAME
+
+Barman will automatically recognize the backup as a snapshot and verify that the
+attached disks were cloned from the corresponding snapshots. It will then prepare
+Postgres for recovery by copying the backup label and WALs into place and adjusting the
+Postgres configuration with the necessary recovery options.
+
+Provider-Specific Arguments
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For GCP:
+
+* ``--gcp-zone``: The availability zone where the recovery instance is located. If
+  omitted, Barman will use the ``gcp_zone`` value set in the server config.
+
+For Azure:
+
+* ``--azure-resource-group``: The resource group for the recovery instance. If not
+  provided, Barman will refer to the ``azure_resource_group`` value in the server config.
+
+For AWS:
+
+* ``--aws-region``: The AWS region of the recovery instance. If not specified, Barman
+  will default to the ``aws_region`` value set in the server config.

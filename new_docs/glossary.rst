@@ -20,6 +20,9 @@ Glossary
     GCP
         Google Cloud Platform
 
+    IAC
+        Infrastructure As Code
+
     ICT
         Information and Communication Technology.
 

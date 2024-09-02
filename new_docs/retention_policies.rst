@@ -3,7 +3,7 @@
 Retention policies
 ==================
 
-.. _retention-overview:
+.. _retention-policies-overview:
 
 Overview
 --------
@@ -14,7 +14,7 @@ guidelines for how long backups are kept, when they should be archived or delete
 how they are organized. Implementing a well-defined retention policy is essential for
 ensuring data protection, optimizing storage use, and meeting compliance requirements.
 
-.. _retention-key-components:
+.. _retention-policies-key-components:
 
 Key Components of Retention Policies
 ------------------------------------
@@ -54,7 +54,7 @@ Cleanup Rules
   before deletion or if they are removed directly. Archiving can be useful for
   maintaining historical data for compliance or other purposes.
 
-.. _retention-key-objectives:
+.. _retention-policies-key-objectives:
 
 Key Objectives of Retention Policies
 ------------------------------------
@@ -95,7 +95,7 @@ Compliance and Regulation
   a clear and organized backup history that demonstrates compliance with retention
   regulations.
 
-.. _retention-minimun-redundancy-safety:
+.. _retention-policies-minimun-redundancy-safety:
 
 Minimum redundancy safety
 -------------------------
@@ -113,7 +113,7 @@ This setting helps protecting against accidental deletion of backups.
     Make sure your retention policy does not conflict with the minimum redundancy
     setting. Check Barman's logs regularly for any related messages.
 
-.. _retention-scope:
+.. _retention-policies-scope:
 
 Scope of retention policies
 ---------------------------
@@ -143,7 +143,7 @@ backup that falls outside the window will still be retained with its correspondi
 but backups before this one and all the older WALs will be marked as obsolete and
 eventually evicted.
 
-.. _retention-use-cases:
+.. _retention-policies-use-cases:
 
 Use cases
 ---------
@@ -169,7 +169,7 @@ For compliance or historical purposes, you may need to retain backups for extend
 periods beyond the usual operational requirements. This is often required in regulated
 industries where data must be kept for a certain period.
 
-.. _retention-how-retention-policies-are-enforced:
+.. _retention-policies-how-retention-policies-are-enforced:
 
 How retention policies are enforced
 -----------------------------------
@@ -177,7 +177,7 @@ How retention policies are enforced
 Retention policies in Barman are enforced automatically by Barman's maintenance tasks
 which are executed by ``barman cron``.
 
-.. _retention-configuration-and-syntax:
+.. _retention-policies-configuration-and-syntax:
 
 Configurations and Syntax
 -------------------------
@@ -202,7 +202,7 @@ Retention policies have the following syntax:
     depend on their parent backups and the root backup. Only the root backup is used
     to determine retention.
 
-.. _retention-retention-policy-for-block-level-incremental-backups:
+.. _retention-policies-retention-policy-for-block-level-incremental-backups:
 
 Retention policy for block-level incremental backups
 ----------------------------------------------------
@@ -214,3 +214,28 @@ When retention policy is applied:
   associated incremental backups are marked as ``VALID``.
 * If the root backup is marked as ``OBSOLETE``, all associated incremental backups are
   marked as ``OBSOLETE``.
+
+.. _retention-policies-retention-policy-for-cloud-backups:
+
+Retention policy for Cloud Backups
+----------------------------------
+
+We can have two scenarios for Cloud Backups:
+
+1. Using :ref:`snapshots backups <backup-cloud-snapshot-backups>` with a Barman Server
+   as the centralized Backup and Recovery manager.
+2. Using :ref:`cloud backups <barman-cloud-barman-cli-cloud>` with cloud object storages
+   to manage backups without a Barman Server.
+
+In the first scenario, Barman uses ``cron`` for maintenance operations and enforcing the
+retention policy, as outlined in
+:ref:`retention-policies-how-retention-policies-are-enforced`. In this case, ``snapshot``
+backups are treated the same as any other ``rsync`` or ``postgres`` backup.
+
+In the second scenario, since there is no Barman server, you won't have cron for
+maintenance operations or enforcing the retention policy. Instead, you'll need to use
+``barman-cloud-backup-delete`` with the ``-r RETENTION_POLICY`` option (see the
+:ref:`command reference <barman-cloud-barman-cloud-backup-delete>`). This will delete
+any backups that do not meet the specified retention policy. Additionally, you can also
+schedule these commands using hook scripts or custom scripts to simulate cron
+maintenance for cloud backups.
