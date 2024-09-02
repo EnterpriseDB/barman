@@ -808,45 +808,6 @@ detailed in the following sections.
 * ``snapshot_id``: The ID of the snapshot as assigned by AWS.
 * ``snapshot_name``: The name of the snapshot.
 
-.. _backup-hook-scripts:
-
-Hook Scripts
-------------
-
-Install the ``barman-cli-cloud`` package on the Barman server.
-
-.. note::
-    For detailed information on the ``barman-cli-cloud`` commands, refer to the
-    :ref:`barman-cli-cloud <barman-cloud-barman-cli-cloud>`. In case of configuration
-    options, refer to the :ref:`Hook Scripts <configuration-options-hook-scripts>`
-    configuration section.
-
-You can use ``barman-cloud-backup`` as a `post-backup script` for the following Barman
-backup types:
-
-* Backups created with ``backup_method = rsync``.
-* Backups created with ``backup_method = postgres`` when ``backup_compression`` is not
-  applied.
-
-To configure this, add the following line to your server configuration in Barman:
-
-.. code-block:: text
-
-    post_backup_retry_script = barman-cloud-backup [ OPTIONS ] DESTINATION_URL SERVER_NAME
-
-.. warning::
-    When used as a hook script, ``barman-cloud-backup`` requires the backup status to be
-    ``DONE``. It will fail if the backup has any other status. To avoid issues, it is
-    recommended to run backups with the ``-w`` / ``--wait`` option to ensure the hook
-    script is not executed while the backup status is ``WAITING_FOR_WALS``.
-
-Additionally, set up ``barman-cloud-wal-archive`` as a pre-WAL archive script by
-adding the following line to the Barman configuration for your PostgreSQL server:
-
-.. code-block:: text
-
-    pre_archive_retry_script = barman-cloud-wal-archive [ OPTIONS ] DESTINATION_URL SERVER_NAME
-
 .. _backup-concurrent-backup-of-a-standby:
 
 Concurrent Backup of a Standby

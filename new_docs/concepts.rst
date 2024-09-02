@@ -523,6 +523,21 @@ replication slots are recommended when using WAL streaming. You can create a slo
 manually beforehand or let Barman create them for you by setting ``create_slot`` to
 ``auto`` in your backup server configurations.
 
+.. _concepts-barman-concepts-hook-scripts:
+
+Hook Scripts
+^^^^^^^^^^^^
+
+Barman enables developers to execute hook scripts along specific operations as
+pre- and/or post-operations. This feature provides developers with the flexibility to
+implement tailored and diverse behaviors. You can utilize a post-backup script to
+generate a manifest for the backup when using rsync or you can create a hybrid
+distributed architecture that allows you to copy backups to cloud storage as well by
+combining post-backup :ref:`hook scripts with barman-cloud <hook-scripts-using-barman-cloud-scripts-as-hooks-in-barman>`
+commands.
+
+For a more in-depth exploration of this topic, please refer to the main section on
+:ref:`hook scripts <hook-scripts>`.
 
 .. _concepts-barman-concepts-restore-and-recover:
 

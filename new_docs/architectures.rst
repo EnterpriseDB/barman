@@ -46,7 +46,8 @@ With that in mind, a very common setup for Barman is to be installed in the same
 center where your Postgres servers are, in which case the :term:`SPOF` is the data
 center itself. Though the impact of such :term:`SPOF` can be significantly alleviated
 with features such as :ref:`geographical redundancy <geographical-redundancy-TBD>`
-(introduced in Barman 2.6) and :ref:`Hook Scripts <concepts-hook-scripts>`.
+(introduced in Barman 2.6) and
+:ref:`Hook Scripts <concepts-barman-concepts-hook-scripts>`.
 
 With geographical redundancy, you can rely on a Barman instance that is located in a
 different data center/availability zone to synchronize the entire content of the source
@@ -65,9 +66,9 @@ information on geo-redundancy is available in the
    :align: center
 
 
-Thanks to :ref:`Hook Scripts <concepts-hook-scripts>` instead, backups of Barman can be
-exported on different media, such as tape via tar, or locations, like an object storage
-bucket in a cloud provider.
+Thanks to :ref:`Hook Scripts <concepts-barman-concepts-hook-scripts>` instead, backups
+of Barman can be exported on different media, such as tape via tar, or locations, like
+an object storage bucket in a cloud provider.
 
 Remember that no decision is forever. You can start this way and adapt over time to the
 solution that suits you best. However, try and keep it simple to start with.
@@ -134,7 +135,7 @@ synchronous WAL receiver in your Postgres cluster and achieve zero data loss (RP
 With the use of replication slots, we can also assure that no WAL file is recycled
 before being successfully received by Barman.
 
-2. Barman also supports standard WAL file archiving, which is achieved using the
+1. Barman also supports standard WAL file archiving, which is achieved using the
 Postgres ``archive_command``, either using Rsync/SSH or ``barman-wal-archive``
 from the ``barman-cli`` package. With this method, WAL files are archived only when
 Postgres switches to a new WAL file, which normally happens every 16MB worth of data
