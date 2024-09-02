@@ -90,7 +90,7 @@ Recovery Manager".
 Be prepared, don't be scared.
 
 
-.. _general-backup-concepts:
+.. _concepts-general-backup-concepts:
 
 General backup concepts
 -----------------------
@@ -100,7 +100,7 @@ principles that are consistent across all relational databases. This section pro
 an overview of the core concepts necessary to understand how backups work.
 
 
-.. _physical-and-logical-backups:
+.. _concepts-general-backup-concepts-physical-and-logical-backups:
 
 Physical and logical backups
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -144,7 +144,7 @@ ensuring this process is handled effectively and reliably in your disaster recov
 plan.
 
 
-.. _backup-types:
+.. _concepts-general-backup-concepts-backup-types:
 
 Backup types
 ^^^^^^^^^^^^
@@ -176,7 +176,7 @@ backup. A recovery in this case only requires the most recent differential backu
 its related base backup.
 
 
-.. _transaction-logs:
+.. _concepts-general-backup-concepts-transaction-logs:
 
 Transaction logs
 ^^^^^^^^^^^^^^^^
@@ -199,7 +199,7 @@ but with even more capabilities as it also enables more robust features such as
 point-in-time recovery.
 
 
-.. _point-in-time-recovery:
+.. _concepts-general-backup-concepts-point-in-time-recovery:
 
 Point-time Recovery
 ^^^^^^^^^^^^^^^^^^^
@@ -231,7 +231,7 @@ target point followed by a replay of subsequent transaction logs up to the desir
 target.
 
 
-.. _postgres-concepts-and-terminology:
+.. _concepts-postgres-backup-concepts:
 
 Postgres backup concepts and terminology
 ----------------------------------------
@@ -242,7 +242,8 @@ section from the Postgres official documentation <https://www.postgresql.org/doc
 so we strongly recommend you read that if you want more detailed explanations on how
 Postgres handles backups.
 
-.. _postgres-concepts-pgdump-vs-pgbasebackup:
+
+.. _concepts-postgres-backup-concepts-pgdump-vs-pgbasebackup:
 
 pg_dump vs pg_basebackup
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -291,7 +292,7 @@ for consistency are archived correctly.
     e.g. ``backup_method = rsync``.
 
 
-.. _postgres-concepts-wal:
+.. _concepts-postgres-backup-concepts-wals:
 
 Write-ahead logs
 ^^^^^^^^^^^^^^^^
@@ -308,7 +309,8 @@ synced to disk after each transaction commit, resulting in huge I/Os. With WAL, 
 can be postponed to a checkpoint-time since it is sufficient to ensure database
 consistency.
 
-.. _postgres-concepts-wal-archiving-and-wal-streaming:
+
+.. _concepts-postgres-backup-concepts-wal-archiving-and-wal-streaming:
 
 WAL archiving and WAL streaming
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -350,7 +352,7 @@ offline or gets disconnected. It achieves the same goal when used with
 transferred to the receiver.
 
 
-.. _concepts-postgres-recovery:
+.. _concepts-postgres-backup-concepts-recovery:
 
 Recovery 
 ^^^^^^^^
@@ -389,7 +391,7 @@ This section offers an overview of important Barman concepts as well as demonstr
 how Barman utilizes some of the concepts explained in earlier sections.
 
 
-.. _barman-terminology-server:
+.. _concepts-barman-concepts-server:
 
 Server
 ^^^^^^
@@ -403,19 +405,21 @@ where all backups and WAL files are stored as well as a unique name which must b
 supplied in most Barman commands to specify in which context it should run.
 
 
-.. _barman-terminology-backup-methods:
+.. _concepts-barman-concepts-backup-methods:
 
 Backup methods
 ^^^^^^^^^^^^^^
 
-As outlined in :ref:`postgres-concepts-and-terminology`, there are multiple ways to
-back up a Postgres server. In the context of Barman, these are referred to as backup
-methods. Barman supports various backup methods, each relying on different Postgres
-features, with its own set of requirements, advantages, and disadvantages. The desired
-backup method can be specified using the ``backup_method`` parameter in the server's
-configuration file.
+As outlined in
+:ref:`Postgres backup concepts and terminology <concepts-postgres-backup-concepts>`,
+there are multiple ways to back up a Postgres server. In the context of Barman, these
+are referred to as backup methods. Barman supports various backup methods, each relying
+on different Postgres features, with its own set of requirements, advantages, and
+disadvantages. The desired backup method can be specified using the ``backup_method``
+parameter in the server's configuration file.
 
-.. _barman-terminology-rsync-backups:
+
+.. _concepts-barman-concepts-rsync-backups:
 
 Rsync backups
 ^^^^^^^^^^^^^
@@ -430,7 +434,8 @@ designated directory on Barman. At the end of this process, Barman forces a WAL 
 on the database server to ensure that all required WAL files are archived. Finally,
 integrity checks are performed to verify that the backup is consistent.
 
-.. _barman-terminology-streaming-backups:
+
+.. _concepts-barman-concepts-streaming-backups:
 
 Streaming Backups
 ^^^^^^^^^^^^^^^^^
@@ -442,7 +447,8 @@ process, Barman forces a WAL switch on the database server to ensure that all re
 WAL files are archived. Finally, integrity checks are performed to verify that the
 backup is consistent.
 
-.. _barman-concepts-snapshot-backups:
+
+.. _concepts-barman-concepts-snapshot-backups:
 
 Snapshot Backups
 ^^^^^^^^^^^^^^^^
@@ -454,13 +460,14 @@ storage volume is then taken as a physical backup. In this setup, Barman manages
 backups in the cloud, acting primarily as a storage server for WAL files and the
 backups catalog.
 
-.. _barman-terminology-file-level-incremental-backups:
+
+.. _concepts-barman-concepts-file-level-incremental-backups:
 
 File-level incremental backups
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 File-level incremental backups are possible when using
-:ref:`barman-terminology-rsync-backups`. It uses Rsync native features of
+:ref:`rsync <concepts-barman-concepts-rsync-backups>` backups. It uses Rsync native features of
 deduplication, which relies on filesystem hard-links. When performing a file-level
 incremental backup, Barman first creates hard-links to the latest server backup
 available, essentially replicating its content in a different directory without
@@ -471,57 +478,61 @@ case Barman will first copy the contents of the previous backup to the new backu
 directory, essentially duplicating it and consuming extra disk space, but still copying
 only changed files from the database server.
 
-.. _barman-terminology-block-level-incremental-backups:
+
+.. _concepts-barman-concepts-block-level-incremental-backups:
 
 Block-level incremental backups
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Block-level incremental backups are possible when using
-:ref:`barman-terminology-streaming-backups`. It leverages the native ``pg_basebackup``
-capabilities for incremental backups, introduced in Postgres 17. This features requires
-a Postgres instance with version 17 or newer that is properly configured for native
-incremental backups. With block-level incremental backups, any backup with a valid
-``backup_manifest`` file can be used as a reference for deduplication. Block-level
-incremental backups are more efficient than file-level incremental backups as
-deduplication happens at the block level (pages in Postgres).
+:ref:`streaming backups <concepts-barman-concepts-streaming-backups>`. It leverages the native
+``pg_basebackup`` capabilities for incremental backups, introduced in Postgres 17. This
+features requires a Postgres instance with version 17 or newer that is properly
+configured for native incremental backups. With block-level incremental backups, any
+backup with a valid ``backup_manifest`` file can be used as a reference for
+deduplication. Block-level incremental backups are more efficient than file-level
+incremental backups as deduplication happens at the block level (pages in Postgres).
 
-.. _barman-terminology-wal-archiving:
+
+.. _concepts-barman-concepts-wal-archiving:
 
 WAL archiving via ``archive_command``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This is one of the two ways of transferring WAL files to Barman. Commonly used along
-with :ref:`barman-terminology-rsync-backups`, this approach involves
-configuring the ``archive_command`` parameter in Postgres to archive WAL files directly
-to the server's dedicated directory on Barman. The command can be either an
+with :ref:`rsync <concepts-barman-concepts-rsync-backups>` backups, this approach
+involves configuring the ``archive_command`` parameter in Postgres to archive WAL files
+directly to the server's dedicated directory on Barman. The command can be either an
 Rsync command, where you manually specify the server's WAL directory on the Barman
 host, or the ``barman-wal-archive`` utility, which only requires the server name, with
 Barman handling the rest. Additionally, ``barman-wal-archive`` provides added safety by
 ensuring files are fsynced as soon as they are received.
 
-.. _barman-terminology-wal-streaming:
+
+.. _concepts-barman-concepts-wal-streaming:
 
 WAL streaming
 ^^^^^^^^^^^^^
 
 This is one of the two ways of transferring WAL files to Barman. Commonly used along
-with :ref:`barman-terminology-streaming-backups`, this approach relies on the
-``pg_receivewal`` utility to transfer WAL files.  It is much simpler to
-configure, as no manual configuration is required on the database server.
-As mentioned in :ref:`postgres-ceoncepts-wal-archiving-wal-streaming`, replication
-slots are recommended when using WAL streaming. You can create a slot manually
-beforehand or let Barman create them for you by setting ``create_slot`` to ``auto``
-in your backup server configurations.
+with :ref:`streaming backups <concepts-barman-concepts-streaming-backups>`, this
+approach relies on the ``pg_receivewal`` utility to transfer WAL files.  It is much
+simpler to configure, as no manual configuration is required on the database server.
+As mentioned in :ref:`WAL archiving and WAL streaming <concepts-postgres-backup-concepts-wal-archiving-and-wal-streaming>`,
+replication slots are recommended when using WAL streaming. You can create a slot
+manually beforehand or let Barman create them for you by setting ``create_slot`` to
+``auto`` in your backup server configurations.
 
-.. _concepts-restore-and-recover:
+
+.. _concepts-barman-concepts-restore-and-recover:
 
 Restore and recover
 ^^^^^^^^^^^^^^^^^^^
 
-As outlined in :ref:`postgres-concepts-recovery`, the recovery process in Postgres
-consists of several steps, from preparing the base directory to starting the server
-itself. Barman is able to perform all the steps required to prepare your backup to be
-recovered, a process known as "restore" in Barman's terminology. In this case,
+As outlined in :ref:`concepts-postgres-backup-concepts-recovery`, the recovery process
+in Postgres consists of several steps, from preparing the base directory to starting the
+server itself. Barman is able to perform all the steps required to prepare your backup
+to be recovered, a process known as "restore" in Barman's terminology. In this case,
 completing the recovery is usually just a matter of starting the server so that
 Postgres can apply the required WALs and go live.
 

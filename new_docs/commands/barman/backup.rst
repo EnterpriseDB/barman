@@ -1,4 +1,4 @@
-.. _barman_backup:
+.. _commands-barman-backup:
 
 ``barman backup``
 """""""""""""""""

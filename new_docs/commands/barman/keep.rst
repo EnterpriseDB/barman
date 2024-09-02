@@ -1,4 +1,4 @@
-.. _barman_keep:
+.. _commands-barman-keep:
 
 ``barman keep``
 """""""""""""""

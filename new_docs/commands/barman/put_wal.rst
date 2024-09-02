@@ -1,4 +1,4 @@
-.. _barman_put_wal:
+.. _commands-barman-put-wal:
 
 ``barman put-wal``
 """"""""""""""""""

@@ -1,4 +1,4 @@
-.. _barman_delete:
+.. _commands-barman-delete:
 
 ``barman delete``
 """""""""""""""""

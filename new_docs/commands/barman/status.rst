@@ -1,4 +1,4 @@
-.. _barman_status:
+.. _commands-barman-status:
 
 ``barman status``
 """""""""""""""""

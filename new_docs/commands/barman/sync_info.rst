@@ -1,4 +1,4 @@
-.. _barman_sync_info:
+.. _commands-barman-sync-info:
 
 ``barman sync-info``
 """"""""""""""""""""

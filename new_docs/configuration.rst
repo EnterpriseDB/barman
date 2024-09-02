@@ -9,6 +9,8 @@ means you can set a default behavior for your servers and then customize specifi
 as needed. This design reduces the need for excessive configuration while maintaining
 flexibility.
 
+.. _configuration-usage:
+
 Usage
 -----
 
@@ -20,7 +22,7 @@ model-specific settings that comprises three scopes:
 barman system, such as the main directory, system user, log file, and other general
 options. Default location is ``/etc/barman.conf`` and it can be overridden on a per-user
 level by ``~/.barman.conf`` or by specifying a ``.conf`` file using the ``-c`` /
-``--config`` :ref:`command option <barman_usage>` directly in the CLI.
+``--config`` with the :ref:`barman command <commands-barman>` directly in the CLI.
 
 2. **Server Configuration**: It comprises of one or multiple files with a set of
 configurations for a PostgreSQL server that you want to keep track and interact for
@@ -66,6 +68,8 @@ Configuration options can be of the following types:
   .. note::
     Some enums allow ``off``, but not ``false``.
 
+.. _configuration-options:
+
 Options
 -------
 
@@ -74,6 +78,8 @@ configuration options are used not only for configuring how Barman will execute 
 and recoveries, but also for configuring various aspects of how Barman interacts with the
 configured PostgreSQL servers to be able to apply your Backup and Recovery, and
 High-Availability strategies.
+
+.. _configuration-options-general:
 
 General
 """""""
@@ -423,6 +429,8 @@ A value of ``0`` indicates no limit (default).
 
 Scope: Global / Server / Model.
 
+.. _configuration-options-backups:
+
 Backups
 """""""
 
@@ -562,6 +570,8 @@ last available backup. The options are:
 
 Scope: Global / Server / Model.
 
+.. _configuration-options-cloud-backups:
+
 Cloud Backups
 """""""""""""
 
@@ -680,6 +690,8 @@ The name of the cloud provider to use for creating snapshots. Supported value:
   Required when ``backup_method = snapshot``.
 
 Scope: Global / Server / Model.
+
+.. _configuration-options-hook-scripts:
 
 Hook Scripts
 """"""""""""
@@ -842,6 +854,8 @@ Specifies a hook script run before deleting a WAL file.
 
 Scope: Global / Server.
 
+.. _configuration-options-wals:
+
 Write-Ahead Logs (WAL)
 """"""""""""""""""""""
 
@@ -984,6 +998,8 @@ Directory containing WAL files. Defaults to ``<backup_directory>/wals``.
 
 Scope: Server.
 
+.. _configuration-options-restore:
+
 Restore
 """""""
 
@@ -1019,6 +1035,8 @@ location must have sufficient space to temporarily store the compressed backup.
   Applies only for commpressed backups.
 
 Scope: Global / Server / Model.
+
+.. _configuration-options-retention-policies:
 
 Retention Policies
 """"""""""""""""""
@@ -1079,6 +1097,8 @@ Policy for retaining WAL files. Currently only ``main`` is available.
 
 Scope: Global / Server / Model.
 
+.. _configuration-configuration-models:
+
 Configuration Models
 --------------------
 
@@ -1136,6 +1156,8 @@ Benefits
   overrides.
 * Flexibility: Allows the use of multiple model files, providing the ability to define
   various sets of overrides as necessary.
+
+.. _configuration-examples:
 
 .. only:: html
   

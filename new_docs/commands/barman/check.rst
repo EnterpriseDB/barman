@@ -1,4 +1,4 @@
-.. _barman_check:
+.. _commands-barman-check:
 
 ``barman check``
 """"""""""""""""

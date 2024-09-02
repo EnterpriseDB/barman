@@ -8,7 +8,7 @@ Key decisions involve determining where to host your backup server and how to tr
 backups and WAL files, among other considerations. With that in mind, this section
 explores a few different setups for deploying and managing backups with Barman.
 
-.. _where-install-barman:
+.. _architectures-where-install-barman:
 
 Where to install Barman
 -----------------------
@@ -45,8 +45,8 @@ A good way to start modeling your disaster recovery architecture includes:
 With that in mind, a very common setup for Barman is to be installed in the same data
 center where your Postgres servers are, in which case the :term:`SPOF` is the data
 center itself. Though the impact of such :term:`SPOF` can be significantly alleviated
-with features such as :ref:`geographical-redundancy` (introduced in Barman 2.6) and
-:ref:`hook-scripts`.
+with features such as :ref:`geographical redundancy <geographical-redundancy-TBD>`
+(introduced in Barman 2.6) and :ref:`Hook Scripts <concepts-hook-scripts>`.
 
 With geographical redundancy, you can rely on a Barman instance that is located in a
 different data center/availability zone to synchronize the entire content of the source
@@ -57,23 +57,23 @@ backing up subsets of different Barman installations (cross-site backup). Figure
 shows two availability zones (one in Europe and one in the US), each with a primary
 Postgres server that is backed up in a local Barman installation, and relayed on the
 other Barman server (defined as passive) for multi-tier backup via Rsync/SSH. Further
-information on geo-redundancy is available in the :ref:`geographical-redundancy`
-section.
+information on geo-redundancy is available in the
+:ref:`geographical redundancy <geographical-redundancy-TBD>` section.
 
 .. image:: images/barman-architecture-georedundancy.png
    :scale: 50%
    :align: center
 
 
-Thanks to :ref:`hook-scripts` instead, backups of Barman can be exported on different
-media, such as tape via tar, or locations, like an object storage bucket in a cloud
-provider.
+Thanks to :ref:`Hook Scripts <concepts-hook-scripts>` instead, backups of Barman can be
+exported on different media, such as tape via tar, or locations, like an object storage
+bucket in a cloud provider.
 
 Remember that no decision is forever. You can start this way and adapt over time to the
 solution that suits you best. However, try and keep it simple to start with.
 
 
-.. _one-barman-many-servers:
+.. _architectures-one-barman-many-servers:
 
 One Barman, many Postgres servers
 ---------------------------------
@@ -88,7 +88,7 @@ Every architecture makes sense in its own way. Choose the one that resonates wit
 and most importantly, the one you trust, based on real experimentation and testing.
 
 
-.. _backup-strategies:
+.. _architectures-backup-strategies:
 
 Backup strategies
 -----------------
@@ -114,7 +114,7 @@ The reason why we recommend streaming backup is that, based on our experience, i
 easier to set up. Also, streaming backup allows you to backup a Postgres server on
 Windows, and makes life easier when working with Docker.
 
-.. _wal-archiving-strategies:
+.. _architectures-wal-archiving-strategies:
 
 WAL archiving strategies
 -------------------------
@@ -157,6 +157,7 @@ For general usage we recommend configuring WAL streaming only.
     Postgres now have replication slots, it is sufficient to configure only WAL
     streaming.
 
+.. _architectures-scenarios-for-backups:
 
 Two typical scenarios for backups
 ---------------------------------
@@ -171,21 +172,21 @@ respectively. However, in real life, your architecture will most likely contain 
 technologies such as repmgr, pgBouncer, Nagios/Icinga, and so on.
 
 
-.. _scenario1-backup-via-streaming:
+.. _architectures-scenarios-for-backups-backup-via-streaming:
 
 Scenario 1: Backup via streaming protocol
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-As stated in :ref:`concepts-streaming-backup`, this approach uses the Postgres streaming
-protocol for transferring cluster files to your Barman server. This is done with the use
-of the  ``pg_basebackup`` utility. In Barman, this method can be set by having
-``backup_method = postgres`` in your Barman server configurations.
+As stated in :ref:`Streaming Backups <concepts-barman-concepts-streaming-backups>`,
+this approach uses the Postgres streaming protocol for transferring cluster files to your
+Barman server. This is done with the use of the  ``pg_basebackup`` utility. In Barman,
+this method can be set by having ``backup_method = postgres`` in your Barman server
+configurations.
 
-With this approach, you can leverage from :ref:`block-level-incremental-backups`
+With this approach, you can leverage from :ref:`block-level incremental backups <concepts-barman-concepts-block-level-incremental-backups>`
 support provided by ``pg_basebackup``, available in Postgres 17 or later. Block-level
-incremental backups tend to be much more efficient than
-:ref:`file-level-incremental-backups` provided by Rsync strategies in terms of
-deduplication ratio.
+incremental backups tend to be much more efficient than :ref:`file-level incremental backups <concepts-barman-concepts-file-level-incremental-backups>`
+provided by Rsync strategies in terms of deduplication ratio.
 
 This method is used in conjunction with WAL streaming for WAL files. In Barman's
 terminology, this setup is known as streaming-only setup as it does not use any SSH
@@ -210,26 +211,27 @@ purposes.
 (for base backup operations) and ``pg_receivewal`` (for WAL streaming).
 
 
-.. _scenario2-backup-via-rsync:
+.. _architectures-scenarios-for-backups-backup-via-rsync:
 
 Scenario 2: Backup via rsync/SSH
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-As stated in :ref:`concepts-rsync-backup`, this approach relies on Rsync to transfer
-backup files to your Barman server. This is done by putting your server in backup mode
-and transferring your cluster files using Rsync.
+As stated in :ref:`rsync backups <concepts-barman-concepts-rsync-backups>` concepts,
+this approach relies on Rsync to transfer backup files to your Barman server. This is
+done by putting your server in backup mode and transferring your cluster files using
+Rsync.
 
-A key advantage if this approach is the possibility of using :ref:`parallel-jobs` when
-running backup operations, which can significantly decrease the overall time to take
-backups. It also provides the ability to take :ref:`file-level-incremental-backups`,
+A key advantage if this approach is the possibility of using :ref:`parallel-jobs-TBD`
+when running backup operations, which can significantly decrease the overall time to take
+backups. It also provides the ability to take :ref:`file-level incremental backups <concepts-barman-concepts-file-level-incremental-backups>`,
 which reuses files of a previous backup for deduplication. File-level incremental backups
-can be more flexible than :ref:`block-level-incremental-backups` as each backup is completely
-independent of the others, which means you can delete a root backup without affecting
-its incremental backups in any way.
+can be more flexible than :ref:`block level incremental backups <concepts-barman-concepts-block-level-incremental-backups>`
+as each backup is completely independent of the others, which means you can delete a
+root backup without affecting its incremental backups in any way.
 
 Another advantage of this method is that it allows for a finer control over bandwidth
 usage, including on a per-tablespace basis. You can check
-:ref:`limiting bandwidth usage` for further details.
+:ref:`Managing Bandwidth Usage <backup-managing-bandwidth-usage>` for further details.
 
 The figure below illustrates how this setup would function in practice.
 
@@ -251,7 +253,7 @@ that allows the **postgres** user on the Postgres server to connect as **barman*
 on the Barman server.
 
 
-.. _hybrid-scenarios:
+.. _architectures-scenarios-for-backups-hybrid-scenarios:
 
 Hybrid scenarios
 ^^^^^^^^^^^^^^^^
@@ -259,26 +261,27 @@ Hybrid scenarios
 It is also possible to use a hybrid approach, combining both backup and WAL
 transferring methods in order to achieve optimal results for a specific use case.
 
-1. When using the streaming-only setup, described in
-:ref:`scenario1-backup-via-streaming`, you can also configure WAL archiving via SSH in
-addition to WAL streaming. In such scenarios, WAL archiving would act as a fallback
-mechanism in case WAL streaming failed. See the image below.
+1. When using the streaming-only setup, described in the 
+:ref:`Scenario 1 <architectures-scenarios-for-backups-backup-via-streaming>`, you can
+also configure WAL archiving via SSH in addition to WAL streaming. In such scenarios,
+WAL archiving would act as a fallback mechanism in case WAL streaming failed. See the
+image below.
 
 .. image:: images/barman-architecture-scenario1b.png
    :scale: 50%
    :align: center
 
-2. When using the Rsync backup method, described in :ref:`scenario2-backup-via-rsync`
-you can also configure WAL streaming instead of using the ``archive_command`` in order
-to have a lower :term:`RPO`. You can also opt for configuring WAL streaming in addition
-to WAL archiving and have both options. See the image below.
+2. When using the Rsync backup method, described in
+:ref:`Scenario 2 <architectures-scenarios-for-backups-backup-via-rsync>`, you can also
+configure WAL streaming instead of using the ``archive_command`` in order to have a
+lower :term:`RPO`. You can also opt for configuring WAL streaming in addition to WAL
+archiving and have both options. See the image below.
 
 .. image:: images/barman-architecture-scenario2b.png
    :scale: 50%
    :align: center
 
-
-.. _cloud-snaphost-backups:
+.. _architectures-cloud-snaphost-backups:
 
 Cloud snapshot backups
 ----------------------
@@ -287,4 +290,4 @@ Barman also supports cloud snapshot backups, which takes a snapshot of the
 storage volume where your Postgres server resides in the cloud. Barman currently
 supports this method on Azure, Google, and AWS. The prerequisites for this method will
 depend on which cloud provider where your Postgres server resides, so we recommend
-checking the :ref:`backup-cloud-snaphosts` section for further details.
+checking the :ref:`backup-cloud-snapshot-backups` section for further details.

@@ -18,6 +18,8 @@ with the backup command. To use it, run:
   * Barman does not track symbolic links inside PGDATA (except for tablespaces).
     Ensure you manage symbolic links and include them in your disaster recovery plans.
 
+.. _recovery-remote-recovery:
+
 Remote Recovery
 ---------------
 
@@ -33,6 +35,8 @@ It's recommended to use the postgres user on the target node for remote recovery
 * Ensure there is enough free space on the remote server for the base backup and WAL
   files.
 
+.. _recovery-tablespace-remapping:
+
 Tablespace Remapping
 --------------------
 
@@ -45,6 +49,8 @@ attempt to create the destination directory if it doesn't exist.
   Postgres instance already exists, as it can end up overriding existing tablespace
   directories.
 
+
+.. _recovery-point-in-time-recovery:
 
 Point-in-Time Recovery
 ----------------------
@@ -77,6 +83,8 @@ Also you can configure the instance as a standby by calling ``--standby-mode``. 
 recovery, ensure you modify the configuration to connect to the intended upstream node
 server.
 
+.. _recovery-fetching-wals-from-barman:
+
 Fetching WALs from Barman
 -------------------------
 
@@ -86,6 +94,8 @@ set, Barman will copy the WALs required for recovery.
 .. note:: 
   When using ``--no-get-wal`` with targets like ``--target-xid``, ``--target-name``, or 
   ``--target-time``, Barman will copy the entire WAL archive to ensure availability.
+
+.. _recovery-recovering-compressed-backups:
 
 Recovering Compressed Backups
 -----------------------------
@@ -112,6 +122,8 @@ Since Barman does not have knowledge of the deployment environment, it depends o
 directory. Set the option in the global/server configuration or use the
 ``--recovery-staging-path`` option with the barman recover command. Failing to do so
 will result in an error, as Barman cannot guess a suitable location on its own.
+
+.. _recovery-recovering-block-level-incremental-backups:
 
 Recovering block-level incremental Backups
 ------------------------------------------
@@ -143,6 +155,8 @@ The process involves the following steps:
   has checksums enabled, the resulting syntethic backup may contain pages with invalid
   checksums. Please refer to the limitations in the `pg_combinebackup documentation <https://www.postgresql.org/docs/17/app-pgcombinebackup.html>`_
   for more details.
+
+.. _recovery-limitation-of-partial-wal-files:
 
 Limitations of .partial WAL files
 ---------------------------------

@@ -1,4 +1,4 @@
-.. _pre_requisites:
+.. _pre-requisites:
 
 Pre-requisites
 ==============
@@ -188,7 +188,7 @@ passwordless connections between users on different machines, and it's needed to
 Rsync for WAL archiving and backups.
 
 
-.. _ssh-connetions-of-postgres-user:
+.. _pre-requisites-ssh-connections-ssh-configuration-of-postgres-user:
 
 SSH configuration of postgres user
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -204,7 +204,7 @@ As this key must be used to connect from hosts without providing a password, no
 passphrase should be entered during the key pair creation.
 
 
-.. _ssh-connetions-of-barman-user:
+.. _pre-requisites-ssh-connections-ssh-configuration-of-barman-user:
 
 SSH configuration of barman user
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -219,7 +219,7 @@ You also need to create an SSH key for the **barman** user. Log in as **barman**
 Again, no passphrase should be entered.
 
 
-.. _ssh-connetions-from-postgres-to-barman:
+.. _pre-requisites-ssh-connections-from-postgres-to-barman:
 
 From Postgres to Barman
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -243,7 +243,7 @@ has been completed successfully:
     ssh barman@barmanhost -C true
 
 
-.. _ssh-connetions-from-barman-to-postgres:
+.. _pre-requisites-ssh-connections-from-barman-to-postgres:
 
 From Barman to Postgres
 ^^^^^^^^^^^^^^^^^^^^^^^

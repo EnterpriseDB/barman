@@ -1,4 +1,4 @@
-.. _barman_cloud_backup_delete:
+.. _barman-cloud-barman-cloud-backup-delete:
 
 ``barman-cloud-backup-delete``
 """"""""""""""""""""""""""""""

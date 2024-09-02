@@ -1,4 +1,4 @@
-.. _barman_archive_wal:
+.. _commands-barman-archive-wal:
 
 ``barman archive-wal``
 """"""""""""""""""""""

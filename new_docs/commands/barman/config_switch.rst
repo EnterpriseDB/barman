@@ -1,4 +1,4 @@
-.. _barman_config_switch:
+.. _commands-barman-config-switch:
 
 ``barman config-switch``
 """""""""""""""""""""""

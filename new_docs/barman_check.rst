@@ -1,4 +1,4 @@
-.. _barman_check:
+.. _barman-check:
 
 Barman check
 ============
@@ -48,15 +48,12 @@ To run a check on all configured servers, use:
 into your existing monitoring setup.`
 
 .. tip::
-  For other backup and server-specific checks, you can use the following commands:
+  For other backup and server-specific checks, you can use the following command:
    
   * ``barman check-backup``: Checks that all necessary WAL files for verifying the
     consistency of a physical backup are properly archived. This command is used by the
     ``cron`` job and is automatically executed after each backup operation. See
-    :ref:`barman_check_backup` for more details.
-  * ``barman check-wal-archive``: Checks that the WAL archive destination for a server
-    is suitable for use with a new PostgreSQL cluster. See
-    :ref:`barman_check_wal_archive` for more details.
+    :ref:`commands-barman-check-backup` for more details.
 
 Understanding the output
 ------------------------

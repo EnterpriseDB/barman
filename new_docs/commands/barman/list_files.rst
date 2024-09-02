@@ -1,4 +1,4 @@
-.. _barman_list_files:
+.. _commands-barman-list-files:
 
 ``barman list-files``
 """"""""""""""""""""

@@ -1,4 +1,4 @@
-.. _barman_cloud:
+.. _barman-cloud:
 
 Barman for the cloud
 ====================
@@ -12,7 +12,7 @@ Barman offers two primary methods for backing up PostgreSQL servers to the cloud
   1. You will need to setup a barman server to store the barman metadata and WAL files,
      while your backup will be created as disk volume snapshots in the cloud. This is an
      integrated feature of Barman. If you choose this approach, please consult the 
-     :ref:`backup snapshots <backup>` section for details.
+     :ref:`cloud snapshots backups <backup-cloud-snapshot-backups>` section for details.
   2. Interact and manage backups directly with the command line utility provided by the
      ``barman-cli-cloud`` package without the need for a barman server. The barman
      metadata and WAL files will be stored in a cloud object storage, while your backup
@@ -30,6 +30,8 @@ package on the same machine as your PostgreSQL server.
 
 Understanding these options will help you select the right approach for your cloud
 backup and recovery needs, ensuring you leverage Barman's full potential.
+
+.. _barman-cloud-barman-cli-cloud:
 
 barman-cli-cloud
 ----------------
@@ -49,6 +51,8 @@ differ from Barman's integrated features.
 .. note::
   Barman supports AWS S3 (and S3 compatible object stores), Azure Blob Storage
   and Google Cloud Storage.
+
+.. _barman-cloud-installation:
 
 Installation
 ------------
@@ -78,6 +82,8 @@ provider you wish to use:
 .. note::
   For GCP, only authentication with ``GOOGLE_APPLICATION_CREDENTIALS`` environment
   variable is supported at the moment.
+
+.. _barman-cloud-commands-reference:
 
 Commands Reference
 ------------------
