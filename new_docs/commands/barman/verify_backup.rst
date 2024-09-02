@@ -1,4 +1,4 @@
-.. _barman_verify_backup:
+.. _commands-barman-verify-backup:
 
 ``barman verify-backup``
 """"""""""""""""""""""""

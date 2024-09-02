@@ -1,4 +1,4 @@
-.. _barman_cloud_wal_archive:
+.. _barman-cloud-barman-cloud-wal-archive:
 
 ``barman-cloud-wal-archive``
 """"""""""""""""""""""""""""

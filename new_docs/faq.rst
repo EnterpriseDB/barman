@@ -75,17 +75,19 @@ either locally or remotely.
 **Can Barman manage backups in the cloud e.g. using AWS S3 or Azure Blob Storage?**
 
 Yes. Barman can currently manage backups in Amazon, Azure and Google cloud providers.
-This backup method is called snapshot backups in Barman terminology. In this cenario,
+This backup method is called snapshot backups in Barman terminology. In this scenario,
 backups are taken via a snapshot of the storage volume where your database server
 resides. In this case, Barman act mainly as a storage server for your WAL files and
-backups catalog. You can check the :ref:`barman_cloud` section for further details.
+backups catalog. You can check the :ref:`Barman Cloud <barman-cloud>` and
+:ref:`Cloud Snapshot Backups <backup-cloud-snapshot-backups>` sections for further
+details.
 
 **Do you have packages for RedHat and Debian based distributions?**
 
 Barman official packages are provided by :term:`PGDG`. Barman packages can be found in
 alternative repositories, but we recommend using :term:`PGDG` repositories because it
 ensures compatibility, stability and access to the latest updates. Refer to the
-:ref:`installation` section for further details.
+:ref:`installation <installation>` section for further details.
 
 **Does Barman allow me to limit the bandwidth usage for backup and recovery?**
 
@@ -123,14 +125,15 @@ Currently, Barman can compress backups using ``backup_method = postgres``, thank
 ``pg_basebackup`` compression features. This can be enabled using the
 ``backup_compression`` config option. For Rsync-based backups, at the moment there is
 no compression method, but it is feasible and the current design allows it.
-You can check the :ref:`backup-compression` section for further details.
+You can check the :ref:`Backup Compression <backup-backup-compression>` section for
+further details.
 
 **Can Barman compress WAL segments?**
 
 Yes. You can specify a compression filter for WAL segments, and significantly reduce
 the size of your WAL files by 5/10 times. This is done by setting the ``compression``
-option in the configurations. Refer to the :ref:`configuration` section for further
-details.
+option in the configurations. Refer to the :ref:`WAL configuration <configuration-options-wals>`
+section for further details.
 
 **Can Barman back up tablespaces?**
 
@@ -179,7 +182,8 @@ to restore the backup.
 Yes. Barman allows you to perform point-in-time recovery by specifying a timestamp,
 transaction ID, a Log Sequence Number (LSN) or a named restore point created
 previously. It is just a matter of adding an extra option to your ``recover`` command.
-You can check the :ref:`point-in-time-recovery` section for further details.
+You can refer to :ref:`Point-in-Time Recovery <recovery-point-in-time-recovery>` under
+Recovery section for further details.
 
 **Does Barman support timelines?**
 

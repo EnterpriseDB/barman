@@ -1,4 +1,4 @@
-.. _barman_cloud_restore:
+.. _barman-cloud-barman-cloud-restore:
 
 ``barman-cloud-restore``
 """"""""""""""""""""""""

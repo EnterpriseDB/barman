@@ -16,6 +16,8 @@ These packages use the default version of Python 3 that comes with the operating
     configuration as each source repository provides different packages, which use
     different configuration layouts.
 
+.. _installation-rhel-based-distributions:
+
 RHEL-based distributions
 ------------------------
 
@@ -30,6 +32,8 @@ To install Barman:
 .. code-block:: bash
 
    dnf install barman
+
+.. _installation-debian-based-distributions:
 
 Debian-based distributions
 --------------------------

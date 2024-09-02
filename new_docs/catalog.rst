@@ -59,10 +59,13 @@ Usage
 -----
 
 Barman offers a straightforward terminal interface for managing PostgreSQL backups and
-interacting with the backup catalog. This interface provides a range of commands for
-both server management and backup operations. All Barman commands can be found in the
-:ref:`commands` section, including two importatn ones which are ``list-backups`` and
-``show-backup``. These commands can be found below with an example.
+interacting with the backup catalog. This interface provides a range of sub-commands for
+both server management and backup operations. All Barman sub-commands can be found in
+the :ref:`sub commands <commands-sub-commands>` section, including two important ones
+which are ``list-backups`` and ``show-backup``. These commands can be found below with
+an example.
+
+.. _catalog-usage-list-backups:
 
 ``list-backups``
 """"""""""""""""
@@ -87,6 +90,8 @@ For example:
 .. note::
   The backup type label can be ``F`` for full backups and ``I`` for block-level
   incremental backups. ``R`` for rsync backups and ``S`` for cloud snapshot backups.
+
+.. _catalog-usage-show-backup:
 
 ``show-backup``
 """""""""""""""

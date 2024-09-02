@@ -1,4 +1,4 @@
-.. _barman_replication_status:
+.. _commands-barman-replication-status:
 
 ``barman replication-status``
 """""""""""""""""""""""""""""

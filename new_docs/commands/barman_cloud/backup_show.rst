@@ -1,4 +1,4 @@
-.. _barman_cloud_backup_show:
+.. _barman-cloud-barman-cloud-backup-show:
 
 ``barman-cloud-backup-show``
 """"""""""""""""""""""""""""
@@ -25,7 +25,7 @@
 
 This script displays detailed information about a specific backup created with the
 ``barman-cloud-backup`` command. The output is similar to the ``barman show-backup``
-from the :ref:`catalog` command reference, but it has fewer information.
+from the :ref:`catalog-show-backup` command reference, but it has fewer information.
 
 .. note::
   For GCP, only authentication with ``GOOGLE_APPLICATION_CREDENTIALS`` env is supported.

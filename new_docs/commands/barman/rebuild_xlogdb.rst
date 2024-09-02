@@ -1,4 +1,4 @@
-.. _barman_rebuild_xlogdb:
+.. _commands-barman-rebuild-xlogdb:
 
 ``barman rebuild-xlogdb``
 """""""""""""""""""""""""

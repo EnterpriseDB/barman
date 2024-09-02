@@ -1,4 +1,4 @@
-.. _barman_list_backups:
+.. _commands-barman-list-backups:
 
 ``barman list-backups``
 """""""""""""""""""""""
@@ -15,7 +15,7 @@ Description
 
 Display the available backups for a server. This command is useful for retrieving both
 the backup ID and the backup type. You can find details about this command in
-:ref:`catalog`. (TODO - reference the exact part with details)
+:ref:`catalog-list-backups`.
 
 Parameters
 ^^^^^^^^^^

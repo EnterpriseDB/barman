@@ -1,4 +1,4 @@
-.. _barman_verify:
+.. _commands-barman-verify:
 
 ``barman verify``
 """""""""""""""""

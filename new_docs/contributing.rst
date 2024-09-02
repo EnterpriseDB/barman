@@ -190,7 +190,7 @@ Instead of:
 Directing users up and down through a topic
 """""""""""""""""""""""""""""""""""""""""""
 
-Don’t use words like "above" and "below" to refer to previous and following sections.
+Don't use words like "above" and "below" to refer to previous and following sections.
 Link to the section instead or use "earlier" or "later".
 
 It also isn't necessary to use the words "the following" to refer to list items. These
@@ -330,6 +330,60 @@ Use `images <https://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.
 to clarify a topic, but use them only as needed.
 
 Images are put inside the folder ``new_docs/images``.
+
+Cross-reference labels standard
+"""""""""""""""""""""""""""""""
+
+When creating cross-reference labels in Sphinx, please follow these guidelines to ensure
+consistency and clarity:
+
+1. Use Hyphens: Separate words in labels with a hyphen. For example:
+
+``.. _backup-overview:``
+
+2. Hierarchical Prepending: For each ``.rst`` file, prepend labels with the higher-level
+section label, followed by any intermediate sub-section labels. This way, the full
+hierarchy is represented in the label.
+
+For example, a file called ``backup.rst`` can have the following label:
+
+``.. _backup:``
+
+Then, any subsequent labels in this file should start with ``backup-``. For a sub-section
+labeled ``Overview`` the label would be ``_backup-overview:``. For another sub-section in
+``Overview`` the label would be like:
+
+``.. _backup-overview-other-section-under-overview:``
+
+Handling Included Files
+~~~~~~~~~~~~~~~~~~~~~~~
+
+If your ``.rst`` file uses the ``.. include::`` directive, evaluate whether the included
+files are closely related to the parent document:
+
+* Related Example: In a file ``commands.rst`` with the label:
+
+  ``.. _commands:``
+
+  if you include another file, like ``commands/backup.rst``, which is related, you
+  would label the latter as:
+
+  ``.. _commands-backup:``
+
+* Independent Example: If the included section is not directly related, you may treat it
+  as an independent section, without the hierarchical label prepending.
+
+Purpose of This Standard
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Following this labeling standard helps us:
+
+* Easily trace the source of cross-references.
+* Avoid label duplication.
+* Simplify navigation for developers and end-users.
+
+By adhering to these guidelines, we can create clear and maintainable documentation that
+enhances usability and understanding.
 
 Building the documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^

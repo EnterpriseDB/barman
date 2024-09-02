@@ -1,4 +1,4 @@
-.. _barman_generate_manifest:
+.. _commands-barman-generate-manifest:
 
 ``barman generate-manifest``
 """"""""""""""""""""""""""""

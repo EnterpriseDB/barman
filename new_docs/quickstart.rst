@@ -9,10 +9,10 @@ That said, the examples in this tutorial assume the following hosts:
 * ``pghost``: The host where Postgres is running.
 * ``barmanhost``: The host where Barman will be set up.
 
-Assuming Barman is already installed in ``barmanhost`` as per :ref:`installation`, you
-can continue through the next steps.
+Assuming Barman is already installed in ``barmanhost`` as per
+:ref:`installation <installation>`, you can continue through the next steps.
 
-.. _configuring-your-first-server:
+.. _quickstart-configuring-your-first-server:
 
 Configuring your first server
 -----------------------------
@@ -22,7 +22,7 @@ recipes to set up two of the most commonly used architectures. Choose the one th
 suits your needs and proceed to the next sections.
 
 
-.. _streaming-backups-with-wal-streaming:
+.. _quickstart-configuring-your-first-server-streaming-backups-with-wal-streaming:
 
 Streaming backups with WAL streaming
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -35,7 +35,7 @@ other strategies.
 
 It relies on the ``pg_basebackup`` utility for backups and ``pg_receivewal`` for
 transferring the WAL files. It is therefore required to have both tools installed on
-``barmanhost`` beforehand. Check the :ref:`client-server-binaries` section if you need
+``barmanhost`` beforehand. Check the :ref:`client-server-binaries-TBD` section if you need
 further details on how to install them.
 
 1. As a first step, let's create the required users you will need on your Postgres
@@ -59,8 +59,8 @@ privileges, which will be used by Barman when invoking ``pg_receivewal`` and
 Both ``createuser`` commands prompt you for a password, which you are then advised to
 add to a `password file <https://www.postgresql.org/docs/current/libpq-pgpass.html>`_
 named ``.pgpass`` under your Barman home directory on ``barmanhost``. Check the
-:ref:`postgres-streaming-connection` section if you need further details on how to
-configure streaming connections.
+:ref:`pre-requisites <pre-requisites-postgres-streaming-connection>` section if you need
+further details on how to configure streaming connections.
 
 From now on, this section assumes you already have both Postgres users created as well
 as a Postgres server to be backed up. Also, we assume a database named ``postgres``
@@ -175,7 +175,7 @@ Run the check command again and make sure no failed checks are shown:
     barman check streaming-backup-server
 
 
-.. _rsync-backups-with-wal-archiving:
+.. _quickstart-configuring-your-first-server-rsync-backups-with-wal-archiving:
 
 Rsync backups with WAL archiving
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -185,8 +185,8 @@ files to your Barman server.
 
 Since it depends on SSH connections, it is therefore required that you have a
 both-way passwordless SSH connection between ``pghost`` and ``barmanhost``. For
-further instructions on how to set this, please refer to the :ref:`ssh-connections`
-section.
+further instructions on how to set this, please refer to the
+:ref:`pre-requisites <pre-requisites-ssh-connections>` section.
 
 1. As a first step, let's create the required user you will need on your Postgres
 server. On ``pghost``, execute the following command:
@@ -238,8 +238,8 @@ properly set:
     ``archive_command`` is by using the ``barman-wal-archive`` utility, as in the
     example above. For this utility to be available, make sure to also have the
     ``barman-cli`` package installed on ``pghost``. Check the
-    :ref:`client-server-binaries` section for further details or the
-    :ref:`wal-archiving-rsync-ssh` section for alternative command options.
+    :ref:`client-server-binaries-TBD` section for further details or the
+    :ref:`wal-archiving-rsync-ssh-TBD` section for alternative command options.
 
 4. Now let's configure your first backup server on Barman. On ``barmanhost``, create a
 configuration file at ``/etc/barman.d/rsync-backup-server.conf`` with this content:
@@ -270,8 +270,8 @@ Where:
 
 * ``reuse_backup = link`` tells Barman that you want to have data deduplication by
   reusing files of the previous backup, saving storage and network resources whenever
-  taking new backups for this server. Check :ref:`backup-rsync-ssh` section for more
-  details.
+  taking new backups for this server. Check :ref:`rsync backups <backup-rsync-backup>`
+  section for more details.
 
 * ``backup_options = concurrent_backup`` indicates that Barman is going to issue
   non-exclusive backup commands on your Postgres server when taking backups.
@@ -326,7 +326,7 @@ Run the check command again and make sure no failed checks are shown:
     barman check rsync-backup-server
 
 
-.. _taking-your-first-backup:
+.. _quickstart-configuring-your-first-server-taking-your-first-backup:
 
 Taking your first backup
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -352,7 +352,7 @@ And show the details of a specific backup with this command:
     barman show-backup <server_name> first-backup
 
 
-.. _recovering-from-a-backup:
+.. _quickstart-configuring-your-first-server-recovering-from-a-backup:
 
 Recovering from a backup
 ^^^^^^^^^^^^^^^^^^^^^^^^

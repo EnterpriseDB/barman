@@ -1,4 +1,4 @@
-.. _barman_sync_wals:
+.. _commands-barman-sync-wals:
 
 ``barman sync-wals``
 """"""""""""""""""""

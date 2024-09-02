@@ -1,4 +1,4 @@
-.. _barman_recover:
+.. _commands-barman-recover:
 
 ``barman recover``
 """"""""""""""""""

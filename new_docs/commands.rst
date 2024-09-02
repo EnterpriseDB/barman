@@ -42,6 +42,8 @@ Exit Statuses
 
 Status code **0** means **success**, while status code **Non-Zero** means **failure**.
 
+.. _commands-sub-commands:
+
 Sub-Commands
 ------------
 

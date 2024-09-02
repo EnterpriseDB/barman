@@ -1,4 +1,4 @@
-.. _barman_switch_xlog:
+.. _commands-barman-switch-xlog:
 
 ``barman switch-xlog``
 """"""""""""""""""""""

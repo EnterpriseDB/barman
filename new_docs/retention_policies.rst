@@ -1,7 +1,9 @@
-.. _retention_policies:
+.. _retention-policies:
 
 Retention policies
 ==================
+
+.. _retention-overview:
 
 Overview
 --------
@@ -11,6 +13,8 @@ backup copies of your data are handled over time. This policy outlines the rules
 guidelines for how long backups are kept, when they should be archived or deleted, and
 how they are organized. Implementing a well-defined retention policy is essential for
 ensuring data protection, optimizing storage use, and meeting compliance requirements.
+
+.. _retention-key-components:
 
 Key Components of Retention Policies
 ------------------------------------
@@ -49,6 +53,8 @@ Cleanup Rules
 * **Archiving and Deletion**: Cleanup rules can specify whether old backups are archived
   before deletion or if they are removed directly. Archiving can be useful for
   maintaining historical data for compliance or other purposes.
+
+.. _retention-key-objectives:
 
 Key Objectives of Retention Policies
 ------------------------------------
@@ -89,6 +95,8 @@ Compliance and Regulation
   a clear and organized backup history that demonstrates compliance with retention
   regulations.
 
+.. _retention-minimun-redundancy-safety:
+
 Minimum redundancy safety
 -------------------------
 
@@ -104,6 +112,8 @@ This setting helps protecting against accidental deletion of backups.
 .. note:: 
     Make sure your retention policy does not conflict with the minimum redundancy
     setting. Check Barman's logs regularly for any related messages.
+
+.. _retention-scope:
 
 Scope of retention policies
 ---------------------------
@@ -133,6 +143,8 @@ backup that falls outside the window will still be retained with its correspondi
 but backups before this one and all the older WALs will be marked as obsolete and
 eventually evicted.
 
+.. _retention-use-cases:
+
 Use cases
 ---------
 
@@ -157,11 +169,15 @@ For compliance or historical purposes, you may need to retain backups for extend
 periods beyond the usual operational requirements. This is often required in regulated
 industries where data must be kept for a certain period.
 
+.. _retention-how-retention-policies-are-enforced:
+
 How retention policies are enforced
 -----------------------------------
 
 Retention policies in Barman are enforced automatically by Barman's maintenance tasks
 which are executed by ``barman cron``.
+
+.. _retention-configuration-and-syntax:
 
 Configurations and Syntax
 -------------------------
@@ -185,6 +201,8 @@ Retention policies have the following syntax:
     Block-level incremental backups are not considered in retention policies, as they
     depend on their parent backups and the root backup. Only the root backup is used
     to determine retention.
+
+.. _retention-retention-policy-for-block-level-incremental-backups:
 
 Retention policy for block-level incremental backups
 ----------------------------------------------------

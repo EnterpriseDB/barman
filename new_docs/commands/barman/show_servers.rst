@@ -1,4 +1,4 @@
-.. _barman_show_servers:
+.. _commands-barman-show-servers:
 
 ``barman show-servers``
 """""""""""""""""""""""

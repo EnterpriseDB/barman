@@ -1,4 +1,4 @@
-.. _barman_cron:
+.. _commands-barman-cron:
 
 ``barman cron``
 """""""""""""""

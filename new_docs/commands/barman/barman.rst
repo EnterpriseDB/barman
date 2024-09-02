@@ -1,4 +1,4 @@
-.. _barman:
+.. _commands-barman:
 
 ``barman``
 ----------

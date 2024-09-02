@@ -1,4 +1,4 @@
-.. _barman_show_backup:
+.. _commands-barman-show-backup:
 
 ``barman show-backup``
 """"""""""""""""""""""
@@ -14,7 +14,7 @@ Description
 ^^^^^^^^^^^
 
 Display detailed information about a specific backup. You can find details about this command in
-:ref:`catalog`. You can use a shortcut instead of ``BACKUP_ID``.
+:ref:`catalog-show-backup`. You can use a shortcut instead of ``BACKUP_ID``.
 
 Parameters
 ^^^^^^^^^^

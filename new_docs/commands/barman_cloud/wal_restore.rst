@@ -1,4 +1,4 @@
-.. _barman_cloud_wal_restore:
+.. _barman-cloud-barman-cloud-wal-restore:
 
 ``barman-cloud-wal-restore``
 """"""""""""""""""""""""""""

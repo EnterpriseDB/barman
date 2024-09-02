@@ -1,4 +1,4 @@
-.. _diagnose_and_troubleshooting:
+.. _diagnose-and-troubleshooting:
 
 Diagnose and troubleshooting
 ============================

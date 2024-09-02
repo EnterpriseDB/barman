@@ -1,4 +1,4 @@
-.. _barman_lock_directory_cleanup:
+.. _commands-barman-lock-directory-cleanup:
 
 ``barman lock-directory-cleanup``
 """""""""""""""""""""""""""""""""

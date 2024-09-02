@@ -1,4 +1,4 @@
-.. _barman_config_update:
+.. _commands-barman-config-update:
 
 ``barman config-update``
 """""""""""""""""""""""

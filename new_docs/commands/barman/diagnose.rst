@@ -1,4 +1,4 @@
-.. _barman_diagnose:
+.. _commands-barman-diagnose:
 
 ``barman diagnose``
 """""""""""""""""""

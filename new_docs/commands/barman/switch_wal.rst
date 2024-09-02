@@ -1,4 +1,4 @@
-.. _barman_switch_wal:
+.. _commands-barman-switch-wal:
 
 ``barman switch-wal``
 """""""""""""""""""""

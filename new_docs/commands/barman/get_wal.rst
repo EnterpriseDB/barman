@@ -1,4 +1,4 @@
-.. _barman_get_wal:
+.. _commands-barman-get-wal:
 
 ``barman get-wal``
 """"""""""""""""""

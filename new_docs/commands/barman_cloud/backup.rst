@@ -1,4 +1,4 @@
-.. _barman_cloud_backup:
+.. _barman-cloud-barman-cloud-backup:
 
 ``barman-cloud-backup``
 """""""""""""""""""""""

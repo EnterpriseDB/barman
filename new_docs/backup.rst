@@ -3,6 +3,8 @@
 Backups
 =======
 
+.. _backup-overview:
+
 Overview
 --------
 
@@ -13,7 +15,7 @@ configuration file parameters. To use it, run:
 
 .. note::
     For detailed information on the backup command, refer to the
-    :ref:`backup command reference <barman_backup>`.
+    :ref:`backup <commands-barman-backup>` command reference.
 
 .. important::
     Any interaction you plan to have with Barman, you will have to assure that the
@@ -38,6 +40,8 @@ the streaming connection.
   method for taking backups is through ``concurrent`` backup. If ``backup_options`` is
   unset, Barman will automatically set it to ``concurrent_backup``.
 
+.. _backup-incremental-backups:
+
 Incremental Backups
 -------------------
 
@@ -60,6 +64,8 @@ Barman supports two types of incremental backups:
     example, you cannot take a block-level incremental backup on top of an rsync backup,
     nor can you take a file-level incremental backup on top of a streaming backup created
     with ``pg_basebackup``.
+
+.. _backup-managing-bandwidth-usage:
 
 Managing Bandwidth Usage
 ------------------------
@@ -88,6 +94,8 @@ is found, the default bandwidth limit for the server will be used.
     methods, but the ``tablespace_bandwidth_limit`` option is only applicable when using
     ``rsync``.
 
+.. _backup-network-compression:
+
 Network Compression
 -------------------
 
@@ -104,6 +112,8 @@ can be enabled with the ``network_compression`` option (global or per server):
 
 Setting this option to ``true`` will enable data compression for network transfers
 during both backup and recovery. By default, this option is set to ``false``.
+
+.. _backup-backup-compression:
 
 Backup Compression
 ------------------
@@ -138,8 +148,9 @@ RedHat, CentOS, and SLES systems.
 
 .. important::
     If using ``backup_compression``, you must also set ``recovery_staging_path`` to
-    enable recovery of compressed backups. Refer to the :ref:`Recovery <recovery>` section
-    for details.
+    enable recovery of compressed backups. Refer to the
+    :ref:`Recovering Compressed backups <recovery-recovering-compressed-backups>`
+    section for details.
 
 Compression Workers
 """""""""""""""""""
@@ -165,7 +176,8 @@ default value for the algorithm will be used.
 * For ``none`` compression, ``backup_compression_level`` must be set to ``0``.
 
 * The available levels and default values depend on the chosen compression algorithm.
-Check the :ref:`configuration` section for details.
+  Check the :ref:`backup configuration options <configuration-options-backups>` section
+  for details.
 
 * For Postgres versions prior to 15, ``gzip`` supports only
   ``backup_compression_level = 0``, which uses the default compression level.
@@ -236,6 +248,8 @@ Refer to the table below to select the appropriate tools for your configuration.
       - tar
       - tar
 
+.. _backup-immediate-checkpoint:
+
 Immediate Checkpoint
 --------------------
 
@@ -254,6 +268,8 @@ with the ``barman backup`` command:
 * ``--immediate-checkpoint``: Forces an immediate checkpoint.
 * ``--no-immediate-checkpoint``: Waits for the checkpoint to complete before starting
   the backup.
+
+.. _backup-streaming-backup:
 
 Streaming Backup
 ----------------
@@ -308,6 +324,8 @@ To use block-level incremental backups in Barman, you must:
     If you enable ``data_checksums`` between block-level incremental backups, it's
     advisable to take a new full backup. Divergent checksum configurations can
     potentially cause issues during recovery.
+
+.. _backup-rsync-backup:
 
 Backup with Rsync through SSH
 -----------------------------
@@ -377,6 +395,8 @@ the Barman backup command. For example, to run a one-off incremental backup, use
     it will still be treated as a full backup due to the absence of existing files to
     link.
 
+.. _backup-cloud-snapshot-backups:
+
 Cloud Snapshot Backups
 ----------------------
 
@@ -390,8 +410,8 @@ ones created with ``rsync`` or ``postgres`` backup methods.
 .. note::
     Additionally, snapshot backups can be created without a Barman server by using the
     ``barman-cloud-backup`` command directly on the PostgreSQL server. Refer to the
-    :ref:`Barman Cloud <barman_cloud>` section for more information on how to properly
-    work with this option.
+    :ref:`barman-cli-cloud <barman-cloud-barman-cli-cloud>` section for more information
+    on how to properly work with this option.
 
 .. important::
     The following configuration options and equivalent command arguments (if applicable)
@@ -788,14 +808,18 @@ detailed in the following sections.
 * ``snapshot_id``: The ID of the snapshot as assigned by AWS.
 * ``snapshot_name``: The name of the snapshot.
 
+.. _backup-hook-scripts:
+
 Hook Scripts
 ------------
 
 Install the ``barman-cli-cloud`` package on the Barman server.
 
 .. note::
-    For detailed information on the ``barman-cli-cloud`` commands and configuration
-    options, refer to the :ref:`Barman Cloud <barman_cloud>` section.
+    For detailed information on the ``barman-cli-cloud`` commands, refer to the
+    :ref:`barman-cli-cloud <barman-cloud-barman-cli-cloud>`. In case of configuration
+    options, refer to the :ref:`Hook Scripts <configuration-options-hook-scripts>`
+    configuration section.
 
 You can use ``barman-cloud-backup`` as a `post-backup script` for the following Barman
 backup types:
@@ -822,6 +846,8 @@ adding the following line to the Barman configuration for your PostgreSQL server
 .. code-block:: text
 
     pre_archive_retry_script = barman-cloud-wal-archive [ OPTIONS ] DESTINATION_URL SERVER_NAME
+
+.. _backup-concurrent-backup-of-a-standby:
 
 Concurrent Backup of a Standby
 ------------------------------
@@ -858,15 +884,14 @@ future backups and WAL retrieval.
 
 .. note::
     You can update the Barman configuration with
-    :ref:`Configuration Models <configuration_models>`.
+    :ref:`Configuration Models <configuration-configuration-models>`.
 
-WALs can be retrieved from the standby via WAL streaming or WAL archiving:
-
-* WAL Streaming: Follow the instructions in the :ref:`WAL streaming <wal_streaming>`
-  section.
-* WAL Archiving: Follow the instructions in the :ref:`WAL archiving <wal_archiving>`
-  section and set ``archive_mode = always`` in the PostgreSQL configuration on the
-  standby.
+WALs can be retrieved from the standby via WAL streaming or WAL archiving. Refer to the
+:ref:`concepts <concepts-postgres-backup-concepts-wal-archiving-and-wal-streaming>`
+section for more details. If you want to start working with WAL streaming or WAL
+archiving, refer to the quickstart section on :ref:`streaming backups with wal streaming <quickstart-configuring-your-first-server-streaming-backups-with-wal-streaming>`
+or
+:ref:`rsync backups with wal archiving <quickstart-configuring-your-first-server-rsync-backups-with-wal-archiving>`.
 
 .. note::
     For PostgreSQL 10 and earlier, Barman cannot handle simultaneous WAL streaming and
