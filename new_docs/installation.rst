@@ -125,3 +125,45 @@ To install the ``barman-cli-cloud`` package, run as **root** in the PostgreSQL s
    If you want to use the barman-cloud utilities as
    :ref:`hook scripts <hook-scripts-using-barman-cloud-scripts-as-hooks-in-barman>`, you
    will need to install this package in the Barman server.
+
+.. _installation-sles-based-distributions:
+
+SLES-based distributions
+------------------------
+
+Barman can be installed on :term:`SLES` systems by utilizing the packages provided in
+the `PostgreSQL Zypper Repository <https://zypp.postgresql.org/>`_.
+
+To begin installation, you will need to add the appropriate repository by following the
+detailed instructions available on the
+`PGDG SLES Repository Configuration <https://zypp.postgresql.org/howtozypp/>`_.
+
+**The current supported version for installation is SLES 15 SP5/12 SP5.**
+
+.. important::
+   The ``barman-cli-cloud`` utilities are part of the ``barman-cli`` package for
+   SLES-based distributions from :term:`PGDG`. Therefore, you only need to install
+   ``barman-cli``.
+
+barman
+^^^^^^
+
+To install the ``barman`` package. Run as **root**:
+
+.. code-block:: bash
+
+   zypper install barman
+
+barman-cli
+^^^^^^^^^^
+
+To install the ``barman-cli`` package, run as **root** in the PostgreSQL server:
+
+.. code-block:: bash
+
+   zypper install barman-cli
+
+.. note::
+   If you want to use the barman-cloud utilities as
+   :ref:`hook scripts <hook-scripts-using-barman-cloud-scripts-as-hooks-in-barman>`, you
+   will need to install this package in the Barman server.

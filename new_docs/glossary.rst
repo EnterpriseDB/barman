@@ -48,6 +48,9 @@ Glossary
         lost from an IT service due to a major incident. In summary, it represents the
         maximum amount of data you can afford to lose.
 
+    SLES
+        SUSE Linux Enterprise Server
+
     SPOF
         Single Point of Failure
 
