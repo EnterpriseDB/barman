@@ -46,7 +46,7 @@ To begin installation, install the `PGDG RPM repository <https://www.postgresql.
 .. important::
    The ``barman-cli-cloud`` utilities are part of the ``barman-cli`` package for
    RHEL-based distributions from :term:`PGDG`. Therefore, you only need to install
-   ``barman-cli``.
+   ``barman-cli`` to use the cloud scripts.
 
 barman
 ^^^^^^
@@ -138,12 +138,12 @@ To begin installation, you will need to add the appropriate repository by follow
 detailed instructions available on the
 `PGDG SLES Repository Configuration <https://zypp.postgresql.org/howtozypp/>`_.
 
-**The current supported version for installation is SLES 15 SP5/12 SP5.**
+**The current supported version for installation is SLES 15 SP5.**
 
 .. important::
    The ``barman-cli-cloud`` utilities are part of the ``barman-cli`` package for
    SLES-based distributions from :term:`PGDG`. Therefore, you only need to install
-   ``barman-cli``.
+   ``barman-cli`` to use the cloud scripts.
 
 barman
 ^^^^^^
