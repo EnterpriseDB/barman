@@ -95,6 +95,81 @@ set, Barman will copy the WALs required for recovery.
   When using ``--no-get-wal`` with targets like ``--target-xid``, ``--target-name``, or 
   ``--target-time``, Barman will copy the entire WAL archive to ensure availability.
 
+Another option is to include the ``recovery_options`` configuration at the global/server
+level prior to a recovery operation to retrieve WAL files during the recovery process,
+effectively turning the Barman server into a WAL hub for your servers.
+
+.. code-block:: text
+
+  recovery_options = 'get-wal'
+
+If ``get-wal`` is included during recovery, Barman will set up the ``restore_command``
+to use either ``barman get-wal`` or ``barman-wal-restore`` to retrieve the required WAL
+files, depending on whether the recovery is local or remote.
+
+If ``get-wal`` is specified in ``recovery_options`` but not needed during a specific
+recovery, you can disable it using the ``--no-get-wal`` option with the recover command.
+
+Here's an example of a ``restore_command`` for **local recovery**:
+
+.. code-block:: text
+
+  restore_command = 'sudo -u barman barman get-wal SERVER %f > %p'
+
+Remember that the :ref:`commands-barman-get-wal` command should always be executed as
+the ``barman`` user, with the necessary permissions to access WAL files from the catalog,
+which is why ``sudo -u barman`` is used in this example.
+
+For remote recovery, setting ``recovery_options`` to ``get-wal`` will create a
+``restore_command`` using the :ref:`commands-barman-cli-barman-wal-restore` script,
+which is designed to handle SSH connection errors more robustly.
+
+This script offers useful features like automatic compression and decompression of WAL
+files and the ``peek`` feature, allowing you to retrieve upcoming WAL files while
+Postgres is processing others, optimizing bandwidth between Postgres and Barman.
+
+``barman-wal-restore`` is included in the ``barman-cli`` package. Here's an example of
+a ``restore_command`` for **remote recovery**:
+
+.. code-block:: text
+
+  restore_command = 'barman-wal-restore -U barman backup SERVER_NAME %f %p'
+
+Here, ``backup`` refers to the host where Barman is installed. Since it communicates via
+SSH, SSH key authentication is required for the ``postgres`` user to log in as
+``barman`` on the backup server. If you need to use a non-default SSH port, you can
+specify it with the ``--port`` option.
+
+To verify that ``barman-wal-restore`` can connect to the Barman server and that the
+required PostgreSQL server is set up to send WAL files, use the following command:
+
+.. code-block:: text
+
+  barman-wal-restore --test backup pg DUMMY DUMMY
+
+Here, ``backup`` refers to the host where Barman is installed, ``pg`` is the name of the
+PostgreSQL server configured in Barman, and ``DUMMY`` acts as a placeholder (the script
+needs two arguments for the WAL file name and destination directory, which will be
+ignored).
+
+If everything is set up correctly, you should see:
+
+.. code-block:: text
+
+  Ready to retrieve WAL files from the server pg
+
+For further details on the ``barman-wal-restore`` command, type
+``man barman-wal-restore`` on the host where ``barman-cli`` was installed or refer to
+the :ref:`commands-barman-cli-barman-wal-restore` command reference.
+
+.. tip:: 
+  When both the ``pg_wal`` directory and the ``spool`` directory are located on the same
+  filesystem, serving WAL files will be faster because the files are renamed rather than
+  copied. However, if these directories are on different filesystems, there will be no 
+  performance improvement, as the operation will involve both copying the file and then
+  removing the original. Be mindful of the filesystem locations to optimize WAL file
+  management efficiency.
+
 .. _recovery-recovering-compressed-backups:
 
 Recovering Compressed Backups
@@ -170,8 +245,8 @@ completes the file, it removes the ``.partial`` suffix and hands it over to Barm
 ``archive-wal`` command for permanent storage and compression.
 
 If the master PostgreSQL server suddenly fails and cannot be recovered, the ``.partial``
-file that was streamed to Barman may contain crucial data that might not have been delivered
-to the archiving process.
+file that was streamed to Barman may contain crucial data that might not have been
+delivered to the archiving process.
 
 Starting with Barman version 2.10, the ``get-wal`` command can retrieve the content of
 the current ``.partial`` WAL file using the ``--partial`` or ``-P`` option. This is
