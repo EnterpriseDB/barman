@@ -283,3 +283,105 @@ has been completed successfully:
 
     ssh postgres@pghost -C true
 
+.. _pre-requisites-wal-archiving-via-archive-command:
+
+WAL archiving via ``archive_command``
+-------------------------------------
+
+As stated in the :ref:`architectures-wal-archiving-strategies` section, there are two
+options to archive wals with Barman. If you wish to use the streaming replication
+protocol to archive WAL files, refer to the :ref:`concepts-barman-concepts-wal-streaming`
+concepts and :ref:`quickstart` section, specifically the Streaming backups with WAL
+streaming sub-section. Otherwise you can configure WAL archiving using the
+``archive_command`` with :ref:`commands-barman-cli-barman-wal-archive` or with
+Rsync/SSH.
+
+Using barman-wal-archive
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Starting from Barman 2.6, the recommended approach for securely archiving Write-Ahead
+Log files is to utilize the ``barman-wal-archive`` command from the ``barman-cli``
+package. Refer to the :ref:`installation <installation>` section on how to install this
+package.
+
+Using ``barman-wal-archive`` instead of traditional methods like rsync or SSH minimizes
+the risk of data corruption during the transfer of WAL files to the Barman server. The
+conventional methods lack a guarantee that the file's content is properly flushed and 
+fsynced to disk at the destination.
+
+The ``barman-wal-archive`` utility directly interacts with
+:ref:`commands-barman-put-wal` command. This command ensures that the received WAL file
+is fsynced and stored in the correct incoming directory for the respective server. The
+only parameter required for the ``archive_command`` is the server's name, reducing the
+likelihood of misplacement.
+
+To verify that ``barman-wal-archive`` can connect to the Barman server and that the
+PostgreSQL server is correctly configured to accept incoming WAL files, execute the
+following command:
+
+.. code-block:: text
+
+    barman-wal-archive --test backup pg DUMMY
+
+Here, ``backup`` refers to the Barman host, ``pg`` is the PostgreSQL server's name as
+configured in Barman, and ``DUMMY`` is a placeholder for the WAL file name which is
+ignored when using the `-t` option.
+
+If the setup is correct, you should see:
+
+.. code-block:: text
+
+    Ready to accept WAL files for the server pg
+
+Since the utility communicates via SSH, ensure that SSH key authentication is set up for
+the postgres user to log in as barman on the backup server. If your SSH connection uses
+a port other than the default (22), you can specify the port using the ``--port``
+option.
+
+Refer to the
+:ref:`quickstart-configuring-your-first-server-rsync-backups-with-wal-archiving` to start
+working with it.
+
+Using Rsync/SSH
+^^^^^^^^^^^^^^^
+
+An **alternative approach** for configuring the ``archive_command`` is to utilize the
+rsync command via SSH. Here are the initial steps to set it up effectively for a
+PostgreSQL server named ``pg``, a Barman server named ``backup`` and a user named
+``barman``.
+
+To locate the incoming WALs directory, use the following
+:ref:`commands-barman-show-servers` command and check for the
+``incoming_wals_directory`` value:
+
+.. code-block:: text
+
+    barman show-servers pg | grep incoming_wals_directory
+    
+        incoming_wals_directory: /var/lib/barman/pg/incoming
+
+Next, edit the ``postgresql.conf`` file for the Postgres instance on the ``pg`` host to
+enable archive mode:
+
+.. code-block:: text
+
+    archive_mode = on
+    wal_level = 'replica'
+    archive_command = 'rsync -a %p barman@backup:INCOMING_WALS_DIRECTORY/%f'
+
+Be sure to replace the ``INCOMING_WALS_DIRECTORY`` placeholder with the actual path
+retrieved from the previous command. After making these changes, restart the PostgreSQL
+server.
+
+For added security in the ``archive_command`` process, consider implementing stricter
+checks. For instance, the following command ensures that the hostname matches before
+executing the rsync:
+
+.. code-block:: text
+
+    archive_command = 'test $(/bin/hostname --fqdn) = HOSTNAME \
+        && rsync -a %p barman@backup:INCOMING_WALS_DIRECTORY/%f'
+
+Replace ``HOSTNAME`` with the output from ``hostname --fqdn``. This approach acts as a
+safeguard against potential issues when servers are cloned, preventing WAL files from
+being sent by recovered Postgres instances.

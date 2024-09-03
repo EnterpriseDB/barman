@@ -238,8 +238,8 @@ properly set:
     ``archive_command`` is by using the ``barman-wal-archive`` utility, as in the
     example above. For this utility to be available, make sure to also have the
     ``barman-cli`` package installed on ``pghost``. Check the
-    :ref:`client-server-binaries-TBD` section for further details or the
-    :ref:`wal-archiving-rsync-ssh-TBD` section for alternative command options.
+    :ref:`pre-requisites-wal-archiving-via-archive-command` section for further
+    details and for alternative command options.
 
 4. Now let's configure your first backup server on Barman. On ``barmanhost``, create a
 configuration file at ``/etc/barman.d/rsync-backup-server.conf`` with this content:

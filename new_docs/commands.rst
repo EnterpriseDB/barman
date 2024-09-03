@@ -86,3 +86,13 @@ quickly navigate to it.
 .. include:: commands/barman/sync_wals.rst
 .. include:: commands/barman/verify_backup.rst
 .. include:: commands/barman/verify.rst
+
+``barman-cli`` commands
+-----------------------
+
+The ``barman-cli`` package includes a collection of recommended client utilities that 
+should be installed alongside the PostgreSQL server. Here are the command references for
+both utilities.
+
+.. include:: commands/barman_cli/wal_archive.rst
+.. include:: commands/barman_cli/wal_restore.rst
