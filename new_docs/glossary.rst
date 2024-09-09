@@ -37,13 +37,13 @@ Glossary
     RPM
         Red Hat Package Manager.
 
-    VLDB
-        Very Large DataBase
-
-    SPOF
-        Single Point of Failure
-
     RPO
         Recovery Point Objective. The maximum targeted period in which data might be
         lost from an IT service due to a major incident. In summary, it represents the
         maximum amount of data you can afford to lose.
+
+    SPOF
+        Single Point of Failure
+
+    VLDB
+        Very Large DataBase
