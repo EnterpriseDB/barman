@@ -1092,7 +1092,7 @@ class TestPostgres(object):
         cursor_mock.fetchone.side_effect = [(False,)]
         assert not server.postgres.has_checkpoint_privileges
         cursor_mock.execute.assert_called_with(
-            "select pg_has_role(CURRENT_USER ,'pg_checkpoint', 'MEMBER');"
+            "select pg_has_role(CURRENT_USER ,'pg_checkpoint', 'USAGE');"
         )
 
         # no superuser, pg_checkpoint -> True
@@ -1101,7 +1101,7 @@ class TestPostgres(object):
         cursor_mock.fetchone.side_effect = [(True,)]
         assert server.postgres.has_checkpoint_privileges
         cursor_mock.execute.assert_called_with(
-            "select pg_has_role(CURRENT_USER ,'pg_checkpoint', 'MEMBER');"
+            "select pg_has_role(CURRENT_USER ,'pg_checkpoint', 'USAGE');"
         )
 
         # superuser, no pg_checkpoint -> True
@@ -1718,11 +1718,11 @@ class TestPostgres(object):
                 """
             SELECT
             (
-                pg_has_role(CURRENT_USER, 'pg_monitor', 'MEMBER')
+                pg_has_role(CURRENT_USER, 'pg_monitor', 'USAGE')
                 OR
                 (
-                    pg_has_role(CURRENT_USER, 'pg_read_all_settings', 'MEMBER')
-                    AND pg_has_role(CURRENT_USER, 'pg_read_all_stats', 'MEMBER')
+                    pg_has_role(CURRENT_USER, 'pg_read_all_settings', 'USAGE')
+                    AND pg_has_role(CURRENT_USER, 'pg_read_all_stats', 'USAGE')
                 )
             )
             """
