@@ -610,11 +610,11 @@ class PostgreSQLConnection(PostgreSQL):
           OR
           (
             (
-              pg_has_role(CURRENT_USER, 'pg_monitor', 'MEMBER')
+              pg_has_role(CURRENT_USER, 'pg_monitor', 'USAGE')
               OR
               (
-                pg_has_role(CURRENT_USER, 'pg_read_all_settings', 'MEMBER')
-                AND pg_has_role(CURRENT_USER, 'pg_read_all_stats', 'MEMBER')
+                pg_has_role(CURRENT_USER, 'pg_read_all_settings', 'USAGE')
+                AND pg_has_role(CURRENT_USER, 'pg_read_all_stats', 'USAGE')
               )
             )
             AND
@@ -664,7 +664,7 @@ class PostgreSQLConnection(PostgreSQL):
             return True
         else:
             role_check_query = (
-                "select pg_has_role(CURRENT_USER ,'pg_checkpoint', 'MEMBER');"
+                "select pg_has_role(CURRENT_USER ,'pg_checkpoint', 'USAGE');"
             )
             try:
                 cur = self._cursor()
@@ -694,11 +694,11 @@ class PostgreSQLConnection(PostgreSQL):
             monitoring_check_query = """
             SELECT
             (
-                pg_has_role(CURRENT_USER, 'pg_monitor', 'MEMBER')
+                pg_has_role(CURRENT_USER, 'pg_monitor', 'USAGE')
                 OR
                 (
-                    pg_has_role(CURRENT_USER, 'pg_read_all_settings', 'MEMBER')
-                    AND pg_has_role(CURRENT_USER, 'pg_read_all_stats', 'MEMBER')
+                    pg_has_role(CURRENT_USER, 'pg_read_all_settings', 'USAGE')
+                    AND pg_has_role(CURRENT_USER, 'pg_read_all_stats', 'USAGE')
                 )
             )
             """
