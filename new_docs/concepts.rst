@@ -230,8 +230,126 @@ specific point in time is a matter of restoring the previous backup closest to t
 target point followed by a replay of subsequent transaction logs up to the desired
 target.
 
+
+.. _postgres-concepts-and-terminology:
+
 Postgres backup concepts and terminology
 ----------------------------------------
+
+This section explores backup concepts in the context of Postgres, its implementations
+and specific characteristics. This content is mainly based on the `Backup and Restore
+section from the Postgres official documentation
+<https://www.postgresql.org/docs/current/backup.html&sa=D&source=docs&ust=1726428477444645&usg=AOvVaw3MSm9EqyXzIhu1Mk9p9iNC>`_,
+so we strongly recommend you read that if you want more detailed explanations on how
+Postgres handles backups.
+
+.. _postgres-concepts-pgdump-vs-pgbasebackup:
+
+pg_dump vs pg_basebackup
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+There are essentially two main tools for taking backups in Postgres: ``pg_dump`` and
+``pg_basebackup``. The difference between them is essentially the difference between
+logical and physical backups. Namely, ``pg_dump`` (``pg_dumpall`` included) takes
+logical backups while ``pg_basebackup`` takes physical backups.
+
+.. note::
+
+    Barman does not make use of ``pg_dump`` or ``pg_dumpall`` in any way as it does not
+    operate with logical backups. ``pg_basebackup`` is used by Barman depending on the
+    backup method configured.
+
+``pg_basebackup`` essentially copies all files from your Postgres cluster to a
+destination directory, including tablespaces, if any, using the `streaming replication
+protocol <https://www.postgresql.org/docs/current/protocol-replication.html>`_.
+It can only backup the entire cluster, not being able to backup specific databases or
+objects. ``pg_basebackup`` is responsible for putting your database server in and out
+of backup mode as well as making sure all required transaction logs for consistency are
+stored along with the base backup. For that reason, unlike ``pg_dump``, a backup taken
+with ``pg_basebackup`` also includes changes that happened while the backup was in
+progress, which is a huge advantage for databases under frequent heavy load. You can
+read more about ``pg_basebackup`` in its `dedicated section in the official
+documentation <https://www.postgresql.org/docs/current/app-pgbasebackup.html>`_.
+
+.. note::
+
+    In reality, a physical backup in Postgres is only complete/self-contained if it
+    also has at least the transaction logs (WALs in Postgres) that were generated
+    during the backup process. Otherwise the backup itself is insufficient to restore
+    and start a new Postgres instance.
+
+It is also possible to accomplish a similar result as ``pg_basebackup`` using the
+`Postgres low-level backup API <https://www.postgresql.org/docs/current/continuous-archiving.html#BACKUP-LOWLEVEL-BASE-BACKUP>`_,
+which is yet another way of taking physical backups in Postgres. The low-level API is
+used in cases where you want to take physical backups manually using alternative
+copying tools. In this scenario, you are responsible for putting the database server
+in and out of backup mode manually as well as making sure all transaction logs required
+for consistency are archived correctly.
+
+.. note::
+
+    Barman uses the Postgres low-level API depending on the backup method configured
+    e.g. ``backup_method = rsync``.
+
+
+.. _postgres-concepts-wal:
+
+Write-ahead logs
+^^^^^^^^^^^^^^^^
+
+Write-ahead logs (WAL) is how Postgres (and other databases) refer to transaction logs.
+In Postgres, each WAL file supports 16 MB worth of changes (configurable). WAL files
+are written sequentially, one after another, and are maintained simultaneously until a
+checkpoint is performed. A checkpoint in Postgres is the act of persisting all changes
+to disk so that WALs can be recycled afterwards. A checkpoint usually happens every
+five minutes or after 1 GB of WAL files are generated, both options are configurable.
+WAL not only helps with crash recovery, database replication and PITR, but it's also an
+important component to ensure good performance, as otherwise changes would need to be
+synced to disk after each transaction commit, resulting in huge I/Os. With WAL, changes
+can be postponed to a checkpoint-time since it is sufficient to ensure database
+consistency.
+
+.. _postgres-concepts-wal-archiving-and-wal-streaming:
+
+WAL archiving and WAL streaming
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Transaction logs archiving is known as "continuous archiving" or "WAL archiving" in
+Postgres. WAL archiving essentially means being able to store WAL files somewhere else
+before they are recycled. In Postgres, the traditional way of doing that is via the
+``archive_command`` parameter in the server configurations.
+
+The ``archive_command`` accepts any shell command as a value, which will be executed
+for each WAL file once completely filled. Such a command is responsible for making sure
+each file is copied safely to the desired destination. This provides a lot of
+flexibility in that Postgres does not make any assumptions on how or where you want to
+store these files, thus allowing you to use any command or library you want. This
+command must return a zero exit status, indicating success, otherwise Postgres
+understands that the archiving has failed and will not recycle those files until they
+can be successfully archived. While this is helpful for ensuring safety it can also
+become a nightmare if your command starts failing for some reason as WAL files will
+continue to pile up until it works again or you run out of disk space.
+You can read more about `WAL archiving in the official documentation
+<https://www.postgresql.org/docs/current/continuous-archiving.html#BACKUP-ARCHIVING-WAL>`_.
+
+An alternative way of archiving WALs is by using ``pg_receivewal``, a native Postgres
+utility used to transfer WAL files to a desired location using the streaming
+replication protocol. A huge advantage of this method, commonly known as WAL streaming,
+compared to the traditional ``archive_command`` method is that files are transferred in
+real time, meaning that it does need to wait for a WAL segment to be completely filled
+in order to start transferring it, significantly reducing the chances of data loss.
+
+Unlike the ``archive_command``, by default this method does not ensure that WAL files
+are archived successfully before being recycled. This means that WAL files can be
+recycled before being archived, essentially having its logs lost forever. For this
+reason, the use of replication slots is extremely recommended in this scenario.
+Replication slots are primarily used in the context of database replication to ensure
+that the primary server will retain WAL files needed by its following replicas until
+they are successfully received, providing an extra safety in case a replica goes
+offline or gets disconnected. It achieves the same goal when used with
+``pg_receivewal`` i.e. making sure WAL files are not recycled until successfully
+transferred to the receiver.
+
 
 Barman concepts and terminology
 -------------------------------
