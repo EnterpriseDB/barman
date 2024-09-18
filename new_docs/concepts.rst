@@ -351,8 +351,139 @@ offline or gets disconnected. It achieves the same goal when used with
 transferred to the receiver.
 
 
+.. _barman-concepts-and-terminology:
+
 Barman concepts and terminology
 -------------------------------
+
+This section offers an overview of important Barman concepts as well as demonstrates
+how Barman utilizes some of the concepts explained in earlier sections.
+
+
+.. _barman-terminology-server:
+
+Server
+^^^^^^
+
+Barman can manage backups of multiple database servers simultaneously. For this reason,
+a logical separation of your backup servers becomes necessary. In Barman, a backup
+server, or simply server, represents the backup context of a specific database server.
+It defines how Barman interacts with the database instance, how its backups are
+managed, their retention policies, etc. Each server has its own dedicated directory
+where all backups and WAL files are stored as well as a unique name which must be
+supplied in most Barman commands to specify in which context it should run.
+
+
+.. _barman-terminology-backup-methods:
+
+Backup methods
+^^^^^^^^^^^^^^
+
+As outlined in :ref:`postgres-concepts-and-terminology`, there are multiple ways to
+back up a Postgres server. In the context of Barman, these are referred to as backup
+methods. Barman supports various backup methods, each relying on different Postgres
+features, with its own set of requirements, advantages, and disadvantages. The desired
+backup method can be specified using the ``backup_method`` parameter in the server's
+configuration file.
+
+.. _barman-terminology-rsync-backups:
+
+Rsync backups
+^^^^^^^^^^^^^
+
+Backups taken with ``backup_method = rsync``. When using this backup method, Barman
+uses the Postgres low-level API and Rsync to manually transfer cluster files
+over an SSH connection. Rsync is a powerful copying tool which allows you to
+synchronize files and directories between two locations, either on the same host or on
+different hosts over a network. Barman utilizes the low-level API to put the server in
+and out of backup mode while using Rsync to copy all relevant files to the server's
+designated directory on Barman. At the end of this process, Barman forces a WAL switch
+on the database server to ensure that all required WAL files are archived. Finally,
+integrity checks are performed to verify that the backup is consistent.
+
+.. _barman-terminology-streaming-backups:
+
+Streaming Backups
+^^^^^^^^^^^^^^^^^
+
+Backups taken with ``backup_method = postgres``. When using this backup method, Barman
+invokes ``pg_basebackup`` in order to back up your database server. Barman will map all
+your tablespaces to the server's dedicated directory on Barman. At the end of this
+process, Barman forces a WAL switch on the database server to ensure that all required
+WAL files are archived. Finally, integrity checks are performed to verify that the
+backup is consistent.
+
+.. _barman-concepts-snapshot-backups:
+
+Snapshot Backups
+^^^^^^^^^^^^^^^^
+
+Snapshot backups can be performed either by setting ``backup_method = snapshot`` or by
+directly using the Barman's cloud CLI tools. These backups work by integrating Barman
+with a cloud provider where your database server resides. A snapshot of the database's
+storage volume is then taken as a physical backup. In this setup, Barman manages your
+backups in the cloud, acting primarily as a storage server for WAL files and the
+backups catalog.
+
+.. _barman-terminology-file-level-incremental-backups:
+
+File-level incremental backups
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+File-level incremental backups are possible when using
+:ref:`barman-terminology-rsync-backups`. It uses Rsync native features of
+deduplication, which relies on filesystem hard-links. When performing a file-level
+incremental backup, Barman first creates hard-links to the latest server backup
+available, essentially replicating its content in a different directory without
+consuming extra disk space. Rsync is then used to synchronize its contents with the
+the contents of the Postgres cluster, copying only the files that have changed.
+You can also have file-level incremental backups without using hard-links, in which
+case Barman will first copy the contents of the previous backup to the new backup
+directory, essentially duplicating it and consuming extra disk space, but still copying
+only changed files from the database server.
+
+.. _barman-terminology-block-level-incremental-backups:
+
+Block-level incremental backups
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Block-level incremental backups are possible when using
+:ref:`barman-terminology-streaming-backups`. It leverages the native ``pg_basebackup``
+capabilities for incremental backups, introduced in Postgres 17. This features requires
+a Postgres instance with version 17 or newer that is properly configured for native
+incremental backups. With block-level incremental backups, any backup with a valid
+``backup_manifest`` file can be used as a reference for deduplication. Block-level
+incremental backups are more efficient than file-level incremental backups as
+deduplication happens at the block level (pages in Postgres).
+
+.. _barman-terminology-wal-archiving:
+
+WAL archiving via ``archive_command``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This is one of the two ways of transferring WAL files to Barman. Commonly used along
+with :ref:`barman-terminology-rsync-backups`, this approach involves
+configuring the ``archive_command`` parameter in Postgres to archive WAL files directly
+to the server's dedicated directory on Barman. The command can be either an
+Rsync command, where you manually specify the server's WAL directory on the Barman
+host, or the ``barman-wal-archive`` utility, which only requires the server name, with
+Barman handling the rest. Additionally, ``barman-wal-archive`` provides added safety by
+ensuring files are fsynced as soon as they are received.
+
+.. _barman-terminology-wal-streaming:
+
+WAL streaming
+^^^^^^^^^^^^^
+
+This is one of the two ways of transferring WAL files to Barman. Commonly used along
+with :ref:`barman-terminology-streaming-backups`, this approach relies on the
+``pg_receivewal`` utility to transfer WAL files.  It is much simpler to
+configure, as no manual configuration is required on the database server.
+As mentioned in :ref:`postgres-ceoncepts-wal-archiving-wal-streaming`, replication
+slots are recommended when using WAL streaming. You can create a slot manually
+beforehand or let Barman create them for you by setting ``create_slot`` to ``auto``
+in your backup server configurations.
+
 
 Outstanding features from Barman
 --------------------------------
