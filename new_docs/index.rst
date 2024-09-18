@@ -20,6 +20,7 @@ DBAs during the recovery phase.
    installation
    quickstart
    architectures
+   pre_requisites
    barman_check
    backup
    catalog
