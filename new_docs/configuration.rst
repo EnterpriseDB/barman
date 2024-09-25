@@ -223,8 +223,13 @@ Scope: Server / Model.
 
 **errors_directory**
 
-Designates the directory where WAL files with errors are stored, usually due to
-conflicts with existing WAL files, that is, WAL files archived after a streamed one.
+The directory where WAL files that were errored while being archived by Barman are 
+stored. This includes duplicate WAL files (e.g., an archived WAL file that has already
+been streamed) and unexpected files found in the WAL archive directory.
+
+The purpose of placing the files in this directory is so someone can later review why they 
+failed to be archived and take appropriate actions (dispose of, store somewhere else, 
+replace the duplicate file archived before, etc.)
 
 Scope: Server.
 
