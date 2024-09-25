@@ -238,8 +238,7 @@ Postgres backup concepts and terminology
 
 This section explores backup concepts in the context of Postgres, its implementations
 and specific characteristics. This content is mainly based on the `Backup and Restore
-section from the Postgres official documentation
-<https://www.postgresql.org/docs/current/backup.html&sa=D&source=docs&ust=1726428477444645&usg=AOvVaw3MSm9EqyXzIhu1Mk9p9iNC>`_,
+section from the Postgres official documentation <https://www.postgresql.org/docs/current/backup.html>`_,
 so we strongly recommend you read that if you want more detailed explanations on how
 Postgres handles backups.
 
@@ -349,6 +348,36 @@ they are successfully received, providing an extra safety in case a replica goes
 offline or gets disconnected. It achieves the same goal when used with
 ``pg_receivewal`` i.e. making sure WAL files are not recycled until successfully
 transferred to the receiver.
+
+
+.. _concepts-postgres-recovery:
+
+Recovery 
+^^^^^^^^
+
+The recovery process in Postgres depends on the backup type. With logical backups, this
+process is as simple as running ``pg_restore`` or simply executing all SQL commands
+from the backup file, depending on the backup file format. With physical backups,
+however, the process is a bit more complex.
+
+To successfully recover from a physical backup, you need both the cluster files and its
+WAL archive. It is necessary to have at least the WAL files that were generated during
+the backup process. If the backup was taken with ``pg_basebackup``, the required WAL
+files will already be included in the output directory, unless specified otherwise. If
+taken manually, however, using the Postgres low-level API, it is your responsibility to
+make sure all required WAL files are available during recovery.
+
+To prepare for recovery, you need to follow a few steps. This includes specifying
+a few parameters in the configuration file of the backup cluster directory, such as a
+command to get the WAL files from the WAL archive as well as a target point, in case
+performing :term:`PITR`, among others. For a detailed explanation of this process,
+refer to the `Postgres official documentation <https://www.postgresql.org/docs/current/continuous-archiving.html#BACKUP-PITR-RECOVERY>`_.
+If everything is correct, you should then be able to start a new instance from the
+backup and Postgres will make sure all required WALs are applied.
+
+If the recovery involves Postgres incremental backups, you will then need to first
+combine all the backups using ``pg_combinebackup``. It will generate a synthetic full
+backup, which can be used for recovery in the same way as a standard full backup.
 
 
 .. _barman-concepts-and-terminology:
@@ -484,6 +513,15 @@ slots are recommended when using WAL streaming. You can create a slot manually
 beforehand or let Barman create them for you by setting ``create_slot`` to ``auto``
 in your backup server configurations.
 
+.. _concepts-restore-and-recover:
 
-Outstanding features from Barman
---------------------------------
+Restore and recover
+^^^^^^^^^^^^^^^^^^^
+
+As outlined in :ref:`postgres-concepts-recovery`, the recovery process in Postgres
+consists of several steps, from preparing the base directory to starting the server
+itself. Barman is able to perform all the steps required to prepare your backup to be
+recovered, a process known as "restore" in Barman's terminology. In this case,
+completing the recovery is usually just a matter of starting the server so that
+Postgres can apply the required WALs and go live.
+
