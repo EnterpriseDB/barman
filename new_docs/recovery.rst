@@ -40,18 +40,11 @@ Use ``--tablespace NAME:DIRECTORY`` to remap tablespaces to a new location. Barm
 attempt to create the destination directory if it doesn't exist.
 
 .. important::
-  If you do not use the ``--tablespace`` option during recovery and your backup
-  includes tablespaces, Barman will restore them to their original paths. 
-  
-  For local recovery, this can be problematic because the original path is possibly
-  still occupied by the backed up server files, so it is crucial to specify the
-  ``--tablespace`` option to avoid using potentially compromised paths. 
-  
-  For remote recovery, tablespaces will be restored to paths that match those specified
-  when the tablespaces were originally created.
-  
-  Ensure proper remapping as needed to prevent issues related to path conflicts or data
-  corruption.
+  By default, tablespaces are restored to the same path they had on the source server.
+  Be cautious when restoring a backup without any remapping to a destination where a
+  Postgres instance already exists, as it can end up overriding existing tablespace
+  directories.
+
 
 Point-in-Time Recovery
 ----------------------
