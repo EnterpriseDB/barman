@@ -135,7 +135,12 @@ synchronous WAL receiver in your Postgres cluster and achieve zero data loss (RP
 With the use of replication slots, we can also assure that no WAL file is recycled
 before being successfully received by Barman.
 
-1. Barman also supports standard WAL file archiving, which is achieved using the
+Refer to the
+:ref:`pre-requisites for wal streaming <pre-requisites-postgres-streaming-connection>`
+for more information on how to install ``pg_receivewal``.
+
+
+2. Barman also supports standard WAL file archiving, which is achieved using the
 Postgres ``archive_command``, either using Rsync/SSH or ``barman-wal-archive``
 from the ``barman-cli`` package. With this method, WAL files are archived only when
 Postgres switches to a new WAL file, which normally happens every 16MB worth of data

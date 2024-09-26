@@ -110,9 +110,26 @@ In this context, this parameter would be as follows:
 Postgres streaming replication connection
 -----------------------------------------
 
-If you plan to use WAL streaming or streaming backups, you need to setup a streaming
-connection. We recommend creating a dedicated user in Postgres named
-``streaming_barman``. You can do so with the following command:
+If you plan to use streaming backups, you need to setup a streaming connection.
+Additionally, if you plan on streaming WAL files you will need to also install the
+Postgres client package which provides the ``pg_receivewal`` tool.
+
+To install the Postgres client package on Debian or Ubuntu run the following command
+on the ``barmanhost``:
+
+.. code-block:: bash
+
+    sudo apt-get install postgresql-client
+
+Alternatively, if the ``barmanhost`` is using RHEL, Rocky Linux, Alma Linux, follow
+this recipe:
+
+.. code-block:: bash
+
+    sudo dnf install postgresql
+
+We recommend creating a dedicated user in Postgres named ``streaming_barman``. You
+can do so with the following command:
 
 .. code-block:: bash
 

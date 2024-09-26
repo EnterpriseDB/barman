@@ -351,7 +351,6 @@ offline or gets disconnected. It achieves the same goal when used with
 ``pg_receivewal`` i.e. making sure WAL files are not recycled until successfully
 transferred to the receiver.
 
-
 .. _concepts-postgres-backup-concepts-recovery:
 
 Recovery 
