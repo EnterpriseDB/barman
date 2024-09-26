@@ -326,10 +326,10 @@ Run the check command again and make sure no failed checks are shown:
     barman check rsync-backup-server
 
 
-.. _quickstart-configuring-your-first-server-taking-your-first-backup:
+.. _quickstart-taking-your-first-backup:
 
 Taking your first backup
-^^^^^^^^^^^^^^^^^^^^^^^^
+------------------------
 
 Regardless of which strategy you chose for your backupserver, once completed with the
 previous steps, you should be all set. You can run this command to take a backup:
@@ -352,10 +352,10 @@ And show the details of a specific backup with this command:
     barman show-backup <server_name> first-backup
 
 
-.. _quickstart-configuring-your-first-server-recovering-from-a-backup:
+.. _quickstart-recovering-from-a-backup:
 
 Recovering from a backup
-^^^^^^^^^^^^^^^^^^^^^^^^
+------------------------
 
 If you ever need to recover from a backup, you can do so with this command:
 
