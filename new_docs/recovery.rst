@@ -228,7 +228,8 @@ The process involves the following steps:
 .. important::
   If any backups in the chain were taken with checksums disabled, but the final backup
   has checksums enabled, the resulting syntethic backup may contain pages with invalid
-  checksums. Please refer to the limitations in the `pg_combinebackup documentation <https://www.postgresql.org/docs/17/app-pgcombinebackup.html>`_
+  checksums. Please refer to the limitations in the
+  `pg_combinebackup documentation <https://www.postgresql.org/docs/current/app-pgcombinebackup.html>`_
   for more details.
 
 .. _recovery-limitation-of-partial-wal-files:
