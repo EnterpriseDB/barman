@@ -1077,11 +1077,11 @@ policies.
 
 * ``retention_policy = REDUNDANCY 2`` will keep only 2 backups in the backup catalog
   automatically deleting the older one as new backups are created. The number must be
-  a positive integer greater than 0.
+  a positive integer.
 * ``retention_policy = RECOVERY WINDOW OF 2 DAYS`` will only keep backups needed to
   recover to any point in time in the last two days, automatically deleting backups
-  that are older. The period number must be a positive integer greater than zero, and
-  the following options can be applied to it: ``DAYS``, ``WEEKS``, ``MONTHS``.
+  that are older. The period number must be a positive integer, and   the following
+  options can be applied to it: ``DAYS``, ``WEEKS``, ``MONTHS``.
 
 Scope: Global / Server / Model.
 
