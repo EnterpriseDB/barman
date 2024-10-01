@@ -35,7 +35,7 @@ other strategies.
 
 It relies on the ``pg_basebackup`` utility for backups and ``pg_receivewal`` for
 transferring the WAL files. It is therefore required to have both tools installed on
-``barmanhost`` beforehand. Check the :ref:`Postgres client tools <pre-requisites-postgres-clients>`
+``barmanhost`` beforehand. Check the :ref:`Postgres client tools <pre-requisites-postgres-client-tools>`
 section if you need further details on how to install them.
 
 1. As a first step, let's create the required users you will need on your Postgres

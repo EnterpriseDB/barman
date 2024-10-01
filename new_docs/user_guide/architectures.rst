@@ -61,7 +61,7 @@ other Barman server (defined as passive) for multi-tier backup via Rsync/SSH. Fu
 information on geo-redundancy is available in the
 :ref:`geographical redundancy <geographical-redundancy-TBD>` section.
 
-.. image:: images/barman-architecture-georedundancy.png
+.. image:: /images/barman-architecture-georedundancy.png
    :scale: 50%
    :align: center
 
@@ -209,7 +209,7 @@ The streaming backup method is usually the recommended approach for most use cas
 
 The figure below illustrates how this setup would function in practice.
 
-.. image:: images/barman-architecture-scenario1.png
+.. image:: /images/barman-architecture-scenario1.png
    :scale: 50%
    :align: center
 
@@ -246,7 +246,7 @@ usage, including on a per-tablespace basis. You can check
 
 The figure below illustrates how this setup would function in practice.
 
-.. image:: images/barman-architecture-scenario2.png
+.. image:: /images/barman-architecture-scenario2.png
    :scale: 50%
    :align: center
 
@@ -278,7 +278,7 @@ also configure WAL archiving via SSH in addition to WAL streaming. In such scena
 WAL archiving would act as a fallback mechanism in case WAL streaming failed. See the
 image below.
 
-.. image:: images/barman-architecture-scenario1b.png
+.. image:: /images/barman-architecture-scenario1b.png
    :scale: 50%
    :align: center
 
@@ -288,7 +288,7 @@ configure WAL streaming instead of using the ``archive_command`` in order to hav
 lower :term:`RPO`. You can also opt for configuring WAL streaming in addition to WAL
 archiving and have both options. See the image below.
 
-.. image:: images/barman-architecture-scenario2b.png
+.. image:: /images/barman-architecture-scenario2b.png
    :scale: 50%
    :align: center
 

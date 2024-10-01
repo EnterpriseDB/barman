@@ -62,7 +62,7 @@ extensions = [
     "sphinx.ext.autodoc",  # For generating module docs from docstrings
 ]
 apidoc_module_dir = module_dir
-apidoc_output_dir = "modules"
+apidoc_output_dir = "contributor_guide/modules"
 apidoc_excluded_paths = excludes
 apidoc_separate_modules = True
 
@@ -110,7 +110,7 @@ language = "en"
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**/*.inc.rst"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = "sphinx"
@@ -124,43 +124,50 @@ todo_include_todos = True
 # a list of builtin themes.
 #
 
-html_theme = "sphinx_material"
+html_theme = "pydata_sphinx_theme"
 
 # Theme options are theme-specific and customize the look and feel of a theme
-# further.  For a list of options available for each theme, see the
-# documentation at https://bashtage.github.io/sphinx-material/customization.html.
+# further.  For a list of options available for the theme, see the documentation at
+# https://pydata-sphinx-theme.readthedocs.io/en/latest/user_guide/layout.html#references
 #
-# Material theme options (see theme.conf for more information)
+# PyData theme options
 html_theme_options = {
-    # Set the name of the project to appear in the navigation.
-    "nav_title": "Barman",
-    # Set the color and the accent color
-    "color_primary": "blue",
-    "color_accent": "light-blue",
-    # Set the repo location to get a badge with stats
-    "repo_url": "https://github.com/EnterpriseDB/barman/",
-    "repo_name": "Barman",
-    # Visible levels of the global TOC; -1 means unlimited
-    "globaltoc_depth": 3,
-    # If False, expand all TOC entries
-    "globaltoc_collapse": False,
-    # If True, show hidden TOC entries
-    "globaltoc_includehidden": False,
+    # Top nav
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/EnterpriseDB/barman",
+            "icon": "fa-brands fa-github",
+        },
+        {
+            "name": "PyPI",
+            "url": "https://pypi.org/project/barman",
+            "icon": "fa-brands fa-python",
+        },
+    ],
+    # Right side bar
+    "show_toc_level": 4,
+    "use_edit_page_button": True,
+    # Footer
+    "footer_start": [],
+    "footer_center": [],
+    "footer_end": [],
 }
 
-html_sidebars = {"**": ["globaltoc.html"]}
+html_sidebars = {"**": ["sidebar-nav-bs.html"]}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ["_static", "images"]
+html_static_path = ["images"]
 
 # Replace "source" links with "edit on GitHub" when using rtd theme
 html_context = {
     "display_github": True,
-    "github_user": "barman",
+    "github_user": "EnterpriseDB",
     "github_repo": "barman",
     "github_version": "master",
+    "doc_path": "new_docs",
     "conf_py_path": "/new_docs/",
 }
 
@@ -209,7 +216,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, "Barman.tex", "Barman Documentation", author, "manual"),
+    ("index_pdf", "Barman.tex", "Barman Documentation", author, "manual"),
 ]
 
 # -- Options for manual page output ---------------------------------------
@@ -217,277 +224,283 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ("configuration", "barman", "Barman Configurations", [author], 5),
-    ("commands", "barman", "Barman Commands", [author], 1),
+    ("user_guide/configuration", "barman", "Barman Configurations", [author], 5),
+    ("user_guide/commands", "barman", "Barman Commands", [author], 1),
     (
-        "commands/barman/archive_wal",
+        "user_guide/commands/barman/archive_wal.inc",
         "barman-archive-wal",
         "Barman Sub-Commands",
         [author],
         1,
     ),
-    ("commands/barman/backup", "barman-backup", "Barman Sub-Commands", [author], 1),
     (
-        "commands/barman/check_backup",
+        "user_guide/commands/barman/backup.inc",
+        "barman-backup",
+        "Barman Sub-Commands",
+        [author],
+        1,
+    ),
+    (
+        "user_guide/commands/barman/check_backup.inc",
         "barman-check-backup",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/check",
+        "user_guide/commands/barman/check.inc",
         "barman-check",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/config_switch",
+        "user_guide/commands/barman/config_switch.inc",
         "barman-config-switch",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/config_update",
+        "user_guide/commands/barman/config_update.inc",
         "barman-config-update",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/cron",
+        "user_guide/commands/barman/cron.inc",
         "barman-cron",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/delete",
+        "user_guide/commands/barman/delete.inc",
         "barman-delete",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/diagnose",
+        "user_guide/commands/barman/diagnose.inc",
         "barman-diagnose",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/generate_manifest",
+        "user_guide/commands/barman/generate_manifest.inc",
         "barman-generate-manifest",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/get_wal",
+        "user_guide/commands/barman/get_wal.inc",
         "barman-get-wal",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/keep",
+        "user_guide/commands/barman/keep.inc",
         "barman-keep",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/list_backups",
+        "user_guide/commands/barman/list_backups.inc",
         "barman-list_backups",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/list_files",
+        "user_guide/commands/barman/list_files.inc",
         "barman-list-files",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/list_servers",
+        "user_guide/commands/barman/list_servers.inc",
         "barman-list-servers",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/lock_directory_cleanup",
+        "user_guide/commands/barman/lock_directory_cleanup.inc",
         "barman-lock-directory-cleanup",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/put_wal",
+        "user_guide/commands/barman/put_wal.inc",
         "barman-put-wal",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/rebuild_xlogdb",
+        "user_guide/commands/barman/rebuild_xlogdb.inc",
         "barman-rebuild-xlogdb",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/receive_wal",
+        "user_guide/commands/barman/receive_wal.inc",
         "barman-receive-wal",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/recover",
+        "user_guide/commands/barman/recover.inc",
         "barman-recover",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/replication_status",
+        "user_guide/commands/barman/replication_status.inc",
         "barman-replication-status",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/show_backup",
+        "user_guide/commands/barman/show_backup.inc",
         "barman-show-backup",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/show_servers",
+        "user_guide/commands/barman/show_servers.inc",
         "barman-show-servers",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/status",
+        "user_guide/commands/barman/status.inc",
         "barman-status",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/switch_wal",
+        "user_guide/commands/barman/switch_wal.inc",
         "barman-switch-wal",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/switch_xlog",
+        "user_guide/commands/barman/switch_xlog.inc",
         "barman-switch-xlog",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/sync_backup",
+        "user_guide/commands/barman/sync_backup.inc",
         "barman-sync-backup",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/sync_info",
+        "user_guide/commands/barman/sync_info.inc",
         "barman-sync-info",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/sync_wals",
+        "user_guide/commands/barman/sync_wals.inc",
         "barman-sync-wals",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/verify_backup",
+        "user_guide/commands/barman/verify_backup.inc",
         "barman-verify-backup",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman/verify",
+        "user_guide/commands/barman/verify.inc",
         "barman-verify",
         "Barman Sub-Commands",
         [author],
         1,
     ),
     (
-        "commands/barman_cloud/backup",
+        "user_guide/commands/barman_cloud/backup.inc",
         "barman-cloud-backup",
         "Barman-cloud Commands",
         [author],
         1,
     ),
     (
-        "commands/barman_cloud/backup_delete",
+        "user_guide/commands/barman_cloud/backup_delete.inc",
         "barman-cloud-backup-delete",
         "Barman-cloud Commands",
         [author],
         1,
     ),
     (
-        "commands/barman_cloud/backup_show",
+        "user_guide/commands/barman_cloud/backup_show.inc",
         "barman-cloud-backup-show",
         "Barman-cloud Commands",
         [author],
         1,
     ),
     (
-        "commands/barman_cloud/backup_list",
+        "user_guide/commands/barman_cloud/backup_list.inc",
         "barman-cloud-backup-list",
         "Barman-cloud Commands",
         [author],
         1,
     ),
     (
-        "commands/barman_cloud/backup_keep",
+        "user_guide/commands/barman_cloud/backup_keep.inc",
         "barman-cloud-backup-keep",
         "Barman-cloud Commands",
         [author],
         1,
     ),
     (
-        "commands/barman_cloud/check_wal_archive",
+        "user_guide/commands/barman_cloud/check_wal_archive.inc",
         "barman-cloud-check-wal-archive",
         "Barman-cloud Commands",
         [author],
         1,
     ),
     (
-        "commands/barman_cloud/restore",
+        "user_guide/commands/barman_cloud/restore.inc",
         "barman-cloud-restore",
         "Barman-cloud Commands",
         [author],
         1,
     ),
     (
-        "commands/barman_cloud/wal_archive",
+        "user_guide/commands/barman_cloud/wal_archive.inc",
         "barman-cloud-wal-archive",
         "Barman-cloud Commands",
         [author],
         1,
     ),
     (
-        "commands/barman_cloud/wal_restore",
+        "user_guide/commands/barman_cloud/wal_restore.inc",
         "barman-cloud-wal-restore",
         "Barman-cloud Commands",
         [author],
@@ -502,25 +515,7 @@ intersphinx_mapping = {"python": ("https://docs.python.org/", None)}
 # If the builder is not "html" then add the API docs modules index to pages to be removed.
 exclude_from_builder = {
     "latex": [
-        "contributing",
-    ],
-    "man": [
-        "concepts",
-        "installation",
-        "quickstart",
-        "architectures",
-        "barman_check",
-        "backup",
-        "catalog",
-        "recovery",
-        "retention_policies",
-        "diagnose_and_troubleshooting",
-        "barman_cloud",
-        "faq",
-        "glossary",
-        "releases",
-        "license",
-        "contributing",
+        "contributor_guide/modules",
     ],
 }
 # Internal holding list, anything added here will always be excluded
@@ -538,6 +533,13 @@ def builder_inited(app):
     # Remove pages when builder matches any referenced in exclude_from_builder
     if exclude_from_builder.get(app.builder.name):
         _docs_to_remove.extend(exclude_from_builder[app.builder.name])
+
+    # Remove ".inc.rst" files when not building man pages. Those files only make sense
+    # for man builder, because we want both man pages for the entire application as well
+    # as separate man pages for each command. When building HTML or PDF, we only need
+    # the bigger page, not the split ones.
+    if app.builder.name != "man":
+        exclude_patterns.append("**/*.inc.rst")
 
 
 def _to_be_removed(doc):

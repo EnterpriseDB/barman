@@ -1,36 +1,19 @@
-.. _contributing:
-
-Contributing to Barman
-======================
-
-Barman is an open-source project and we welcome contributions from the community.
-
-Follow these guidelines when playing with Barman code and contributing patches to the
-project.
-
-Setting up a development installation
--------------------------------------
-
-Writing code
-------------
-
-Writing and running tests
--------------------------
+.. _writing_docs:
 
 Writing and building documentation
-----------------------------------
+==================================
 
 The documentation is written using `reStructuredText language <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
 and is built with `sphinx-build <https://www.sphinx-doc.org/en/master/man/sphinx-build.html>`_
 through a tox environment.
 
 Style guide
-^^^^^^^^^^^
+-----------
 
 Follow these guidelines when writing the documentation.
 
 Tense and voice
-"""""""""""""""
+^^^^^^^^^^^^^^^
 
 For reference and general task-based docs use the "imperative mood". These docs should
 be straightforward and conventional. For example:
@@ -52,7 +35,7 @@ straightforward and clear. For example:
     from the previous labs.
 
 Future and conditional tenses
-"""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Avoid future tense (will) and conditional tenses (would, could, should). These tenses
 lack precision and can create passive voice.
@@ -78,7 +61,7 @@ For example, use:
     A message should appear. If it doesn't, restart the server.
 
 Person
-""""""
+^^^^^^
 
 Use second person (you) when referring to the user. Don't use "the user" which is third
 person.
@@ -109,33 +92,33 @@ Instead of:
     Next, we process the instruction.
 
 Line length
-"""""""""""
+^^^^^^^^^^^
 
 When possible do not overflow 88 characters per line in the source files. In general,
 exceptions for this rule are links.
 
 Sentence length
-"""""""""""""""
+^^^^^^^^^^^^^^^
 
 Avoid writing sentences with more than 26 words. Long sentences tend to make the content
 complicated.
 
 Contractions
-""""""""""""
+^^^^^^^^^^^^
 
 In keeping with the casual and friendly tone, use contractions. However, use common
 contractions (isn't, can't, don't). Don't use contractions that are unclear or difficult
 to pronounce (there'll).
 
 Numbers
-"""""""
+^^^^^^^
 
 Spell out numbers zero through nine. Use digits for numbers 10 and greater. Spell out
 any number that starts a sentence. For this reason, avoid starting a sentence with a
 long or complex number.
 
 Dates
-"""""
+^^^^^
 
 When specifying dates for human readability, use the DD mmm YYYY format with a short
 month name in English. Where the date is being used in a column in a table, use a
@@ -146,7 +129,7 @@ format; YYYY/MM/DD. This is the internationally accepted, disambiguous format. U
 where you may expect the date to be read by automated systems.
 
 Capitalization
-""""""""""""""
+^^^^^^^^^^^^^^
 
 Capitalization rules:
 
@@ -160,7 +143,7 @@ Capitalization rules:
   written as the initialism SSO.
 
 Punctuation
-"""""""""""
+^^^^^^^^^^^
 
 Punctuation rules:
 
@@ -172,7 +155,7 @@ Punctuation rules:
 * Use the `Oxford (AKA serial) comma <https://en.wikipedia.org/wiki/Serial_comma>`_.
 
 "This" without a noun
-"""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^
 
 Avoid using "this" without a noun following. Doing so can lead to ambiguity. For
 example, use:
@@ -188,7 +171,7 @@ Instead of:
     This happens when...
 
 Directing users up and down through a topic
-"""""""""""""""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Don't use words like "above" and "below" to refer to previous and following sections.
 Link to the section instead or use "earlier" or "later".
@@ -207,7 +190,7 @@ Instead of:
     The palette includes the following colors:
 
 Bold (**text**)
-"""""""""""""""
+^^^^^^^^^^^^^^^
 
 Use for UI elements. For example:
 
@@ -230,7 +213,7 @@ Also for roles and users. For example:
         dnf install barman
 
 Courier (AKA inline code or monospace ``text``)
-"""""""""""""""""""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Use for parameters, commands, text in configuration files, and file paths. Don't use for
 utility names. For example:
@@ -242,7 +225,7 @@ utility names. For example:
     treatment to use.
 
 Code blocks
-"""""""""""
+^^^^^^^^^^^
 
 Use to provide code or configuration samples.
 
@@ -275,7 +258,7 @@ Example for configuration sample:
         configuration_files_directory = /etc/barman.d
 
 Italics (*text*)
-""""""""""""""""
+^^^^^^^^^^^^^^^^
 
 Use for book titles. For example:
 
@@ -284,7 +267,7 @@ Use for book titles. For example:
     We recommend you read *PostgreSQL 16 Administration Cookbook*.
 
 Links
-"""""
+^^^^^
 
 Avoid using the URL as the label. For example, use:
 
@@ -299,20 +282,20 @@ Instead of:
     For more information about backups in Postgres, see `https://www.postgresql.org/docs/current/backup.html`_.
 
 Admonitions (notes, warnings, hints, etc.)
-""""""""""""""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 When applicable use `admonitions <https://www.sphinx-doc.org/en/master/usage/restructuredtext/directives.html#admonitions-messages-and-warnings>`_.
 
 For multiple, consecutive admonitions, use separate admonitions.
 
 Tables
-""""""
+^^^^^^
 
 Use `tables <https://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.html#tables>`_
 to display structured information in an easy-to-read format.
 
 Lists
-"""""
+^^^^^
 
 Use `lists <https://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.html#lists-and-quote-like-blocks>`_
 to display information in items:
@@ -324,7 +307,7 @@ to display information in items:
 Use period at the end of each list item.
 
 Images
-""""""
+^^^^^^
 
 Use `images <https://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.html#images>`_
 to clarify a topic, but use them only as needed.
@@ -332,7 +315,7 @@ to clarify a topic, but use them only as needed.
 Images are put inside the folder ``new_docs/images``.
 
 Cross-reference labels standard
-"""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 When creating cross-reference labels in Sphinx, please follow these guidelines to ensure
 consistency and clarity:
@@ -356,7 +339,7 @@ labeled ``Overview`` the label would be ``_backup-overview:``. For another sub-s
 ``.. _backup-overview-other-section-under-overview:``
 
 Handling Included Files
-~~~~~~~~~~~~~~~~~~~~~~~
+"""""""""""""""""""""""
 
 If your ``.rst`` file uses the ``.. include::`` directive, evaluate whether the included
 files are closely related to the parent document:
@@ -374,7 +357,7 @@ files are closely related to the parent document:
   as an independent section, without the hierarchical label prepending.
 
 Purpose of This Standard
-~~~~~~~~~~~~~~~~~~~~~~~~
+""""""""""""""""""""""""
 
 Following this labeling standard helps us:
 
@@ -386,18 +369,18 @@ By adhering to these guidelines, we can create clear and maintainable documentat
 enhances usability and understanding.
 
 Building the documentation
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+--------------------------
 
 You can build the documentation in three different formats:
 
 * HTML: Contains the full documentation.
-* PDF: Same as HTML, excluding the section :ref:`contributing`.
+* PDF: Same as HTML, excluding the section :ref:`contributor_guide`.
 * Linux man page: contains only the sections :ref:`configuration` and :ref:`commands`.
 
 The documentation is built through a tox environment named docs.
 
 HTML documentation
-""""""""""""""""""
+^^^^^^^^^^^^^^^^^^
 
 To build the HTML documentation, run:
 
@@ -409,7 +392,7 @@ To view the HTML documentation, open the file ``new_docs/_build/html/index.html`
 your web browser.
 
 PDF documentation
-"""""""""""""""""
+^^^^^^^^^^^^^^^^^
 
 To build the PDF documentation, run:
 
@@ -421,7 +404,7 @@ To view the PDF documentation, open the file ``new_docs/_build/latex/Barman.pdf`
 using your PDF reader.
 
 Linux man page
-""""""""""""""
+^^^^^^^^^^^^^^
 
 To build the Linux man page, run:
 
@@ -434,11 +417,3 @@ To view the Linux man page, run:
 .. code-block:: bash
 
     man new_docs/_build/man/barman.1
-
-Opening a PR
-------------
-
-Barman API docs
----------------
-
-Refer to :doc:`Barman code API </modules/modules>` for details about the Barman code API.
