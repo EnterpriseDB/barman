@@ -104,15 +104,14 @@ In this context, this parameter would be as follows:
 
 ``application_name`` is an optional parameter.
 
+.. _pre-requisites-postgres-client-tools:
 
-.. _pre-requisites-postgres-streaming-connection:
+Postgres client tools
+---------------------
 
-Postgres streaming replication connection
------------------------------------------
-
-If you plan to use streaming backups, you need to setup a streaming connection.
-Additionally, if you plan on streaming WAL files you will need to also install the
-Postgres client package which provides the ``pg_receivewal`` tool.
+The Postgres client tools are required to interact with the Postgres server. The most
+commonly used tools by Barman are ``pg_basebackup`` and ``pg_receivewal``. They are
+provided by the Postgres client package.
 
 To install the Postgres client package on Debian or Ubuntu run the following command
 on the ``barmanhost``:
@@ -127,6 +126,17 @@ this recipe:
 .. code-block:: bash
 
     sudo dnf install postgresql
+
+
+.. _pre-requisites-postgres-streaming-connection:
+
+Postgres streaming replication connection
+-----------------------------------------
+
+If you plan to use streaming backups or streaming of WAL files, you need to
+setup a streaming connection. Additionally, you also need to have the Postgres
+client tools installed, as shared in
+:ref:`pre-requisites <pre-requisites-postgres-client-tools>` section.
 
 We recommend creating a dedicated user in Postgres named ``streaming_barman``. You
 can do so with the following command:

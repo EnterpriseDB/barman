@@ -118,10 +118,10 @@ Windows, and makes life easier when working with Docker.
 .. _architectures-wal-archiving-strategies:
 
 WAL archiving strategies
--------------------------
+------------------------
 
 Recovering a Postgres backup relies on replaying transaction logs (also known as xlog
-or WAL files). It is therefore essential that WAL files are stored by Barman alongside
+or WAL files). It is therefore essential that WAL files be stored by Barman alongside
 the base backups so that they are available at recovery time. This can be achieved using
 either WAL streaming or standard WAL archiving to copy WALs into the Barman server.
 
@@ -138,6 +138,11 @@ before being successfully received by Barman.
 Refer to the
 :ref:`pre-requisites for wal streaming <pre-requisites-postgres-streaming-connection>`
 for more information on how to install ``pg_receivewal``.
+
+.. note::
+    When using WAL streaming, it is recommended to always stream from the primary
+    node. This is to ensure that all WALs are received by Barman, even in the event of
+    a failover.
 
 
 2. Barman also supports standard WAL file archiving, which is achieved using the
