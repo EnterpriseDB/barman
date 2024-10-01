@@ -39,4 +39,4 @@ venv/*
 
 # Sphinx docs
 new_docs/_build
-new_docs/modules
+new_docs/contributor_guide/modules

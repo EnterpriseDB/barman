@@ -1,10 +1,10 @@
-.. _index:
+.. _index_pdf:
 
 Table of contents
 =================
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 4
 
    User guide <user_guide/index>
    Contributor guide <contributor_guide/index>
