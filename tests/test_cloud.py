@@ -602,7 +602,11 @@ class TestS3CloudInterface(object):
         cloud_interface.upload_fileobj(mock_fileobj, mock_key)
 
         s3_client.upload_fileobj.assert_called_once_with(
-            Fileobj=mock_fileobj, Bucket="bucket", Key=mock_key, ExtraArgs={}
+            Fileobj=mock_fileobj,
+            Bucket="bucket",
+            Key=mock_key,
+            ExtraArgs={},
+            Config=cloud_interface.config,
         )
 
     @pytest.mark.parametrize(
@@ -644,6 +648,7 @@ class TestS3CloudInterface(object):
             Bucket="bucket",
             Key=mock_key,
             ExtraArgs=expected_extra_args,
+            Config=cloud_interface.config,
         )
 
     @pytest.mark.parametrize(
@@ -693,6 +698,7 @@ class TestS3CloudInterface(object):
             ExtraArgs={
                 "Tagging": expected_tagging,
             },
+            Config=cloud_interface.config,
         )
 
     @mock.patch("barman.cloud_providers.aws_s3.boto3")

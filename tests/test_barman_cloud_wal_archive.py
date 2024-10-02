@@ -646,6 +646,7 @@ class TestWalUploaderS3(object):
                 os.path.basename(source),
             ),
             ExtraArgs={},
+            Config=cloud_interface.config,
         )
 
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
@@ -677,6 +678,7 @@ class TestWalUploaderS3(object):
                 os.path.basename(source),
             ),
             ExtraArgs={"ServerSideEncryption": "AES256"},
+            Config=cloud_interface.config,
         )
 
 
