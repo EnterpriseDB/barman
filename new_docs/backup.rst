@@ -320,7 +320,7 @@ To use block-level incremental backups in Barman, you must:
     Compressed backups are currently not supported for block-level incremental backups
     in Barman.
 
-.. importante::
+.. important::
     If you enable ``data_checksums`` between block-level incremental backups, it's
     advisable to take a new full backup. Divergent checksum configurations can
     potentially cause issues during recovery.

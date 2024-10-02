@@ -133,7 +133,7 @@ Additionally, the following variables are specific to **WAL archive scripts**:
 .. _hook-scripts-before-and-after-a-WAL-file-is-deleted:
 
 Before and after a WAL file is deleted
--------------------------------------
+--------------------------------------
 
 * ``pre_wal_delete_script``: A hook script that runs before a WAL file is deleted.
 * ``pre_wal_delete_retry_script``: A retry hook script that executes before the deletion

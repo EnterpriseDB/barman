@@ -1,7 +1,7 @@
 .. _commands-barman-config-switch:
 
 ``barman config-switch``
-"""""""""""""""""""""""
+""""""""""""""""""""""""
 
 Synopsis
 ^^^^^^^^

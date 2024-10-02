@@ -1,7 +1,7 @@
 .. _commands-barman-list-files:
 
 ``barman list-files``
-""""""""""""""""""""
+"""""""""""""""""""""
 
 Synopsis
 ^^^^^^^^
