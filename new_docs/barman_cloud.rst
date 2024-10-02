@@ -73,12 +73,12 @@ You have several commands available to manage backup and recovery in the cloud u
 this utility. The exit statuses for them are ``SUCCESS`` (0), ``FAILURE`` (1),
 ``FAILED CONNECTION`` (2) and ``INPUT_ERROR`` (3). Any other non-zero is ``FAILURE``.
 
-.. include:: commands/barman_cloud/backup.rst
-.. include:: commands/barman_cloud/backup_delete.rst
-.. include:: commands/barman_cloud/backup_show.rst
-.. include:: commands/barman_cloud/backup_list.rst
-.. include:: commands/barman_cloud/backup_keep.rst
-.. include:: commands/barman_cloud/check_wal_archive.rst
-.. include:: commands/barman_cloud/restore.rst
-.. include:: commands/barman_cloud/wal_archive.rst
-.. include:: commands/barman_cloud/wal_restore.rst
+.. include:: commands/barman_cloud/backup.inc.rst
+.. include:: commands/barman_cloud/backup_delete.inc.rst
+.. include:: commands/barman_cloud/backup_show.inc.rst
+.. include:: commands/barman_cloud/backup_list.inc.rst
+.. include:: commands/barman_cloud/backup_keep.inc.rst
+.. include:: commands/barman_cloud/check_wal_archive.inc.rst
+.. include:: commands/barman_cloud/restore.inc.rst
+.. include:: commands/barman_cloud/wal_archive.inc.rst
+.. include:: commands/barman_cloud/wal_restore.inc.rst
