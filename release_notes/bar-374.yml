@@ -1,0 +1,12 @@
+- summary: Improve WAL upload performance on S3 buckets by avoiding multipart uplaods
+  description: |
+    Previously, WAL files were being uploaded to S3 buckets using multipart uploads
+    provided by the boto3 library via the `upload_fileobj` method. It was noticed that
+    multipart upload is slower when used for small files, such as WAL segments,
+    compared to when uploading it in a single PUT request.
+    This has been improved by avoiding multipart uploads for files smaller than 100MB.
+    The average upload time of each WAL file is expected to be reduced in around 15%
+    with this change.
+  type: minor_change
+  jira_tickets:
+    - BAR-374
