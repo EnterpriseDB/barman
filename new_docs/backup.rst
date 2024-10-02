@@ -720,43 +720,41 @@ For example:
         Previous Backup      : - (this is the oldest base backup)
         Next Backup          : - (this is the latest base backup)
 
-The the ``--format=json`` option can be used when integrating with external tooling.
+The ``--format=json`` option can be used when integrating with external tooling.
 
 .. code-block:: json
 
     {
-        ...,
-        "snapshots_info": {
-          "provider": "gcp",
-          "provider_info": {
-            "project": "project_id"
-          },
-          "snapshots": [
-            {
-              "mount": {
-                "mount_options": "rw,noatime",
-                "mount_point": "/opt/postgres"
-              },
-              "provider": {
-                "device_name": "pgdata",
-                "snapshot_name": "barman-av-ubuntu20-primary-pgdata-20230123t131430",
-                "snapshot_project": "project_id"
-              }
-            },
-            {
-              "mount": {
-                "mount_options": "rw,noatime",
-                "mount_point": "/opt/postgres/tablespaces/tbs1"
-              },
-              "provider": {
-                "device_name": "tbs1",
-                "snapshot_name": "barman-av-ubuntu20-primary-tbs1-20230123t131430",
-                "snapshot_project": "project_id",
-              }
-            }
-          ]
+      "snapshots_info": {
+        "provider": "gcp",
+        "provider_info": {
+          "project": "project_id"
         },
-        ...
+        "snapshots": [
+          {
+            "mount": {
+              "mount_options": "rw,noatime",
+              "mount_point": "/opt/postgres"
+            },
+            "provider": {
+              "device_name": "pgdata",
+              "snapshot_name": "barman-av-ubuntu20-primary-pgdata-20230123t131430",
+              "snapshot_project": "project_id"
+            }
+          },
+          {
+            "mount": {
+              "mount_options": "rw,noatime",
+              "mount_point": "/opt/postgres/tablespaces/tbs1"
+            },
+            "provider": {
+              "device_name": "tbs1",
+              "snapshot_name": "barman-av-ubuntu20-primary-tbs1-20230123t131430",
+              "snapshot_project": "project_id",
+            }
+          }
+        ]
+      }
     }
 
 The metadata found in ``snapshots_info/provider_info`` and

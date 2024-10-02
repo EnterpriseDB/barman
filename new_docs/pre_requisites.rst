@@ -360,8 +360,7 @@ rsync command via SSH. Here are the initial steps to set it up effectively for a
 PostgreSQL server named ``pg``, a Barman server named ``backup`` and a user named
 ``barman``.
 
-To locate the incoming WALs directory, use the following
-:ref:`commands-barman-show-servers` command and check for the
+To locate the incoming WALs directory, use the following command and check for the
 ``incoming_wals_directory`` value:
 
 .. code-block:: text
