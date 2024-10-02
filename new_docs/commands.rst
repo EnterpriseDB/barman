@@ -10,7 +10,7 @@ Before jumping into each of the sub-commands of ``barman``, be aware that ``barm
 has global options available for all of the sub-commands. These options can modify the
 behavior of the sub-commands and can be used as follows:
 
-.. include:: commands/barman/barman.rst
+.. include:: commands/barman/barman.inc.rst
 
 Shortcuts
 ---------
@@ -55,37 +55,37 @@ In the following sections you can find a description of each command implemented
 section in this documentation. If that is the case, a reference is provided to help you
 quickly navigate to it.
 
-.. include:: commands/barman/archive_wal.rst
-.. include:: commands/barman/backup.rst
-.. include:: commands/barman/check_backup.rst
-.. include:: commands/barman/check.rst
-.. include:: commands/barman/config_switch.rst
-.. include:: commands/barman/config_update.rst
-.. include:: commands/barman/cron.rst
-.. include:: commands/barman/delete.rst
-.. include:: commands/barman/diagnose.rst
-.. include:: commands/barman/generate_manifest.rst
-.. include:: commands/barman/get_wal.rst
-.. include:: commands/barman/keep.rst
-.. include:: commands/barman/list_backups.rst
-.. include:: commands/barman/list_files.rst
-.. include:: commands/barman/list_servers.rst
-.. include:: commands/barman/lock_directory_cleanup.rst
-.. include:: commands/barman/put_wal.rst
-.. include:: commands/barman/rebuild_xlogdb.rst
-.. include:: commands/barman/receive_wal.rst
-.. include:: commands/barman/recover.rst
-.. include:: commands/barman/replication_status.rst
-.. include:: commands/barman/show_backup.rst
-.. include:: commands/barman/show_servers.rst
-.. include:: commands/barman/status.rst
-.. include:: commands/barman/switch_wal.rst
-.. include:: commands/barman/switch_xlog.rst
-.. include:: commands/barman/sync_backup.rst
-.. include:: commands/barman/sync_info.rst
-.. include:: commands/barman/sync_wals.rst
-.. include:: commands/barman/verify_backup.rst
-.. include:: commands/barman/verify.rst
+.. include:: commands/barman/archive_wal.inc.rst
+.. include:: commands/barman/backup.inc.rst
+.. include:: commands/barman/check_backup.inc.rst
+.. include:: commands/barman/check.inc.rst
+.. include:: commands/barman/config_switch.inc.rst
+.. include:: commands/barman/config_update.inc.rst
+.. include:: commands/barman/cron.inc.rst
+.. include:: commands/barman/delete.inc.rst
+.. include:: commands/barman/diagnose.inc.rst
+.. include:: commands/barman/generate_manifest.inc.rst
+.. include:: commands/barman/get_wal.inc.rst
+.. include:: commands/barman/keep.inc.rst
+.. include:: commands/barman/list_backups.inc.rst
+.. include:: commands/barman/list_files.inc.rst
+.. include:: commands/barman/list_servers.inc.rst
+.. include:: commands/barman/lock_directory_cleanup.inc.rst
+.. include:: commands/barman/put_wal.inc.rst
+.. include:: commands/barman/rebuild_xlogdb.inc.rst
+.. include:: commands/barman/receive_wal.inc.rst
+.. include:: commands/barman/recover.inc.rst
+.. include:: commands/barman/replication_status.inc.rst
+.. include:: commands/barman/show_backup.inc.rst
+.. include:: commands/barman/show_servers.inc.rst
+.. include:: commands/barman/status.inc.rst
+.. include:: commands/barman/switch_wal.inc.rst
+.. include:: commands/barman/switch_xlog.inc.rst
+.. include:: commands/barman/sync_backup.inc.rst
+.. include:: commands/barman/sync_info.inc.rst
+.. include:: commands/barman/sync_wals.inc.rst
+.. include:: commands/barman/verify_backup.inc.rst
+.. include:: commands/barman/verify.inc.rst
 
 ``barman-cli`` commands
 -----------------------
@@ -94,5 +94,5 @@ The ``barman-cli`` package includes a collection of recommended client utilities
 should be installed alongside the PostgreSQL server. Here are the command references for
 both utilities.
 
-.. include:: commands/barman_cli/wal_archive.rst
-.. include:: commands/barman_cli/wal_restore.rst
+.. include:: commands/barman_cli/wal_archive.inc.rst
+.. include:: commands/barman_cli/wal_restore.inc.rst
