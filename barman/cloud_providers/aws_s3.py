@@ -49,6 +49,7 @@ except ImportError:
 
 try:
     import boto3
+    from boto3.s3.transfer import TransferConfig
     from botocore.config import Config
     from botocore.exceptions import ClientError, EndpointConnectionError
 except ImportError:
@@ -84,6 +85,11 @@ class S3CloudInterface(CloudInterface):
     MAX_ARCHIVE_SIZE = 1 << 40
 
     MAX_DELETE_BATCH_SIZE = 1000
+
+    # The minimum size for a file to be uploaded using multipart upload in upload_fileobj
+    # 100MB is the AWS recommendation for when to start considering using multipart upload
+    # https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html
+    MULTIPART_THRESHOLD = 104857600
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -148,6 +154,9 @@ class S3CloudInterface(CloudInterface):
         self.bucket_name = parsed_url.netloc
         self.bucket_exists = None
         self.path = parsed_url.path.lstrip("/")
+
+        # initialize the config object to be used in uploads
+        self.config = TransferConfig(multipart_threshold=self.MULTIPART_THRESHOLD)
 
         # Build a session, so we can extract the correct resource
         self._reinit_session()
@@ -330,7 +339,11 @@ class S3CloudInterface(CloudInterface):
         if tags is not None:
             extra_args["Tagging"] = urlencode(tags)
         self.s3.meta.client.upload_fileobj(
-            Fileobj=fileobj, Bucket=self.bucket_name, Key=key, ExtraArgs=extra_args
+            Fileobj=fileobj,
+            Bucket=self.bucket_name,
+            Key=key,
+            ExtraArgs=extra_args,
+            Config=self.config,
         )
 
     def create_multipart_upload(self, key):
