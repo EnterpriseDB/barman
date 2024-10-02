@@ -329,7 +329,7 @@ Postgres for recovery by copying the backup label and WALs into place and adjust
 Postgres configuration with the necessary recovery options.
 
 Provider-Specific Arguments
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For GCP:
 

@@ -1192,7 +1192,7 @@ Benefits
       ``log_file``, the ``barman_user`` and the ``log_level``.
 
   Server Configuration - Rsync
-  """""""""""""""""""""""""""
+  """"""""""""""""""""""""""""
 
   .. code-block:: text
     :caption: **/etc/barman.d/pg_server1_rsync.conf**
@@ -1223,7 +1223,7 @@ Benefits
       from this server.
 
   Server Configuration - pg_basebackup
-  """""""""""""""""""""""""""""""""""
+  """"""""""""""""""""""""""""""""""""
 
   .. code-block:: text
     :caption: **/etc/barman.d/pg_server2_streaming.conf**
@@ -1260,7 +1260,7 @@ Benefits
     * Group this server into the ``streaming`` cluster to be used by models.
 
   Model Configuration 1
-  """"""""""""""""""""
+  """""""""""""""""""""
 
   .. code-block:: text
     :caption: **/etc/barman.d/mdl_streaming_switchover.conf**
@@ -1320,7 +1320,7 @@ Benefits
     recovery_staging_path = /var/lib/barman/recovery_staging
 
   Model Configuration 2
-  """"""""""""""""""""
+  """""""""""""""""""""
 
   .. code-block:: text
     :caption: **/etc/barman.d/mdl_streaming_failover**

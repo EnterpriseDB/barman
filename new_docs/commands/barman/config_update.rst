@@ -1,7 +1,7 @@
 .. _commands-barman-config-update:
 
 ``barman config-update``
-"""""""""""""""""""""""
+""""""""""""""""""""""""
 
 Synopsis
 ^^^^^^^^
