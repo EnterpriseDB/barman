@@ -14,7 +14,7 @@ Description
 ^^^^^^^^^^^
 
 Display detailed information about a specific backup. You can find details about this command in
-:ref:`catalog-show-backup`. You can use a shortcut instead of ``BACKUP_ID``.
+:ref:`Catalog usage <catalog-usage-show-backup>`. You can use a shortcut instead of ``BACKUP_ID``.
 
 Parameters
 ^^^^^^^^^^

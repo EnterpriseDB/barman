@@ -53,7 +53,7 @@ into your existing monitoring setup.`
   * ``barman check-backup``: Checks that all necessary WAL files for verifying the
     consistency of a physical backup are properly archived. This command is used by the
     ``cron`` job and is automatically executed after each backup operation. See
-    :ref:`commands-barman-check-backup` for more details.
+    :ref:`barman check-backup<commands-barman-check-backup>` for more details.
 
 Understanding the output
 ------------------------

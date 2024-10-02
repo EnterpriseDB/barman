@@ -15,7 +15,7 @@ Description
 
 Display the available backups for a server. This command is useful for retrieving both
 the backup ID and the backup type. You can find details about this command in
-:ref:`catalog-list-backups`.
+:ref:`Catalog usage <catalog-usage-list-backups>`.
 
 Parameters
 ^^^^^^^^^^

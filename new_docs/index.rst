@@ -29,7 +29,7 @@ DBAs during the recovery phase.
    diagnose_and_troubleshooting
    configuration
    commands
-   hook scripts
+   hook_scripts
    barman_cloud
    faq
    glossary

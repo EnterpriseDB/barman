@@ -50,7 +50,7 @@ Parameters
     Shortcuts
     ^^^^^^^^^
 
-    Use shortcuts instead of ``SERVER_NAME
+    Use shortcuts instead of ``SERVER_NAME``.
 
     .. list-table::
         :widths: 25 100
