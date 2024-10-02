@@ -306,6 +306,8 @@ to disable compression, or ``true`` to enable it and reduce network usage.
 
 Scope: Global / Server / Model.
 
+.. _configuration-parallel-jobs:
+
 **parallel_jobs**
 
 Controls the number of parallel workers used to copy files during backup or recovery.

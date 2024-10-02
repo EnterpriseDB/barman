@@ -232,7 +232,7 @@ this approach relies on Rsync to transfer backup files to your Barman server. Th
 done by putting your server in backup mode and transferring your cluster files using
 Rsync.
 
-A key advantage if this approach is the possibility of using :ref:`parallel-jobs-TBD`
+A key advantage in this approach is the possibility of using :ref:`parallel jobs <configuration-parallel-jobs>`
 when running backup operations, which can significantly decrease the overall time to take
 backups. It also provides the ability to take :ref:`file-level incremental backups <concepts-barman-concepts-file-level-incremental-backups>`,
 which reuses files of a previous backup for deduplication. File-level incremental backups
