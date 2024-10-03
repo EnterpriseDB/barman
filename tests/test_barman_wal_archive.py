@@ -54,22 +54,36 @@ def pipe_helper():
 
 # noinspection PyMethodMayBeStatic
 class TestMain(object):
+    @pytest.mark.parametrize(
+        ["hash_algorithm", "SUMS_FILE", "flag"],
+        [("sha256", "SHA256SUMS", ""), ("md5", "MD5SUMS", "--md5")],
+    )
     @mock.patch("barman.clients.walarchive.subprocess.Popen")
-    def test_ok(self, popen_mock, tmpdir):
+    def test_ok(self, popen_mock, hash_algorithm, SUMS_FILE, flag, tmpdir):
         # Prepare some content
         source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
         source.write("something", ensure=True)
-        source_hash = source.computehash()
+        source_hash = source.computehash(hash_algorithm)
 
         # Prepare the fake Pipe
         input_mock, output_mock = pipe_helper()
         popen_mock.return_value.stdin = input_mock
         popen_mock.return_value.returncode = 0
 
-        walarchive.main(
-            ["-c", "/etc/bwa.conf", "-U", "user", "a.host", "a-server", source.strpath]
-        )
+        args_list = [
+            "-c",
+            "/etc/bwa.conf",
+            "-U",
+            "user",
+            "a.host",
+            "a-server",
+            source.strpath,
+        ]
 
+        if flag:
+            args_list.append(flag)
+
+        walarchive.main(args_list)
         popen_mock.assert_called_once_with(
             [
                 "ssh",
@@ -94,7 +108,7 @@ class TestMain(object):
         second = tar.next()
         with closing(tar.extractfile(second)) as fp:
             second_content = fp.read().decode()
-        assert second.name == "MD5SUMS"
+        assert second.name == SUMS_FILE
         assert second_content == "%s *000000080000ABFF000000C1\n" % source_hash
         assert tar.next() is None
 
@@ -233,8 +247,12 @@ class TestMain(object):
 
 # noinspection PyMethodMayBeStatic
 class TestRemotePutWal(object):
+    @pytest.mark.parametrize(
+        ("hash_algorithm", "SUMS_FILE", "flag"),
+        [("md5", "MD5SUMS", True), ("sha256", "SHA256SUMS", False)],
+    )
     @mock.patch("barman.clients.walarchive.subprocess.Popen")
-    def test_str_source_file(self, popen_mock, tmpdir):
+    def test_str_source_file(self, popen_mock, hash_algorithm, SUMS_FILE, flag, tmpdir):
         input_mock, output_mock = pipe_helper()
 
         popen_mock.return_value.stdin = input_mock
@@ -246,6 +264,7 @@ class TestRemotePutWal(object):
             server_name="this-server",
             test=False,
             port=None,
+            md5=flag,
         )
         source_file = tmpdir.join("test-source/000000010000000000000001")
         source_file.write("test-content", ensure=True)
@@ -281,10 +300,11 @@ class TestRemotePutWal(object):
         second = tar.next()
         with closing(tar.extractfile(second)) as fp:
             second_content = fp.read().decode()
-        assert second.name == "MD5SUMS"
+        assert second.name == SUMS_FILE
         assert (
             second_content
-            == "%s *000000010000000000000001\n" % source_file.computehash("md5")
+            == "%s *000000010000000000000001\n"
+            % source_file.computehash(hash_algorithm)
         )
         assert tar.next() is None
 
@@ -300,6 +320,7 @@ class TestRemotePutWal(object):
             server_name="this-server",
             test=False,
             port=None,
+            md5=False,
         )
         source_file = tmpdir.join("test-source/000000010000000000000001")
         source_file.write("test-content", ensure=True)
@@ -332,18 +353,23 @@ class TestRemotePutWal(object):
 
 # noinspection PyMethodMayBeStatic
 class TestChecksumTarFile(object):
-    def test_tar(self, tmpdir):
+    @pytest.mark.parametrize(
+        ["hash_algorithm", "SUMS_FILE"], [("sha256", "SHA256SUMS"), ("md5", "MD5SUMS")]
+    )
+    def test_tar(self, hash_algorithm, SUMS_FILE, tmpdir):
         # Prepare some content
         source = tmpdir.join("source.file")
         source.write("something", ensure=True)
         source.setmtime(source.mtime() - 100)  # Set mtime to 100 seconds ago
-        source_hash = source.computehash()
+        source_hash = source.computehash(hash_algorithm)
 
         # Write the content in a tar file
         storage = tmpdir.join("storage.tar")
         with closing(
             walarchive.ChecksumTarFile.open(storage.strpath, mode="w:")
         ) as tar:
+            tar.hash_algorithm = hash_algorithm
+            tar.HASHSUMS_FILE = SUMS_FILE
             tar.add(source.strpath, source.basename)
             checksum = tar.members[0].data_checksum
             assert checksum == source_hash
@@ -357,7 +383,7 @@ class TestChecksumTarFile(object):
         tar.close()
 
         dest_file = lab.join(source.basename)
-        sum_file = lab.join("MD5SUMS")
+        sum_file = lab.join(SUMS_FILE)
         sums = {}
         for line in sum_file.readlines():
             checksum, name = re.split(r" [* ]", line.rstrip(), 1)
@@ -365,28 +391,37 @@ class TestChecksumTarFile(object):
 
         assert list(sums.keys()) == [source.basename]
         assert sums[source.basename] == source_hash
-        assert dest_file.computehash() == source_hash
+        assert dest_file.computehash(hash_algorithm) == source_hash
         # Verify file mtime
         # Use a round(2) comparison because float is not precise in Python 2.x
         assert round(dest_file.mtime(), 2) == round(source.mtime(), 2)
 
     @pytest.mark.parametrize(
-        ["size", "mode"],
+        ["hash_algorithm", "size", "mode"],
         [
-            [0, 0],
-            [10, None],
-            [10, 0],
-            [10, 1],
-            [10, -5],
-            [16 * 1024, 0],
-            [32 * 1024 - 1, -1],
-            [32 * 1024 - 1, 0],
-            [32 * 1024 - 1, 1],
+            ["sha256", 0, 0],
+            ["sha256", 10, None],
+            ["sha256", 10, 0],
+            ["sha256", 10, 1],
+            ["sha256", 10, -5],
+            ["sha256", 16 * 1024, 0],
+            ["sha256", 32 * 1024 - 1, -1],
+            ["sha256", 32 * 1024 - 1, 0],
+            ["sha256", 32 * 1024 - 1, 1],
+            ["md5", 0, 0],
+            ["md5", 10, None],
+            ["md5", 10, 0],
+            ["md5", 10, 1],
+            ["md5", 10, -5],
+            ["md5", 16 * 1024, 0],
+            ["md5", 32 * 1024 - 1, -1],
+            ["md5", 32 * 1024 - 1, 0],
+            ["md5", 32 * 1024 - 1, 1],
         ],
     )
-    def test_md5copyfileobj(self, size, mode):
+    def test_hashCopyfileobj(self, hash_algorithm, size, mode):
         """
-        Test md5copyfileobj different size.
+        Test hashCopyfileobj different size.
 
         If mode is None, copy the whole data.
         If mode is <= 0, copy the data passing the exact length.
@@ -406,16 +441,24 @@ class TestChecksumTarFile(object):
         if mode and mode > 0:
             # Require more bytes than available. Make sure to get an exception
             with pytest.raises(IOError):
-                walarchive.md5copyfileobj(src, dst, size + mode)
+                walarchive.hashCopyfileobj(
+                    src, dst, size + mode, hash_algorithm=hash_algorithm
+                )
         else:
             if mode is None:
                 # Copy the whole file until the end
-                md5 = walarchive.md5copyfileobj(src, dst)
+                checksum = walarchive.hashCopyfileobj(
+                    src, dst, hash_algorithm=hash_algorithm
+                )
             else:
                 # Copy only a portion of the file
-                md5 = walarchive.md5copyfileobj(src, dst, size + mode)
+                checksum = walarchive.hashCopyfileobj(
+                    src, dst, size + mode, hash_algorithm=hash_algorithm
+                )
                 src_string = src_string[0 : size + mode]
 
             # Validate the content and the checksum
             assert dst.getvalue() == src_string
-            assert md5 == hashlib.md5(bytes(src_string)).hexdigest()
+            assert (
+                checksum == hashlib.new(hash_algorithm, bytes(src_string)).hexdigest()
+            )

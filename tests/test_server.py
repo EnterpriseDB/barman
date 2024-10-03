@@ -94,6 +94,15 @@ def get_wal_names_from_indices_selection(wal_info_files, indices):
     return expected_wals
 
 
+def get_BytesIO_with_hash(hash_algorithm=None):
+    class HashableBytesIO(BytesIO):
+        def __init__(self, hash_algorithm=hash_algorithm, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.hash_algorithm = hash_algorithm
+
+    return HashableBytesIO()
+
+
 # noinspection PyMethodMayBeStatic
 class TestServer(object):
     def test_init(self):
@@ -2247,17 +2256,113 @@ class TestServer(object):
         assert "ERROR: Error decompressing WAL: an error happened" in err
 
     @pytest.mark.parametrize(
-        "mode, success, error_msg",
+        "obj, HASHSUMS_FILE, hash_algorithm, checksum, mode, success, error_msg",
         [
-            ["plain", True, None],
-            ["relative", True, None],
-            ["bad_sum_line", True, "Bad checksum line"],
-            ["bad_file_type", False, "Unsupported file type"],
-            ["subdir", False, "Unsupported filename"],
+            [
+                BytesIO(),
+                "MD5SUMS",
+                "md5",
+                "34743e1e454e967eb76a16c66372b0ef",
+                "plain",
+                True,
+                None,
+            ],
+            [
+                BytesIO(),
+                "MD5SUMS",
+                "md5",
+                "34743e1e454e967eb76a16c66372b0ef",
+                "relative",
+                True,
+                None,
+            ],
+            [
+                BytesIO(),
+                "MD5SUMS",
+                "md5",
+                "34743e1e454e967eb76a16c66372b0ef",
+                "bad_sum_line",
+                True,
+                "Bad checksum line",
+            ],
+            [
+                BytesIO(),
+                "MD5SUMS",
+                "md5",
+                "34743e1e454e967eb76a16c66372b0ef",
+                "bad_file_type",
+                False,
+                "Unsupported file type",
+            ],
+            [
+                BytesIO(),
+                "MD5SUMS",
+                "md5",
+                "34743e1e454e967eb76a16c66372b0ef",
+                "subdir",
+                False,
+                "Unsupported filename",
+            ],
+            [
+                get_BytesIO_with_hash(hash_algorithm="sha256"),
+                "SHA256SUMS",
+                "sha256",
+                "2432a5281590f6c17323a8dc9c5442757e79fdc4d2028ae36bcb0010410dfc64",
+                "plain",
+                True,
+                None,
+            ],
+            [
+                get_BytesIO_with_hash(hash_algorithm="sha256"),
+                "SHA256SUMS",
+                "sha256",
+                "2432a5281590f6c17323a8dc9c5442757e79fdc4d2028ae36bcb0010410dfc64",
+                "relative",
+                True,
+                None,
+            ],
+            [
+                get_BytesIO_with_hash(hash_algorithm="sha256"),
+                "SHA256SUMS",
+                "sha256",
+                "2432a5281590f6c17323a8dc9c5442757e79fdc4d2028ae36bcb0010410dfc64",
+                "bad_sum_line",
+                True,
+                "Bad checksum line",
+            ],
+            [
+                get_BytesIO_with_hash(hash_algorithm="sha256"),
+                "SHA256SUMS",
+                "sha256",
+                "2432a5281590f6c17323a8dc9c5442757e79fdc4d2028ae36bcb0010410dfc64",
+                "bad_file_type",
+                False,
+                "Unsupported file type",
+            ],
+            [
+                get_BytesIO_with_hash(hash_algorithm="sha256"),
+                "SHA256SUMS",
+                "sha256",
+                "2432a5281590f6c17323a8dc9c5442757e79fdc4d2028ae36bcb0010410dfc64",
+                "subdir",
+                False,
+                "Unsupported filename",
+            ],
         ],
     )
     def test_put_wal(
-        self, mode, success, error_msg, tmpdir, capsys, caplog, monkeypatch
+        self,
+        obj,
+        HASHSUMS_FILE,
+        hash_algorithm,
+        checksum,
+        mode,
+        success,
+        error_msg,
+        tmpdir,
+        capsys,
+        caplog,
+        monkeypatch,
     ):
         # See all logs
         caplog.set_level(0)
@@ -2283,29 +2388,28 @@ class TestServer(object):
             file_name = "test/" + file_name
 
         # Generate some test data in an in_memory tar
-        tar_file = BytesIO()
+        tar_file = obj
         tar = tarfile.open(mode="w|", fileobj=tar_file, dereference=False)
         wal = lab.join(file_name)
         if mode == "bad_file_type":
             # Create a file with wrong file type
             wal.mksymlinkto("/nowhere")
-            file_hash = hashlib.md5().hexdigest()
+            file_hash = hashlib.new(hash_algorithm).hexdigest()
         else:
             wal.write("some random content", ensure=True)
-            file_hash = wal.computehash("md5")
+            file_hash = wal.computehash(hash_algorithm)
         tar.add(wal.strpath, file_name)
-        md5 = lab.join("MD5SUMS")
+        hashsums = lab.join(HASHSUMS_FILE)
         if mode == "bad_sum_line":
-            md5.write("bad_line\n")
-        md5.write("%s *%s\n" % (file_hash, file_name), mode="a")
-        tar.add(md5.strpath, md5.basename)
+            hashsums.write("bad_line\n")
+        hashsums.write("%s *%s\n" % (file_hash, file_name), mode="a")
+        tar.add(hashsums.strpath, hashsums.basename)
         tar.close()
 
         # Feed the data to put-wal
         tar_file.seek(0)
         server.put_wal(tar_file)
         out, err = capsys.readouterr()
-
         # Output is always empty
         assert not out
 
@@ -2319,24 +2423,69 @@ class TestServer(object):
         # Verify the result if success
         if success:
             dest_file = incoming.join(wal.basename)
-            assert dest_file.computehash() == wal.computehash()
+            assert dest_file.computehash(hash_algorithm) == wal.computehash(
+                hash_algorithm
+            )
             assert (
                 "Received file '00000001000000EF000000AB' "
-                "with checksum '34743e1e454e967eb76a16c66372b0ef' "
+                f"with checksum '{checksum}' "
                 "by put-wal for server 'main' "
                 "(SSH host: 192.168.66.99)\n" in caplog.text
             )
 
     @pytest.mark.parametrize(
-        "mode, error_msg",
+        "HASHSUMS_FILE, hash_algorithm, mode, error_msg",
         [
-            ["file_absent", "Checksum without corresponding file"],
-            ["sum_absent", "Missing checksum for file"],
-            ["sum_mismatch", "Bad file checksum"],
-            ["dest_exists", "Impossible to write already existing"],
+            (
+                "MD5SUMS",
+                "md5",
+                "file_absent",
+                "Checksum without corresponding file",
+            ),
+            ("MD5SUMS", "md5", "sum_absent", "Missing checksum for file"),
+            ("MD5SUMS", "md5", "sum_mismatch", "Bad file checksum"),
+            (
+                "MD5SUMS",
+                "md5",
+                "dest_exists",
+                "Impossible to write already existing",
+            ),
+            (
+                "SHA256SUMS",
+                "sha256",
+                "file_absent",
+                "Checksum without corresponding file",
+            ),
+            (
+                "SHA256SUMS",
+                "sha256",
+                "sum_absent",
+                "Missing checksum for file",
+            ),
+            (
+                "SHA256SUMS",
+                "sha256",
+                "sum_mismatch",
+                "Bad file checksum",
+            ),
+            (
+                "SHA256SUMS",
+                "sha256",
+                "dest_exists",
+                "Impossible to write already existing",
+            ),
         ],
     )
-    def test_put_wal_fail(self, mode, error_msg, tmpdir, capsys, monkeypatch):
+    def test_put_wal_fail(
+        self,
+        HASHSUMS_FILE,
+        hash_algorithm,
+        mode,
+        error_msg,
+        tmpdir,
+        capsys,
+        monkeypatch,
+    ):
         lab = tmpdir.mkdir("lab")
         incoming = tmpdir.mkdir("incoming")
         server = build_real_server(
@@ -2356,14 +2505,16 @@ class TestServer(object):
         wal.write("some random content", ensure=True)
         if mode != "file_absent":
             tar.add(wal.strpath, wal.basename)
-        md5 = lab.join("MD5SUMS")
+        hashsum = lab.join(HASHSUMS_FILE)
         if mode != "sum_mismatch":
-            md5.write("%s *%s\n" % (wal.computehash("md5"), wal.basename))
+            hashsum.write("%s *%s\n" % (wal.computehash(hash_algorithm), wal.basename))
         else:
             # put an incorrect checksum in the file
-            md5.write("%s *%s\n" % (hashlib.md5().hexdigest(), wal.basename))
+            hashsum.write(
+                "%s *%s\n" % (hashlib.new(hash_algorithm).hexdigest(), wal.basename)
+            )
         if mode != "sum_absent":
-            tar.add(md5.strpath, md5.basename)
+            tar.add(hashsum.strpath, hashsum.basename)
         tar.close()
 
         # If requested create a colliding file in the incoming directory
@@ -2386,9 +2537,32 @@ class TestServer(object):
         )
         assert output.error_occurred
 
+    @pytest.mark.parametrize(
+        "obj, HASHSUMS_FILE, hash_algorithm, checksum",
+        [
+            (BytesIO(), "MD5SUMS", "md5", "34743e1e454e967eb76a16c66372b0ef"),
+            (
+                get_BytesIO_with_hash(hash_algorithm="sha256"),
+                "SHA256SUMS",
+                "sha256",
+                "2432a5281590f6c17323a8dc9c5442757e79fdc4d2028ae36bcb0010410dfc64",
+            ),
+        ],
+    )
     @patch("barman.server.fsync_file")
     @patch("barman.server.fsync_dir")
-    def test_put_wal_fsync(self, fd_mock, ff_mock, tmpdir, capsys, caplog):
+    def test_put_wal_fsync(
+        self,
+        fd_mock,
+        ff_mock,
+        obj,
+        HASHSUMS_FILE,
+        hash_algorithm,
+        checksum,
+        tmpdir,
+        capsys,
+        caplog,
+    ):
         # See all logs
         caplog.set_level(0)
 
@@ -2403,16 +2577,15 @@ class TestServer(object):
         )
         output.error_occurred = False
 
-        # Generate some test data in an in_memory tar
-        tar_file = BytesIO()
+        tar_file = obj
         tar = tarfile.open(mode="w|", fileobj=tar_file, format=tarfile.PAX_FORMAT)
         wal = lab.join("00000001000000EF000000AB")
         wal.write("some random content", ensure=True)
         wal.setmtime(wal.mtime() - 100)  # Set mtime to 100 seconds ago
         tar.add(wal.strpath, wal.basename)
-        md5 = lab.join("MD5SUMS")
-        md5.write("%s *%s\n" % (wal.computehash("md5"), wal.basename))
-        tar.add(md5.strpath, md5.basename)
+        hashsum = lab.join(HASHSUMS_FILE)
+        hashsum.write("%s *%s\n" % (wal.computehash(hash_algorithm), wal.basename))
+        tar.add(hashsum.strpath, hashsum.basename)
         tar.close()
 
         # Feed the data to put-wal
@@ -2430,7 +2603,7 @@ class TestServer(object):
         assert dest_file.computehash() == wal.computehash()
         assert (
             "Received file '00000001000000EF000000AB' "
-            "with checksum '34743e1e454e967eb76a16c66372b0ef' "
+            f"with checksum '{checksum}' "
             "by put-wal for server 'main'" in caplog.text
         )
 
@@ -2919,6 +3092,14 @@ class TestServer(object):
         ]
         for field in key_pairs_check:
             assert field[0] in ext_info and field[1] == ext_info[field[0]]
+
+    def get_HashableTarfile(self, hash_algorithm=None):
+        class HashableTarfile(tarfile.TarFile):
+            def __init__(self, hash_algorithm=hash_algorithm, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.hash_algorithm = hash_algorithm
+
+        return HashableTarfile()
 
 
 class TestCheckStrategy(object):
