@@ -20,10 +20,10 @@ Synopsis
 Description
 ^^^^^^^^^^^
 
-This script can be utilized in the ``archive_command`` of a PostgreSQL server to
+This script can be utilized in the ``archive_command`` of a Postgres server to
 transfer WAL files to a Barman host using the ``put-wal`` command (introduced in Barman
 2.6). It establishes an SSH connection to the Barman host, enabling seamless integration
-of Barman within PostgreSQL clusters for improved business continuity.
+of Barman within Postgres clusters for improved business continuity.
 
 **Exit Statuses** are:
 
@@ -60,6 +60,6 @@ Parameters
     Specify the configuration file on the Barman server.
 
 ``-t`` / ``--test``
-    Test the connection and configuration of the specified PostgreSQL server in Barman to
+    Test the connection and configuration of the specified Postgres server in Barman to
     ensure it is ready to receive WAL files. This option ignores the mandatory arguments
     ``WAL_NAME`` and ``WAL_DEST``.

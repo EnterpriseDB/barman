@@ -215,7 +215,7 @@ Also for roles and users. For example:
 Courier (AKA inline code or monospace ``text``)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Use for parameters, commands, text in configuration files, and file paths. Don't use for
+Use for parameters, commands, text in configuration files, file paths, packages and
 utility names. For example:
 
 .. code-block:: rst

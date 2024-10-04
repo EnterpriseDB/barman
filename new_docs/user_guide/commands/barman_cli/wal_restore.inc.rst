@@ -26,10 +26,10 @@ Synopsis
 Description
 ^^^^^^^^^^^
 
-This script serves as a ``restore_command`` for PostgreSQL servers, enabling the
+This script serves as a ``restore_command`` for Postgres servers, enabling the
 retrieval of WAL files through Barman's ``get-wal`` feature. It establishes an SSH
 connection to the Barman host and facilitates the integration of Barman within
-PostgreSQL clusters, enhancing business continuity.
+Postgres clusters, enhancing business continuity.
 
 **Exit Statuses** are:
 
@@ -92,6 +92,6 @@ Parameters
     Specify the configuration file on the Barman server.
 
 ``-t`` / ``--test``
-    Test the connection and configuration of the specified PostgreSQL server in Barman to
+    Test the connection and configuration of the specified Postgres server in Barman to
     ensure it is ready to receive WAL files. This option ignores the mandatory arguments
     ``WAL_NAME`` and ``WAL_DEST``.

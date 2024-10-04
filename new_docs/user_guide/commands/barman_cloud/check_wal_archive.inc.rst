@@ -36,7 +36,7 @@ the target bucket is not found. Any other conditions will result in a failure.
   Name of the server that needs to be checked.
 
 ``DESTINATION_URL``
-  URL of the cloud destination, such as a bucket in AWS S3. For example: `s3://bucket/path/to/folder`.
+  URL of the cloud destination, such as a bucket in AWS S3. For example: ``s3://bucket/path/to/folder``.
 
 ``-V`` / ``--version``
   Show version and exit.

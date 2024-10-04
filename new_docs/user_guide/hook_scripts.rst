@@ -76,7 +76,7 @@ The shell environment will include the following variables for **backup scripts*
 * ``BARMAN_BACKUP_ID``: The ID of the backup.
 * ``BARMAN_CONFIGURATION``: The configuration file used by Barman.
 * ``BARMAN_ERROR``: Any error message (only applicable in the ``post`` phase).
-* ``BARMAN_PHASE``: Indicates the phase of the script, `either` ``pre`` or ``post``.
+* ``BARMAN_PHASE``: Indicates the phase of the script, either ``pre`` or ``post``.
 * ``BARMAN_PREVIOUS_ID``: The ID of the previous backup, if available.
 * ``BARMAN_RETRY``: Set to ``1`` if it is a retry script; otherwise, it is ``0``.
 * ``BARMAN_SERVER``: The name of the server.
@@ -181,7 +181,7 @@ Follow the process in the :ref:`installation section <installation>` to start us
     For detailed information on configuration options, refer to the
     :ref:`configuration <configuration-options-cloud-backups>` section.
 
-You can use ``barman-cloud-backup`` as a `post-backup script` for the following Barman
+You can use ``barman-cloud-backup`` as a ``post-backup script`` for the following Barman
 backup types:
 
 * Backups created with ``backup_method = rsync``.
@@ -201,7 +201,7 @@ To configure this, add the following line to your server configuration in Barman
     script is not executed while the backup status is ``WAITING_FOR_WALS``.
 
 Additionally, set up ``barman-cloud-wal-archive`` as a pre-WAL archive script by
-adding the following line to the Barman configuration for your PostgreSQL server:
+adding the following line to the Barman configuration for your Postgres server:
 
 .. code-block:: text
 

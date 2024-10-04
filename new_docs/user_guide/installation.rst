@@ -14,11 +14,11 @@ There are three packages that make up the suite of Barman features: ``barman``,
 * ``barman-cli`` is an optional package that holds the ``barman-wal-restore`` and
   ``barman-wal-archive`` utilites. This package is mandatory if you plan to use those
   utilities as the ``archive_command`` or ``restore_command``. It must be installed on
-  each PostgreSQL server that is part of the Barman cluster.
+  each Postgres server that is part of the Barman cluster.
 
 * ``barman-cli-cloud`` is an optional package that holds the ``barman-cloud-*`` client
   scripts that you can use to manage backups in a cloud provider. It must be installed
-  on the PostgreSQL servers that you want to back up directly to a cloud provider,
+  on the Postgres servers that you want to back up directly to a cloud provider,
   bypassing Barman.
 
 
@@ -37,14 +37,15 @@ There are three packages that make up the suite of Barman features: ``barman``,
 RHEL-based distributions
 ------------------------
 
-Barman and the other packages can be installed using :term:`RPM` packages on
-:term:`RHEL` systems as well as on similar RHEL-based systems like AlmaLinux, Oracle
-Linux and Rocky Linux.
+You can install ``barman``, ``barman-cli`` and ``barman-cli-cloud`` using :term:`RPM`
+packages on :term:`RHEL` systems as well as on similar RHEL-based systems like
+AlmaLinux, Oracle Linux and Rocky Linux.
 
-To begin installation, install the `PGDG RPM repository <https://www.postgresql.org/download/linux/redhat/>`_.
+To begin with the installation, first install the
+`PGDG RPM repository <https://www.postgresql.org/download/linux/redhat/>`_.
 
 .. important::
-   The ``barman-cli-cloud`` utilities are part of the ``barman-cli`` package for
+   The ``barman-cli-cloud`` scripts are part of the ``barman-cli`` package for
    RHEL-based distributions from :term:`PGDG`. Therefore, you only need to install
    ``barman-cli`` to use the cloud scripts.
 
@@ -60,7 +61,7 @@ To install the ``barman`` package. Run as **root**:
 barman-cli
 ^^^^^^^^^^
 
-To install the ``barman-cli`` package, run as **root** in the PostgreSQL server:
+To install the ``barman-cli`` package, run as **root** in the Postgres server:
 
 .. code-block:: bash
 
@@ -69,17 +70,17 @@ To install the ``barman-cli`` package, run as **root** in the PostgreSQL server:
 .. note::
    If you want to use the barman-cloud utilities as
    :ref:`hook scripts <hook-scripts-using-barman-cloud-scripts-as-hooks-in-barman>`, you
-   will need to install this package in the Barman server.
+   will need to install the ``barman-cli`` package in the Barman server.
 
 .. _installation-debian-based-distributions:
 
 Debian-based distributions
 --------------------------
 
-Barman and the other packages can be installed using :term:`DEB` packages on Debian
-systems as well as on Debian-based systems like Ubuntu.
+You can install ``barman``, ``barman-cli`` and ``barman-cli-cloud`` using :term:`DEB` packages
+on Debian systems as well as on Debian-based systems like Ubuntu.
 
-To begin installation, install the PGDG APT repository. This depends on your system:
+To begin with the installation, install the PGDG APT repository. This depends on your system:
 
 * For Debian: `PGDG Debian repository <https://www.postgresql.org/download/linux/debian/>`_.
 * For Ubuntu: `PGDG Ubuntu repository <https://www.postgresql.org/download/linux/ubuntu/>`_.
@@ -101,25 +102,25 @@ To install the ``barman`` package. Run as **root**:
 
 .. code-block:: bash
 
-   apt-get install barman
+   apt install barman
 
 barman-cli
 ^^^^^^^^^^
 
-To install the ``barman-cli`` package, run as **root** in the PostgreSQL server:
+To install the ``barman-cli`` package, run as **root** in the Postgres server:
 
 .. code-block:: bash
 
-   apt-get install barman-cli
+   apt install barman-cli
 
 barman-cli-cloud
 ^^^^^^^^^^^^^^^^
 
-To install the ``barman-cli-cloud`` package, run as **root** in the PostgreSQL server:
+To install the ``barman-cli-cloud`` package, run as **root** in the Postgres server:
 
 .. code-block:: bash
 
-   apt-get install barman-cli-cloud
+   apt install barman-cli-cloud
 
 .. note::
    If you want to use the barman-cloud utilities as
@@ -131,7 +132,7 @@ To install the ``barman-cli-cloud`` package, run as **root** in the PostgreSQL s
 SLES-based distributions
 ------------------------
 
-Barman can be installed on :term:`SLES` systems by utilizing the packages provided in
+You can install ``barman`` on :term:`SLES` systems by utilizing the packages provided in
 the `PostgreSQL Zypper Repository <https://zypp.postgresql.org/>`_.
 
 To begin installation, you will need to add the appropriate repository by following the
@@ -157,7 +158,7 @@ To install the ``barman`` package. Run as **root**:
 barman-cli
 ^^^^^^^^^^
 
-To install the ``barman-cli`` package, run as **root** in the PostgreSQL server:
+To install the ``barman-cli`` package, run as **root** in the Postgres server:
 
 .. code-block:: bash
 

@@ -35,7 +35,7 @@
 **Description**
 
 The ``barman-cloud-wal-archive`` command is designed to be used in the
-``archive_command`` of a PostgreSQL server to directly ship WAL files to cloud storage.
+``archive_command`` of a Postgres server to directly ship WAL files to cloud storage.
 
 .. note::
   If you are using Python 2 or unsupported versions of Python 3, avoid using the
@@ -55,7 +55,7 @@ Barman server. Additionally, it can be utilized as a hook script for WAL archivi
   Name of the server that will have the WALs archived.
 
 ``DESTINATION_URL``
-  URL of the cloud destination, such as a bucket in AWS S3. For example: `s3://bucket/path/to/folder`.
+  URL of the cloud destination, such as a bucket in AWS S3. For example: ``s3://bucket/path/to/folder``.
 
 ``WAL_PATH``
   The value of the '%p' keyword (according to ``archive_command``).

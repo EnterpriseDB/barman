@@ -8,7 +8,7 @@ Backups
 Overview
 --------
 
-The backup command is used to backup an entire PostgreSQL server according to the
+The backup command is used to backup an entire Postgres server according to the
 configuration file parameters. To use it, run:
 
 ``barman backup [OPTIONS] SERVER_NAME``
@@ -27,16 +27,16 @@ configuration file parameters. To use it, run:
     Backup initiation will fail if WAL files are not correctly archived to Barman, either
     through the ``archiver`` or the ``streaming_archiver`` options.
 
-Barman offers multiple backup methods for PostgreSQL servers, each with its own approach
+Barman offers multiple backup methods for Postgres servers, each with its own approach
 and requirements.
 
 Prior to version 2.0, Barman relied solely on rsync for both standard backups and
-file-level incremental backups. Streaming backups were introduced after this version.
+file-level incremental backups. Streaming backups were introduced in this version.
 Starting with version 3.11, Barman also supports block-level incremental backups through
 the streaming connection.
 
 .. important::
-  For PostgreSQL 15 and higher, ``exclusive`` backups are no longer supported. The only
+  For Postgres 15 and higher, ``exclusive`` backups are no longer supported. The only
   method for taking backups is through ``concurrent`` backup. If ``backup_options`` is
   unset, Barman will automatically set it to ``concurrent_backup``.
 
@@ -46,7 +46,7 @@ Incremental Backups
 -------------------
 
 Incremental backups involve using an existing backup as a reference to copy only the
-data changes that have occurred since the last backup on the PostgreSQL server.
+data changes that have occurred since the last backup on the Postgres server.
 
 The primary objectives of incremental backups in Barman are:
 
@@ -57,7 +57,7 @@ The primary objectives of incremental backups in Barman are:
 Barman supports two types of incremental backups:
 
 * File-level incremental backups (using ``rsync``)
-* Block-level incremental backups (using ``pg_basebackup`` with Postgres 17 up)
+* Block-level incremental backups (using ``pg_basebackup`` with Postgres 17)
 
 .. note::
     Incremental backups of different types are not compatible with each other. For
@@ -137,14 +137,14 @@ algorithm. Supported algorithms in Barman are: ``gzip``, ``lz4``, ``zstd``, and 
     backup_compression = gzip | lz4 | zstd | none
 
 Barman requires the corresponding CLI utilities for the selected compression algorithm
-to be installed on both the Barman server and PostgreSQL server. These utilities can be
+to be installed on both the Barman server and Postgres server. These utilities can be
 installed via system packages named ``gzip``, ``lz4``, and ``zstd`` on Debian, Ubuntu,
 RedHat, CentOS, and SLES systems.
 
 * On Ubuntu 18.04 (bionic), the ``lz4`` utility is available in the ``liblz4-tool``
   package.
 
-* ``lz4`` and ``zstd`` are supported with PostgreSQL 15 or higher.
+* ``lz4`` and ``zstd`` are supported with Postgres 15 or higher.
 
 .. important::
     If using ``backup_compression``, you must also set ``recovery_staging_path`` to
@@ -185,14 +185,14 @@ default value for the algorithm will be used.
 Compression Location
 """"""""""""""""""""
 
-For PostgreSQL 15 or higher, you can choose where compression occurs: on the ``server``
+For Postgres 15 or higher, you can choose where compression occurs: on the ``server``
 or the ``client``. Set the ``backup_compression_location`` option:
 
 .. code-block:: text
 
     backup_compression_location = server | client
 
-* ``server``: Compression occurs on the PostgreSQL server, reducing network bandwidth
+* ``server``: Compression occurs on the Postgres server, reducing network bandwidth
   but increasing server workload.
 * ``client``: Compression is handled by ``pg_basebackup`` on the client side.
 
@@ -207,7 +207,7 @@ When ``backup_compression_location`` is set to ``server``, you can also configur
 * ``tar``: Backups are written as compressed tarballs (default).
 
 Depending on the chosen ``backup_compression`` and ``backup_compression_format``, you
-may need to install additional tools on both the PostgreSQL and Barman servers.
+may need to install additional tools on both the Postgres and Barman servers.
 
 Refer to the table below to select the appropriate tools for your configuration.
 
@@ -274,14 +274,14 @@ with the ``barman backup`` command:
 Streaming Backup
 ----------------
 
-Barman can perform a backup of a PostgreSQL server using a streaming connection with
+Barman can perform a backup of a Postgres server using a streaming connection with
 ``pg_basebackup``. 
 
 .. important::
-    ``pg_basebackup`` must be installed on the same server. It is recommended to use the
-    latest version of ``pg_basebackup`` as it is backwards compatible. Multiple versions
-    can be installed and specified using the ``path_prefix`` option in the configuration
-    file.
+    ``pg_basebackup`` must be installed on the Barman server. It is recommended to use
+    the latest version of ``pg_basebackup`` as it is backwards compatible. Multiple
+    versions can be installed and specified using the ``path_prefix`` option in the
+    configuration file.
 
 To configure streaming backups, set the ``backup_method`` to ``postgres``:
 
@@ -292,7 +292,7 @@ To configure streaming backups, set the ``backup_method`` to ``postgres``:
 Block-level Incremental Backup
 """"""""""""""""""""""""""""""
 
-This type of backup uses the native incremental backup feature introduced in PostgreSQL
+This type of backup uses the native incremental backup feature introduced in Postgres
 17.
 
 Block-level incremental backups deduplicate data at the page level in Postgres. This
@@ -311,7 +311,7 @@ Example command:
 
 To use block-level incremental backups in Barman, you must:
 
-* Use PostgreSQL 17 or later.
+* Use Postgres 17 or later.
 * This feature relies on WAL Summarization, so ``summarize_wal`` must be enabled on your
   database server before taking the initial full backup.
 * Use ``backup_method=postgres``.
@@ -330,7 +330,7 @@ To use block-level incremental backups in Barman, you must:
 Backup with Rsync through SSH
 -----------------------------
 
-Barman can perform a backup of a PostgreSQL server using Rsync, which uses SSH as a
+Barman can perform a backup of a Postgres server using Rsync, which uses SSH as a
 transport mechanism.
 
 To configure a backup using rsync, include the following parameters in the Barman server
@@ -342,7 +342,7 @@ configuration file:
     ssh_command = ssh postgres@pg
 
 Here, ``backup_method`` activates the rsync backup method, and ``ssh_command`` specifies
-the SSH connection details from the Barman server to the PostgreSQL server.
+the SSH connection details from the Barman server to the Postgres server.
 
 .. note::
     Starting with Barman 3.11, a keep-alive mechanism is used for rsync-based backups.
@@ -353,8 +353,9 @@ the SSH connection details from the Barman server to the PostgreSQL server.
 File-Level Incremental Backups
 """"""""""""""""""""""""""""""
 
-File-level incremental backups rely on rsync and hard links, so both the operating
-system and file system where the backup data is stored must support these features.
+File-level incremental backups rely on rsync and alternatively hard links, so both the
+operating system and file system where the backup data is stored must support these
+features.
 
 The core idea is that during a subsequent base backup, files that haven't changed since
 the last backup are shared, which saves disk space. This is especially beneficial in
@@ -395,12 +396,65 @@ the Barman backup command. For example, to run a one-off incremental backup, use
     it will still be treated as a full backup due to the absence of existing files to
     link.
 
+.. _backup-concurrent-backup-of-a-standby:
+
+Concurrent Backup of a Standby
+------------------------------
+
+When performing a backup from a standby server, ensure the following configuration
+options are set to point to the standby:
+
+* ``conninfo``
+* ``streaming_conninfo`` (if using ``backup_method = postgres`` or
+  ``streaming_archiver = on``)
+* ``ssh_command`` (if using ``backup_method = rsync``)
+
+The ``primary_conninfo`` option should point to the primary server. Barman will use
+``primary_conninfo`` to trigger a new WAL switch on the primary, allowing the concurrent
+backup from the standby to complete without waiting for a natural WAL switch.
+
+.. note::
+    It's crucial to configure ``primary_conninfo`` if backing up a standby during periods
+    of minimal or no write activity on the primary.
+
+In Barman 3.8.0 and later, if ``primary_conninfo`` is configured, you can also set the
+``primary_checkpoint_timeout`` option. This specifies the maximum wait time (in seconds)
+for a new WAL file before Barman forces a checkpoint on the primary. This timeout should
+exceed the ``archive_timeout`` value set on the primary.
+
+If ``primary_conninfo`` is not set, the backup will still proceed but will pause at the
+stop backup stage until the last archived WAL segment is newer than the latest WAL
+required by the backup.
+
+Barman requires that WAL files and backup data originate from the same Postgres
+cluster. If the standby is promoted to primary, the existing backups and WALs remain
+valid. However, you should update the Barman configuration to use the new standby for
+future backups and WAL retrieval.
+
+.. note::
+    In case of a failover on the Postgres cluster you can update the Barman
+    configuration with :ref:`Configuration Models <configuration-configuration-models>`.
+
+WALs can be retrieved from the standby via WAL streaming or WAL archiving. Refer to the
+:ref:`concepts <concepts-postgres-backup-concepts-wal-archiving-and-wal-streaming>`
+section for more details. If you want to start working with WAL streaming or WAL
+archiving, refer to the quickstart section on
+:ref:`streaming backups with wal streaming <quickstart-configuring-your-first-server-streaming-backups-with-wal-streaming>`
+or
+:ref:`rsync backups with wal archiving <quickstart-configuring-your-first-server-rsync-backups-with-wal-archiving>`.
+
+.. note::
+    For Postgres 10 and earlier, Barman cannot handle simultaneous WAL streaming and
+    archiving on a standby. You must disable one if the other is in use, as WALs from
+    Postgres 10 and earlier may differ at the binary level, leading to false-positive 
+    detection issues in Barman.
+
 .. _backup-cloud-snapshot-backups:
 
 Cloud Snapshot Backups
 ----------------------
 
-Barman can perform backups of PostgreSQL servers deployed in specific cloud environments
+Barman can perform backups of Postgres servers deployed in specific cloud environments
 by utilizing snapshots of storage volumes. In this setup, Postgres file backups are
 represented as volume snapshots stored in the cloud, while Barman functions as the
 storage server for Write-Ahead Logs (WALs) and the backup catalog. Despite the backup
@@ -409,7 +463,7 @@ ones created with ``rsync`` or ``postgres`` backup methods.
 
 .. note::
     Additionally, snapshot backups can be created without a Barman server by using the
-    ``barman-cloud-backup`` command directly on the PostgreSQL server. Refer to the
+    ``barman-cloud-backup`` command directly on the Postgres server. Refer to the
     :ref:`barman-cli-cloud <barman-cloud-barman-cli-cloud>` section for more information
     on how to properly work with this option.
 
@@ -488,7 +542,7 @@ account to the compute instance running Barman (recommended) or use the
 file.
 
 .. important::
-    Ensure the service account have the permissions listed below:
+    Ensure the service account has the permissions listed below:
 
     * ``compute.disks.createSnapshot``
     * ``compute.disks.get``
@@ -548,7 +602,7 @@ The following environment variables are supported: ``AZURE_STORAGE_CONNECTION_ST
 credentials in order to authenticate via Azure Active Directory.
 
 .. important::
-    Ensure the credential have the permissions listed below:
+    Ensure the credential has the permissions listed below:
 
     * ``Microsoft.Compute/disks/read``
     * ``Microsoft.Compute/virtualMachines/read``
@@ -556,7 +610,7 @@ credentials in order to authenticate via Azure Active Directory.
     * ``Microsoft.Compute/snapshots/write``
     * ``Microsoft.Compute/snapshots/delete``
 
-For provider specific credentials configurations, refer to the
+For provider specific credential configurations, refer to the
 `Azure environment variables configurations <https://learn.microsoft.com/en-us/azure/storage/blobs/authorize-data-operations-cli#set-environment-variables-for-authorization-parameters>`_
 and `Identity Package <https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity?view=azure-python>`_.
 
@@ -650,7 +704,7 @@ Here is an overview of the snapshot backup process:
     * The disks listed in ``snapshot_disks`` are attached to the ``snapshot_instance``.
     * The disks listed in ``snapshot_disks`` are mounted on the ``snapshot_instance``.
 
-2. Barman initiates the backup using the PostgreSQL backup API.
+2. Barman initiates the backup using the Postgres backup API.
 3. The cloud provider API is used to create a snapshot for each specified disk. Barman
    waits until each snapshot reaches a state that guarantees application consistency
    before proceeding to the next disk.
@@ -805,55 +859,3 @@ detailed in the following sections.
   at the time of the backup.
 * ``snapshot_id``: The ID of the snapshot as assigned by AWS.
 * ``snapshot_name``: The name of the snapshot.
-
-.. _backup-concurrent-backup-of-a-standby:
-
-Concurrent Backup of a Standby
-------------------------------
-
-When performing a backup from a standby server, ensure the following configuration
-options are set to point to the standby:
-
-* ``conninfo``
-* ``streaming_conninfo`` (if using ``backup_method = postgres`` or
-  ``streaming_archiver = on``)
-* ``ssh_command`` (if using ``backup_method = rsync``)
-
-The ``primary_conninfo`` option should point to the primary server. Barman will use
-``primary_conninfo`` to trigger a new WAL switch on the primary, allowing the concurrent
-backup from the standby to complete without waiting for a natural WAL switch.
-
-.. note::
-    It's crucial to configure ``primary_conninfo`` if backing up a standby during periods
-    of minimal or no write activity on the primary.
-
-In Barman 3.8.0 and later, if ``primary_conninfo`` is configured, you can also set the
-``primary_checkpoint_timeout`` option. This specifies the maximum wait time (in seconds)
-for a new WAL file before Barman forces a checkpoint on the primary. This timeout should
-exceed the ``archive_timeout`` value set on the primary.
-
-If ``primary_conninfo`` is not set, the backup will still proceed but will pause at the
-stop backup stage until the last archived WAL segment on the primary is newer than
-the latest WAL required by the backup.
-
-Barman requires that WAL files and backup data originate from the same PostgreSQL
-cluster. If the standby is promoted to primary, the existing backups and WALs remain
-valid. However, you should update the Barman configuration to use the new standby for
-future backups and WAL retrieval.
-
-.. note::
-    You can update the Barman configuration with
-    :ref:`Configuration Models <configuration-configuration-models>`.
-
-WALs can be retrieved from the standby via WAL streaming or WAL archiving. Refer to the
-:ref:`concepts <concepts-postgres-backup-concepts-wal-archiving-and-wal-streaming>`
-section for more details. If you want to start working with WAL streaming or WAL
-archiving, refer to the quickstart section on :ref:`streaming backups with wal streaming <quickstart-configuring-your-first-server-streaming-backups-with-wal-streaming>`
-or
-:ref:`rsync backups with wal archiving <quickstart-configuring-your-first-server-rsync-backups-with-wal-archiving>`.
-
-.. note::
-    For PostgreSQL 10 and earlier, Barman cannot handle simultaneous WAL streaming and
-    archiving on a standby. You must disable one if the other is in use, as WALs from
-    PostgreSQL 10 and earlier may differ at the binary level, leading to false-positive 
-    detection issues in Barman.

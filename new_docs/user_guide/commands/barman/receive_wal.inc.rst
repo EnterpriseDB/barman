@@ -19,7 +19,7 @@ Description
 ^^^^^^^^^^^
 
 Initiate the streaming of transaction logs for a server. This process uses
-``pg_receivewal`` or ``pg_receivexlog`` to receive WAL files from PostgreSQL servers via
+``pg_receivewal`` or ``pg_receivexlog`` to receive WAL files from Postgres servers via
 the streaming protocol.
 
 Parameters

@@ -34,43 +34,45 @@ A good way to start modeling your disaster recovery architecture includes:
 * Design a couple of possible architectures in regards to Postgres and Barman locations,
   such as:
   
-  1. Same data center;
-  2. Different data centers in the same metropolitan area;
-  3. Different data centers;
+  1. Same data center.
+  2. Different data centers in the same metropolitan area.
+  3. Different data centers in different metropolitan areas.
+
 
 * Elaborate the pros and the cons of each hypothesis.
 * Evaluate the :term:`SPOF` of your system, with a cost-benefit analysis.
 * Make your decision and implement an initial solution.
 
-With that in mind, a very common setup for Barman is to be installed in the same data
-center where your Postgres servers are, in which case the :term:`SPOF` is the data
-center itself. Though the impact of such :term:`SPOF` can be significantly alleviated
-with features such as :ref:`geographical redundancy <geographical-redundancy-TBD>`
-(introduced in Barman 2.6) and
-:ref:`Hook Scripts <concepts-barman-concepts-hook-scripts>`.
+With that in mind, a very common setup for Barman is for it to be installed in the
+same data center where your Postgres servers are, in which case the :term:`SPOF` is
+the data center itself. Though the impact of such :term:`SPOF` can be significantly
+alleviated with features such as
+:ref:`geographical redundancy <architectures-geographical-redundancy>` (introduced in
+Barman 2.6) and :ref:`Hook Scripts <concepts-barman-concepts-hook-scripts>`.
 
 With geographical redundancy, you can rely on a Barman instance that is located in a
-different data center/availability zone to synchronize the entire content of the source
-Barman server. Also, given that geo-redundancy can be configured in Barman not only at
-global level, but also at server level, you can create hybrid installations of Barman
-where some servers are directly connected to the local Postgres servers, and others are
-backing up subsets of different Barman installations (cross-site backup). Figure below
-shows two availability zones (one in Europe and one in the US), each with a primary
-Postgres server that is backed up in a local Barman installation, and relayed on the
-other Barman server (defined as passive) for multi-tier backup via Rsync/SSH. Further
-information on geo-redundancy is available in the
-:ref:`geographical redundancy <geographical-redundancy-TBD>` section.
+different data center/availability zone to synchronize the entire content of the Barman
+server co-located in the same data center as the Postgres node. Also, given that
+geo-redundancy can be configured in Barman not only at global level, but also at server
+level, you can create hybrid installations of Barman where some servers are directly
+connected to the local Postgres servers, and others are backing up subsets of different
+Barman installations (cross-site backup). Figure below shows two availability zones
+(one in Europe and one in the US), each with a primary Postgres server that is backed up
+in a local Barman installation, and relayed on the other Barman server (defined as
+passive) for multi-tier backup via Rsync/SSH. Further information on geo-redundancy is
+available in the :ref:`geographical redundancy <architectures-geographical-redundancy>`
+section.
 
 .. image:: /images/barman-architecture-georedundancy.png
    :scale: 50%
    :align: center
 
 
-Thanks to :ref:`Hook Scripts <concepts-barman-concepts-hook-scripts>` instead, backups
-of Barman can be exported on different media, such as tape via tar, or locations, like
-an object storage bucket in a cloud provider.
+Thanks to :ref:`Hook Scripts <concepts-barman-concepts-hook-scripts>`, backups of Barman
+can be exported to different media, such as tape via tar, or locations, like an object
+storage bucket in a cloud provider.
 
-Remember that no decision is forever. You can start this way and adapt over time to the
+Remember that no decision is forever. You can start one way and adapt over time to the
 solution that suits you best. However, try and keep it simple to start with.
 
 
@@ -105,8 +107,8 @@ versions of Postgres.
    Because Barman makes use of ``pg_basebackup`` when using streaming backups, features
    such as parallel backup are currently not available. In this case, bandwidth
    limitation has some restrictions - compared to the traditional method via Rsync.
-   In Postgres versions prior to 17, incremental backups will also not be available
-   when using this method.
+   In Postgres versions prior to 17, incremental backups are also not available when
+   using this method.
 
 Backup using Rsync/SSH is recommended in cases where ``pg_basebackup`` limitations pose
 an issue for you.
@@ -291,6 +293,15 @@ archiving and have both options. See the image below.
 .. image:: /images/barman-architecture-scenario2b.png
    :scale: 50%
    :align: center
+
+
+.. _architectures-geographical-redundancy:
+
+Geographical redundancy
+-----------------------
+
+TODO: Add content here.
+
 
 .. _architectures-cloud-snaphost-backups:
 

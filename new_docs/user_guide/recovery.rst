@@ -3,7 +3,7 @@
 Recovery
 ========
 
-The recover command is used to restore an entire PostgreSQL server from a backup created
+The recover command is used to restore an entire Postgres server from a backup created
 with the backup command. To use it, run:
 
 ``barman recover [OPTIONS] SERVER_NAME BACKUP_ID DESTINATION_PATH``
@@ -77,9 +77,9 @@ The previous targets can be used with a ``--target-action`` which can take these
 
 * ``shutdown``: Shut down Postgres when the target is reached.
 * ``pause``: Pause Postgres for inspection when the target is reached.
-* ``promote``: Promote Postgres to master when the target is reached.
+* ``promote``: Promote Postgres to primary when the target is reached.
 
-Also you can configure the instance as a standby by calling ``--standby-mode``. After
+You can also configure the instance as a standby by calling ``--standby-mode``. After
 recovery, ensure you modify the configuration to connect to the intended upstream node
 server.
 
@@ -126,7 +126,7 @@ which is designed to handle SSH connection errors more robustly.
 
 This script offers useful features like automatic compression and decompression of WAL
 files and the ``peek`` feature, allowing you to retrieve upcoming WAL files while
-Postgres is processing others, optimizing bandwidth between Postgres and Barman.
+Postgres is processing earlier ones, optimizing bandwidth between Postgres and Barman.
 
 ``barman-wal-restore`` is included in the ``barman-cli`` package. Here's an example of
 a ``restore_command`` for **remote recovery**:
@@ -141,14 +141,14 @@ SSH, SSH key authentication is required for the ``postgres`` user to log in as
 specify it with the ``--port`` option.
 
 To verify that ``barman-wal-restore`` can connect to the Barman server and that the
-required PostgreSQL server is set up to send WAL files, use the following command:
+required Postgres server is set up to send WAL files, use the following command:
 
 .. code-block:: text
 
   barman-wal-restore --test backup pg DUMMY DUMMY
 
 Here, ``backup`` refers to the host where Barman is installed, ``pg`` is the name of the
-PostgreSQL server configured in Barman, and ``DUMMY`` acts as a placeholder (the script
+Postgres server configured in Barman, and ``DUMMY`` acts as a placeholder (the script
 needs two arguments for the WAL file name and destination directory, which will be
 ignored).
 
@@ -238,14 +238,14 @@ Limitations of .partial WAL files
 ---------------------------------
 
 When using ``streaming_archiver``, Barman relies on ``pg_receivewal`` to continuously
-receive transaction logs from a PostgreSQL server (either master or standby) through the
+receive transaction logs from a Postgres server (either master or standby) through the
 native streaming replication protocol. By default, ``pg_receivewal`` writes these logs
 to files with a ``.partial`` suffix, indicating they are not yet complete. Barman looks
 for these ``.partial`` files in the ``streaming_wals_directory``. Once ``pg_receivewal``
 completes the file, it removes the ``.partial`` suffix and hands it over to Barman's
 ``archive-wal`` command for permanent storage and compression.
 
-If the master PostgreSQL server suddenly fails and cannot be recovered, the ``.partial``
+If the master Postgres server suddenly fails and cannot be recovered, the ``.partial``
 file that was streamed to Barman may contain crucial data that might not have been
 delivered to the archiving process.
 
@@ -264,7 +264,8 @@ Recovering from Snapshot Backups
 
 Barman currently does not support fully automated recovery from snapshot backups. This
 limitation arises because snapshot recovery requires provisioning and managing new
-infrastructure, a task best handled by dedicated :term:`IAC` solutions like Terraform.
+infrastructure, a task best handled by dedicated :term:`IAC` solutions like Terraform
+or OpenTofu.
 
 However, you can still use the barman recover command to validate the snapshot recovery
 instance and perform post-recovery tasks, such as checking the Postgres configuration for

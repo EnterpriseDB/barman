@@ -24,7 +24,7 @@
 **Description**
 
 The ``barman-cloud-wal-restore`` script functions as the ``restore_command`` for
-retrieving WAL files from cloud storage and placing them directly into a PostgreSQL
+retrieving WAL files from cloud storage and placing them directly into a Postgres
 standby server, bypassing the Barman server.
 
 This script is used to download WAL files that were previously archived with the
@@ -47,7 +47,7 @@ calling ``--no-partial`` option.
   Name of the server that will have WALs restored.
 
 ``DESTINATION_URL``
-  URL of the cloud destination, such as a bucket in AWS S3. For example: `s3://bucket/path/to/folder`.
+  URL of the cloud destination, such as a bucket in AWS S3. For example: ``s3://bucket/path/to/folder``.
 
 ``WAL_NAME``
   The value of the '%f' keyword (according to ``restore_command``).
