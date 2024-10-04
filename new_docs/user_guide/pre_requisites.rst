@@ -12,28 +12,25 @@ Throughout this section, we assume the following hosts:
 
 * ``barmanhost``: The host where Barman will be set up.
 
+.. _pre-requisites-postgres-user:
 
-.. _pre-requisites-postgres-connection:
+Postgres users
+--------------
 
-Postgres connection
--------------------
-
-A connection to your Postgres instance is required regardless of which backup method
-you are using. This connection is required by Barman in order to coordinate its
-activities with the database server, as well as for monitoring purposes.
+Barman requires a connection to your Postgres instance to gather information about the
+server. The recommended way to set up this connection is to create a dedicated user in
+Postgres named ``barman``. This user should have the necessary privileges.
 
 .. note::
 
-    The ``createuser`` commands executed below prompt you for a password, which you
-    are then advised to add to a
+    The ``createuser`` commands executed below will prompt you for a password, which
+    you are then advised to add to a
     `password file <https://www.postgresql.org/docs/current/libpq-pgpass.html>`_
     named ``.pgpass`` under your Barman home directory on ``barmanhost``. Aditionally,
     you can choose the client authentication method of your preference among those
     offered by Postgres. Check the `official documentation <https://www.postgresql.org/docs/current/client-authentication.html>`_
     for further details.
 
-Make sure that ``barmanhost`` can connect to the database server as superuser or with
-a user with the required priviledges.
 
 To create a superuser named ``barman`` in Postgres, run the following command on
 ``pghost``:
@@ -78,6 +75,20 @@ You will therefore need to replace the first two lines in the above block with:
     above, it is possible to grant the ``pg_checkpoint`` role to use it without a
     superuser by executing the statement ``GRANT pg_checkpoint TO barman;``.
 
+
+.. _pre-requisites-postgres-connection:
+
+Postgres connection
+-------------------
+
+A connection to your Postgres instance is required regardless of which backup method
+you are using. This connection is required by Barman in order to coordinate its
+activities with the database server, as well as for monitoring purposes.
+
+Make sure that ``barmanhost`` can connect to the database server as superuser or with
+a user with the required priviledges. You can find detailed information about
+setting up Postgres connections in the
+`Postgres Client Authentication <https://www.postgresql.org/docs/current/client-authentication.html>`_.
 
 With your user created, run the following command on ``barmanhost`` to assert that it
 can connect to your Postgres instance:
@@ -326,16 +337,16 @@ only parameter required for the ``archive_command`` is the server's name, reduci
 likelihood of misplacement.
 
 To verify that ``barman-wal-archive`` can connect to the Barman server and that the
-PostgreSQL server is correctly configured to accept incoming WAL files, execute the
+Postgres server is correctly configured to accept incoming WAL files, execute the
 following command:
 
 .. code-block:: text
 
     barman-wal-archive --test backup pg DUMMY
 
-Here, ``backup`` refers to the Barman host, ``pg`` is the PostgreSQL server's name as
+Here, ``backup`` refers to the Barman host, ``pg`` is the Postgres server's name as
 configured in Barman, and ``DUMMY`` is a placeholder for the WAL file name which is
-ignored when using the `-t` option.
+ignored when using the ``-t`` option.
 
 If the setup is correct, you should see:
 
@@ -357,7 +368,7 @@ Using Rsync/SSH
 
 An **alternative approach** for configuring the ``archive_command`` is to utilize the
 rsync command via SSH. Here are the initial steps to set it up effectively for a
-PostgreSQL server named ``pg``, a Barman server named ``backup`` and a user named
+Postgres server named ``pg``, a Barman server named ``backup`` and a user named
 ``barman``.
 
 To locate the incoming WALs directory, use the following command and check for the
@@ -379,7 +390,7 @@ enable archive mode:
     archive_command = 'rsync -a %p barman@backup:INCOMING_WALS_DIRECTORY/%f'
 
 Be sure to replace the ``INCOMING_WALS_DIRECTORY`` placeholder with the actual path
-retrieved from the previous command. After making these changes, restart the PostgreSQL
+retrieved from the previous command. After making these changes, restart the Postgres
 server.
 
 For added security in the ``archive_command`` process, consider implementing stricter

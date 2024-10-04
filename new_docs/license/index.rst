@@ -10,7 +10,7 @@ Barman has initially received partial funding from 4CaaSt, a research project su
 by the European Commission's Seventh Framework Programme.
 
 We welcome contributions to Barman. These contributions will be acknowledged in the
-``AUTHORS`` file. To ensure that all Barman code remains free, EnterpriseDB UK Limited
+release notes. To ensure that all Barman code remains free, EnterpriseDB UK Limited
 requires contributors to complete a copyright assignment and to disclaim any
 work-for-hire claims from their employers. For a Copyright Assignment Form, please
 contact barman@enterprisedb.com.

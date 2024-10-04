@@ -44,8 +44,8 @@ To run a check on all configured servers, use:
 
     barman check --nagios <server_name>
 
-`This will output results in a format compatible with Nagios, facilitating integration
-into your existing monitoring setup.`
+This will output results in a format compatible with Nagios, facilitating integration
+into your existing monitoring setup.
 
 .. tip::
   For other backup and server-specific checks, you can use the following command:
@@ -99,15 +99,14 @@ Barman functioning:
 .. note::
   If ``archiver = off`` in the Barman configuration and there are WALs in the incoming
   directory, the check will fail. This happens because WALs in the incoming directory
-  suggest PostgreSQL is still using ``archive_command`` or switched from ``archiver`` to
-  ``streaming_archiver``, leaving WALs unsaved in Barman's archive.
+  suggest Postgres is still using ``archive_command`` or that the user switched from
+  ``archiver`` to ``streaming_archiver``, leaving WALs unsaved in Barman's archive.
 
   To resolve this, you must determine if the WALs in incoming are necessary or can be
   safely deleted. This can be done by:
 
   1. Checking if the WALs are newer than the ``begin_wal`` of the oldest backup.
-  2. Verifying if these WALs are already in Barman's archive (usually ``true`` if
-     ``streaming_archiver`` is configured).
+  2. Verifying if these WALs are already in Barman's archive.
 
   The same issue applies if ``streaming_archiver = off`` and WALs are found in the
   streaming directory.

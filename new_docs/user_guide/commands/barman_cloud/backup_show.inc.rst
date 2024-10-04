@@ -38,7 +38,7 @@ but it has fewer information.
 
 ``SOURCE_URL``
   URL of the cloud source, such as a bucket in AWS S3. For example:
-  `s3://bucket/path/to/folder`.
+  ``s3://bucket/path/to/folder``.
 
 ``-V`` / ``--version``
   Show version and exit.

@@ -48,7 +48,7 @@ Parameters
     Additionally, collect partial WAL files (.partial).
 
 ``-t`` / ``--test``
-    Test both the connection and configuration of the specified PostgreSQL server in
+    Test both the connection and configuration of the specified Postgres server in
     Barman for WAL retrieval. When this option is used, the required ``WAL_NAME``
     argument is disregarded.
 

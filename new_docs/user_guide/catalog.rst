@@ -3,22 +3,21 @@
 Catalog information
 ===================
 
-
 The backup catalog  is a comprehensive record that keeps track of all servers and
-backups on the Barman node. Note that servers are the PostgreSQL database systems that
+backups on the Barman node. Note that servers are the Postgres database systems that
 are being tracked and backed up by Barman. Each server is configured within the Barman
 node to ensure that its data is regularly backed up and can be restored if needed. The
 Barman node is another server that hosts the Barman software, which manages the backup
-and recovery processes for these PostgreSQL servers. It communicates with the configured
+and recovery processes for these Postgres servers. It communicates with the configured
 servers to perform backups, store them securely, and maintain a detailed catalog of all
 backup activities.
 
-It is essential for effective backup management and recovery operations, offering an
-unified interface that makes it a key component of the Barman tool. It plays a central
-role in organizing, monitoring, and executing backup and recovery tasks by providing a
-comprehensive view and precise control over all backup activities. This streamlined
-approach enhances efficiency, simplifies management, and ensures seamless recovery
-processes.
+The backup catalog is essential for effective backup management and recovery operations,
+offering a unified interface that makes it a key component of the Barman tool. It plays
+a central role in organizing, monitoring, and executing backup and recovery tasks by
+providing a comprehensive view and precise control over all backup activities. This
+streamlined approach enhances efficiency, simplifies management, and ensures seamless
+recovery processes.
 
 The global configuration option ``barman_home`` specifies the directory where Barman
 stores and manages backups for multiple servers. By default, this directory is set to
@@ -31,13 +30,13 @@ easily accessible.
 Purpose
 -------
 
-Serve as a centralized repository that keeps track of all PostgreSQL server and
+Serve as a centralized repository that keeps track of all Postgres server and
 backup-related information. 
 
 Here are some key roles it plays:
 
 * **Backup Metadata Storage**: It stores metadata about each backup, such as the
-  backup's start and end times, the status, the specific PostgreSQL instance it was taken
+  backup's start and end times, the status, the specific Postgres instance it was taken
   from and many other metrics. This metadata helps in tracking and managing the backup
   lifecycle.
 
@@ -58,7 +57,7 @@ Here are some key roles it plays:
 Usage
 -----
 
-Barman offers a straightforward terminal interface for managing PostgreSQL backups and
+Barman offers a straightforward terminal interface for managing Postgres backups and
 interacting with the backup catalog. This interface provides a range of sub-commands for
 both server management and backup operations. All Barman sub-commands can be found in
 the :ref:`sub commands <commands-sub-commands>` section, including two important ones
@@ -70,8 +69,8 @@ an example.
 ``list-backups``
 """"""""""""""""
 
-Show available backups for a server. This command is useful to retrieve a list o backups
-with minimal yet important informations, such as backup ID and the backup type.
+Show available backups for a server. This command is useful to retrieve a list of
+backups with minimal yet important information, such as backup ID and the backup type.
 
 For example:
 
@@ -150,21 +149,21 @@ backup:
 
 .. note::
     The output of the ``show-backup`` command can vary depending on the version of
-    your PostgreSQL server and the type of backup.
+    your Postgres server and the type of backup.
 
     * The fields ``Root Backup``, ``Parent Backup``, ``Backup chain size`` and
       ``Children Backup(s)`` are relevant only for block-level incremental backups taken
-      with ``backup_method=postgres`` on PostgreSQL 17 or newer. These fields will not be
-      shown for other types of backups or older PostgreSQL versions.
+      with ``backup_method=postgres`` on Postgres 17 or newer. These fields will not be
+      shown for other types of backups or older Postgres versions.
     * The ``show-backup`` command relies on backup metadata. If a backup was created
       with Barman version 3.10 or earlier, it will not include fields introduced in
       version 3.11, such as those related to block-level incremental backups in
-      PostgreSQL 17.
+      Postgres 17.
     * The field ``Resource Saved`` is available for rsync and incremental
       backups, and ``Snapshot Information`` is only available for snapshot backups.
     * The possible values for the field ``Backup Type`` are:
 
-      * ``rsync``: for a backup taken with rsync;
-      * ``full``: for a full backup taken with pg_basebackup;
-      * ``incremental``: for an incremental backup taken with pg_basebackup;
+      * ``rsync``: for a backup taken with rsync.
+      * ``full``: for a full backup taken with pg_basebackup.
+      * ``incremental``: for an incremental backup taken with pg_basebackup.
       * ``snapshot``: for a snapshot-based backup taken in the cloud.

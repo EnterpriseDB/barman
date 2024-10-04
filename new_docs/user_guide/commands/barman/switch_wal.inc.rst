@@ -41,5 +41,5 @@ Parameters
     Forces the switch by executing a CHECKPOINT before ``pg_switch_wal()``.
     
     .. note::
-        Running a CHECKPOINT may increase I/O load on the PostgreSQL server, so use this
+        Running a CHECKPOINT may increase I/O load on the Postgres server, so use this
         option cautiously.

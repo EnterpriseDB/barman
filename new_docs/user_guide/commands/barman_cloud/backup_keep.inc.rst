@@ -42,7 +42,7 @@ and are not subject to standard retention policies.
 
 ``SOURCE_URL``
   URL of the cloud source, such as a bucket in AWS S3. For example:
-  `s3://bucket/path/to/folder`.
+  ``s3://bucket/path/to/folder``.
 
 ``BACKUP_ID``
   The ID of the backup to be kept.

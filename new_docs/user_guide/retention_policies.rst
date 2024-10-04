@@ -100,14 +100,14 @@ Compliance and Regulation
 Minimum redundancy safety
 -------------------------
 
-You can set a minimum number of backups for your PostgreSQL server using the
+You can set a minimum number of backups for your Postgres server using the
 ``minimum_redundancy`` option in the global or per-server configuration. By default, this
 option is set to 0.
 
 If you set ``minimum_redundancy`` to a number greater than 0, Barman will ensure that you
 always have at least that many backups available on the server.
 
-This setting helps protecting against accidental deletion of backups.
+This setting helps protect against accidental deletion of backups.
 
 .. note:: 
     Make sure your retention policy does not conflict with the minimum redundancy
@@ -137,11 +137,19 @@ within that window. The interval window always ends at the current time and span
 backward for the specified period. Barman retains backups and archive logs necessary for
 point-in-time recovery to any moment within this window.
 
-For example, if you set a 7-day recovery window, Barman will keep backups and archive
-logs to allow recovery to any point within the past 7 days. This means that the first
-backup that falls outside the window will still be retained with its corresponding WALs,
-but backups before this one and all the older WALs will be marked as obsolete and
-eventually evicted.
+For example, if you set a 7-day recovery window, Barman will keep backups and WAL files
+to allow recovery to any point within the past 7 days. This means that the first backup
+that falls outside the window will still be retained with its corresponding WALs, but
+backups before this one and all the older WALs will be marked as obsolete and eventually
+be evicted.
+
+Keep command
+""""""""""""
+
+The ``keep`` command can be used to mark a specific backup so its kept indefinitely.
+This overrides the retention policy explained earlier for that backup. You can find
+more information on the ``keep`` command in the
+:ref:`Barman keep command documentation <commands-barman-keep>`.
 
 .. _retention-policies-use-cases:
 
@@ -151,9 +159,9 @@ Use cases
 Point-In-Time Recovery
 """"""""""""""""""""""
 
-Base backups and archive logs have the same retention policy. This setup allows you to
-recover your PostgreSQL server to any point in time from the end time of the earliest
-available backup.
+Base backups and archived WAL files have the same retention policy. This setup allows
+you to recover the data from your Postgres server to any point in time from the end
+time of the earliest available backup.
 
 Operational Efficiency and Space Management
 """""""""""""""""""""""""""""""""""""""""""
@@ -233,7 +241,7 @@ retention policy, as outlined in
 backups are treated the same as any other ``rsync`` or ``postgres`` backup.
 
 In the second scenario, since there is no Barman server, you won't have cron for
-maintenance operations or enforcing the retention policy. Instead, you'll need to use
+maintenance operations for enforcing the retention policy. Instead, you'll need to use
 ``barman-cloud-backup-delete`` with the ``-r RETENTION_POLICY`` option (see the
 :ref:`command reference <barman-cloud-barman-cloud-backup-delete>`). This will delete
 any backups that do not meet the specified retention policy. Additionally, you can also

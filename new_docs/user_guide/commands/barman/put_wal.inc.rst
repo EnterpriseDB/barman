@@ -26,5 +26,5 @@ Parameters
     Name of the server in barman node
 
 ``-t`` / ``--test``
-    Test both the connection and configuration of the specified PostgreSQL
+    Test both the connection and configuration of the specified Postgres
     server in Barman for WAL retrieval.

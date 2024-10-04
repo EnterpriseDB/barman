@@ -91,7 +91,7 @@ quickly navigate to it.
 -----------------------
 
 The ``barman-cli`` package includes a collection of recommended client utilities that 
-should be installed alongside the PostgreSQL server. Here are the command references for
+should be installed alongside the Postgres server. Here are the command references for
 both utilities.
 
 .. include:: commands/barman_cli/wal_archive.inc.rst

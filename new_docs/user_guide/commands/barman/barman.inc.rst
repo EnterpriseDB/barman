@@ -23,10 +23,10 @@ Synopsis
 
     This is the syntax for the synopsis:
 
-    - Options between square brackets are optional;
-    - Options between curly brackets represent a `choose one of set` operation;
-    - Options with ``[ ... ]`` can be specified multiple times;
-    - Things written in uppercase represent a literal that should be given a value to.
+    * Options between square brackets are optional.
+    * Options between curly brackets represent a choose one of set operation.
+    * Options with ``[ ... ]`` can be specified multiple times.
+    * Things written in uppercase represent a literal that should be given a value to.
 
     We will use this same syntax when describing ``barman`` sub-commands in the
     following sections.

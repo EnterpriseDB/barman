@@ -3,7 +3,7 @@
 Configuration Reference
 =======================
 
-Barman follows a `convention over configuration` approach, which simplifies configuration
+Barman follows a convention over configuration approach, which simplifies configuration
 by allowing some options to be defined globally and overridden at the server level. This
 means you can set a default behavior for your servers and then customize specific servers
 as needed. This design reduces the need for excessive configuration while maintaining
@@ -16,22 +16,22 @@ Usage
 
 Proper configuration is critical for its effective operation. Barman uses different types
 of configuration files to manage global settings, server-specific settings, and
-model-specific settings that comprises three scopes:
+model-specific settings that is made up of three scopes:
  
-1. **Global Configuration**: It comprises of one file with a set of configurations for the
+1. **Global Configuration**: It comprises one file with a set of configurations for the
 barman system, such as the main directory, system user, log file, and other general
 options. Default location is ``/etc/barman.conf`` and it can be overridden on a per-user
 level by ``~/.barman.conf`` or by specifying a ``.conf`` file using the ``-c`` /
 ``--config`` with the :ref:`barman command <commands-barman>` directly in the CLI.
 
-2. **Server Configuration**: It comprises of one or multiple files with a set of
-configurations for a PostgreSQL server that you want to keep track and interact for
+2. **Server Configuration**: It comprises one or more files with a set of
+configurations for a Postgres server that you want to keep track and interact for
 backup, recovery and/or replication. Default location is ``/etc/barman.d`` and must use
 the ``.conf`` suffix. You may have one or multiple files for servers. You can override the
 default location by setting the ``configuration_files_directory`` option in the global
 configuration file and placing the files in that particular location.
 
-3. **Model Configuration**: It comprises of one or multiple files with a set of
+3. **Model Configuration**: It comprises one or more files with a set of
 configurations overrides that can be applied to Barman servers within the same cluster as
 the model. These overrides can be implemented using the barman ``config-switch`` command.
 Default location is ``/etc/barman.d`` and must use the ``.conf`` suffix. The same
@@ -76,7 +76,7 @@ Options
 Options in the configuration files can have specific or shared scopes. The following
 configuration options are used not only for configuring how Barman will execute backups
 and recoveries, but also for configuring various aspects of how Barman interacts with the
-configured PostgreSQL servers to be able to apply your Backup and Recovery, and
+configured Postgres servers to be able to apply your Backup and Recovery, and
 High-Availability strategies.
 
 .. _configuration-options-general:
@@ -92,7 +92,7 @@ When this option is set to ``true`` (default), the server operates fully. If set
 ``false``, the server is restricted to diagnostic use only, meaning that operational
 commands such as backup execution or WAL archiving are temporarily disabled. When
 incorporating a new server into Barman, we recommend initially setting
-``active=false``. Verify that barman check shows no issues before activating the
+``active = false``. Verify that barman check shows no issues before activating the
 server. This approach helps prevent excessive error logging in Barman during the
 initial setup.
 
@@ -199,25 +199,26 @@ Scope: Global.
 **configuration_files_directory**
 
 Designates the directory where server/model configuration files will be read by Barman.
-Defaults to ``/etc/barman.d``.
+Defaults to ``/etc/barman.d/``.
 
 Scope: Global.
 
 **conninfo**
 
-Specifies the connection string used by Barman to connect to the PostgreSQL server.
+Specifies the connection string used by Barman to connect to the Postgres server.
 This is a libpq connection string. Commonly used keys include: ``host``, ``hostaddr``,
-``port``, ``dbname``, ``user`` and ``password``. See the `PostgreSQL documentation <https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING>`_
+``port``, ``dbname``, ``user`` and ``password``. See the 
+`PostgreSQL documentation <https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING>`_
 for details.
 
 Scope: Server / Model.
 
 **create_slot**
 
-Determines whether Barman should automatically create a replication slot, if it's not
-already present, for streaming of WAL files. When set to ``auto`` and ``slot_name`` 
-is defined, Barman will attempt to create the slot automatically. When set to 
-``manual`` (default), the replication slot must be created manually.
+Determines whether Barman should automatically create a replication slot if it's not
+already present for streaming WAL files. When set to ``auto`` and ``slot_name`` is
+defined, Barman will attempt to create the slot automatically. When set to ``manual``
+(default), the replication slot must be created manually.
 
 Scope: Global / Server / Model.
 
@@ -231,7 +232,8 @@ Scope: Server / Model.
 
 The directory where WAL files that were errored while being archived by Barman are 
 stored. This includes duplicate WAL files (e.g., an archived WAL file that has already
-been streamed) and unexpected files found in the WAL archive directory.
+been streamed but have different hash) and unexpected files found in the WAL archive
+directory.
 
 The purpose of placing the files in this directory is so someone can later review why they 
 failed to be archived and take appropriate actions (dispose of, store somewhere else, 
@@ -311,7 +313,7 @@ Scope: Global / Server / Model.
 **parallel_jobs**
 
 Controls the number of parallel workers used to copy files during backup or recovery.
-Default is ``1``.
+It must be a positive integer. Default is ``1``.
 
 .. note::
   Applies only when ``backup_method = rsync``.
@@ -345,10 +347,10 @@ Scope: Global / Server / Model.
 
 **path_prefix**
 
-Lists one or more absolute paths, separated by colons, where Barman looks for
-executable files. These paths are checked before the PATH environment variable. This
-option can be set for each server and needs to point to the ``bin`` directory for the
-appropriate ``PG_MAJOR_VERSION``.
+Lists one or more absolute paths, separated by colons, where Barman looks for executable
+files. These paths are checked before the ``PATH`` environment variable. This option can
+be set for each server and needs to point to the ``bin`` directory for the appropriate
+``PG_MAJOR_VERSION``.
 
 Scope: Global / Server / Model.
 
@@ -361,14 +363,14 @@ Scope: Server / Model.
 
 **primary_conninfo**
 
-Connection string for Barman to connect to the primary PostgreSQL server during a
+Connection string for Barman to connect to the primary Postgres server during a
 standby backup.
 
 Scope: Server / Model.
 
 **primary_ssh_command**
 
-SSH command for connecting to the primary server if Barman is passive.
+SSH command for connecting to the primary Barman server if Barman is passive.
 
 Scope: Global / Server / Model.
 
@@ -381,7 +383,7 @@ Scope: Global / Server / Model.
 
 **ssh_command**
 
-SSH command used by Barman to connect to the PostreSQL server.
+SSH command used by Barman to connect to the Postgres server for rsync backups.
 
 Scope: Server / Model.
 
@@ -456,7 +458,7 @@ Scope: Global / Server / Model.
 
 Specifies the compression method for the backup process. It can be set to ``gzip``,
 ``lz4``, ``zstd``, or ``none``. Ensure that the CLI tool for the chosen compression
-method is available on both the Barman and PostgreSQL servers. 
+method is available on both the Barman and Postgres servers. 
   
 .. note::
   Note that ``lz4`` and ``zstd`` require Postgres version 15 or later. Unsetting this
@@ -524,7 +526,7 @@ Defines the method Barman uses to perform backups. Options include:
   ``ssh_command``).
 * ``postgres``: Uses the ``pg_basebackup`` command for backups.
 * ``local-rsync``: Assumes Barman runs on the same server and as the same user as
-  the PostgreSQL database, performing an rsync file system copy.
+  the Postgres database, performing an rsync file system copy.
 * ``snapshot``: Utilizes the API of the cloud provider specified in the
   ``snapshot_provider`` option to create disk snapshots as defined in
   ``snapshot_disks`` and saves only the backup label and metadata to its own
@@ -540,7 +542,7 @@ list that can include:
 * ``concurrent_backup`` (default): Uses concurrent backup, recommended for
   Postgres versions 9.6 and later, and supports backups from standby servers.
 * ``exclusive_backup``: Uses the deprecated exclusive backup method. Only for Postgres 
-  versions older than 15.
+  versions older than 15. This option will be removed in the future.
 * ``external_configuration``: Suppresses warnings about external configuration files
   during backup execution.
 
@@ -982,7 +984,7 @@ Scope: Server / Model.
 
 **wal_streaming_conninfo**
 
-This connection string is used by Barman to connect to the PostgreSQL server for
+This connection string is used by Barman to connect to the Postgres server for
 receiving WAL segments via streaming replication and for checking the replication slot
 status. If not specified, Barman defaults to using ``streaming_conninfo`` for these
 tasks. ``wal_streaming_conninfo`` must connect to a Postgres instance within the
@@ -1215,7 +1217,7 @@ Benefits
   **server1**
     * Connect to Postgres from Barman using the ``conninfo``.
     * ``ssh_command`` is needed to correctly create an SSH connection from the Barman
-      server to the PostgreSQL server when using rsync.
+      server to the Postgres server when using rsync.
     * Set the ``backup_method`` as ``rsync`` and ``reuse_backup`` to enable file-level
       incremental backups.
     * Configure the ``archiver`` option to ship WALs using the ``archive_command``
@@ -1252,7 +1254,7 @@ Benefits
       ``pg_receivewal`` processes to stream WAL segments.
     * Set the ``backup_method`` as ``postgres``.
     * Configure the ``streaming_archiver`` option to ship WALs using the streaming
-      replication, the ``slot_name`` that will be created in the PostgreSQL server and
+      replication, the ``slot_name`` that will be created in the Postgres server and
       ``create_slot`` as ``auto`` so Barman can automatically attempt to create the
       replication slot if not present.
     * Set the ``minimum_redundancy`` and the ``retention_policy`` for backups created
@@ -1366,4 +1368,5 @@ Benefits
   .. important::
     You will not see any in place changes in the configuration file. The overrides are
     applied internally and you can check the current server configuration by using the
-    command ``barman show-servers SERVER_NAME`` for the complete list of settings.
+    command ``barman show-servers SERVER_NAME`` for the complete list of settings, or in
+    the ``barman diagnose`` output.

@@ -3,7 +3,7 @@
 Barman for the cloud
 ====================
 
-Barman offers two primary methods for backing up PostgreSQL servers to the cloud:
+Barman offers two primary methods for backing up Postgres servers to the cloud:
 
 * *Creating disk volume snapshots as base backups.*
 
@@ -26,7 +26,7 @@ Barman offers two primary methods for backing up PostgreSQL servers to the cloud
 This section of the documentation is focused in the ``barman-cloud-*`` commands that
 can be used to manage and interact with backups without the need of a dedicated barman
 server. To start working with it, you will need to install the ``barman-cli-cloud``
-package on the same machine as your PostgreSQL server.
+package on the same machine as your Postgres server.
 
 Understanding these options will help you select the right approach for your cloud
 backup and recovery needs, ensuring you leverage Barman's full potential.
@@ -57,7 +57,7 @@ differ from Barman's integrated features.
 Installation
 ------------
 
-To back up PostgreSQL servers directly to a cloud provider, you need to install the
+To back up Postgres servers directly to a cloud provider, you need to install the
 Barman client utility for the cloud on those servers. Keep in mind that the installation
 process varies based on the distribution you are using.
 

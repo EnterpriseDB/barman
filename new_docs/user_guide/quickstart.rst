@@ -3,8 +3,8 @@
 Quick start
 ===========
 
-As stated in :ref:`architectures`, we recommend setting up Barman in a dedicated host.
-That said, the examples in this tutorial assume the following hosts:
+As it is stated in :ref:`architectures`, we recommend setting up Barman in a dedicated
+host. That said, the examples in this tutorial assume the following hosts:
 
 * ``pghost``: The host where Postgres is running.
 * ``barmanhost``: The host where Barman will be set up.
@@ -36,7 +36,7 @@ other strategies.
 It relies on the ``pg_basebackup`` utility for backups and ``pg_receivewal`` for
 transferring the WAL files. It is therefore required to have both tools installed on
 ``barmanhost`` beforehand. Check the :ref:`Postgres client tools <pre-requisites-postgres-client-tools>`
-section if you need further details on how to install them.
+section if you need further details on how to install these tools.
 
 1. As a first step, let's create the required users you will need on your Postgres
 server. On ``pghost``, execute the following commands:
@@ -46,7 +46,10 @@ server. On ``pghost``, execute the following commands:
     createuser -s -P barman
 
 This command creates a new Postgres superuser called **barman**, which will be used by
-Barman for maintenance tasks on your Postgres server.
+Barman for maintenance tasks on your Postgres server. Alternatively you can create a
+user without superuser privileges, but with the necessary permissions to perform the
+needed operations by following the recipe in
+:ref:`Postgres users pre-requisite <pre-requisites-postgres-user>`.
 
 .. code-block:: bash
 
@@ -166,7 +169,8 @@ following command.
 
 This command starts a background process that performs maintenance tasks on
 your Barman servers. These tasks includes the creation of the replication slot in
-Postgres, as well as the startup of ``pg_receivewal``.
+Postgres, if ``create_slot = auto``, as well as starting up of ``pg_receivewal``
+process.
 
 Run the check command again and make sure no failed checks are shown:
 
@@ -174,6 +178,10 @@ Run the check command again and make sure no failed checks are shown:
 
     barman check streaming-backup-server
 
+
+This server is now ready to take backups and receive WAL files from your Postgres
+server. You may go to the
+:ref:`taking your first backup <quickstart-taking-your-first-backup>` section now.
 
 .. _quickstart-configuring-your-first-server-rsync-backups-with-wal-archiving:
 
@@ -184,7 +192,7 @@ This strategy relies on Rsync and SSH connections for transferring backup and WA
 files to your Barman server.
 
 Since it depends on SSH connections, it is therefore required that you have a
-both-way passwordless SSH connection between ``pghost`` and ``barmanhost``. For
+two-way passwordless SSH connection between ``pghost`` and ``barmanhost``. For
 further instructions on how to set this, please refer to the
 :ref:`pre-requisites <pre-requisites-ssh-connections>` section.
 
@@ -197,7 +205,9 @@ server. On ``pghost``, execute the following command:
 
 This command creates a new Postgres superuser called **barman**, which will be used by
 Barman for maintenance tasks as well as for issuing backup commands using the Postgres
-low-level API.
+low-level API. Alternatively you can create a user without superuser privileges, but
+with the necessary permissions to perform the needed operations by following the recipe
+in :ref:`Postgres users pre-requisite <pre-requisites-postgres-user>`.
 
 The ``createuser`` command prompts you for a password, which you are then advised to
 add to a `password file <https://www.postgresql.org/docs/current/libpq-pgpass.html>`_
@@ -305,8 +315,8 @@ that everything is OK with your server:
 
 If you see a failed check related to WAL archive, don't worry. It just means that
 Barman has not received any WAL files yet, probably because no WAL segment has been
-switched on your Postgres server since then. You can force a WAL switch from
-``barmanhost`` with this command:
+switched on your Postgres server since the server was first created. You can force
+a WAL switch from ``barmanhost`` with this command:
 
 .. code-block:: bash
 
@@ -325,13 +335,17 @@ Run the check command again and make sure no failed checks are shown:
 
     barman check rsync-backup-server
 
+This server is now ready to take backups and receive WAL files from your Postgres
+server. You may go to the
+:ref:`taking your first backup <quickstart-taking-your-first-backup>` section now.
+
 
 .. _quickstart-taking-your-first-backup:
 
 Taking your first backup
 ------------------------
 
-Regardless of which strategy you chose for your backupserver, once completed with the
+Regardless of which strategy you choose for your backup server, once completed with the
 previous steps, you should be all set. You can run this command to take a backup:
 
 .. code-block:: bash
@@ -364,8 +378,8 @@ If you ever need to recover from a backup, you can do so with this command:
     barman recover <server_name> first-backup /path/to/recover
 
 If recovering to a remote server, a passwordless SSH connection from the Barman host to
-the destination host is required and must be specified using the
-``--remote-ssh-command`` option:
+the destination host is required and its SSH command must be specified using
+the ``--remote-ssh-command`` option:
 
 .. code-block:: bash
 

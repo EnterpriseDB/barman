@@ -47,7 +47,7 @@
 
 **Description**
 
-The ``barman-cloud-backup`` script is used to create a local backup of a PostgreSQL
+The ``barman-cloud-backup`` script is used to create a local backup of a Postgres
 server and transfer it to a supported cloud provider, bypassing the Barman server. It
 can also be utilized as a hook script for copying Barman backups from the Barman server 
 to one of the supported clouds (post_backup_retry_script).
@@ -79,7 +79,7 @@ provider, the backup will be performed using snapshots of the specified disks
 
 ``DESTINATION_URL``
   URL of the cloud destination, such as a bucket in AWS S3. For example:
-  `s3://bucket/path/to/folder`.
+  ``s3://bucket/path/to/folder``.
 
 ``-V`` / ``--version``
   Show version and exit.

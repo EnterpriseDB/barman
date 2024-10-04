@@ -4,27 +4,30 @@ Concepts
 ========
 
 Creating a disaster recovery plan can be challenging, especially for those unfamiliar
-with the various backup concepts involved in backup management. There are many
-different methods for taking backups, each with its own advantages, disadvantages, and
-technical requirements. The choice of the right approach will depend on your resources,
+with the various concepts involved in backup management. There are many different
+methods for taking backups, each with its own advantages, disadvantages, and technical
+requirements. The choice of the right approach will depend on your resources,
 environment and technical knowledge. Knowing that not everyone might be well-grounded
 in this context, this section is dedicated to explaining the most fundamental concepts
 regarding database backups, particularly in the context of Postgres and Barman.
 
+If you are already familiar with the concepts of backups, logical and physical backups
+in Postgres, feel free to skip to the :ref:`Barman concepts and terminology <concepts-barman-concepts-and-terminology>`
+section.
 
 .. _concepts-introduction:
 
 Introduction
 ------------
 
-In a perfect world, there would be no need for backups. However, it is important,
+In a perfect world, backups wouldn't be necessary. However, it is important,
 especially in critical business environments, to be prepared for when the unexpected
 happens. In a database scenario, the "unexpected" could take any of the following
 forms:
 
-* Data corruption;
-* System failure (including hardware failure);
-* Human error;
+* Data corruption.
+* System failure (including hardware failure).
+* Human error.
 * Natural disaster.
 
 In such cases, any :term:`ICT` manager or :term:`DBA` should be able to fix the
@@ -44,35 +47,35 @@ fundamental metrics, as defined by Wikipedia:
 In a few words, RPO represents the maximum amount of data you can afford to lose, while
 RTO represents the maximum down-time you can afford for your service.
 
-Understandably, we all want RPO=0 (zero data loss) and RTO=0 (zero down-time, utopia) -
+Understandably, we all want RPO=0 (zero data loss) and RTO=0 (zero down-time, utopia),
 even if it is our grandmother's recipe website. In reality, a careful cost analysis
 phase is required to determine your business continuity requirements.
 
 Fortunately, with an open source stack composed of Barman and Postgres, you can achieve
 RPO=0 thanks to synchronous streaming replication. RTO is more the focus of a High
-Availability solution, like ``Patroni`` or ``repmgr``. Therefore, by integrating Barman any 
-of these tools, you can dramatically reduce RTO to nearly zero. 
+Availability solution, like ``Patroni`` or ``repmgr``. Therefore, by integrating Barman
+with any of these tools, you can dramatically reduce RTO to nearly zero.
 
 In any case, it is important for us to emphasize more on cultural aspects related to
 disaster recovery, rather than the actual tools. Tools without human beings are
 useless. Our mission with Barman is to promote a culture of disaster recovery that:
 
-* Focuses on backup procedures;
-* Focuses even more on recovery procedures;
+* Focuses on backup procedures.
+* Focuses even more on recovery procedures.
 * Relies on education and training on strong theoretical and practical concepts of
   Postgres crash recovery, backup, Point-In-Time-Recovery, and replication for your
-  team members;
+  team members.
 * Promotes testing your backups (only a backup that is tested can be considered to be
-  valid), either manually or automatically (be creative with Barman's hook scripts!);
+  valid), either manually or automatically (be creative with Barman's hook scripts!).
 * Fosters regular practice of recovery procedures, by all members of your devops team
-  (yes, developers too, not just system administrators and :term:`DBAs <DBA>`);
+  (yes, developers too, not just system administrators and :term:`DBAs <DBA>`).
 * Solicits regularly scheduled drills and disaster recovery simulations with the
-  team every 3-6 months;
+  team every 3-6 months.
 * Relies on continuous monitoring of Postgres and Barman, and that is able to promptly
   identify any anomalies.
 
 Moreover, do everything you can to prepare yourself and your team for when the disaster
-happens (yes, when), because when it happens:
+happens, because when it happens:
 
 * It is going to be a Friday evening, most likely right when you are about to leave the
   office.
@@ -124,7 +127,7 @@ A physical backup, on the other hand, works by copying the database files direct
 the file system. Therefore, this method is usually tied to environment specifications.
 There are different approaches to taking physical backups, ranging from using basic
 Unix tools like ``cp`` to more sophisticated solutions such as using backup managers,
-like Barman. Backup management tools can play a vital role in physical backups as
+like Barman. Backup management tools can play a vital role in physical backups, as
 ensuring the files represent a consistent state of the database, while also keeping the
 server running normally, can be challenging if done manually.
 
@@ -156,7 +159,7 @@ A full backup, often also called base backup, captures all your data at a specif
 point in time, essentially creating a complete snapshot of your entire database. This
 type of backup contains every piece of information needed to restore the system to its
 exact state as when the backup was taken. In this sense, a recovery from a consistent
-full physical backup is the fastest possible as it is inherently complete by nature.
+full physical backup is the fastest possible, as it is inherently complete by nature.
 
 Incremental backups, on the other hand, are designed to capture only the changes that
 have occurred since a previous backup. A previous backup could be either a full backup
@@ -205,7 +208,7 @@ Point-time Recovery
 ^^^^^^^^^^^^^^^^^^^
 
 Point-in-time recovery enables you to restore your database to any specific moment
-between the time of a base backup and the furthest point covered by your archived
+from the end-time of a base backup to the furthest point covered by your archived
 transaction logs. By maintaining a continuous archive of transaction logs, you have the
 ability to replay every change made to the database up to the present moment. This is
 done by replaying all transaction logs on top of a base backup, also providing you with
@@ -223,7 +226,7 @@ losing all subsequent legitimate changes.
 It does not mean, however, that PITR is the solution to all problems. Replaying
 transaction logs can still take a long time depending on how far they go from the base
 backup. Therefore, the optimal solution is actually a combination of all strategies:
-full backups with frequent incremental backups along with transaction logs archiving.
+full backups with frequent incremental backups along with transaction log archiving.
 This way, restoring to the most recent state is a matter of restoring the most recent
 backup followed by a replay of subsequent transaction logs. Similarly, restoring to a
 specific point in time is a matter of restoring the previous backup closest to the
@@ -237,7 +240,7 @@ Postgres backup concepts and terminology
 ----------------------------------------
 
 This section explores backup concepts in the context of Postgres, its implementations
-and specific characteristics. This content is mainly based on the `Backup and Restore
+and specific characteristics. The content is mainly based on the `Backup and Restore
 section from the Postgres official documentation <https://www.postgresql.org/docs/current/backup.html>`_,
 so we strongly recommend you read that if you want more detailed explanations on how
 Postgres handles backups.
@@ -315,17 +318,17 @@ consistency.
 WAL archiving and WAL streaming
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Transaction logs archiving is known as "continuous archiving" or "WAL archiving" in
+Transaction log archiving is known as "continuous archiving" or "WAL archiving" in
 Postgres. WAL archiving essentially means being able to store WAL files somewhere else
 before they are recycled. In Postgres, the traditional way of doing that is via the
-``archive_command`` parameter in the server configurations.
+``archive_command`` parameter in the server configuration.
 
 The ``archive_command`` accepts any shell command as a value, which will be executed
 for each WAL file once completely filled. Such a command is responsible for making sure
 each file is copied safely to the desired destination. This provides a lot of
-flexibility in that Postgres does not make any assumptions on how or where you want to
-store these files, thus allowing you to use any command or library you want. This
-command must return a zero exit status, indicating success, otherwise Postgres
+flexibility in the sense that Postgres does not make any assumptions on how or where 
+you want to store these files, thus allowing you to use any command or library you want.
+This command must return a zero exit status, indicating success, otherwise Postgres
 understands that the archiving has failed and will not recycle those files until they
 can be successfully archived. While this is helpful for ensuring safety it can also
 become a nightmare if your command starts failing for some reason as WAL files will
@@ -337,11 +340,12 @@ An alternative way of archiving WALs is by using ``pg_receivewal``, a native Pos
 utility used to transfer WAL files to a desired location using the streaming
 replication protocol. A huge advantage of this method, commonly known as WAL streaming,
 compared to the traditional ``archive_command`` method is that files are transferred in
-real time, meaning that it does need to wait for a WAL segment to be completely filled
-in order to start transferring it, significantly reducing the chances of data loss.
+real time, meaning that it doesn't need to wait for a WAL segment to be completely
+filled in order to start transferring it, significantly reducing the chances of data
+loss.
 
-Unlike the ``archive_command``, by default this method does not ensure that WAL files
-are archived successfully before being recycled. This means that WAL files can be
+Unlike the ``archive_command``, by default this method alone does not ensure that WAL
+files are archived successfully before being recycled. This means that WAL files can be
 recycled before being archived, essentially having its logs lost forever. For this
 reason, the use of replication slots is extremely recommended in this scenario.
 Replication slots are primarily used in the context of database replication to ensure
@@ -380,8 +384,7 @@ If the recovery involves Postgres incremental backups, you will then need to fir
 combine all the backups using ``pg_combinebackup``. It will generate a synthetic full
 backup, which can be used for recovery in the same way as a standard full backup.
 
-
-.. _barman-concepts-and-terminology:
+.. _concepts-barman-concepts-and-terminology:
 
 Barman concepts and terminology
 -------------------------------

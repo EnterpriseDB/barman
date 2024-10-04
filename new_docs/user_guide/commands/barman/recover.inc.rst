@@ -155,7 +155,7 @@ Parameters
     ``backup_method=snapshot``.
     
 ``--standby-mode``
-    Whether to start the PostgreSQL server as a standby.
+    Whether to start the Postgres server as a standby.
 
 ``--tablespace``
     Specify tablespace relocation rule. ``NAME`` is the tablespace name and ``LOCATION``
