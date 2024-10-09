@@ -118,6 +118,7 @@ class S3CloudInterface(CloudInterface):
         delete_batch_size=None,
         read_timeout=None,
         sse_kms_key_id=None,
+        aws_irsa=False,
     ):
         """
         Create a new S3 interface given the S3 destination url and the profile
@@ -125,6 +126,8 @@ class S3CloudInterface(CloudInterface):
 
         :param str url: Full URL of the cloud destination/source
         :param str|None encryption: Encryption type string
+        :param bool|False aws_irsa: Amazon aws iam role for service account
+          should be used instead of profile_name when running from eks pod
         :param int jobs: How many sub-processes to use for asynchronous
           uploading, defaults to 2.
         :param str profile_name: Amazon auth profile identifier
@@ -143,6 +146,7 @@ class S3CloudInterface(CloudInterface):
             tags=tags,
             delete_batch_size=delete_batch_size,
         )
+        self.aws_irsa = aws_irsa
         self.profile_name = profile_name
         self.encryption = encryption
         self.endpoint_url = endpoint_url
@@ -173,7 +177,24 @@ class S3CloudInterface(CloudInterface):
             config_kwargs["read_timeout"] = self.read_timeout
         config = Config(**config_kwargs)
 
-        session = boto3.Session(profile_name=self.profile_name)
+        if self.aws_irsa:
+            client = boto3.client('sts')
+            with open(os.getenv("AWS_WEB_IDENTITY_TOKEN_FILE"), 'r') as content_file:
+                web_identity_token = content_file.read()
+
+            response = client.assume_role_with_web_identity(
+                    RoleArn=os.environ['AWS_ROLE_ARN'],
+                    RoleSessionName='barman',
+                    WebIdentityToken=web_identity_token,
+                    # DurationSeconds=3600 # defaults to an hour, must not be greater than 
+                    # the iam role max duration session (this is also default 1 hour)
+                )
+            credentials = response['Credentials']
+            session = boto3.Session(  aws_access_key_id=credentials['AccessKeyId'],
+                                        aws_secret_access_key=credentials['SecretAccessKey'],
+                                        aws_session_token=credentials['SessionToken'])
+        else:
+            session = boto3.Session(profile_name=self.profile_name)
         self.s3 = session.resource("s3", endpoint_url=self.endpoint_url, config=config)
 
     @property
@@ -482,6 +503,7 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
     def __init__(
         self,
         profile_name=None,
+        aws_irsa=False,
         region=None,
         await_snapshots_timeout=3600,
         lock_mode=None,
@@ -504,9 +526,28 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
         :param str lock_expiration_date: The expiration date for the snapshot in the format
             ``YYYY-MM-DDThh:mm:ss.sssZ``.
         :param List[Tuple[str, str]] tags: Key value pairs for tags to be applied.
+        :param bool|False aws_irsa: Amazon aws iam role for service account
+            should be used instead of profile_name if running from eks pod
         """
+        if aws_irsa:
+            client = boto3.client('sts')
+            with open(os.getenv("AWS_WEB_IDENTITY_TOKEN_FILE"), 'r') as content_file:
+                web_identity_token = content_file.read()
 
-        self.session = boto3.Session(profile_name=profile_name)
+            response = client.assume_role_with_web_identity(
+                    RoleArn=os.environ['AWS_ROLE_ARN'],
+                    RoleSessionName='barman',
+                    WebIdentityToken=web_identity_token,
+                    # DurationSeconds=3600 # defaults to an hour, must not be greater than 
+                    # the iam role max duration session (this is also default 1 hour)
+                )
+            credentials = response['Credentials']
+            self.session = boto3.Session(  aws_access_key_id=credentials['AccessKeyId'],
+                                        aws_secret_access_key=credentials['SecretAccessKey'],
+                                        aws_session_token=credentials['SessionToken'])
+        else:
+            self.session = boto3.Session(profile_name=profile_name)
+
         # If a specific region was provided then this overrides any region which may be
         # defined in the profile
         self.region = region or self.session.region_name

@@ -637,6 +637,15 @@ integer.
 
 Scope: Global / Server / Model.
 
+**aws_irsa**
+
+Uses the AWS IAM Role Service Account for authentication instead of AWS Profile.
+
+.. note::
+  Only supported when ``backup_method = snapshot`` and ``snapshot_provider = aws``.
+
+Scope: Global / Server / Model.
+
 **aws_profile**
 
 The name of the AWS profile to use when authenticating with AWS (e.g. ``INI`` section

@@ -93,6 +93,28 @@ class TestMain(object):
             "/tmp/000000080000ABFF000000C1"
         )
 
+        # Plain success with aws_irsa
+        uploader_mock.reset_mock()
+        cloud_interface_mock.reset_mock()
+        cloud_walarchive.main(
+            [
+                "--aws-irsa",
+                "s3://test-bucket/testfolder",
+                "test-server",
+                "/tmp/000000080000ABFF000000C1",
+            ]
+        )
+
+        uploader_mock.assert_called_once_with(
+            cloud_interface=cloud_object_interface_mock,
+            server_name="test-server",
+            compression=None,
+        )
+        cloud_object_interface_mock.setup_bucket.assert_called_once_with()
+        uploader_object_mock.upload_wal.assert_called_once_with(
+            "/tmp/000000080000ABFF000000C1"
+        )
+
         # Plain success with aws_profile
         uploader_mock.reset_mock()
         cloud_interface_mock.reset_mock()
@@ -117,7 +139,7 @@ class TestMain(object):
             "/tmp/000000080000ABFF000000C1"
         )
 
-        # Invalid filename upload
+        # Invalid filename upload with aws_profile
         uploader_mock.reset_mock()
         cloud_interface_mock.reset_mock()
         with pytest.raises(SystemExit) as excinfo:
@@ -125,6 +147,20 @@ class TestMain(object):
                 [
                     "--aws-profile",
                     "test_profile",
+                    "s3://test-bucket/testfolder",
+                    "test-server",
+                    "/tmp/000000080000ABFF000000C1-INVALID",
+                ]
+            )
+        assert excinfo.value.code == 3
+
+        # Invalid filename upload with aws_irsa
+        uploader_mock.reset_mock()
+        cloud_interface_mock.reset_mock()
+        with pytest.raises(SystemExit) as excinfo:
+            cloud_walarchive.main(
+                [
+                    "--aws-irsa",
                     "s3://test-bucket/testfolder",
                     "test-server",
                     "/tmp/000000080000ABFF000000C1-INVALID",
@@ -280,6 +316,7 @@ class TestMain(object):
         cloud_interface_mock.assert_called_once_with(
             url="s3://test-bucket/testfolder",
             tags=expected_tags,
+            aws_irsa=False,
             profile_name=None,
             endpoint_url=None,
             encryption=None,
@@ -471,6 +508,7 @@ class TestMain(object):
         cloud_interface_mock.assert_called_once_with(
             url="cloud_storage_url",
             tags=None,
+            aws_irsa=False,
             profile_name=None,
             endpoint_url=None,
             read_timeout=None,
