@@ -134,6 +134,8 @@ Extra options for the aws-s3 cloud provider:
                         file)
   --profile AWS_PROFILE
                         profile name (deprecated: replaced by --aws-profile)
+  --aws-irsa aws_irsa
+                        bypasses credentials/profile and uses iam service account
   --read-timeout READ_TIMEOUT
                         the time in seconds until a timeout is raised when
                         waiting to read from a connection (defaults to 60
