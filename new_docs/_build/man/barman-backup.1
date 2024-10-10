@@ -1,0 +1,200 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "BARMAN-BACKUP" "1" "Oct 10, 2024" "3.11" "Barman"
+.SH NAME
+barman-backup \- Barman Sub-Commands
+.SH SYNOPSIS
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+backup
+    [ \-\-bwlimit KBPS ]
+    [ \-\-incremental BACKUP_ID ]
+    [ \-\-immediate\-checkpoint ]
+    [ { \-j, \-\-jobs } PARALLEL_WORKERS ]
+    [ \-\-jobs\-start\-batch\-period PERIOD ]
+    [ \-\-jobs\-start\-batch\-size SIZE ]
+    [ \-\-keepalive\-interval SECONDS ]
+    [ \-\-manifest ]
+    [ \-\-name NAME ]
+    [ \-\-no\-immediate\-checkpoint ]
+    [ \-\-no\-manifest ]
+    [ \-\-no\-retry ]
+    [ \-\-retry\-sleep SECONDS ]
+    [ \-\-retry\-times NUMBER ]
+    [ \-\-reuse\-backup { off | copy | link } ]
+    [ { \-\-wait | \-w } ]
+    [ \-\-wait\-timeout SECONDS ]
+    SERVER_NAME [ ... ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DESCRIPTION
+.sp
+Execute a PostreSQL server backup. Barman will use the parameters specified in the Global
+and Server configuration files. Specify \fBall\fP shortcut instead of the server name to
+execute backups from all servers configured in the Barman node. You can also specify
+multiple server names in sequence to execute backups for specific servers.
+.SH PARAMETERS
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node.
+.TP
+.B \fB\-\-bwlimit\fP
+Specify the maximum transfer rate in kilobytes per second. A value of 0 indicates no
+limit. This setting overrides the \fBbandwidth_limit\fP configuration option.
+.TP
+.B \fB\-\-incremental\fP
+Execute a block\-level incremental backup. You must provide a \fBBACKUP_ID\fP or a
+shortcut to a previous backup, which will serve as the parent backup for the
+incremental backup.
+.sp
+\fBNOTE:\fP
+.INDENT 7.0
+.INDENT 3.5
+The backup to be and the parent backup must have \fBbackup_method=postgres\fP\&.
+.UNINDENT
+.UNINDENT
+.TP
+.B \fB\-\-immediate\-checkpoint\fP
+Forces the initial checkpoint to be executed as soon as possible, overriding any
+value set for the \fBimmediate_checkpoint\fP parameter in the configuration file.
+.TP
+.B \fB\-j\fP / \fB\-\-jobs\fP
+Specify the number of parallel workers to use for copying files during the backup.
+This setting overrides the \fBparallel_jobs\fP parameter if it\(aqs specified in the
+configuration file.
+.TP
+.B \fB\-\-jobs\-start\-batch\-period\fP
+Specify the time period, in seconds, for starting a single batch of jobs. This value
+overrides the \fBparallel_jobs_start_batch_period\fP parameter if it is set in the
+configuration file. The default is \fB1\fP second.
+.TP
+.B \fB\-\-jobs\-start\-batch\-size\fP
+Specify the maximum number of parallel workers to initiate in a single batch. This
+value overrides the \fBparallel_jobs_start_batch_size\fP parameter if it is defined in
+the configuration file. The default is \fB10\fP workers.
+.TP
+.B \fB\-\-keepalive\-interval\fP
+Specify an interval, in seconds, for sending a heartbeat query to the server to keep
+the libpq connection active during a Rsync backup. The default is \fB60\fP seconds. A
+value of \fB0\fP disables the heartbeat.
+.TP
+.B \fB\-\-manifest\fP
+Forces the creation of a backup manifest file upon completing a backup. Overrides the
+\fBautogenerate_manifest\fP parameter from the configuration file. Applicable only to
+rsync backup strategy.
+.TP
+.B \fB\-\-name\fP
+Specify a friendly name for this backup which can be used in place of the backup ID
+in barman commands.
+.TP
+.B \fB\-\-no\-immediate\-checkpoint\fP
+Forces the backup to wait for the checkpoint to be executed overriding any value set
+for the \fBimmediate_checkpoint\fP parameter in the configuration file.
+.TP
+.B \fB\-\-no\-manifest\fP
+Disables the automatic creation of a backup manifest file upon completing a backup.
+This setting overrides the \fBautogenerate_manifest\fP parameter from the configuration
+file and applies only to rsync backup strategy.
+.TP
+.B \fB\-\-no\-retry\fP
+There will be no retry in case of an error. It is the same as setting
+\fB\-\-retry\-times 0\fP\&.
+.TP
+.B \fB\-\-retry\-sleep\fP
+Specify the number of seconds to wait after a failed copy before retrying. This
+setting applies to both backup and recovery operations and overrides the
+\fBbasebackup_retry_sleep\fP parameter if it is defined in the configuration file.
+.TP
+.B \fB\-\-retry\-times\fP
+Specify the number of times to retry the base backup copy in case of an error. This
+applies to both backup and recovery operations and overrides the
+\fBbasebackup_retry_times\fP parameter if it is set in the configuration file.
+.TP
+.B \fB\-\-reuse\-backup\fP
+Overrides the behavior of the \fBreuse_backup\fP option configured in the configuration
+file. The possible values are:
+.INDENT 7.0
+.IP \(bu 2
+\fBoff\fP: Do not reuse the last available backup.
+.IP \(bu 2
+\fBcopy\fP: Reuse the last available backup for a server and create copies of
+unchanged files (reduces backup time).
+.IP \(bu 2
+\fBlink\fP (default): Reuse the last available backup for a server and create
+hard links to unchanged files (saves both backup time and space).
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 7.0
+.INDENT 3.5
+This will only have any effect if the last available backup was
+executed with \fBbackup_method=rsync\fP\&.
+.UNINDENT
+.UNINDENT
+.TP
+.B \fB\-\-wait\fP / \fB\-w\fP
+Wait for all necessary WAL files required by the base backup to be archived.
+.TP
+.B \fB\-\-wait\-timeout\fP
+Specify the duration, in seconds, to wait for the required WAL files to be archived
+before timing out.
+.UNINDENT
+.SH SHORTCUTS
+.sp
+Use shortcuts instead of \fBSERVER_NAME\fP\&.
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBall\fP
+T}	T{
+All available servers
+T}
+_
+.TE
+.SH AUTHOR
+EnterpriseDB
+.SH COPYRIGHT
+© Copyright EnterpriseDB UK Limited 2011-2024
+.\" Generated by docutils manpage writer.
+.

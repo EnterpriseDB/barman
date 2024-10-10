@@ -1,0 +1,274 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "BARMAN-RECOVER" "1" "Oct 10, 2024" "3.11" "Barman"
+.SH NAME
+barman-recover \- Barman Sub-Commands
+.SH SYNOPSIS
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+recover
+    [ \-\-aws\-region AWS_REGION } ]
+    [ \-\-azure\-resource\-group AZURE_RESOURCE_GRP ]
+    [ \-\-bwlimit KBPS ]
+    [ \-\-exclusive ]
+    [ \-\-gcp\-zone GCP_ZONE ]
+    [ \-\-get\-wal | \-\-no\-get\-wal ]
+    [ { \-j | \-\-jobs } PARALLEL_WORKERS ]
+    [ \-\-jobs\-start\-batch\-period SECONDS ]
+    [ \-\-jobs\-start\-batch\-size NUMBER ]
+    [ \-\-local\-staging\-path PATH ]
+    [ \-\-network\-compression | \-\-no\-network\-compression ]
+    [ \-\-no\-retry ]
+    [ \-\-recovery\-conf\-filename FILENAME ]
+    [ \-\-recovery\-staging\-path PATH ]
+    [ \-\-remote\-ssh\-command STRING ]
+    [ \-\-retry\-sleep SECONDS ]
+    [ \-\-retry\-times NUMBER ]
+    [ \-\-snapshot\-recovery\-instance INSTANCE_NAME ]
+    [ \-\-standby\-mode ]
+    [ \-\-tablespace NAME:LOCATION ]
+    [ \-\-target\-action { pause | shutdown | promote } ]
+    [ \-\-target\-immediate ]
+    [ \-\-target\-lsn LSN ]
+    [ \-\-target\-name RESTORE_POINT_NAME ]
+    [ \-\-target\-time TIMESTAMP ]
+    [ \-\-target\-tli TLI ]
+    [ \-\-target\-xid XID ]
+    SERVER_NAME BACKUP_ID DESTINATION_DIR
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DESCRIPTION
+.sp
+Execute a PostreSQL server recovery operation. Barman will recover the backup from a
+server in the destination directory. The recovery can be performed locally (on the
+barman node itself) or remotely (on another machine accessible via SSH). The location is
+determined by whether or not the \fB\-\-remote\-ssh\-command\fP option is used. More
+information on this command can be found in the \fI\%Recovery\fP section. You can use a
+shortcut instead of \fBBACKUP_ID\fP\&.
+.SH PARAMETERS
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node
+.TP
+.B \fBBACKUP_ID\fP
+Id of the backup in barman catalog.
+.TP
+.B \fBDESTINATION_DIR\fP
+Destination directory to recover.
+.TP
+.B \fB\-\-aws\-region\fP
+Specify the AWS region where the instance and disks for snapshot recovery are
+located. This option allows you to override the \fBaws_region\fP value in the Barman
+configuration.
+.TP
+.B \fB\-\-azure\-resource\-group\fP
+Specify the Azure resource group containing the instance and disks for snapshot
+recovery. This option allows you to override the \fBazure_resource_group\fP value in
+the Barman configuration.
+.TP
+.B \fB\-\-bwlimit\fP
+Specify the maximum transfer rate in kilobytes per second. A value of \fB0\fP
+indicates no limit. This setting overrides the \fBbandwidth_limit\fP configuration
+option.
+.TP
+.B \fB\-\-exclusive\fP
+Set target (time, XID or LSN) to be non inclusive.
+.TP
+.B \fB\-\-gcp\-zone\fP
+Specify the GCP zone where the instance and disks for snapshot recovery are located.
+This option allows you to override the \fBgcp_zone\fP value in the Barman
+configuration.
+.TP
+.B \fB\-\-get\-wal\fP / \fB\-\-no\-get\-wal\fP
+Enable/disable usage of \fBget\-wal\fP for WAL fetching during recovery. Default is based on
+\fBrecovery_options\fP setting.
+.TP
+.B \fB\-j\fP / \fB\-\-jobs\fP
+Specify the number of parallel workers to use for copying files during the backup.
+This setting overrides the \fBparallel_jobs\fP parameter if it is specified in the
+configuration file.
+.TP
+.B \fB\-\-jobs\-start\-batch\-period\fP
+Specify the time period, in seconds, for starting a single batch of jobs. This value
+overrides the \fBparallel_jobs_start_batch_period\fP parameter if it is set in the
+configuration file. The default is \fB1\fP second.
+.TP
+.B \fB\-\-jobs\-start\-batch\-size\fP
+Specify the maximum number of parallel workers to initiate in a single batch. This
+value overrides the \fBparallel_jobs_start_batch_size\fP parameter if it is defined in
+the configuration file. The default is \fB10\fP workers.
+.TP
+.B \fB\-\-local\-staging\-path\fP
+Specify path on the Barman host where the chain of backups will be combined before
+being copied to the destination directory. The contents created within the staging
+path will be removed upon completion of the recovery process. This option is
+necessary for recovering from block\-level incremental backups and has no effect
+otherwise.
+.TP
+.B \fB\-\-network\-compression\fP / \fB\-\-no\-network\-compression\fP
+Enable/disable network compression during remote recovery. Default is based on
+\fBnetwork_compression\fP configuration setting.
+.TP
+.B \fB\-\-no\-retry\fP
+There will be no retry in case of an error. It is the same as setting
+\fB\-\-retry\-times 0\fP\&.
+.TP
+.B \fB\-\-recovery\-conf\-filename\fP
+Specify the name of the file where Barman should write recovery options when
+recovering backups for Postgres versions 12 and later. By default, this is set to
+\fBpostgresql.auto.conf\fP\&. However, if \fB\-\-recovery\-conf\-filename\fP is specified,
+recovery options will be written to the specified value instead. While the default
+value is suitable for most Postgres installations, this option allows you to specify
+an alternative location if Postgres is managed by tools that alter the configuration
+mechanism (for example, if \fBpostgresql.auto.conf\fP is symlinked to \fB/dev/null\fP).
+.TP
+.B \fB\-\-recovery\-staging\-path\fP
+Specify a path on the recovery host where files for a compressed backup will be
+staged before being uncompressed to the destination directory. Backups will be
+staged in their own directory within the staging path, following the naming
+convention: \fBbarman\-staging\-SERVER_NAME\-BACKUP_ID\fP\&. This staging directory will be
+removed after the recovery process is complete. This option is mandatory for
+recovering from compressed backups and has no effect otherwise.
+.TP
+.B \fB\-\-remote\-ssh\-command\fP
+This option enables remote recovery by specifying the secure shell command to
+execute on a remote host. It functions similarly to the \fBssh_command\fP server
+option in the configuration file for remote recovery, that is, \fB\(aqssh USER@SERVER\(aq\fP\&.
+.TP
+.B \fB\-\-retry\-sleep\fP
+Specify the number of seconds to wait after a failed copy before retrying. This
+setting applies to both backup and recovery operations and overrides the
+\fBbasebackup_retry_sleep\fP parameter if it is defined in the configuration file.
+.TP
+.B \fB\-\-retry\-times\fP
+Specify the number of times to retry the base backup copy in case of an error. This
+applies to both backup and recovery operations and overrides the
+\fBbasebackup_retry_times\fP parameter if it is set in the configuration file.
+.TP
+.B \fB\-\-snapshot\-recovery\-instance\fP
+Specify the name of the instance where the disks recovered from the snapshots are
+attached. This option is necessary when recovering backups created with
+\fBbackup_method=snapshot\fP\&.
+.TP
+.B \fB\-\-standby\-mode\fP
+Whether to start the PostgreSQL server as a standby.
+.TP
+.B \fB\-\-tablespace\fP
+Specify tablespace relocation rule. \fBNAME\fP is the tablespace name and \fBLOCATION\fP
+is the recovery host destination path to recover the tablespace.
+.TP
+.B \fB\-\-target\-action\fP
+Trigger the specified action when the recovery target is reached. This option
+requires defining a target along with one of these actions. The possible values are:
+.INDENT 7.0
+.IP \(bu 2
+\fBpause\fP: Once recovery target is reached, the server is started in pause state,
+allowing users to inspect the instance
+.IP \(bu 2
+\fBpromote\fP: Once recovery target is reached, the server will exit recovery and is
+promoted as a master.
+.IP \(bu 2
+\fBshutdown\fP: Once recovery target is reached, the server is shut down.
+.UNINDENT
+.TP
+.B \fB\-\-target\-immediate\fP
+Recover is completed when a consistent state is reached (end of the base backup).
+.TP
+.B \fB\-\-target\-lsn\fP
+Recover to the specified LSN (Log Sequence Number). Requires Postgres 10 or above.
+.TP
+.B \fB\-\-target\-name\fP
+Recover to the specified name of a restore point previously created with the
+\fBpg_create_restore_point(name)\fP\&.
+.TP
+.B \fB\-\-target\-time\fP
+Recover to the specified time. Use the format \fBYYYY\-MM\-DD HH:MM:SS.mmm\fP\&.
+.TP
+.B \fB\-\-target\-tli\fP
+Recover the specified timeline. You can use the special values \fBcurrent\fP and
+\fBlatest\fP in addition to a numeric timeline ID. For Postgres versions 12 and above,
+the default is to recover to the latest timeline in the WAL archive. For Postgres
+versions below 12, the default is to recover to the timeline that was current at the
+time the backup was taken.
+.TP
+.B \fB\-\-target\-xid\fP
+Recover to the specified transaction ID.
+.UNINDENT
+.SH SHORTCUTS
+.sp
+Use shortcuts instead of \fBBACKUP_ID\fP\&.
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBfirst/oldest\fP
+T}	T{
+Oldest available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast/latest\fP
+T}	T{
+Most recent available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast\-full/latest\-full\fP
+T}	T{
+Most recent full backup eligible for a block\-level incremental backup using the
+\fB\-\-incremental\fP option.
+T}
+_
+T{
+\fBlast\-failed\fP
+T}	T{
+Most recent backup that failed, in chronological order.
+T}
+_
+.TE
+.SH AUTHOR
+EnterpriseDB
+.SH COPYRIGHT
+© Copyright EnterpriseDB UK Limited 2011-2024
+.\" Generated by docutils manpage writer.
+.

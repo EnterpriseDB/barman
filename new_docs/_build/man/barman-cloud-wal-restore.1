@@ -1,0 +1,174 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "BARMAN-CLOUD-WAL-RESTORE" "1" "Oct 10, 2024" "3.11" "Barman"
+.SH NAME
+barman-cloud-wal-restore \- Barman-cloud Commands
+.sp
+\fBSynopsis\fP
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+barman\-cloud\-wal\-restore
+                [ { \-V | \-\-version } ]
+                [ \-\-help ]
+                [ { \-v | \-\-verbose } ]
+                [ { \-q | \-\-quiet } ]
+                [ { \-t | \-\-test } ]
+                [ \-\-cloud\-provider { aws\-s3 | azure\-blob\-storage | google\-cloud\-storage } ]
+                [ \-\-endpoint\-url ENDPOINT_URL ]
+                [ { \-P | \-\-aws\-profile } AWS_PROFILE ]
+                [ \-\-read\-timeout READ_TIMEOUT ]
+                [ \-\-azure\-credential { azure\-cli | managed\-identity } ]
+                [ \-\-no\-partial ]
+                DESTINATION_URL SERVER_NAME WAL_NAME WAL_DEST
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fBDescription\fP
+.sp
+The \fBbarman\-cloud\-wal\-restore\fP script functions as the \fBrestore_command\fP for
+retrieving WAL files from cloud storage and placing them directly into a PostgreSQL
+standby server, bypassing the Barman server.
+.sp
+This script is used to download WAL files that were previously archived with the
+\fBbarman\-cloud\-wal\-archive\fP command. Disable automatic download of \fB\&.partial\fP files by
+calling \fB\-\-no\-partial\fP option.
+.sp
+\fBIMPORTANT:\fP
+.INDENT 0.0
+.INDENT 3.5
+On the target Postgres node, when \fBpg_wal\fP and the spool directory are on the
+same filesystem, files are moved via renaming, which is faster than copying and
+deleting. This speeds up serving WAL files significantly. If the directories are on
+different filesystems, the process still involves copying and deleting, so there\(aqs
+no performance gain in that case.
+.UNINDENT
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+For GCP, only authentication with \fBGOOGLE_APPLICATION_CREDENTIALS\fP env is supported.
+.UNINDENT
+.UNINDENT
+.sp
+\fBParameters\fP
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server that will have WALs restored.
+.TP
+.B \fBDESTINATION_URL\fP
+URL of the cloud destination, such as a bucket in AWS S3. For example: \fIs3://bucket/path/to/folder\fP\&.
+.TP
+.B \fBWAL_NAME\fP
+The value of the \(aq%f\(aq keyword (according to \fBrestore_command\fP).
+.TP
+.B \fBWAL_DEST\fP
+The value of the \(aq%p\(aq keyword (according to \fBrestore_command\fP).
+.TP
+.B \fB\-V\fP / \fB\-\-version\fP
+Show version and exit.
+.TP
+.B \fB\-\-help\fP
+show this help message and exit.
+.TP
+.B \fB\-v\fP / \fB\-\-verbose\fP
+Increase output verbosity (e.g., \fB\-vv\fP is more than \fB\-v\fP).
+.TP
+.B \fB\-q\fP / \fB\-\-quiet\fP
+Decrease output verbosity (e.g., \fB\-qq\fP is less than \fB\-q\fP).
+.TP
+.B \fB\-t\fP / \fB\-\-test\fP
+Test cloud connectivity and exit.
+.TP
+.B \fB\-\-cloud\-provider\fP
+The cloud provider to use as a storage backend.
+.sp
+Allowed options are:
+.INDENT 7.0
+.IP \(bu 2
+\fBaws\-s3\fP\&.
+.IP \(bu 2
+\fBazure\-blob\-storage\fP\&.
+.IP \(bu 2
+\fBgoogle\-cloud\-storage\fP\&.
+.UNINDENT
+.TP
+.B \fB\-\-no\-partial\fP
+Do not download partial WAL files
+.UNINDENT
+.sp
+\fBExtra options for the AWS cloud provider\fP
+.INDENT 0.0
+.TP
+.B \fB\-\-endpoint\-url\fP
+Override default S3 endpoint URL with the given one.
+.TP
+.B \fB\-P\fP / \fB\-\-aws\-profile\fP
+Profile name (e.g. \fBINI\fP section in AWS credentials file).
+.TP
+.B \fB\-\-profile\fP (deprecated)
+Profile name (e.g. \fBINI\fP section in AWS credentials file) \- replaced by
+\fB\-\-aws\-profile\fP\&.
+.TP
+.B \fB\-\-read\-timeout\fP
+The time in seconds until a timeout is raised when waiting to read from a connection
+(defaults to \fB60\fP seconds).
+.UNINDENT
+.sp
+\fBExtra options for the Azure cloud provider\fP
+.INDENT 0.0
+.TP
+.B \fB\-\-azure\-credential / \-\-credential\fP
+Optionally specify the type of credential to use when authenticating with Azure. If
+omitted then Azure Blob Storage credentials will be obtained from the environment and
+the default Azure authentication flow will be used for authenticating with all other
+Azure services. If no credentials can be found in the environment then the default
+Azure authentication flow will also be used for Azure Blob Storage.
+.sp
+Allowed options are:
+.INDENT 7.0
+.IP \(bu 2
+\fBazure\-cli\fP\&.
+.IP \(bu 2
+\fBmanaged\-identity\fP\&.
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+EnterpriseDB
+.SH COPYRIGHT
+© Copyright EnterpriseDB UK Limited 2011-2024
+.\" Generated by docutils manpage writer.
+.

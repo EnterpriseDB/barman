@@ -1,0 +1,235 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "BARMAN-CLOUD-WAL-ARCHIVE" "1" "Oct 10, 2024" "3.11" "Barman"
+.SH NAME
+barman-cloud-wal-archive \- Barman-cloud Commands
+.sp
+\fBSynopsis\fP
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+barman\-cloud\-wal\-archive
+                [ { \-V | \-\-version } ]
+                [ \-\-help ]
+                [ { \-v | \-\-verbose } ]
+                [ { \-q | \-\-quiet } ]
+                [ { \-t | \-\-test } ]
+                [ \-\-cloud\-provider { aws\-s3 | azure\-blob\-storage | google\-cloud\-storage } ]
+                [ { \-z | \-\-gzip } ]
+                [ { \-j | \-\-bzip2 } ]
+                [ \-\-snappy ]
+                [ \-\-tags [ TAGS ... ] ]
+                [ \-\-history\-tags [ HISTORY_TAGS ... ] ]
+                [ \-\-endpoint\-url ENDPOINT_URL ]
+                [ { \-P | \-\-aws\-profile } AWS_PROFILE ]
+                [ \-\-read\-timeout READ_TIMEOUT ]
+                [ { \-e | \-\-encryption } ENCRYPTION ]
+                [ \-\-sse\-kms\-key\-id SSE_KMS_KEY_ID ]
+                [ \-\-azure\-credential { azure\-cli | managed\-identity } ]
+                [ \-\-encryption\-scope ENCRYPTION_SCOPE ]
+                [ \-\-max\-block\-size MAX_BLOCK_SIZE ]
+                [ \-\-max\-concurrency MAX_CONCURRENCY ]
+                [ \-\-max\-single\-put\-size MAX_SINGLE_PUT_SIZE ]
+                [ \-\-kms\-key\-name KMS_KEY_NAME ]
+                DESTINATION_URL SERVER_NAME [ WAL_PATH ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fBDescription\fP
+.sp
+The \fBbarman\-cloud\-wal\-archive\fP command is designed to be used in the
+\fBarchive_command\fP of a PostgreSQL server to directly ship WAL files to cloud storage.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+If you are using Python 2 or unsupported versions of Python 3, avoid using the
+compression options \fB\-\-gzip\fP or \fB\-\-bzip2\fP\&. The script cannot restore
+gzip\-compressed WALs on Python < 3.2 or bzip2\-compressed WALs on Python < 3.3.
+.UNINDENT
+.UNINDENT
+.sp
+This script enables the direct transfer of WAL files to cloud storage, bypassing the
+Barman server. Additionally, it can be utilized as a hook script for WAL archiving
+(pre_archive_retry_script).
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+For GCP, only authentication with \fBGOOGLE_APPLICATION_CREDENTIALS\fP env is supported.
+.UNINDENT
+.UNINDENT
+.sp
+\fBParameters\fP
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server that will have the WALs archived.
+.TP
+.B \fBDESTINATION_URL\fP
+URL of the cloud destination, such as a bucket in AWS S3. For example: \fIs3://bucket/path/to/folder\fP\&.
+.TP
+.B \fBWAL_PATH\fP
+The value of the \(aq%p\(aq keyword (according to \fBarchive_command\fP).
+.TP
+.B \fB\-V\fP / \fB\-\-version\fP
+Show version and exit.
+.TP
+.B \fB\-\-help\fP
+show this help message and exit.
+.TP
+.B \fB\-v\fP / \fB\-\-verbose\fP
+Increase output verbosity (e.g., \fB\-vv\fP is more than \fB\-v\fP).
+.TP
+.B \fB\-q\fP / \fB\-\-quiet\fP
+Decrease output verbosity (e.g., \fB\-qq\fP is less than \fB\-q\fP).
+.TP
+.B \fB\-t\fP / \fB\-\-test\fP
+Test cloud connectivity and exit.
+.TP
+.B \fB\-\-cloud\-provider\fP
+The cloud provider to use as a storage backend.
+.sp
+Allowed options are:
+.INDENT 7.0
+.IP \(bu 2
+\fBaws\-s3\fP\&.
+.IP \(bu 2
+\fBazure\-blob\-storage\fP\&.
+.IP \(bu 2
+\fBgoogle\-cloud\-storage\fP\&.
+.UNINDENT
+.TP
+.B \fB\-z\fP / \fB\-\-gzip\fP
+gzip\-compress the WAL while uploading to the cloud (should not be used with python <
+3.2).
+.TP
+.B \fB\-j\fP / \fB\-\-bzip2\fP
+bzip2\-compress the WAL while uploading to the cloud (should not be used with python <
+3.3).
+.TP
+.B \fB\-\-snappy\fP
+snappy\-compress the WAL while uploading to the cloud (requires optional
+\fBpython\-snappy\fP library).
+.TP
+.B \fB\-\-tags\fP
+Tags to be added to archived WAL files in cloud storage.
+.TP
+.B \fB\-\-history\-tags\fP
+Tags to be added to archived history files in cloud storage.
+.UNINDENT
+.sp
+\fBExtra options for the AWS cloud provider\fP
+.INDENT 0.0
+.TP
+.B \fB\-\-endpoint\-url\fP
+Override default S3 endpoint URL with the given one.
+.TP
+.B \fB\-P\fP / \fB\-\-aws\-profile\fP
+Profile name (e.g. \fBINI\fP section in AWS credentials file).
+.TP
+.B \fB\-\-profile\fP (deprecated)
+Profile name (e.g. \fBINI\fP section in AWS credentials file) \- replaced by
+\fB\-\-aws\-profile\fP\&.
+.TP
+.B \fB\-\-read\-timeout\fP
+The time in seconds until a timeout is raised when waiting to read from a connection
+(defaults to \fB60\fP seconds).
+.TP
+.B \fB\-e\fP / \fB\-\-encryption\fP
+The encryption algorithm used when storing the uploaded data in S3.
+.sp
+Allowed options:
+.INDENT 7.0
+.IP \(bu 2
+\fBAES256\fP\&.
+.IP \(bu 2
+\fBaws:kms\fP\&.
+.UNINDENT
+.TP
+.B \fB\-\-sse\-kms\-key\-id\fP
+The AWS KMS key ID that should be used for encrypting the uploaded data in S3. Can be
+specified using the key ID on its own or using the full ARN for the key. Only allowed if
+\fB\-e\fP / \fB\-\-encryption\fP is set to \fBaws:kms\fP\&.
+.UNINDENT
+.sp
+\fBExtra options for the Azure cloud provider\fP
+.INDENT 0.0
+.TP
+.B \fB\-\-azure\-credential / \-\-credential\fP
+Optionally specify the type of credential to use when authenticating with Azure. If
+omitted then Azure Blob Storage credentials will be obtained from the environment and
+the default Azure authentication flow will be used for authenticating with all other
+Azure services. If no credentials can be found in the environment then the default
+Azure authentication flow will also be used for Azure Blob Storage.
+.sp
+Allowed options are:
+.INDENT 7.0
+.IP \(bu 2
+\fBazure\-cli\fP\&.
+.IP \(bu 2
+\fBmanaged\-identity\fP\&.
+.UNINDENT
+.TP
+.B \fB\-\-encryption\-scope\fP
+The name of an encryption scope defined in the Azure Blob Storage service which is to
+be used to encrypt the data in Azure.
+.TP
+.B \fB\-\-max\-block\-size\fP
+The chunk size to be used when uploading an object via the concurrent chunk method
+(default: \fB4MB\fP).
+.TP
+.B \fB\-\-max\-concurrency\fP
+The maximum number of chunks to be uploaded concurrently (default: \fB1\fP).
+.TP
+.B \fB\-\-max\-single\-put\-size\fP
+Maximum size for which the Azure client will upload an object in a single request
+(default: \fB64MB\fP). If this is set lower than the Postgres WAL segment size after
+any applied compression then the concurrent chunk upload method for WAL archiving will
+be used.
+.UNINDENT
+.sp
+\fBExtra options for GCP cloud provider\fP
+.INDENT 0.0
+.TP
+.B \fB\-\-kms\-key\-name\fP
+The name of the GCP KMS key which should be used for encrypting the uploaded data in
+GCS.
+.UNINDENT
+.SH AUTHOR
+EnterpriseDB
+.SH COPYRIGHT
+© Copyright EnterpriseDB UK Limited 2011-2024
+.\" Generated by docutils manpage writer.
+.

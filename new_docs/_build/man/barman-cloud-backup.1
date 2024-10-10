@@ -1,0 +1,302 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "BARMAN-CLOUD-BACKUP" "1" "Oct 10, 2024" "3.11" "Barman"
+.SH NAME
+barman-cloud-backup \- Barman-cloud Commands
+.sp
+\fBSynopsis\fP
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+barman\-cloud\-backup
+                [ { \-V | \-\-version } ]
+                [ \-\-help ]
+                [ { \-v | \-\-verbose } ]
+                [ { \-q | \-\-quiet } ]
+                [ { \-t | \-\-test } ]
+                [ \-\-cloud\-provider { aws\-s3 | azure\-blob\-storage | google\-cloud\-storage } ]
+                [ { \-z | \-\-gzip } ]
+                [ { \-j | \-\-bzip2 } ]
+                [ \-\-snappy ]
+                [ { \-h | \-\-host } HOST ]
+                [ { \-p | \-\-port } PORT ]
+                [ { \-U | \-\-user } USER ]
+                [ { \-d | \-\-dbname } DBNAME ]
+                [ { \-n | \-\-name } BACKUP_NAME ]
+                [ { \-J | \-\-jobs } JOBS ]
+                [ \-S MAX_ARCHIVE_SIZE ]
+                [ \-\-immediate\-checkpoint ]
+                [ \-\-min\-chunk\-size MIN_CHUNK_SIZE ]
+                [ \-\-max\-bandwidth MAX_BANDWIDTH ]
+                [ \-\-snapshot\-instance SNAPSHOT_INSTANCE ]
+                [ \-\-snapshot\-disk NAME ]
+                [ \-\-tags [ TAGS ... ] ]
+                [ \-\-endpoint\-url ENDPOINT_URL ]
+                [ { \-P | \-\-aws\-profile } AWS_PROFILE ]
+                [ \-\-read\-timeout READ_TIMEOUT ]
+                [ { \-e | \-\-encryption } ENCRYPTION ]
+                [ \-\-sse\-kms\-key\-id SSE_KMS_KEY_ID ]
+                [ \-\-aws\-region AWS_REGION ]
+                [ \-\-azure\-credential { azure\-cli | managed\-identity } ]
+                [ \-\-encryption\-scope ENCRYPTION_SCOPE ]
+                [ \-\-azure\-subscription\-id AZURE_SUBSCRIPTION_ID ]
+                [ \-\-azure\-resource\-group AZURE_RESOURCE_GROUP ]
+                [ \-\-gcp\-project GCP_PROJECT ]
+                [ \-\-kms\-key\-name KMS_KEY_NAME ]
+                [ \-\-gcp\-zone GCP_ZONE ]
+                DESTINATION_URL SERVER_NAME
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fBDescription\fP
+.sp
+The \fBbarman\-cloud\-backup\fP script is used to create a local backup of a PostgreSQL
+server and transfer it to a supported cloud provider, bypassing the Barman server. It
+can also be utilized as a hook script for copying Barman backups from the Barman server
+to one of the supported clouds (post_backup_retry_script).
+.sp
+This script requires read access to PGDATA and tablespaces, typically run as the
+postgres user. When used on a Barman server, it requires read access to the directory
+where Barman backups are stored. If \fB\-\-snapshot\-\fP arguments are used and snapshots are
+supported by the selected cloud provider, the backup will be performed using snapshots
+of the specified disks (\fB\-\-snapshot\-disk\fP). The backup label and metadata will also be
+uploaded to the cloud.
+.sp
+This script requires read access to the directory where Barman backups are stored. If
+\fB\-\-snapshot\-\fP arguments are used and snapshots are supported by the selected cloud
+provider, the backup will be performed using snapshots of the specified disks
+(\fB\-\-snapshot\-disk\fP). The backup label and metadata will also be uploaded to the cloud.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+For GCP, only authentication with \fBGOOGLE_APPLICATION_CREDENTIALS\fP env is supported.
+.UNINDENT
+.UNINDENT
+.sp
+\fBIMPORTANT:\fP
+.INDENT 0.0
+.INDENT 3.5
+The cloud upload may fail if any file larger than the configured \fB\-\-max\-archive\-size\fP
+is present in the data directory or tablespaces. However, Postgres files up to
+\fB1GB\fP are always allowed, regardless of the \fB\-\-max\-archive\-size\fP setting.
+.UNINDENT
+.UNINDENT
+.sp
+\fBParameters\fP
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server to be backed up.
+.TP
+.B \fBDESTINATION_URL\fP
+URL of the cloud destination, such as a bucket in AWS S3. For example:
+\fIs3://bucket/path/to/folder\fP\&.
+.TP
+.B \fB\-V\fP / \fB\-\-version\fP
+Show version and exit.
+.TP
+.B \fB\-\-help\fP
+show this help message and exit.
+.TP
+.B \fB\-v\fP / \fB\-\-verbose\fP
+Increase output verbosity (e.g., \fB\-vv\fP is more than \fB\-v\fP).
+.TP
+.B \fB\-q\fP / \fB\-\-quiet\fP
+Decrease output verbosity (e.g., \fB\-qq\fP is less than \fB\-q\fP).
+.TP
+.B \fB\-t\fP / \fB\-\-test\fP
+Test cloud connectivity and exit.
+.TP
+.B \fB\-\-cloud\-provider\fP
+The cloud provider to use as a storage backend.
+.sp
+Allowed options are:
+.INDENT 7.0
+.IP \(bu 2
+\fBaws\-s3\fP\&.
+.IP \(bu 2
+\fBazure\-blob\-storage\fP\&.
+.IP \(bu 2
+\fBgoogle\-cloud\-storage\fP\&.
+.UNINDENT
+.TP
+.B \fB\-z\fP / \fB\-\-gzip\fP
+gzip\-compress the backup while uploading to the cloud (should not be used with python <
+3.2).
+.TP
+.B \fB\-j\fP / \fB\-\-bzip2\fP
+bzip2\-compress the backup while uploading to the cloud (should not be used with python <
+3.3).
+.TP
+.B \fB\-\-snappy\fP
+snappy\-compress the backup while uploading to the cloud (requires optional
+\fBpython\-snappy\fP library).
+.TP
+.B \fB\-h\fP / \fB\-\-host\fP
+Host or Unix socket for Postgres connection (default: libpq settings).
+.TP
+.B \fB\-p\fP / \fB\-\-port\fP
+Port for Postgres connection (default: libpq settings).
+.TP
+.B \fB\-U\fP / \fB\-\-user\fP
+User name for Postgres connection (default: libpq settings).
+.TP
+.B \fB\-d\fP / \fB\-\-dbname\fP
+Database name or conninfo string for Postgres connection (default: \(dqpostgres\(dq).
+.TP
+.B \fB\-n\fP / \fB\-\-name\fP
+A name which can be used to reference this backup in commands such as
+\fBbarman\-cloud\-restore\fP and \fBbarman\-cloud\-backup\-delete\fP\&.
+.TP
+.B \fB\-J\fP / \fB\-\-jobs\fP
+Number of subprocesses to upload data to cloud storage (default: \fB2\fP).
+.TP
+.B \fB\-S\fP / \fB\-\-max\-archive\-size\fP
+Maximum size of an archive when uploading to cloud storage (default: \fB100GB\fP).
+.TP
+.B \fB\-\-min\-chunk\-size\fP
+Minimum size of an individual chunk when uploading to cloud storage (default: \fB5MB\fP
+for \fBaws\-s3\fP, \fB64KB\fP for \fBazure\-blob\-storage\fP, not applicable for
+\fBgoogle\-cloud\-storage\fP).
+.TP
+.B \fB\-\-max\-bandwidth\fP
+The maximum amount of data to be uploaded per second when backing up to object
+storages (default: \fB0\fP \- no limit).
+.TP
+.B \fB\-\-snapshot\-instance\fP
+Instance where the disks to be backed up as snapshots are attached.
+.TP
+.B \fB\-\-snapshot\-disk\fP
+Name of a disk from which snapshots should be taken.
+.TP
+.B \fB\-\-tags\fP
+Tags to be added to archived WAL files in cloud storage.
+.UNINDENT
+.sp
+\fBExtra options for the AWS cloud provider\fP
+.INDENT 0.0
+.TP
+.B \fB\-\-endpoint\-url\fP
+Override default S3 endpoint URL with the given one.
+.TP
+.B \fB\-P\fP / \fB\-\-aws\-profile\fP
+Profile name (e.g. \fBINI\fP section in AWS credentials file).
+.TP
+.B \fB\-\-profile\fP (deprecated)
+Profile name (e.g. \fBINI\fP section in AWS credentials file) \- replaced by
+\fB\-\-aws\-profile\fP\&.
+.TP
+.B \fB\-\-read\-timeout\fP
+The time in seconds until a timeout is raised when waiting to read from a connection
+(defaults to \fB60\fP seconds).
+.TP
+.B \fB\-e\fP / \fB\-\-encryption\fP
+The encryption algorithm used when storing the uploaded data in S3.
+.sp
+Allowed options:
+.INDENT 7.0
+.IP \(bu 2
+\fBAES256\fP\&.
+.IP \(bu 2
+\fBaws:kms\fP\&.
+.UNINDENT
+.TP
+.B \fB\-\-sse\-kms\-key\-id\fP
+The AWS KMS key ID that should be used for encrypting the uploaded data in S3. Can be
+specified using the key ID on its own or using the full ARN for the key. Only allowed if
+\fB\-e\fP / \fB\-\-encryption\fP is set to \fBaws:kms\fP\&.
+.TP
+.B \fB\-\-aws\-region\fP
+The name of the AWS region containing the EC2 VM and storage volumes defined by the
+\fB\-\-snapshot\-instance\fP and \fB\-\-snapshot\-disk\fP arguments.
+.UNINDENT
+.sp
+\fBExtra options for the Azure cloud provider\fP
+.INDENT 0.0
+.TP
+.B \fB\-\-azure\-credential / \-\-credential\fP
+Optionally specify the type of credential to use when authenticating with Azure. If
+omitted then Azure Blob Storage credentials will be obtained from the environment and
+the default Azure authentication flow will be used for authenticating with all other
+Azure services. If no credentials can be found in the environment then the default
+Azure authentication flow will also be used for Azure Blob Storage.
+.sp
+Allowed options are:
+.INDENT 7.0
+.IP \(bu 2
+\fBazure\-cli\fP\&.
+.IP \(bu 2
+\fBmanaged\-identity\fP\&.
+.UNINDENT
+.TP
+.B \fB\-\-encryption\-scope\fP
+The name of an encryption scope defined in the Azure Blob Storage service which is to
+be used to encrypt the data in Azure.
+.TP
+.B \fB\-\-azure\-subscription\-id\fP
+The ID of the Azure subscription which owns the instance and storage volumes defined by
+the \fB\-\-snapshot\-instance\fP and \fB\-\-snapshot\-disk\fP arguments.
+.TP
+.B \fB\-\-azure\-resource\-group\fP
+The name of the Azure resource group to which the compute instance and disks defined by
+the \fB\-\-snapshot\-instance\fP and \fB\-\-snapshot\-disk\fP arguments belong.
+.UNINDENT
+.sp
+\fBExtra options for GCP cloud provider\fP
+.INDENT 0.0
+.TP
+.B \fB\-\-gcp\-project\fP
+GCP project under which disk snapshots should be stored.
+.TP
+.B \fB\-\-snapshot\-gcp\-project\fP (deprecated)
+GCP project under which disk snapshots should be stored \- replaced by
+\fB\-\-gcp\-project\fP\&.
+.TP
+.B \fB\-\-kms\-key\-name\fP
+The name of the GCP KMS key which should be used for encrypting the uploaded data in
+GCS.
+.TP
+.B \fB\-\-gcp\-zone\fP
+Zone of the disks from which snapshots should be taken.
+.TP
+.B \fB\-\-snapshot\-zone\fP (deprecated)
+Zone of the disks from which snapshots should be taken \- replaced by \fB\-\-gcp\-zone\fP\&.
+.UNINDENT
+.SH AUTHOR
+EnterpriseDB
+.SH COPYRIGHT
+© Copyright EnterpriseDB UK Limited 2011-2024
+.\" Generated by docutils manpage writer.
+.
