@@ -1,0 +1,1344 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "BARMAN" "5" "Oct 10, 2024" "3.11" "Barman"
+.SH NAME
+barman \- Barman Configurations
+.sp
+Barman follows a \fIconvention over configuration\fP approach, which simplifies configuration
+by allowing some options to be defined globally and overridden at the server level. This
+means you can set a default behavior for your servers and then customize specific servers
+as needed. This design reduces the need for excessive configuration while maintaining
+flexibility.
+.SH USAGE
+.sp
+Proper configuration is critical for its effective operation. Barman uses different types
+of configuration files to manage global settings, server\-specific settings, and
+model\-specific settings that comprises three scopes:
+.sp
+1. \fBGlobal Configuration\fP: It comprises of one file with a set of configurations for the
+barman system, such as the main directory, system user, log file, and other general
+options. Default location is \fB/etc/barman.conf\fP and it can be overridden on a per\-user
+level by \fB~/.barman.conf\fP or by specifying a \fB\&.conf\fP file using the \fB\-c\fP /
+\fB\-\-config\fP with the \fI\%barman command\fP directly in the CLI.
+.sp
+2. \fBServer Configuration\fP: It comprises of one or multiple files with a set of
+configurations for a PostgreSQL server that you want to keep track and interact for
+backup, recovery and/or replication. Default location is \fB/etc/barman.d\fP and must use
+the \fB\&.conf\fP suffix. You may have one or multiple files for servers. You can override the
+default location by setting the \fBconfiguration_files_directory\fP option in the global
+configuration file and placing the files in that particular location.
+.sp
+3. \fBModel Configuration\fP: It comprises of one or multiple files with a set of
+configurations overrides that can be applied to Barman servers within the same cluster as
+the model. These overrides can be implemented using the barman \fBconfig\-switch\fP command.
+Default location is \fB/etc/barman.d\fP and must use the \fB\&.conf\fP suffix. The same
+\fBconfiguration_files_directory\fP override option from the server configuration applies for
+models. You may have one or multiple files for models.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Historically, you could have a single configuration file containing global, server, and
+model options, but, for maintenance reasons, this approach is deprecated.
+.UNINDENT
+.UNINDENT
+.sp
+Configuration files follow the \fBINI\fP format and consist of sections denoted by headers
+in square brackets. Each section can include various options.
+.sp
+Models and servers must have unique identifiers, and reserved words cannot be used as
+names.
+.sp
+\fBReserved Words\fP
+.sp
+The following reserved words cannot be used as server or model names:
+.INDENT 0.0
+.IP \(bu 2
+\fBbarman\fP: Identifies the global section.
+.IP \(bu 2
+\fBall\fP: A special shortcut for executing commands on all managed servers.
+.UNINDENT
+.sp
+\fBParameter Types\fP
+.sp
+Configuration options can be of the following types:
+.INDENT 0.0
+.IP \(bu 2
+\fBString\fP: Textual data (e.g., file paths, names).
+.IP \(bu 2
+\fBEnum\fP: Enumerated values, often limited to predefined choices.
+.IP \(bu 2
+\fBInteger\fP: Numeric values.
+.IP \(bu 2
+\fBBoolean\fP: Can be \fBon\fP, \fBtrue\fP, \fB1\fP (true) or \fBoff\fP, \fBfalse\fP, \fB0\fP
+(false).
+.sp
+\fBNOTE:\fP
+.INDENT 2.0
+.INDENT 3.5
+Some enums allow \fBoff\fP, but not \fBfalse\fP\&.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SH OPTIONS
+.sp
+Options in the configuration files can have specific or shared scopes. The following
+configuration options are used not only for configuring how Barman will execute backups
+and recoveries, but also for configuring various aspects of how Barman interacts with the
+configured PostgreSQL servers to be able to apply your Backup and Recovery, and
+High\-Availability strategies.
+.SS General
+.sp
+These are general configurations options.
+.sp
+\fBactive\fP
+.sp
+When this option is set to \fBtrue\fP (default), the server operates fully. If set to
+\fBfalse\fP, the server is restricted to diagnostic use only, meaning that operational
+commands such as backup execution or WAL archiving are temporarily disabled. When
+incorporating a new server into Barman, we recommend initially setting
+\fBactive=false\fP\&. Verify that barman check shows no issues before activating the
+server. This approach helps prevent excessive error logging in Barman during the
+initial setup.
+.sp
+Scope: Server / Model.
+.sp
+\fBarchiver\fP
+.sp
+This option enables log file shipping through Postgres\(aq \fBarchive_command\fP for a
+server. When set to \fBtrue\fP, Barman expects continuous archiving to be configured and
+will manage WAL files that Postgres stores in the incoming directory
+(\fBincoming_wals_directory\fP), including their checks, handling, and compression. When
+set to \fBfalse\fP (default), continuous archiving is disabled.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+If neither \fBarchiver\fP nor \fBstreaming_archiver\fP is configured, Barman will
+automatically set this option to \fBtrue\fP to maintain compatibility with the
+previous default behavior where archiving was enabled by default.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBarchiver_batch_size\fP
+.sp
+This option enables batch processing of WAL files for the archiver process by setting
+it to a value greater than \fB0\fP\&. If not set, the archiver will use unlimited
+(default) processing mode for the WAL queue. With batch processing enabled, the
+archiver process will handle a maximum of \fBarchiver_batch_size\fP WAL segments per
+run. This value must be an integer.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBbandwidth_limit\fP
+.sp
+Specifies the maximum transfer rate in kilobytes per second for backup and recovery
+operations. A value of \fB0\fP indicates no limit (default).
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Applies only when \fBbackup_method = postgres | rsync\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBbarman_home\fP
+.sp
+Designates the main data directory for Barman. Defaults to \fB/var/lib/barman\fP\&.
+.sp
+Scope: Global.
+.sp
+\fBbarman_lock_directory\fP
+.sp
+Specifies the directory for lock files. The default is \fBbarman_home\fP\&.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+The \fBbarman_lock_directory\fP should be on a non\-network local filesystem.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global.
+.sp
+\fBbasebackup_retry_sleep\fP
+.sp
+Sets the number of seconds to wait after a failed base backup copy before retrying.
+Default is \fB30\fP seconds. Must be a non\-negative integer.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+This applies to both backup and recovery operations.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBbasebackup_retry_times\fP
+.sp
+Defines the number of retry attempts for a base backup copy after an error occurs.
+Default is \fB0\fP (no retries). Must be a non\-negative integer.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+This applies to both backup and recovery operations.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBcheck_timeout\fP
+.sp
+Sets the maximum execution time in seconds for a Barman check command per server. Set
+to \fB0\fP to disable the timeout. Default is \fB30\fP seconds. Must be a non\-negative
+integer.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBcluster\fP
+.sp
+Tag the server or model to an associated cluster name. Barman uses this association to
+override configuration for all servers/models in this cluster. If omitted for servers,
+it defaults to the server\(aqs name.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Must be specified for configuration models to group applicable servers.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Server / Model.
+.sp
+\fBconfig_changes_queue\fP
+.sp
+Designates the filesystem location for Barman\(aqs queue that handles configuration changes
+requested via the barman \fBconfig\-update\fP command. This queue manages the
+serialization and retry of configuration change requests. By default, Barman writes to
+a file named \fBcfg_changes.queue\fP under \fBbarman_home\fP\&.
+.sp
+Scope: Global.
+.sp
+\fBconfiguration_files_directory\fP
+.sp
+Designates the directory where server/model configuration files will be read by Barman.
+Defaults to \fB/etc/barman.d\fP\&.
+.sp
+Scope: Global.
+.sp
+\fBconninfo\fP
+.sp
+Specifies the connection string used by Barman to connect to the PostgreSQL server.
+This is a libpq connection string. Commonly used keys include: \fBhost\fP, \fBhostaddr\fP,
+\fBport\fP, \fBdbname\fP, \fBuser\fP and \fBpassword\fP\&. See the \fI\%PostgreSQL documentation\fP
+for details.
+.sp
+Scope: Server / Model.
+.sp
+\fBcreate_slot\fP
+.sp
+Determines whether Barman should automatically create a replication slot, if it\(aqs not
+already present, for streaming of WAL files. When set to \fBauto\fP and \fBslot_name\fP
+is defined, Barman will attempt to create the slot automatically. When set to
+\fBmanual\fP (default), the replication slot must be created manually.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBdescription\fP
+.sp
+Provides a human\-readable description of a server.
+.sp
+Scope: Server / Model.
+.sp
+\fBerrors_directory\fP
+.sp
+The directory where WAL files that were errored while being archived by Barman are
+stored. This includes duplicate WAL files (e.g., an archived WAL file that has already
+been streamed) and unexpected files found in the WAL archive directory.
+.sp
+The purpose of placing the files in this directory is so someone can later review why they
+failed to be archived and take appropriate actions (dispose of, store somewhere else,
+replace the duplicate file archived before, etc.)
+.sp
+Scope: Server.
+.sp
+\fBforward_config_path\fP
+.sp
+Determines whether a passive node should forward its configuration file path to its
+primary node during \fBcron\fP or \fBsync\-info\fP commands. Set to \fBtrue\fP if Barman is
+invoked with the \fB\-c\fP / \fB\-\-config\fP option and the configuration paths are identical
+on both passive and primary Barman servers. Defaults to \fBfalse\fP\&.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBimmediate_checkpoint\fP
+.sp
+Controls how Postgres handles checkpoints at the start of a backup. Set to \fBfalse\fP
+(default) to allow the checkpoint to complete according to
+\fBcheckpoint_completion_target\fP\&. Set to \fBtrue\fP for an immediate checkpoint, where
+Postgres completes the checkpoint as quickly as possible.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBkeepalive_interval\fP
+.sp
+Sets the interval in seconds for sending a heartbeat query to keep the libpq
+connection active during an rsync backup. Default is \fB60\fP seconds. Setting this to
+\fB0\fP disables the heartbeat.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBlock_directory_cleanup\fP
+.sp
+Enables automatic cleanup of unused lock files in the \fBbarman_lock_directory\fP\&.
+.sp
+Scope: Global.
+.sp
+\fBlog_file\fP
+.sp
+Specifies the location of Barman\(aqs log file. Defaults to \fB/var/log/barman/barman.log\fP\&.
+.sp
+Scope: Global.
+.sp
+\fBlog_level\fP
+.sp
+Sets the level of logging. Options include: \fBDEBUG\fP, \fBINFO\fP, \fBWARNING\fP,
+\fBERROR\fP and \fBCRITICAL\fP\&.
+.sp
+Scope: Global.
+.sp
+\fBminimum_redundancy\fP
+.sp
+Specifies the minimum number of backups to retain. Default is \fB0\fP\&.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBmodel\fP
+.sp
+When set to \fBtrue\fP, turns a server section from a configuration file into a model for
+a cluster. There is no \fBfalse\fP option in this case. If you want to simulate a
+\fBfalse\fP option, comment out (\fB#model=true\fP) or remove the option in the
+configuration. Defaults to the server name.
+.sp
+Scope: Model.
+.sp
+\fBnetwork_compression\fP
+.sp
+Enables or disables data compression for network transfers. Set to \fBfalse\fP (default)
+to disable compression, or \fBtrue\fP to enable it and reduce network usage.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBparallel_jobs\fP
+.sp
+Controls the number of parallel workers used to copy files during backup or recovery.
+Default is \fB1\fP\&.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Applies only when \fBbackup_method = rsync\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBparallel_jobs_start_batch_period\fP
+.sp
+Specifies the time interval in seconds over which a single batch of parallel jobs will
+start. Default is \fB1\fP second. This means that if \fBparallel_jobs_start_batch_size\fP
+is \fB10\fP and \fBparallel_jobs_start_batch_period\fP is \fB1\fP, this will yield an
+effective rate limit of \fB10\fP jobs per second, because there is a maximum of \fB10\fP
+jobs that can be started within \fB1\fP second.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Applies only when \fBbackup_method = rsync\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBparallel_jobs_start_batch_size\fP
+.sp
+Defines the maximum number of parallel jobs to start in a single batch. Default is
+\fB10\fP jobs. This means that if \fBparallel_jobs_start_batch_size\fP
+is \fB10\fP and \fBparallel_jobs_start_batch_period\fP is \fB2\fP, this will yield a maximum
+of \fB10\fP jobs that can be started within \fB2\fP seconds.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Applies only when \fBbackup_method = rsync\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBpath_prefix\fP
+.sp
+Lists one or more absolute paths, separated by colons, where Barman looks for
+executable files. These paths are checked before the PATH environment variable. This
+option can be set for each server and needs to point to the \fBbin\fP directory for the
+appropriate \fBPG_MAJOR_VERSION\fP\&.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBprimary_checkpoint_timeout\fP
+.sp
+Time to wait for new WAL files before forcing a checkpoint on the primary server.
+Defaults to \fB0\fP\&.
+.sp
+Scope: Server / Model.
+.sp
+\fBprimary_conninfo\fP
+.sp
+Connection string for Barman to connect to the primary PostgreSQL server during a
+standby backup.
+.sp
+Scope: Server / Model.
+.sp
+\fBprimary_ssh_command\fP
+.sp
+SSH command for connecting to the primary server if Barman is passive.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBslot_name\fP
+.sp
+Replication slot name for the \fBreceive\-wal\fP command when \fBstreaming_archiver\fP is
+enabled.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBssh_command\fP
+.sp
+SSH command used by Barman to connect to the PostreSQL server.
+.sp
+Scope: Server / Model.
+.sp
+\fBstreaming_archiver\fP
+.sp
+Enables Postgres\(aq streaming protocol for WAL files. Defaults to \fBfalse\fP\&.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+If neither \fBarchiver\fP nor \fBstreaming_archiver\fP is configured, Barman will
+automatically set \fBarchiver\fP option to \fBtrue\fP to maintain compatibility with the
+previous default behavior where archiving was enabled by default.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBstreaming_archiver_batch_size\fP
+.sp
+Batch size for processing WAL files in streaming archiver. Defaults to \fB0\fP\&.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBstreaming_archiver_name\fP
+.sp
+Application name for the \fBreceive\-wal\fP command. Defaults to \fBbarman_receive_wal\fP\&.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBstreaming_backup_name\fP
+.sp
+Application name for the \fBpg_basebackup\fP command. Defaults to
+\fBbarman_streaming_backup\fP\&.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBstreaming_conninfo\fP
+.sp
+Connection string for streaming replication protocol. Defaults to \fBconninfo\fP\&.
+.sp
+Scope: Server / Model.
+.sp
+\fBtablespace_bandwidth_limit\fP
+.sp
+Maximum transfer rate for specific tablespaces for backup and recovery operations.
+A value of \fB0\fP indicates no limit (default).
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Applies only when \fBbackup_method = rsync\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.SS Backups
+.sp
+These configurations options are related to how Barman will execute backups.
+.sp
+\fBautogenerate_manifest\fP
+.sp
+This is a boolean option that allows for the automatic creation of backup manifest
+files. The manifest file, which is a JSON document, lists all files included in the
+backup. It is generated upon completion of the backup and saved in the backup
+directory. The format of the manifest file adheres to the specifications outlined in the
+\fI\%PostgreSQL documentation\fP
+and is compatible with the \fBpg_verifybackup\fP tool. Default is \fBfalse\fP\&.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+This option is ignored if the \fBbackup_method\fP is not \fBrsync\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBbackup_compression\fP
+.sp
+Specifies the compression method for the backup process. It can be set to \fBgzip\fP,
+\fBlz4\fP, \fBzstd\fP, or \fBnone\fP\&. Ensure that the CLI tool for the chosen compression
+method is available on both the Barman and PostgreSQL servers.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Note that \fBlz4\fP and \fBzstd\fP require Postgres version 15 or later. Unsetting this
+option or using \fBnone\fP results in an uncompressed archive (default). Only
+supported when \fBbackup_method = postgres\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBbackup_compression_format\fP
+.sp
+Determines the format \fBpg_basebackup\fP should use when saving compressed backups.
+Options are \fBplain\fP or \fBtar\fP, with \fBtar\fP as the default if unset. The \fBplain\fP
+format is available only if Postgres version 15 or later is in use and
+\fBbackup_compression_location\fP is set to \fBserver\fP\&.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only supported when \fBbackup_method = postgres\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBbackup_compression_level\fP
+.sp
+Defines the level of compression for backups as an integer. The permissible values
+depend on the compression method specified in \fBbackup_compression\fP\&.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only supported when \fBbackup_method = postgres\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBbackup_compression_location\fP
+.sp
+Specifies where compression should occur during the backup: either \fBclient\fP or
+\fBserver\fP\&. The \fBserver\fP option is available only if Postgres version 15 or later is
+being used.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only supported when \fBbackup_method = postgres\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBbackup_compression_workers\fP
+.sp
+Sets the number of threads used for compression during the backup process. This is
+applicable only when \fBbackup_compression=zstd\fP\&. The default value is 0, which uses
+the standard compression behavior.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only supported when \fBbackup_method = postgres\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBbackup_directory\fP
+.sp
+Specifies the directory where backup data for a server will be stored. Defaults to
+\fB<barman_home>/<server_name>\fP\&.
+.sp
+Scope: Server.
+.sp
+\fBbackup_method\fP
+.sp
+Defines the method Barman uses to perform backups. Options include:
+.INDENT 0.0
+.IP \(bu 2
+\fBrsync\fP (default): Executes backups using the rsync command over SSH (requires
+\fBssh_command\fP).
+.IP \(bu 2
+\fBpostgres\fP: Uses the \fBpg_basebackup\fP command for backups.
+.IP \(bu 2
+\fBlocal\-rsync\fP: Assumes Barman runs on the same server and as the same user as
+the PostgreSQL database, performing an rsync file system copy.
+.IP \(bu 2
+\fBsnapshot\fP: Utilizes the API of the cloud provider specified in the
+\fBsnapshot_provider\fP option to create disk snapshots as defined in
+\fBsnapshot_disks\fP and saves only the backup label and metadata to its own
+storage.
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBbackup_options\fP
+.sp
+Controls how Barman interacts with Postgres during backups. This is a comma\-separated
+list that can include:
+.INDENT 0.0
+.IP \(bu 2
+\fBconcurrent_backup\fP (default): Uses concurrent backup, recommended for
+Postgres versions 9.6 and later, and supports backups from standby servers.
+.IP \(bu 2
+\fBexclusive_backup\fP: Uses the deprecated exclusive backup method. Only for Postgres
+versions older than 15.
+.IP \(bu 2
+\fBexternal_configuration\fP: Suppresses warnings about external configuration files
+during backup execution.
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+\fBexclusive_backup\fP and \fBconcurrent_backup\fP cannot be used together.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBbasebackups_directory\fP
+.sp
+Specifies the directory where base backups are stored. Defaults to
+\fB<backup_directory>/base\fP\&.
+.sp
+Scope: Server.
+.sp
+\fBreuse_backup\fP
+.sp
+Controls incremental backup support when using \fBbackup_method=rsync\fP by reusing the
+last available backup. The options are:
+.INDENT 0.0
+.IP \(bu 2
+\fBoff\fP (default): Standard full backup.
+.IP \(bu 2
+\fBcopy\fP: File\-level incremental backup, by reusing the last backup for a server and
+creating a copy of the unchanged files (just for backup time reduction)
+.IP \(bu 2
+\fBlink\fP: File\-level incremental backup, by reusing the last backup for a server and
+creating a hard link of the unchanged files (for backup space and time reduction)
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+This option will be ignored when \fBbackup_method=postgres\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.SS Cloud Backups
+.sp
+These configuration options are related to how Barman will execute backups in the cloud.
+.sp
+\fBaws_await_snapshots_timeout\fP
+.sp
+Specifies the duration in seconds to wait for AWS snapshots to be created before a
+timeout occurs. The default value is \fB3600\fP seconds. This must be a positive
+integer.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = aws\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBaws_profile\fP
+.sp
+The name of the AWS profile to use when authenticating with AWS (e.g. \fBINI\fP section
+in AWS credentials file).
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = aws\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBaws_region\fP
+.sp
+Indicates the AWS region where the EC2 VM and storage volumes, as defined by
+\fBsnapshot_instance\fP and \fBsnapshot_disks\fP, are located.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = aws\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBazure_credential\fP
+.sp
+Specifies the type of Azure credential to use for authentication, either \fBazure\-cli\fP
+or \fBmanaged\-identity\fP\&. If not provided, the default Azure authentication method will
+be used.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = azure\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBazure_resource_group\fP
+.sp
+Specifies the name of the Azure resource group containing the compute instance and
+disks defined by \fBsnapshot_instance\fP and \fBsnapshot_disks\fP\&.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = azure\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBazure_subscription_id\fP
+.sp
+Identifies the Azure subscription that owns the instance and storage volumes defined by
+\fBsnapshot_instance\fP and \fBsnapshot_disks\fP\&.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = azure\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBgcp_project\fP
+.sp
+Specifies the ID of the GCP project that owns the instance and storage volumes defined
+by \fBsnapshot_instance\fP and \fBsnapshot_disks\fP\&.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = gcp\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBgcp_zone\fP
+.sp
+Indicates the availability zone where the compute instance and disks are located for
+snapshot backups.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = gcp\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Server / Model.
+.sp
+\fBsnapshot_disks\fP
+.sp
+This option is a comma\-separated list of disks to include in cloud snapshot backups.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Required when \fBbackup_method = snapshot\fP\&.
+.sp
+Ensure that the \fBsnapshot_disks\fP list includes all disks that store Postgres data,
+as any data not on these listed disks will not be included in the backup and will be
+unavailable during recovery.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Server / Model.
+.sp
+\fBsnapshot_instance\fP
+.sp
+The name of the VM or compute instance where the storage volumes are attached.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Required when \fBbackup_method = snapshot\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Server / Model.
+.sp
+\fBsnapshot_provider\fP
+.sp
+The name of the cloud provider to use for creating snapshots. Supported value:
+\fBaws\fP, \fBazure\fP and \fBgcp\fP\&.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Required when \fBbackup_method = snapshot\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.SS Hook Scripts
+.sp
+These configuration options are related to the pre or post execution of hook scripts.
+.sp
+\fBpost_archive_retry_script\fP
+.sp
+Specifies a hook script to run after a WAL file is archived. Barman will retry this
+script until it returns \fBSUCCESS\fP (0), \fBABORT_CONTINUE\fP (62), or \fBABORT_STOP\fP
+(63). In a post\-archive scenario, \fBABORT_STOP\fP has the same effect as
+\fBABORT_CONTINUE\fP\&.
+.sp
+Scope: Global / Server.
+.sp
+\fBpost_archive_script\fP
+.sp
+Specifies a hook script to run after a WAL file is archived, following the
+\fBpost_archive_retry_script\fP\&.
+.sp
+Scope: Global / Server.
+.sp
+\fBpost_backup_retry_script\fP
+.sp
+Specifies a hook script to run after a base backup. Barman will retry this script until
+it returns \fBSUCCESS\fP (0), \fBABORT_CONTINUE\fP (62), or \fBABORT_STOP\fP (63). In a
+post\-backup scenario, \fBABORT_STOP\fP has the same effect as \fBABORT_CONTINUE\fP\&.
+.sp
+Scope: Global / Server.
+.sp
+\fBpost_backup_script\fP
+.sp
+Specifies a hook script to run after a base backup, following the
+\fBpost_backup_retry_script\fP\&.
+.sp
+Scope: Global / Server.
+.sp
+\fBpost_delete_retry_script\fP
+.sp
+Specifies a hook script to run after deleting a backup. Barman will retry this script
+until it returns \fBSUCCESS\fP (0), \fBABORT_CONTINUE\fP (62), or \fBABORT_STOP\fP (63). In
+a post\-delete scenario, \fBABORT_STOP\fP has the same effect as \fBABORT_CONTINUE\fP\&.
+.sp
+Scope: Global / Server.
+.sp
+\fBpost_delete_script\fP
+.sp
+Specifies a hook script to run after deleting a backup, following the
+\fBpost_delete_retry_script\fP\&.
+.sp
+Scope: Global / Server.
+.sp
+\fBpost_recovery_retry_script\fP
+.sp
+Specifies a hook script to run after a recovery. Barman will retry this script until it
+returns \fBSUCCESS\fP (0), \fBABORT_CONTINUE\fP (62), or \fBABORT_STOP\fP (63). In a
+post\-recovery scenario, \fBABORT_STOP\fP has the same effect as \fBABORT_CONTINUE\fP\&.
+.sp
+Scope: Global / Server.
+.sp
+\fBpost_recovery_script\fP
+.sp
+Specifies a hook script to run after a recovery, following the
+\fBpost_recovery_retry_script\fP\&.
+.sp
+Scope: Global / Server.
+.sp
+\fBpost_wal_delete_retry_script\fP
+.sp
+Specifies a hook script to run after deleting a WAL file. Barman will retry this script
+until it returns \fBSUCCESS\fP (0), \fBABORT_CONTINUE\fP (62), or \fBABORT_STOP\fP (63). In
+a post\-WAL\-delete scenario, \fBABORT_STOP\fP has the same effect as \fBABORT_CONTINUE\fP\&.
+.sp
+Scope: Global / Server.
+.sp
+\fBpost_wal_delete_script\fP
+.sp
+Specifies a hook script to run after deleting a WAL file, following the
+\fBpost_wal_delete_retry_script\fP\&.
+.sp
+Scope: Global / Server.
+.sp
+\fBpre_archive_retry_script\fP
+.sp
+Specifies a hook script that runs before a WAL file is archived during maintenance,
+following the \fBpre_archive_script\fP\&. As a retry hook script, Barman will repeatedly
+execute the script until it returns either \fBSUCCESS\fP (0), \fBABORT_CONTINUE\fP (62),
+or \fBABORT_STOP\fP (63). Returning \fBABORT_STOP\fP will escalate the failure and halt
+the WAL archiving process.
+.sp
+Scope: Global / Server.
+.sp
+\fBpre_archive_script\fP
+.sp
+Specifies a hook script launched before a WAL file is archived by maintenance.
+.sp
+Scope: Global / Server.
+.sp
+\fBpre_backup_retry_script\fP
+.sp
+Specifies a hook script that runs before a base backup, following the
+\fBpre_backup_script\fP\&. As a retry hook script, Barman will attempt to execute the
+script repeatedly until it returns \fBSUCCESS\fP (0), \fBABORT_CONTINUE\fP (62), or
+\fBABORT_STOP\fP (63). Returning \fBABORT_STOP\fP will escalate the failure and interrupt
+the backup process.
+.sp
+Scope: Global / Server.
+.sp
+\fBpre_backup_script\fP
+.sp
+Specifies a hook script to run before starting a base backup.
+.sp
+Scope: Global / Server.
+.sp
+\fBpre_delete_retry_script\fP
+.sp
+Specifies a retry hook script to run before backup deletion, following the
+\fBpre_delete_script\fP\&. As a retry hook script, Barman will attempt to execute the
+script repeatedly until it returns \fBSUCCESS\fP (0), \fBABORT_CONTINUE\fP (62), or
+\fBABORT_STOP\fP (63). Returning \fBABORT_STOP\fP will escalate the failure and interrupt
+the backup deletion.
+.sp
+Scope: Global / Server.
+.sp
+\fBpre_delete_script\fP
+.sp
+Specifies a hook script run before deleting a backup.
+.sp
+Scope: Global / Server.
+.sp
+\fBpre_recovery_retry_script\fP
+.sp
+Specifies a retry hook script to run before recovery, following the
+\fBpre_recovery_script\fP\&. As a retry hook script, Barman will attempt to execute the
+script repeatedly until it returns \fBSUCCESS\fP (0), \fBABORT_CONTINUE\fP (62), or
+\fBABORT_STOP\fP (63). Returning \fBABORT_STOP\fP will escalate the failure and interrupt
+the recover process.
+.sp
+Scope: Global / Server.
+.sp
+\fBpre_recovery_script\fP
+.sp
+Specifies a hook script run before starting a recovery.
+.sp
+Scope: Global / Server.
+.sp
+\fBpre_wal_delete_retry_script\fP
+.sp
+Specifies a retry hook script for WAL file deletion, executed before
+\fBpre_wal_delete_script\fP\&. As a retry hook script, Barman will attempt to execute the
+script repeatedly until it returns \fBSUCCESS\fP (0), \fBABORT_CONTINUE\fP (62), or
+\fBABORT_STOP\fP (63). Returning \fBABORT_STOP\fP will escalate the failure and interrupt
+the WAL file deletion.
+.sp
+Scope: Global / Server.
+.sp
+\fBpre_wal_delete_script\fP
+.sp
+Specifies a hook script run before deleting a WAL file.
+.sp
+Scope: Global / Server.
+.SS Write\-Ahead Logs (WAL)
+.sp
+These configuration options are related to how Barman will manage the Write\-Ahead Logs
+(WALs) of the PostreSQL servers.
+.sp
+\fBcompression\fP
+.sp
+Specifies the standard compression algorithm for WAL files. Options include: \fBgzip\fP,
+\fBbzip2\fP, \fBpigz\fP, \fBpygzip\fP, \fBpybzip2\fP and \fBcustom\fP\&.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+All of these options require the module to be installed in the location where the
+compression will occur.
+.sp
+The \fBcustom\fP option is for custom compression, which requires you to set the
+following options as well:
+.INDENT 0.0
+.IP \(bu 2
+\fBcustom_compression_filter\fP: a compression filter.
+.IP \(bu 2
+\fBcustom_decompression_filter\fP: a decompression filter
+.IP \(bu 2
+\fBcustom_compression_magic\fP: a hex string to identify a custom compressed wal
+file.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBcustom_compression_filter\fP
+.sp
+Specifies a custom compression algorithm for WAL files. It must be a \fBstring\fP that
+will be used internally to create a bash command and it will prefix to the
+following string \fB> \(dq$2\(dq < \(dq$1\(dq;\fP\&. Write to standard output and do not delete input
+files.
+.sp
+\fBTIP:\fP
+.INDENT 0.0
+.INDENT 3.5
+\fBcustom_compression_filter = \(dqxz \-c\(dq\fP
+.sp
+This is the same as running \fBxz \-c > \(dq$2\(dq < \(dq$1\(dq;\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBcustom_compression_magic\fP
+.sp
+Defines a custom magic value to identify the custom compression algorithm used in WAL
+files. If this is set, Barman will avoid applying custom compression to WALs that have
+already been compressed with the specified algorithm. If not configured, Barman will
+apply custom compression to all WAL files, even those pre\-compressed.
+.sp
+\fBTIP:\fP
+.INDENT 0.0
+.INDENT 3.5
+For example, in the \fBxz\fP compression algorithm, the magic number is used to detect
+the format of \fB\&.xz\fP files.
+.INDENT 0.0
+.TP
+.B For xz files, the magic number is the following sequence of bytes:
+Magic Number: \fBFD 37 7A 58 5A 00\fP
+.TP
+.B In hexadecimal representation, this can be expressed as:
+Hex String: \fBfd377a585a00\fP
+.UNINDENT
+.sp
+Reference: \fI\%xz\-file\-format\fP
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBcustom_decompression_filter\fP
+.sp
+Specifies a custom decompression algorithm for compressed WAL files. It must be a
+\fBstring\fP that will be used internally to create a bash command and it will
+prefix to the following string \fB> \(dq$2\(dq < \(dq$1\(dq;\fP\&. It must correspond with the
+compression algorithm used.
+.sp
+\fBTIP:\fP
+.INDENT 0.0
+.INDENT 3.5
+\fBcustom_compression_filter = \(dqxz \-c \-d\(dq\fP
+.sp
+This is the same as running \fBxz \-c \-d > \(dq$2\(dq < \(dq$1\(dq;\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBincoming_wals_directory\fP
+.sp
+Specifies the directory where incoming WAL files are archived. Requires \fBarchiver\fP to
+be enabled. Defaults to \fB<backup_directory>/incoming\fP\&.
+.sp
+Scope: Server.
+.sp
+\fBlast_wal_maximum_age\fP
+.sp
+Defines the time frame within which the latest archived WAL file must fall. If the
+latest WAL file is older than this period, the barman check command will report an
+error. If left empty (default), the age of the WAL files is not checked. Format is the
+same as \fBlast_backup_maximum_age\fP\&.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBmax_incoming_wals_queue\fP
+.sp
+Defines the maximum number of WAL files allowed in the incoming queue (including both
+streaming and archiving pools) before the barman check command returns an error.
+Default is \fBNone\fP (disabled).
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBstreaming_wals_directory\fP
+.sp
+Directory for streaming WAL files. Defaults to \fB<backup_directory>/streaming\fP\&.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+This option is applicable when \fBstreaming_archiver\fP is activated.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Server.
+.sp
+\fBwal_conninfo\fP
+.sp
+This optional connection string is used by Barman for monitoring the status of the
+replication slot used for receiving WALs. When specified, it takes precedence over
+\fBwal_streaming_conninfo\fP for these checks. If \fBwal_conninfo\fP is set, but
+\fBwal_streaming_conninfo\fP is not, \fBwal_conninfo\fP will be ignored. Both connection
+strings must access a Postgres instance within the same cluster as defined by
+\fBstreaming_conninfo\fP and \fBconninfo\fP\&. Additionally, \fBwal_streaming_conninfo\fP must
+support streaming replication connections, and either it or \fBwal_conninfo\fP (if used)
+must have the necessary permissions to read settings and check replication slot
+status, such as the \fBpg_monitor\fP role, both \fBpg_read_all_settings\fP and
+\fBpg_read_all_stats\fP roles, or \fBsuperuser\fP privileges.
+.sp
+Scope: Server / Model.
+.sp
+\fBwal_streaming_conninfo\fP
+.sp
+This connection string is used by Barman to connect to the PostgreSQL server for
+receiving WAL segments via streaming replication and for checking the replication slot
+status. If not specified, Barman defaults to using \fBstreaming_conninfo\fP for these
+tasks. \fBwal_streaming_conninfo\fP must connect to a Postgres instance within the
+same cluster as defined by \fBstreaming_conninfo\fP and \fBconninfo\fP, and it must support
+streaming replication. It, or the optional \fBwal_conninfo\fP, must also have the
+required permissions to read settings and check the replication slot status, such as
+the \fBpg_monitor\fP role, both \fBpg_read_all_settings\fP and \fBpg_read_all_stats\fP
+roles, or \fBsuperuser\fP privileges.
+.sp
+Scope: Server / Model.
+.sp
+\fBwals_directory\fP
+.sp
+Directory containing WAL files. Defaults to \fB<backup_directory>/wals\fP\&.
+.sp
+Scope: Server.
+.SS Restore
+.sp
+These configuration options are related to how Barman manages restoration backups.
+.sp
+\fBlocal_staging_path\fP
+.sp
+Specifies the local path for combining block\-level incremental backups during recovery.
+This location must have sufficient space to temporarily store the new synthetic backup.
+Required for recovery from a block\-level incremental backup.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Applies only when \fBbackup_method = postgres\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBrecovery_options\fP
+.sp
+Options for recovery operations. Currently, only \fBget\-wal\fP is supported. This option
+enables the creation of a basic \fBrestore_command\fP in the recovery configuration,
+which uses the barman \fBget\-wal\fP command to retrieve WAL files directly from Barman\(aqs
+WAL archive. This setting accepts a comma\-separated list of values and defaults to
+empty.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBrecovery_staging_path\fP
+.sp
+Specifies the path on the recovery host for staging files from compressed backups. This
+location must have sufficient space to temporarily store the compressed backup.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Applies only for commpressed backups.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.SS Retention Policies
+.sp
+These configuration options are related to how Barman manages retention policies of the
+backups.
+.sp
+\fBlast_backup_maximum_age\fP
+.sp
+Defines the time frame within which the latest backup must fall. If the latest backup
+is older than this period, the barman check command will report an error. If left
+empty (default), the latest backup is always considered valid. The accepted format is
+\fB\(dqn {DAYS|WEEKS|MONTHS}\(dq\fP, where \fBn\fP is an integer greater than zero.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBlast_backup_minimum_size\fP
+.sp
+Specifies the minimum acceptable size for the latest successful backup. If the latest
+backup is smaller than this size, the barman check command will report an error. If
+left empty (default), the latest backup is always considered valid. The accepted
+format is \fB\(dqn {k|Ki|M|Mi|G|Gi|T|Ti}\(dq\fP and case\-sensitive, where \fBn\fP is an integer
+greater than zero, with an optional SI or IEC suffix. k stands for kilo with k = 1000,
+while Ki stands for kilobytes Ki = 1024. The rest of the options have the same
+reasoning for greater units of measure.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBretention_policy\fP
+.sp
+Defines how long backups and WAL files should be retained. If this option is left blank,
+no retention policies will be applied. Options include redundancy and recovery window
+policies.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+retention_policy = {REDUNDANCY value | RECOVERY WINDOW OF value {DAYS | WEEKS | MONTHS}}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+\fBretention_policy = REDUNDANCY 2\fP will keep only 2 backups in the backup catalog
+automatically deleting the older one as new backups are created. The number must be
+a positive integer.
+.IP \(bu 2
+\fBretention_policy = RECOVERY WINDOW OF 2 DAYS\fP will only keep backups needed to
+recover to any point in time in the last two days, automatically deleting backups
+that are older. The period number must be a positive integer, and   the following
+options can be applied to it: \fBDAYS\fP, \fBWEEKS\fP, \fBMONTHS\fP\&.
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBretention_policy_mode\fP
+.sp
+Mode for enforcing retention policies. Currently only supports \fBauto\fP\&.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBwal_retention_policy\fP
+.sp
+Policy for retaining WAL files. Currently only \fBmain\fP is available.
+.sp
+Scope: Global / Server / Model.
+.SH CONFIGURATION MODELS
+.sp
+Configuration models provide a systematic approach to manage and apply configuration
+overrides for Postgres servers by organizing them under a specific \fBcluster\fP name.
+.SS Purpose
+.sp
+The primary goal of a configuration model is to simplify the management of configuration
+settings for Postgres servers grouped by the same \fBcluster\fP\&. By using a model, you can
+apply a set of common configuration overrides, enhancing operational efficiency. They are
+especially beneficial in clustered environments, allowing you to create various
+configuration models that can be utilized during failover events.
+.SS Application
+.sp
+The configurations defined in a model file can be applied to Postgres servers that share
+the same \fBcluster\fP name specified in the model. Consequently, any server utilizing that
+model can inherit these settings, promoting a consistent and adaptable configuration
+across all servers.
+.SS Usage
+.sp
+Model options can only be defined within a model section, which is identified in the same
+way as a server section. It is important to ensure that there are no conflicts between
+the identifiers of server sections and model sections.
+.sp
+To apply a configuration model, execute the
+\fBbarman config\-switch SERVER_NAME MODEL_NAME\fP\&. This command facilitates the application
+of the model\(aqs overrides to the relevant Barman server associated with the specified
+cluster name.
+.sp
+If you wish to remove the overrides, the deletion of the model configuration file alone
+will not have any effect, so you can do so by using the \fB\-\-reset\fP argument with the
+command, as follows: \fBbarman config\-switch SERVER_NAME \-\-reset\fP\&.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+The \fBconfig\-switch\fP command will only succeed if model name exists and is associated
+with the same \fBcluster\fP as the server. Additionally, there can be only one active
+model at a time; if you execute the command multiple times with different models, only
+the overrides defined in the last model will be applied.
+.sp
+Not all options can be configured through models. Please review the scope of the
+available configurations to determine which settings apply to models.
+.UNINDENT
+.UNINDENT
+.SS Benefits
+.INDENT 0.0
+.IP \(bu 2
+Consistency: Ensures uniform configuration across multiple Barman servers within a
+cluster.
+.IP \(bu 2
+Efficiency: Simplifies configuration management by allowing centralized updates and
+overrides.
+.IP \(bu 2
+Flexibility: Allows the use of multiple model files, providing the ability to define
+various sets of overrides as necessary.
+.UNINDENT
+.SH AUTHOR
+EnterpriseDB
+.SH COPYRIGHT
+© Copyright EnterpriseDB UK Limited 2011-2024
+.\" Generated by docutils manpage writer.
+.

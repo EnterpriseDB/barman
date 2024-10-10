@@ -1,0 +1,44 @@
+; Barman, Backup and Recovery Manager for PostgreSQL
+; https://www.pgbarman.org/ - https://www.enterprisedb.com/
+;
+; Template configuration file for a server using
+; only streaming replication protocol
+;
+
+[streaming-server]
+; Human readable description
+description =  "Example of PostgreSQL Database (Streaming-Only)"
+
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; PostgreSQL connection string (mandatory)
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+conninfo = host=pg user=barman dbname=postgres
+
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; PostgreSQL streaming connection string
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; To be used by pg_basebackup for backup and pg_receivewal for WAL streaming
+; NOTE: streaming_barman is a regular user with REPLICATION privilege
+streaming_conninfo = host=pg user=streaming_barman
+
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Backup settings (via pg_basebackup)
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+backup_method = postgres
+;streaming_backup_name = barman_streaming_backup
+
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; WAL streaming settings (via pg_receivewal)
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+streaming_archiver = on
+slot_name = barman
+;create_slot = auto
+;streaming_archiver_name = barman_receive_wal
+;streaming_archiver_batch_size = 50
+
+; Uncomment the following line if you are also using archive_command
+; otherwise the "empty incoming directory" check will fail
+;archiver = on
+
+; PATH setting for this server
+;path_prefix = "/usr/pgsql-12/bin"

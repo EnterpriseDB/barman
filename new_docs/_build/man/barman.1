@@ -1,0 +1,2056 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "BARMAN" "1" "Oct 10, 2024" "3.11" "Barman"
+.SH NAME
+barman \- Barman Commands
+.sp
+Barman has a command\-line interface named \fBbarman\fP, which is used basically to
+interact with Barman\(aqs backend.
+.sp
+Before jumping into each of the sub\-commands of \fBbarman\fP, be aware that \fBbarman\fP
+has global options available for all of the sub\-commands. These options can modify the
+behavior of the sub\-commands and can be used as follows:
+.SH BARMAN
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+barman
+    [ { \-c | \-\-config } CONFIG ]
+    [ { \-color | \-\-colour } { never | always | auto } ]
+    [ { \-d | \-\-debug } ]
+    [ { \-f | \-\-format } { json | console } ]
+    [ { \-h | \-\-help } ]
+    [ \-\-log\-level { NOTSET | DEBUG | INFO | WARNING | ERROR | CRITICAL } ]
+    [ { \-q | \-\-quiet } ]
+    [ { \-v | \-\-version } ]
+    [ SUBCOMMAND ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+This is the syntax for the synopsis:
+.INDENT 0.0
+.IP \(bu 2
+Options between square brackets are optional;
+.IP \(bu 2
+Options between curly brackets represent a \fIchoose one of set\fP operation;
+.IP \(bu 2
+Options with \fB[ ... ]\fP can be specified multiple times;
+.IP \(bu 2
+Things written in uppercase represent a literal that should be given a value to.
+.UNINDENT
+.sp
+We will use this same syntax when describing \fBbarman\fP sub\-commands in the
+following sections.
+.sp
+Also, when describing sub\-commands in the following sections, the commands\(aq
+synopsis should be seen as a replacement for the \fBSUBCOMMAND\fP\&.
+.UNINDENT
+.UNINDENT
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fB\-c\fP / \fB\-\-config CONFIG\fP
+Specify the configuration file to be used. Defaults to \fB/etc/barman.conf\fP if
+not provided.
+.TP
+.B \fB\-\-color\fP / \fB\-\-colour { never | always | auto }\fP
+Control whether to use colors in the output. The default is \fBauto\fP\&. Options are:
+.INDENT 7.0
+.IP \(bu 2
+\fBnever\fP: Do not use color.
+.IP \(bu 2
+\fBalways\fP: Always use color.
+.IP \(bu 2
+\fBauto\fP: Use color if the output is to a terminal.
+.UNINDENT
+.TP
+.B \fB\-d\fP / \fB\-\-debug\fP
+Enable debug output. Default is \fBfalse\fP\&. Provides detailed logging information for
+troubleshooting.
+.TP
+.B \fB\-f\fP / \fB\-\-format { json | console }\fP
+Specify the output format. Options are:
+.INDENT 7.0
+.IP \(bu 2
+\fBjson\fP: Output in JSON format.
+.IP \(bu 2
+\fBconsole\fP: Output in human\-readable format (default).
+.UNINDENT
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
+.TP
+.B \fB\-\-log\-level { NOTSET | DEBUG | INFO | WARNING | ERROR | CRITICAL }\fP
+Override the default logging level. Options are:
+.INDENT 7.0
+.IP \(bu 2
+\fBNOTSET\fP: This is the default level when no specific logging level is set. It
+essentially means \(dqno filtering\(dq of log messages, allowing all messages to be
+processed according to the levels that are set in the configuration.
+.IP \(bu 2
+\fBDEBUG\fP: This level is used for detailed, diagnostic information, often
+useful for developers when diagnosing problems. It includes messages that are
+more granular and detailed, intended to help trace the execution of the
+program.
+.IP \(bu 2
+\fBINFO\fP: This level provides general information about the application\(aqs
+normal operation. It\(aqs used for messages that indicate the progress of the
+application or highlight key points in the execution flow that are useful but
+not indicative of any issues.
+.IP \(bu 2
+\fBWARNING\fP: This level indicates that something unexpected happened or that
+there might be a potential problem. It\(aqs used for messages that are not
+critical but could be of concern, signaling that attention might be needed.
+.IP \(bu 2
+\fBERROR\fP: This level is used when an error occurs that prevents a particular
+operation from completing successfully. It\(aqs used to indicate significant
+issues that need to be addressed but do not necessarily stop the application
+from running.
+.IP \(bu 2
+\fBCRITICAL\fP: This is the highest level of severity, indicating a serious
+error that has likely caused the application to terminate or will have severe
+consequences if not addressed immediately. It\(aqs used for critical issues that
+demand urgent attention.
+.UNINDENT
+.TP
+.B \fB\-q\fP / \fB\-\-quiet\fP
+Suppress all output. Useful for cron jobs or automated scripts.
+.TP
+.B \fB\-v\fP / \fB\-\-version\fP
+Show the program version number and exit.
+.UNINDENT
+.SH SHORTCUTS
+.sp
+For some commands, you can use the following shortcuts or aliases to identify a backup
+for a given server. Specifically, the \fBall\fP shortcut can be used to identify all
+servers:
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBall\fP
+T}	T{
+All available servers
+T}
+_
+T{
+\fBfirst/oldest\fP
+T}	T{
+Oldest available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast/latest\fP
+T}	T{
+Most recent available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast\-full/latest\-full\fP
+T}	T{
+Most recent full backup eligible for a block\-level incremental backup using the
+\fB\-\-incremental\fP option.
+T}
+_
+T{
+\fBlast\-failed\fP
+T}	T{
+Most recent backup that failed, in chronological order.
+T}
+_
+.TE
+.SH EXIT STATUSES
+.sp
+Status code \fB0\fP means \fBsuccess\fP, while status code \fBNon\-Zero\fP means \fBfailure\fP\&.
+.SH SUB-COMMANDS
+.sp
+\fBbarman\fP exposes several handy operations. This section is intended to describe each
+of them.
+.sp
+In the following sections you can find a description of each command implemented by
+\fBbarman\fP\&. Some of these commands may have more detailed information in another main
+section in this documentation. If that is the case, a reference is provided to help you
+quickly navigate to it.
+.SS \fBbarman archive\-wal\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+archive\-wal SERVER_NAME
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Fetch WAL files received from either the standard \fBarchive_command\fP or streaming
+replication with \fBpg_receivewal\fP and store them in the server\(aqs WAL archive. If you
+have enabled \fBcompression\fP in the configuration file, the WAL files will be compressed
+before they are archived.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node.
+.UNINDENT
+.SS \fBbarman backup\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+backup
+    [ \-\-bwlimit KBPS ]
+    [ \-\-incremental BACKUP_ID ]
+    [ \-\-immediate\-checkpoint ]
+    [ { \-j, \-\-jobs } PARALLEL_WORKERS ]
+    [ \-\-jobs\-start\-batch\-period PERIOD ]
+    [ \-\-jobs\-start\-batch\-size SIZE ]
+    [ \-\-keepalive\-interval SECONDS ]
+    [ \-\-manifest ]
+    [ \-\-name NAME ]
+    [ \-\-no\-immediate\-checkpoint ]
+    [ \-\-no\-manifest ]
+    [ \-\-no\-retry ]
+    [ \-\-retry\-sleep SECONDS ]
+    [ \-\-retry\-times NUMBER ]
+    [ \-\-reuse\-backup { off | copy | link } ]
+    [ { \-\-wait | \-w } ]
+    [ \-\-wait\-timeout SECONDS ]
+    SERVER_NAME [ ... ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Execute a PostreSQL server backup. Barman will use the parameters specified in the Global
+and Server configuration files. Specify \fBall\fP shortcut instead of the server name to
+execute backups from all servers configured in the Barman node. You can also specify
+multiple server names in sequence to execute backups for specific servers.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node.
+.TP
+.B \fB\-\-bwlimit\fP
+Specify the maximum transfer rate in kilobytes per second. A value of 0 indicates no
+limit. This setting overrides the \fBbandwidth_limit\fP configuration option.
+.TP
+.B \fB\-\-incremental\fP
+Execute a block\-level incremental backup. You must provide a \fBBACKUP_ID\fP or a
+shortcut to a previous backup, which will serve as the parent backup for the
+incremental backup.
+.sp
+\fBNOTE:\fP
+.INDENT 7.0
+.INDENT 3.5
+The backup to be and the parent backup must have \fBbackup_method=postgres\fP\&.
+.UNINDENT
+.UNINDENT
+.TP
+.B \fB\-\-immediate\-checkpoint\fP
+Forces the initial checkpoint to be executed as soon as possible, overriding any
+value set for the \fBimmediate_checkpoint\fP parameter in the configuration file.
+.TP
+.B \fB\-j\fP / \fB\-\-jobs\fP
+Specify the number of parallel workers to use for copying files during the backup.
+This setting overrides the \fBparallel_jobs\fP parameter if it\(aqs specified in the
+configuration file.
+.TP
+.B \fB\-\-jobs\-start\-batch\-period\fP
+Specify the time period, in seconds, for starting a single batch of jobs. This value
+overrides the \fBparallel_jobs_start_batch_period\fP parameter if it is set in the
+configuration file. The default is \fB1\fP second.
+.TP
+.B \fB\-\-jobs\-start\-batch\-size\fP
+Specify the maximum number of parallel workers to initiate in a single batch. This
+value overrides the \fBparallel_jobs_start_batch_size\fP parameter if it is defined in
+the configuration file. The default is \fB10\fP workers.
+.TP
+.B \fB\-\-keepalive\-interval\fP
+Specify an interval, in seconds, for sending a heartbeat query to the server to keep
+the libpq connection active during a Rsync backup. The default is \fB60\fP seconds. A
+value of \fB0\fP disables the heartbeat.
+.TP
+.B \fB\-\-manifest\fP
+Forces the creation of a backup manifest file upon completing a backup. Overrides the
+\fBautogenerate_manifest\fP parameter from the configuration file. Applicable only to
+rsync backup strategy.
+.TP
+.B \fB\-\-name\fP
+Specify a friendly name for this backup which can be used in place of the backup ID
+in barman commands.
+.TP
+.B \fB\-\-no\-immediate\-checkpoint\fP
+Forces the backup to wait for the checkpoint to be executed overriding any value set
+for the \fBimmediate_checkpoint\fP parameter in the configuration file.
+.TP
+.B \fB\-\-no\-manifest\fP
+Disables the automatic creation of a backup manifest file upon completing a backup.
+This setting overrides the \fBautogenerate_manifest\fP parameter from the configuration
+file and applies only to rsync backup strategy.
+.TP
+.B \fB\-\-no\-retry\fP
+There will be no retry in case of an error. It is the same as setting
+\fB\-\-retry\-times 0\fP\&.
+.TP
+.B \fB\-\-retry\-sleep\fP
+Specify the number of seconds to wait after a failed copy before retrying. This
+setting applies to both backup and recovery operations and overrides the
+\fBbasebackup_retry_sleep\fP parameter if it is defined in the configuration file.
+.TP
+.B \fB\-\-retry\-times\fP
+Specify the number of times to retry the base backup copy in case of an error. This
+applies to both backup and recovery operations and overrides the
+\fBbasebackup_retry_times\fP parameter if it is set in the configuration file.
+.TP
+.B \fB\-\-reuse\-backup\fP
+Overrides the behavior of the \fBreuse_backup\fP option configured in the configuration
+file. The possible values are:
+.INDENT 7.0
+.IP \(bu 2
+\fBoff\fP: Do not reuse the last available backup.
+.IP \(bu 2
+\fBcopy\fP: Reuse the last available backup for a server and create copies of
+unchanged files (reduces backup time).
+.IP \(bu 2
+\fBlink\fP (default): Reuse the last available backup for a server and create
+hard links to unchanged files (saves both backup time and space).
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 7.0
+.INDENT 3.5
+This will only have any effect if the last available backup was
+executed with \fBbackup_method=rsync\fP\&.
+.UNINDENT
+.UNINDENT
+.TP
+.B \fB\-\-wait\fP / \fB\-w\fP
+Wait for all necessary WAL files required by the base backup to be archived.
+.TP
+.B \fB\-\-wait\-timeout\fP
+Specify the duration, in seconds, to wait for the required WAL files to be archived
+before timing out.
+.UNINDENT
+.SS Shortcuts
+.sp
+Use shortcuts instead of \fBSERVER_NAME\fP\&.
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBall\fP
+T}	T{
+All available servers
+T}
+_
+.TE
+.SS \fBbarman check\-backup\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+check\-backup SERVER_NAME BACKUP_ID
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Check that all necessary WAL files for verifying the consistency of a physical backup are
+properly archived. This command is automatically executed by the cron job and at the end
+of each backup operation. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node.
+.TP
+.B \fBBACKUP_ID\fP
+Id of the backup in barman catalog.
+.UNINDENT
+.SS Shortcuts
+.sp
+Use shortcuts instead of \fBBACKUP_ID\fP\&.
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBfirst/oldest\fP
+T}	T{
+Oldest available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast/latest\fP
+T}	T{
+Most recent available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast\-full/latest\-full\fP
+T}	T{
+Most recent full backup eligible for a block\-level incremental backup using the
+\fB\-\-incremental\fP option.
+T}
+_
+T{
+\fBlast\-failed\fP
+T}	T{
+Most recent backup that failed, in chronological order.
+T}
+_
+.TE
+.SS \fBbarman check\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+check [ \-\-nagios ] SERVER_NAME
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Display status information about a server, such as SSH connection, Postgres version,
+configuration and backup directories, archiving and streaming processes, replication
+slots, and more. Use \fBall\fP as shortcut to show diagnostic information for all
+configured servers.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node.
+.TP
+.B \fB\-\-nagios\fP
+Nagios plugin compatible output.
+.UNINDENT
+.SS Shortcuts
+.sp
+Use shortcuts instead of \fBSERVER_NAME\fP\&.
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBall\fP
+T}	T{
+All available servers
+T}
+_
+.TE
+.SS \fBbarman config\-switch\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+config\-switch SERVER_NAME { \-\-reset | MODEL_NAME }
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Apply a set of configuration overrides from the model to a server in Barman. The final
+configuration will combine or override the server\(aqs existing settings with the ones
+specified in the model. You can reset the server configurations with the \fB\-\-reset\fP
+argument.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only one model can be active at a time for a given server.
+.UNINDENT
+.UNINDENT
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node.
+.TP
+.B \fBMODEL_NAME\fP
+Name of the model.
+.TP
+.B \fB\-\-reset\fP
+Reset the server\(aqs configurations.
+.UNINDENT
+.SS \fBbarman config\-update\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+config\-update STRING
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Create or update the configurations for servers and/or models in Barman. The parameter
+should be a JSON string containing an array of documents. Each document must include a
+\fBscope\fP key, which can be either server or model, and either a \fBserver_name\fP or
+\fBmodel_name\fP key, depending on the scope value. Additionally, the document should
+include other keys representing Barman configuration options and their desired values.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+The barman \fBconfig\-update\fP command writes configuration options to a file named
+\fB\&.barman.auto.conf\fP, located in the \fBbarman_home\fP directory. This configuration
+file has higher precedence and will override values from the global Barman
+configuration file (usually \fB/etc/barman.conf\fP) and from any included files specified
+in \fBconfiguration_files_directory\fP (typically files in \fB/etc/barman.d\fP). Be aware
+of this if you decide to manually modify configuration options in those files later.
+.UNINDENT
+.UNINDENT
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSTRING\fP
+List of JSON formatted string.
+.UNINDENT
+.SS Example
+.sp
+\fBJSON_STRING=\(aq[{“scope”: “server”, “server_name”: “my_server”, “archiver”:
+“on”, “streaming_archiver”: “off”}]\(aq\fP
+.SS \fBbarman cron\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cron [ \-\-keep\-descriptors ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Carry out maintenance tasks, such as enforcing retention policies or managing WAL files.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fB\-\-keep\-descriptors\fP
+Keep the ^stdout^ and ^stderr^ streams of the Barman subprocesses connected to the
+main process. This is especially useful for Docker\-based installations.
+.UNINDENT
+.SS \fBbarman delete\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+delete SERVER_NAME BACKUP_ID
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Delete the specified backup. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node
+.TP
+.B \fBBACKUP_ID\fP
+Id of the backup in barman catalog.
+.UNINDENT
+.SS Shortcuts
+.sp
+Use shortcuts instead of \fBBACKUP_ID\fP\&.
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBfirst/oldest\fP
+T}	T{
+Oldest available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast/latest\fP
+T}	T{
+Most recent available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast\-full/latest\-full\fP
+T}	T{
+Most recent full backup eligible for a block\-level incremental backup using the
+\fB\-\-incremental\fP option.
+T}
+_
+T{
+\fBlast\-failed\fP
+T}	T{
+Most recent backup that failed, in chronological order.
+T}
+_
+.TE
+.SS \fBbarman diagnose\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+diagnose
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Display diagnostic information about the Barman node, which is the server where Barman
+is installed, as well as all configured PostgreSQL servers. This includes details such as
+global configuration, SSH version, Python version, rsync version, the current
+configuration and status of all servers, and many more.
+.SS \fBbarman generate\-manifest\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+generate\-manifest SERVER_NAME BACKUP_ID
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Generates a \fBbackup_manifest\fP file for a backup. You can use a shortcut instead of
+\fBBACKUP_ID\fP\&.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node
+.TP
+.B \fBBACKUP_ID\fP
+Id of the backup in barman catalog.
+.UNINDENT
+.SS Shortcuts
+.sp
+Use shortcuts instead of \fBBACKUP_ID\fP\&.
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBfirst/oldest\fP
+T}	T{
+Oldest available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast/latest\fP
+T}	T{
+Most recent available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast\-full/latest\-full\fP
+T}	T{
+Most recent full backup eligible for a block\-level incremental backup using the
+\fB\-\-incremental\fP option.
+T}
+_
+T{
+\fBlast\-failed\fP
+T}	T{
+Most recent backup that failed, in chronological order.
+T}
+_
+.TE
+.SS \fBbarman get\-wal\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+get\-wal
+    [ \-j ]
+    [ \-o  OUTPUT_DIRECTORY ]
+    [ \-p  VALUE ]
+    [ { \-P | \-\-partial } ]
+    [ { \-t | \-\-test } ]
+    [ \-z ]
+    SERVER_NAME WAL_NAME
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Retrieve a WAL file from the xlog archive of a specified server. By default, if the
+requested WAL file is found, it is returned as uncompressed content to \fBSTDOUT\fP\&.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node
+.TP
+.B \fBWAL_NAME\fP
+Id of the backup in barman catalog.
+.TP
+.B \fB\-j\fP
+Output will be compressed using bzip2.
+.TP
+.B \fB\-o\fP
+Destination directory where barman will store the WAL file.
+.TP
+.B \fB\-p\fP
+Specify an integer value greater than or equal to 1 to retrieve WAL files from the
+specified WAL file up to the value specified by this parameter. When using this option,
+\fBget\-wal\fP returns a list of zero to the specified WAL segment names, with one name
+per row.
+.TP
+.B \fB\-P\fP / \fB\-\-partial\fP
+Additionally, collect partial WAL files (.partial).
+.TP
+.B \fB\-t\fP / \fB\-\-test\fP
+Test both the connection and configuration of the specified PostgreSQL server in
+Barman for WAL retrieval. When this option is used, the required \fBWAL_NAME\fP
+argument is disregarded.
+.TP
+.B \fB\-z\fP
+Output will be compressed using gzip.
+.UNINDENT
+.SS \fBbarman keep\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+keep
+    { \-\-release | \-\-status | \-\-target { full | standalone } }
+    SERVER_NAME BACKUP_ID
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Mark the specified backup with a \fBtarget\fP as an archival backup to be retained
+indefinitely, overriding any active retention policies. You can also check the keep
+\fBstatus\fP of a backup and \fBrelease\fP the keep mark from a backup. You can use a
+shortcut instead of \fBBACKUP_ID\fP\&.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node
+.TP
+.B \fBBACKUP_ID\fP
+Id of the backup in barman catalog.
+.TP
+.B \fB\-\-release\fP
+Release the keep mark from this backup. This will remove its archival status and
+make it available for deletion, either directly or by retention policy.
+.TP
+.B \fB\-\-status\fP
+Report the archival status of the backup. The status will be either \fBfull\fP or
+\fBstandalone\fP for archival backups, or \fBnokeep\fP for backups that have not been
+designated as archival.
+.TP
+.B \fB\-\-target\fP
+Define the recovery target for the archival backup. The possible values are:
+.INDENT 7.0
+.IP \(bu 2
+\fBfull\fP: The backup can be used to recover to the most recent point in time. To
+support this, Barman will keep all necessary WALs to maintain the backup\(aqs
+consistency as well as any subsequent WALs.
+.IP \(bu 2
+\fBstandalone\fP: The backup can only be used to restore the server to its state at the
+time of the backup. Barman will retain only the WALs required to ensure the
+backup\(aqs consistency.
+.UNINDENT
+.UNINDENT
+.SS Shortcuts
+.sp
+Use shortcuts instead of \fBBACKUP_ID\fP\&.
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBfirst/oldest\fP
+T}	T{
+Oldest available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast/latest\fP
+T}	T{
+Most recent available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast\-full/latest\-full\fP
+T}	T{
+Most recent full backup eligible for a block\-level incremental backup using the
+\fB\-\-incremental\fP option.
+T}
+_
+T{
+\fBlast\-failed\fP
+T}	T{
+Most recent backup that failed, in chronological order.
+T}
+_
+.TE
+.SS \fBbarman list\-backups\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+list\-backups SERVER_NAME
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Display the available backups for a server. This command is useful for retrieving both
+the backup ID and the backup type. You can find details about this command in
+\fI\%Catalog usage\fP\&.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node
+.UNINDENT
+.SS Shortcuts
+.sp
+Use shortcuts instead of \fBSERVER_NAME\fP\&.
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBall\fP
+T}	T{
+All available servers
+T}
+_
+.TE
+.SS \fBbarman list\-files\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+list\-files
+    [ \-\-target { data | full | standalone | wal } ]
+    SERVER_NAME BACKUP_ID
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+List all files in a specific backup. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node
+.TP
+.B \fBBACKUP_ID\fP
+Id of the backup in barman catalog.
+.TP
+.B \fB\-\-target\fP
+Define specific files to be listed. The possible values are:
+.INDENT 7.0
+.IP \(bu 2
+\fBstandalone\fP (default): List the base backup files, including required WAL files.
+.IP \(bu 2
+\fBdata\fP: List just the data files.
+.IP \(bu 2
+\fBwal\fP: List all the WAL files between the start of the base backup and the end of
+the log or the start of the following base backup (depending on whether the
+specified base backup is the most recent one available).
+.IP \(bu 2
+\fBfull\fP: same as \fBdata\fP + \fBwal\fP\&.
+.UNINDENT
+.UNINDENT
+.SS Shortcuts
+.sp
+Use shortcuts instead of \fBBACKUP_ID\fP\&.
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBfirst/oldest\fP
+T}	T{
+Oldest available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast/latest\fP
+T}	T{
+Most recent available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast\-full/latest\-full\fP
+T}	T{
+Most recent full backup eligible for a block\-level incremental backup using the
+\fB\-\-incremental\fP option.
+T}
+_
+T{
+\fBlast\-failed\fP
+T}	T{
+Most recent backup that failed, in chronological order.
+T}
+_
+.TE
+.SS \fBbarman list\-servers\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+list\-servers [ \-\-minimal ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Display all configured servers along with their descriptions.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fB\-\-minimal\fP
+Machine readable output.
+.UNINDENT
+.SS \fBbarman lock\-directory\-cleanup\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lock\-directory\-cleanup
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Automatically removes unused lock files from the \fBbarman_lock_directory\fP\&.
+.SS \fBbarman put\-wal\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+put\-wal [ { \-t | \-\-test } ] SERVER_NAME
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Receive a WAL file from a remote server and securely save it into the server incoming
+directory. The WAL file should be provided via \fBSTDIN\fP, encapsulated in a tar stream along
+with an \fBMD5SUMS\fP file for validation. This command is intended to be executed via SSH from
+a remote \fBbarman\-wal\-archive\fP utility (included in the barman\-cli package). Avoid
+using this command directly unless you fully manage the content of the files.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node
+.TP
+.B \fB\-t\fP / \fB\-\-test\fP
+Test both the connection and configuration of the specified PostgreSQL
+server in Barman for WAL retrieval.
+.UNINDENT
+.SS \fBbarman rebuild\-xlogdb\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rebuild\-xlogdb SERVER_NAME
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Rebuild the WAL file metadata for a server (or for all servers using the \fBall\fP shortcut)
+based on the disk content. The WAL archive metadata is stored in the \fBxlog.db\fP file,
+with each Barman server maintaining its own copy.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node.
+.UNINDENT
+.SS Shortcuts
+.sp
+Use shortcuts instead of \fBSERVER_NAME\fP\&.
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBall\fP
+T}	T{
+All available servers
+T}
+_
+.TE
+.SS \fBbarman receive\-wal\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+receive\-wal
+    [ \-\-create\-slot ]
+    [ \-\-drop\-slot ]
+    [ \-\-reset ]
+    [ \-\-stop ]
+    SERVER_NAME
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Initiate the streaming of transaction logs for a server. This process uses
+\fBpg_receivewal\fP or \fBpg_receivexlog\fP to receive WAL files from PostgreSQL servers via
+the streaming protocol.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node.
+.TP
+.B \fB\-\-create\-slot\fP
+Create the physical replication slot configured with the \fBslot_name\fP configuration
+parameter.
+.TP
+.B \fB\-\-drop\-slot\fP
+Drop the physical replication slot configured with the \fBslot_name\fP configuration
+parameter.
+.TP
+.B \fB\-\-reset\fP
+Reset the status of \fBreceive\-wal\fP, restarting the streaming from the current WAL file
+of the server.
+.TP
+.B \fB\-\-stop\fP
+Stop the process for the server.
+.UNINDENT
+.SS \fBbarman recover\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+recover
+    [ \-\-aws\-region AWS_REGION } ]
+    [ \-\-azure\-resource\-group AZURE_RESOURCE_GRP ]
+    [ \-\-bwlimit KBPS ]
+    [ \-\-exclusive ]
+    [ \-\-gcp\-zone GCP_ZONE ]
+    [ \-\-get\-wal | \-\-no\-get\-wal ]
+    [ { \-j | \-\-jobs } PARALLEL_WORKERS ]
+    [ \-\-jobs\-start\-batch\-period SECONDS ]
+    [ \-\-jobs\-start\-batch\-size NUMBER ]
+    [ \-\-local\-staging\-path PATH ]
+    [ \-\-network\-compression | \-\-no\-network\-compression ]
+    [ \-\-no\-retry ]
+    [ \-\-recovery\-conf\-filename FILENAME ]
+    [ \-\-recovery\-staging\-path PATH ]
+    [ \-\-remote\-ssh\-command STRING ]
+    [ \-\-retry\-sleep SECONDS ]
+    [ \-\-retry\-times NUMBER ]
+    [ \-\-snapshot\-recovery\-instance INSTANCE_NAME ]
+    [ \-\-standby\-mode ]
+    [ \-\-tablespace NAME:LOCATION ]
+    [ \-\-target\-action { pause | shutdown | promote } ]
+    [ \-\-target\-immediate ]
+    [ \-\-target\-lsn LSN ]
+    [ \-\-target\-name RESTORE_POINT_NAME ]
+    [ \-\-target\-time TIMESTAMP ]
+    [ \-\-target\-tli TLI ]
+    [ \-\-target\-xid XID ]
+    SERVER_NAME BACKUP_ID DESTINATION_DIR
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Execute a PostreSQL server recovery operation. Barman will recover the backup from a
+server in the destination directory. The recovery can be performed locally (on the
+barman node itself) or remotely (on another machine accessible via SSH). The location is
+determined by whether or not the \fB\-\-remote\-ssh\-command\fP option is used. More
+information on this command can be found in the \fI\%Recovery\fP section. You can use a
+shortcut instead of \fBBACKUP_ID\fP\&.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node
+.TP
+.B \fBBACKUP_ID\fP
+Id of the backup in barman catalog.
+.TP
+.B \fBDESTINATION_DIR\fP
+Destination directory to recover.
+.TP
+.B \fB\-\-aws\-region\fP
+Specify the AWS region where the instance and disks for snapshot recovery are
+located. This option allows you to override the \fBaws_region\fP value in the Barman
+configuration.
+.TP
+.B \fB\-\-azure\-resource\-group\fP
+Specify the Azure resource group containing the instance and disks for snapshot
+recovery. This option allows you to override the \fBazure_resource_group\fP value in
+the Barman configuration.
+.TP
+.B \fB\-\-bwlimit\fP
+Specify the maximum transfer rate in kilobytes per second. A value of \fB0\fP
+indicates no limit. This setting overrides the \fBbandwidth_limit\fP configuration
+option.
+.TP
+.B \fB\-\-exclusive\fP
+Set target (time, XID or LSN) to be non inclusive.
+.TP
+.B \fB\-\-gcp\-zone\fP
+Specify the GCP zone where the instance and disks for snapshot recovery are located.
+This option allows you to override the \fBgcp_zone\fP value in the Barman
+configuration.
+.TP
+.B \fB\-\-get\-wal\fP / \fB\-\-no\-get\-wal\fP
+Enable/disable usage of \fBget\-wal\fP for WAL fetching during recovery. Default is based on
+\fBrecovery_options\fP setting.
+.TP
+.B \fB\-j\fP / \fB\-\-jobs\fP
+Specify the number of parallel workers to use for copying files during the backup.
+This setting overrides the \fBparallel_jobs\fP parameter if it is specified in the
+configuration file.
+.TP
+.B \fB\-\-jobs\-start\-batch\-period\fP
+Specify the time period, in seconds, for starting a single batch of jobs. This value
+overrides the \fBparallel_jobs_start_batch_period\fP parameter if it is set in the
+configuration file. The default is \fB1\fP second.
+.TP
+.B \fB\-\-jobs\-start\-batch\-size\fP
+Specify the maximum number of parallel workers to initiate in a single batch. This
+value overrides the \fBparallel_jobs_start_batch_size\fP parameter if it is defined in
+the configuration file. The default is \fB10\fP workers.
+.TP
+.B \fB\-\-local\-staging\-path\fP
+Specify path on the Barman host where the chain of backups will be combined before
+being copied to the destination directory. The contents created within the staging
+path will be removed upon completion of the recovery process. This option is
+necessary for recovering from block\-level incremental backups and has no effect
+otherwise.
+.TP
+.B \fB\-\-network\-compression\fP / \fB\-\-no\-network\-compression\fP
+Enable/disable network compression during remote recovery. Default is based on
+\fBnetwork_compression\fP configuration setting.
+.TP
+.B \fB\-\-no\-retry\fP
+There will be no retry in case of an error. It is the same as setting
+\fB\-\-retry\-times 0\fP\&.
+.TP
+.B \fB\-\-recovery\-conf\-filename\fP
+Specify the name of the file where Barman should write recovery options when
+recovering backups for Postgres versions 12 and later. By default, this is set to
+\fBpostgresql.auto.conf\fP\&. However, if \fB\-\-recovery\-conf\-filename\fP is specified,
+recovery options will be written to the specified value instead. While the default
+value is suitable for most Postgres installations, this option allows you to specify
+an alternative location if Postgres is managed by tools that alter the configuration
+mechanism (for example, if \fBpostgresql.auto.conf\fP is symlinked to \fB/dev/null\fP).
+.TP
+.B \fB\-\-recovery\-staging\-path\fP
+Specify a path on the recovery host where files for a compressed backup will be
+staged before being uncompressed to the destination directory. Backups will be
+staged in their own directory within the staging path, following the naming
+convention: \fBbarman\-staging\-SERVER_NAME\-BACKUP_ID\fP\&. This staging directory will be
+removed after the recovery process is complete. This option is mandatory for
+recovering from compressed backups and has no effect otherwise.
+.TP
+.B \fB\-\-remote\-ssh\-command\fP
+This option enables remote recovery by specifying the secure shell command to
+execute on a remote host. It functions similarly to the \fBssh_command\fP server
+option in the configuration file for remote recovery, that is, \fB\(aqssh USER@SERVER\(aq\fP\&.
+.TP
+.B \fB\-\-retry\-sleep\fP
+Specify the number of seconds to wait after a failed copy before retrying. This
+setting applies to both backup and recovery operations and overrides the
+\fBbasebackup_retry_sleep\fP parameter if it is defined in the configuration file.
+.TP
+.B \fB\-\-retry\-times\fP
+Specify the number of times to retry the base backup copy in case of an error. This
+applies to both backup and recovery operations and overrides the
+\fBbasebackup_retry_times\fP parameter if it is set in the configuration file.
+.TP
+.B \fB\-\-snapshot\-recovery\-instance\fP
+Specify the name of the instance where the disks recovered from the snapshots are
+attached. This option is necessary when recovering backups created with
+\fBbackup_method=snapshot\fP\&.
+.TP
+.B \fB\-\-standby\-mode\fP
+Whether to start the PostgreSQL server as a standby.
+.TP
+.B \fB\-\-tablespace\fP
+Specify tablespace relocation rule. \fBNAME\fP is the tablespace name and \fBLOCATION\fP
+is the recovery host destination path to recover the tablespace.
+.TP
+.B \fB\-\-target\-action\fP
+Trigger the specified action when the recovery target is reached. This option
+requires defining a target along with one of these actions. The possible values are:
+.INDENT 7.0
+.IP \(bu 2
+\fBpause\fP: Once recovery target is reached, the server is started in pause state,
+allowing users to inspect the instance
+.IP \(bu 2
+\fBpromote\fP: Once recovery target is reached, the server will exit recovery and is
+promoted as a master.
+.IP \(bu 2
+\fBshutdown\fP: Once recovery target is reached, the server is shut down.
+.UNINDENT
+.TP
+.B \fB\-\-target\-immediate\fP
+Recover is completed when a consistent state is reached (end of the base backup).
+.TP
+.B \fB\-\-target\-lsn\fP
+Recover to the specified LSN (Log Sequence Number). Requires Postgres 10 or above.
+.TP
+.B \fB\-\-target\-name\fP
+Recover to the specified name of a restore point previously created with the
+\fBpg_create_restore_point(name)\fP\&.
+.TP
+.B \fB\-\-target\-time\fP
+Recover to the specified time. Use the format \fBYYYY\-MM\-DD HH:MM:SS.mmm\fP\&.
+.TP
+.B \fB\-\-target\-tli\fP
+Recover the specified timeline. You can use the special values \fBcurrent\fP and
+\fBlatest\fP in addition to a numeric timeline ID. For Postgres versions 12 and above,
+the default is to recover to the latest timeline in the WAL archive. For Postgres
+versions below 12, the default is to recover to the timeline that was current at the
+time the backup was taken.
+.TP
+.B \fB\-\-target\-xid\fP
+Recover to the specified transaction ID.
+.UNINDENT
+.SS Shortcuts
+.sp
+Use shortcuts instead of \fBBACKUP_ID\fP\&.
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBfirst/oldest\fP
+T}	T{
+Oldest available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast/latest\fP
+T}	T{
+Most recent available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast\-full/latest\-full\fP
+T}	T{
+Most recent full backup eligible for a block\-level incremental backup using the
+\fB\-\-incremental\fP option.
+T}
+_
+T{
+\fBlast\-failed\fP
+T}	T{
+Most recent backup that failed, in chronological order.
+T}
+_
+.TE
+.SS \fBbarman replication\-status\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+replication\-status
+    [ \-\-minimal ]
+    [ \-\-source { backup\-host | wal\-host } ]
+    [ \-\-target { hot\-standby | wal\-streamer | all } ]
+SERVER_NAME
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Display real\-time information and status of any streaming clients connected to the
+specified server. Specify \fBall\fP shortcut to diplay information for all configured
+servers.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node
+.TP
+.B \fB\-\-minimal\fP
+Machine readable output.
+.TP
+.B \fB\-\-source\fP
+The possible values are:
+.INDENT 7.0
+.IP \(bu 2
+\fBbackup\-host\fP (default): List clients using the backup connection information
+for a server.
+.IP \(bu 2
+\fBwal\-host\fP: List clients using the WAL streaming connection information for a
+server.
+.UNINDENT
+.TP
+.B \fB\-\-target\fP
+The possible values are:
+.INDENT 7.0
+.IP \(bu 2
+\fBhot\-standby\fP: List only hot standby servers.
+.IP \(bu 2
+\fBwal\-streamer\fP: List only WAL streaming clients, such as \fBpg_receivewal\fP\&.
+.IP \(bu 2
+\fBall\fP (default): List all streaming clients.
+.UNINDENT
+.UNINDENT
+.SS Shortcuts
+.sp
+Use shortcuts instead of \fBSERVER_NAME\fP\&.
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBall\fP
+T}	T{
+All available servers
+T}
+_
+.TE
+.SS \fBbarman show\-backup\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+show\-backup SERVER_NAME BACKUP_ID
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Display detailed information about a specific backup. You can find details about this command in
+\fI\%Catalog usage\fP\&. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node
+.TP
+.B \fBBACKUP_ID\fP
+Id of the backup in barman catalog.
+.UNINDENT
+.SS Shortcuts
+.sp
+Use shortcuts instead of \fBBACKUP_ID\fP\&.
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBfirst/oldest\fP
+T}	T{
+Oldest available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast/latest\fP
+T}	T{
+Most recent available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast\-full/latest\-full\fP
+T}	T{
+Most recent full backup eligible for a block\-level incremental backup using the
+\fB\-\-incremental\fP option.
+T}
+_
+T{
+\fBlast\-failed\fP
+T}	T{
+Most recent backup that failed, in chronological order.
+T}
+_
+.TE
+.SS \fBbarman show\-servers\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+show\-servers SERVER_NAME
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Display detailed information about a server, including \fBconninfo\fP, \fBbackup_directory\fP,
+\fBwals_directory\fP, \fBarchive_command\fP, and many more. To view information about all configured
+servers, specify the \fBall\fP shortcut instead of the server name.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node
+.UNINDENT
+.SS Shortcuts
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBall\fP
+T}	T{
+All available servers
+T}
+_
+.TE
+.SS \fBbarman status\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+status SERVER_NAME
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Display information about a server\(aqs status, including details such as the state,
+Postgres version, WAL information, available backups and more.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node
+.UNINDENT
+.SS Shortcuts
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBall\fP
+T}	T{
+All available servers
+T}
+_
+.TE
+.SS \fBbarman switch\-wal\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+switch\-wal
+    [ \-\-archive ]
+    [ \-\-archive\-timeout ]
+    [ \-\-force ]
+    SERVER_NAME
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Execute \fBpg_switch_wal()\fP on the target server (Postgres versions 10 and later) or
+\fBpg_switch_xlog()\fP (for Postgres versions 8.3 to 9.6).
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node
+.TP
+.B \fB\-\-archive\fP
+Waits for one WAL file to be archived. If no WAL file is archived within a specified
+time (default: \fB30\fP seconds), Barman will terminate with a failure exit code. This
+option is also available on standby servers.
+.TP
+.B \fB\-\-archive\-timeout\fP
+Specify the amount of time in seconds (default: \fB30\fP seconds) that the archiver
+will wait for a new WAL file to be archived before timing out. This option is also
+available on standby servers.
+.TP
+.B \fB\-\-force\fP
+Forces the switch by executing a CHECKPOINT before \fBpg_switch_wal()\fP\&.
+.sp
+\fBNOTE:\fP
+.INDENT 7.0
+.INDENT 3.5
+Running a CHECKPOINT may increase I/O load on the PostgreSQL server, so use this
+option cautiously.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SS \fBbarman switch\-xlog\fP
+.SS Description
+.sp
+Alias for the \fBswitch\-wal\fP command.
+.SS \fBbarman sync\-backup\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sync\-backup SERVER_NAME BACKUP_ID
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+This command synchronizes a passive node with its primary by copying all files from a
+backup present on the server node. It is available only for passive nodes and uses
+the \fBprimary_ssh_command\fP option to establish a secure connection with the primary
+node. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node
+.TP
+.B \fBBACKUP_ID\fP
+Id of the backup in barman catalog.
+.UNINDENT
+.SS Shortcuts
+.sp
+For some commands, instead of using the timestamp backup ID, you can use the following
+shortcuts or aliases to identify a backup for a given server:
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBfirst/oldest\fP
+T}	T{
+Oldest available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast/latest\fP
+T}	T{
+Most recent available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast\-full/latest\-full\fP
+T}	T{
+Most recent full backup eligible for a block\-level incremental backup using the
+\fB\-\-incremental\fP option.
+T}
+_
+T{
+\fBlast\-failed\fP
+T}	T{
+Most recent backup that failed, in chronological order.
+T}
+_
+.TE
+.SS \fBbarman sync\-info\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sync\-info SERVER_NAME [ LAST_WAL [ LAST_POS ] ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Gather information about the current status of a Barman server for synchronization
+purposes.
+.sp
+This command returns a JSON output for a server that includes: all successfully
+completed backups, all archived WAL files, the configuration, the last WAL file read from
+\fBxlog.db\fP, and its position within the file.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node
+.TP
+.B \fBLAST_WAL\fP
+Instructs sync\-info to skip any WAL files that precede the specified file (for
+incremental synchronization).
+.TP
+.B \fBLAST_POS\fP
+Hint for quickly positioning in the \fBxlog.db\fP file (for incremental synchronization).
+.UNINDENT
+.SS \fBbarman sync\-wals\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sync\-wals SERVER_NAME
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+This command synchronizes a passive node with its primary by copying all archived WAL
+files from the server node. It is available only for passive nodes and utilizes the
+\fBprimary_ssh_command\fP option to establish a secure connection with the primary node.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node
+.UNINDENT
+.SS \fBbarman verify\-backup\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+verify\-backup SERVER_NAME BACKUP_ID
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Runs \fBpg_verifybackup\fP on a backup manifest file (available since Postgres version 13).
+For rsync backups, it can be used after creating a manifest file using the
+\fBgenerate\-manifest\fP command. Requires \fBpg_verifybackup\fP to be installed on the
+backup server. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node
+.TP
+.B \fBBACKUP_ID\fP
+Id of the backup in barman catalog.
+.UNINDENT
+.SS Shortcuts
+.sp
+For some commands, instead of using the timestamp backup ID, you can use the following
+shortcuts or aliases to identify a backup for a given server:
+.TS
+center;
+|l|l|.
+_
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBfirst/oldest\fP
+T}	T{
+Oldest available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast/latest\fP
+T}	T{
+Most recent available backup for the server, in chronological order.
+T}
+_
+T{
+\fBlast\-full/latest\-full\fP
+T}	T{
+Most recent full backup eligible for a block\-level incremental backup using the
+\fB\-\-incremental\fP option.
+T}
+_
+T{
+\fBlast\-failed\fP
+T}	T{
+Most recent backup that failed, in chronological order.
+T}
+_
+.TE
+.SS \fBbarman verify\fP
+.SS Description
+.sp
+Alias for \fBverify\-backup\fP command.
+.SH BARMAN-CLI COMMANDS
+.sp
+The \fBbarman\-cli\fP package includes a collection of recommended client utilities that
+should be installed alongside the PostgreSQL server. Here are the command references for
+both utilities.
+.SS \fBbarman\-wal\-archive\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+barman\-wal\-archive
+    [ { \-h, \-\-help } ]
+    [ { \-V, \-\-version } ]
+    [ { \-U, \-\-user } USER ]
+    [ \-\-port PORT ]
+    [ { \-c, \-\-config } CONFIG ]
+    [ { \-t \-\-test } ]
+    BARMAN_HOST SERVER_NAME WAL_PATH
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+This script can be utilized in the \fBarchive_command\fP of a PostgreSQL server to
+transfer WAL files to a Barman host using the \fBput\-wal\fP command (introduced in Barman
+2.6). It establishes an SSH connection to the Barman host, enabling seamless integration
+of Barman within PostgreSQL clusters for improved business continuity.
+.sp
+\fBExit Statuses\fP are:
+.INDENT 0.0
+.IP \(bu 2
+\fB0\fP for \fBSUCCESS\fP\&.
+.IP \(bu 2
+\fBnon\-zero\fP for \fBFAILURE\fP\&.
+.UNINDENT
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+The server name configured in Barman for the Postgres server from which
+the WAL file is retrieved.
+.TP
+.B \fBBARMAN_HOST\fP
+The host of the Barman server.
+.TP
+.B \fBWAL_PATH\fP
+The value of the \(aq%p\(aq keyword (according to \fBarchive_command\fP).
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Display a help message and exit.
+.TP
+.B \fB\-V\fP / \fB\-\-version\fP
+Display the program\(aqs version number and exit.
+.TP
+.B \fB\-U\fP / \fB\-\-user\fP
+Specify the user for the SSH connection to the Barman server (defaults to
+\fBbarman\fP).
+.TP
+.B \fB\-\-port\fP
+Define the port used for the SSH connection to the Barman server.
+.TP
+.B \fB\-c\fP /  \fB\-\-config\fP
+Specify the configuration file on the Barman server.
+.TP
+.B \fB\-t\fP / \fB\-\-test\fP
+Test the connection and configuration of the specified PostgreSQL server in Barman to
+ensure it is ready to receive WAL files. This option ignores the mandatory arguments
+\fBWAL_NAME\fP and \fBWAL_DEST\fP\&.
+.UNINDENT
+.SS \fBbarman\-wal\-restore\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+barman\-wal\-restore
+    [ { \-h, \-\-help } ]
+    [ { \-V, \-\-version } ]
+    [ { \-U, \-\-user } USER ]
+    [ \-\-port PORT ]
+    [ { \-s, \-\-sleep } SECONDS ]
+    [ { \-p, \-\-parallel } JOBS ]
+    [ \-\-spool\-dir SPOOL_DIR ]
+    [ { \-P, \-\-partial } ]
+    [ { \-z, \-\-gzip } ]
+    [ { \-j, \-\-bzip2 } ]
+    [ { \-c, \-\-config } CONFIG ]
+    [ { \-t \-\-test } ]
+    BARMAN_HOST SERVER_NAME WAL_NAME WAL_DEST
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+This script serves as a \fBrestore_command\fP for PostgreSQL servers, enabling the
+retrieval of WAL files through Barman\(aqs \fBget\-wal\fP feature. It establishes an SSH
+connection to the Barman host and facilitates the integration of Barman within
+PostgreSQL clusters, enhancing business continuity.
+.sp
+\fBExit Statuses\fP are:
+.INDENT 0.0
+.IP \(bu 2
+\fB0\fP for \fBSUCCESS\fP\&.
+.IP \(bu 2
+\fB1\fP for remote get\-wal command \fBFAILURE\fP, likely because the requested WAL could
+not be found.
+.IP \(bu 2
+\fB2\fP for ssh connection \fBFAILURE\fP\&.
+.IP \(bu 2
+Any other \fBnon\-zero\fP for \fBFAILURE\fP\&.
+.UNINDENT
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+The server name configured in Barman for the Postgres server from which the
+WAL file is retrieved.
+.TP
+.B \fBBARMAN_HOST\fP
+The host of the Barman server.
+.TP
+.B \fBWAL_NAME\fP
+The value of the \(aq%f\(aq keyword (according to \fBrestore_command\fP).
+.TP
+.B \fBWAL_DEST\fP
+The value of the \(aq%p\(aq keyword (according to \fBrestore_command\fP).
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Display a help message and exit.
+.TP
+.B \fB\-V\fP / \fB\-\-version\fP
+Display the program\(aqs version number and exit.
+.TP
+.B \fB\-U\fP / \fB\-\-user\fP
+Specify the user for the SSH connection to the Barman server (defaults to
+\fBbarman\fP).
+.TP
+.B \fB\-\-port\fP
+Define the port used for the SSH connection to the Barman server.
+.TP
+.B \fB\-s\fP / \fB\-\-sleep\fP
+Pause for \fBSECONDS\fP after a failed \fBget\-wal\fP request (defaults to \fB0\fP \- no
+wait).
+.TP
+.B \fB\-p\fP / \fB\-\-parallel\fP
+Indicate the number of files to \fBpeek\fP and transfer simultaneously (defaults to
+\fB0\fP \- disabled).
+.TP
+.B \fB\-\-spool\-dir\fP
+Specify the spool directory for WAL files (defaults to \fB/var/tmp/walrestore\fP).
+.TP
+.B \fB\-P\fP /  \fB\-\-partial\fP
+Include partial WAL files (.partial) in the retrieval.
+.TP
+.B \fB\-z\fP /  \fB\-\-gzip\fP
+Transfer WAL files compressed with \fBgzip\fP\&.
+.TP
+.B \fB\-j\fP /  \fB\-\-bzip2\fP
+Transfer WAL files compressed with \fBbzip2\fP\&.
+.TP
+.B \fB\-c\fP /  \fB\-\-config\fP
+Specify the configuration file on the Barman server.
+.TP
+.B \fB\-t\fP / \fB\-\-test\fP
+Test the connection and configuration of the specified PostgreSQL server in Barman to
+ensure it is ready to receive WAL files. This option ignores the mandatory arguments
+\fBWAL_NAME\fP and \fBWAL_DEST\fP\&.
+.UNINDENT
+.SH AUTHOR
+EnterpriseDB
+.SH COPYRIGHT
+© Copyright EnterpriseDB UK Limited 2011-2024
+.\" Generated by docutils manpage writer.
+.

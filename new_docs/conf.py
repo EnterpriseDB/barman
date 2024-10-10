@@ -506,6 +506,20 @@ man_pages = [
         [author],
         1,
     ),
+    (
+        "user_guide/commands/barman_cli/wal_archive.inc",
+        "barman-wal-archive",
+        "Barman-cli Commands",
+        [author],
+        1,
+    ),
+    (
+        "user_guide/commands/barman_cli/wal_restore.inc",
+        "barman-wal-restore",
+        "Barman-cli Commands",
+        [author],
+        1,
+    ),
 ]
 
 # Example configuration for intersphinx: refer to the Python standard library.

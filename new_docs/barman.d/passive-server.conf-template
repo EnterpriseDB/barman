@@ -1,0 +1,28 @@
+; Barman, Backup and Recovery Manager for PostgreSQL
+; https://www.pgbarman.org/ - https://www.enterprisedb.com/
+;
+; Template configuration file for a server using
+; SSH connections and rsync for copy.
+;
+
+[passive]
+; Human readable description
+description =  "Example of a Barman passive server"
+
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Passive server configuration
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Local parameter that identifies a barman server as 'passive'.
+; A passive node uses as source for backups another barman server
+; instead of a PostgreSQL cluster.
+; If a primary ssh command is specified, barman will use it to establish a
+; connection with the barman "master" server.
+; Empty by default it can be also set as global value.
+primary_ssh_command = ssh barman@backup
+
+; Incremental backup settings
+;reuse_backup = link
+
+; Compression: must be identical to the source
+;compression = gzip
