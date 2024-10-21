@@ -58,11 +58,6 @@ where Barman backups are stored. If ``--snapshot-`` arguments are used and snaps
 supported by the selected cloud provider, the backup will be performed using snapshots
 of the specified disks (``--snapshot-disk``). The backup label and metadata will also be
 uploaded to the cloud.
-  
-This script requires read access to the directory where Barman backups are stored. If
-``--snapshot-`` arguments are used and snapshots are supported by the selected cloud
-provider, the backup will be performed using snapshots of the specified disks
-(``--snapshot-disk``). The backup label and metadata will also be uploaded to the cloud.
 
 .. note::
   For GCP, only authentication with ``GOOGLE_APPLICATION_CREDENTIALS`` env is supported.
