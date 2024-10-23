@@ -484,7 +484,7 @@ def backup_completer(prefix, parsed_args, **kwargs):
         argument(
             "--name",
             help="a name which can be used to reference this backup in barman "
-            "commands such as recover and delete",
+            "commands such as restore and delete",
             dest="backup_name",
             default=None,
             type=check_backup_name,
@@ -749,7 +749,7 @@ def rebuild_xlogdb(args):
         argument(
             "backup_id",
             completer=backup_completer,
-            help="specifies the backup ID to recover",
+            help="specifies the backup ID to restore",
         ),
         argument(
             "destination_directory",
@@ -843,7 +843,7 @@ def rebuild_xlogdb(args):
             dest="standby_mode",
             action="store_true",
             default=SUPPRESS,
-            help="Enable standby mode when starting the recovered PostgreSQL instance",
+            help="Enable standby mode when starting the restored PostgreSQL instance",
         ),
         argument(
             "--recovery-staging-path",
@@ -852,7 +852,7 @@ def rebuild_xlogdb(args):
                 "A path to a location on the recovery host where compressed backup "
                 "files will be staged during the recovery. This location must have "
                 "enough available space to temporarily hold the full compressed "
-                "backup. This option is *required* when recovering from a compressed "
+                "backup. This option is *required* when restoring from a compressed "
                 "backup."
             ),
         ),
@@ -862,7 +862,7 @@ def rebuild_xlogdb(args):
                 "A path to a location on the local host where incremental backups "
                 "will be combined during the recovery. This location must have "
                 "enough available space to temporarily hold the new synthetic "
-                "backup. This option is *required* when recovering from an "
+                "backup. This option is *required* when restoring from an "
                 "incremental backup."
             ),
         ),
@@ -899,11 +899,12 @@ def rebuild_xlogdb(args):
             help="The name of the AWS region containing the EC2 VM and storage "
             "volumes for recovery of a snapshot backup",
         ),
-    ]
+    ],
+    cmd_aliases=["recover"],
 )
-def recover(args):
+def restore(args):
     """
-    Recover a server at a given time, name, LSN or xid
+    Restore a server at a given time, name, LSN or xid
     """
     server = get_server(args)
 
@@ -911,7 +912,7 @@ def recover(args):
     backup_id = parse_backup_id(server, args)
     if backup_id.status not in BackupInfo.STATUS_COPY_DONE:
         output.error(
-            "Cannot recover from backup '%s' of server '%s': "
+            "Cannot restore from backup '%s' of server '%s': "
             "backup status is not DONE",
             args.backup_id,
             server.config.name,
@@ -934,7 +935,7 @@ def recover(args):
         # data can be staged.
         if server.config.recovery_staging_path is None:
             output.error(
-                "Cannot recover from backup '%s' of server '%s': "
+                "Cannot restore from backup '%s' of server '%s': "
                 "backup is compressed with %s compression but no recovery "
                 "staging path is provided. Either set recovery_staging_path "
                 "in the Barman config or use the --recovery-staging-path "
@@ -961,7 +962,7 @@ def recover(args):
         # data can be staged.
         if server.config.local_staging_path is None:
             output.error(
-                "Cannot recover from backup '%s' of server '%s': "
+                "Cannot restore from backup '%s' of server '%s': "
                 "backup will be combined with pg_combinebackup in the "
                 "barman host but no local staging path is provided. "
                 "Either set local_staging_path in the Barman config "
