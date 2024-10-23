@@ -1,6 +1,6 @@
-.. _commands-barman-recover:
+.. _commands-barman-restore:
 
-``barman recover``
+``barman restore``
 """"""""""""""""""
 
 Synopsis
@@ -8,7 +8,7 @@ Synopsis
 
 .. code-block:: text
     
-    recover
+    restore
         [ --aws-region AWS_REGION } ]
         [ --azure-resource-group AZURE_RESOURCE_GRP ]
         [ --bwlimit KBPS ]
@@ -41,8 +41,8 @@ Synopsis
 Description
 ^^^^^^^^^^^
 
-Execute a PostreSQL server recovery operation. Barman will recover the backup from a
-server in the destination directory. The recovery can be performed locally (on the
+Execute a PostreSQL server restore operation. Barman will restore the backup from a
+server in the destination directory. The restoration can be performed locally (on the
 barman node itself) or remotely (on another machine accessible via SSH). The location is
 determined by whether or not the ``--remote-ssh-command`` option is used. More
 information on this command can be found in the :ref:`recovery` section. You can use a
@@ -58,7 +58,7 @@ Parameters
     Id of the backup in barman catalog.
 
 ``DESTINATION_DIR``
-    Destination directory to recover.
+    Destination directory to restore the backup.
 
 ``--aws-region``
     Specify the AWS region where the instance and disks for snapshot recovery are
@@ -105,12 +105,12 @@ Parameters
 ``--local-staging-path``
     Specify path on the Barman host where the chain of backups will be combined before
     being copied to the destination directory. The contents created within the staging
-    path will be removed upon completion of the recovery process. This option is
-    necessary for recovering from block-level incremental backups and has no effect
+    path will be removed upon completion of the restore process. This option is
+    necessary for restoring from block-level incremental backups and has no effect
     otherwise.
     
 ``--network-compression`` / ``--no-network-compression``
-    Enable/disable network compression during remote recovery. Default is based on
+    Enable/disable network compression during remote restore. Default is based on
     ``network_compression`` configuration setting.
 
 ``--no-retry``
@@ -131,22 +131,22 @@ Parameters
     staged before being uncompressed to the destination directory. Backups will be
     staged in their own directory within the staging path, following the naming
     convention: ``barman-staging-SERVER_NAME-BACKUP_ID``. This staging directory will be
-    removed after the recovery process is complete. This option is mandatory for
-    recovering from compressed backups and has no effect otherwise.
+    removed after the restore process is complete. This option is mandatory for
+    restoring from compressed backups and has no effect otherwise.
 
 ``--remote-ssh-command``
-    This option enables remote recovery by specifying the secure shell command to
+    This option enables remote restore by specifying the secure shell command to
     execute on a remote host. It functions similarly to the ``ssh_command`` server
-    option in the configuration file for remote recovery, that is, ``'ssh USER@SERVER'``.
+    option in the configuration file for remote restore, that is, ``'ssh USER@SERVER'``.
 
 ``--retry-sleep``
     Specify the number of seconds to wait after a failed copy before retrying. This
-    setting applies to both backup and recovery operations and overrides the
+    setting applies to both backup and restore operations and overrides the
     ``basebackup_retry_sleep`` parameter if it is defined in the configuration file.
 
 ``--retry-times``
     Specify the number of times to retry the base backup copy in case of an error. This
-    applies to both backup and recovery operations and overrides the
+    applies to both backup and restore operations and overrides the
     ``basebackup_retry_times`` parameter if it is set in the configuration file.
 
 ``--snapshot-recovery-instance``
@@ -159,7 +159,7 @@ Parameters
 
 ``--tablespace``
     Specify tablespace relocation rule. ``NAME`` is the tablespace name and ``LOCATION``
-    is the recovery host destination path to recover the tablespace.
+    is the recovery host destination path to restore the tablespace.
 
 ``--target-action``
     Trigger the specified action when the recovery target is reached. This option
@@ -167,12 +167,12 @@ Parameters
 
     * ``pause``: Once recovery target is reached, the server is started in pause state,
       allowing users to inspect the instance
-    * ``promote``: Once recovery target is reached, the server will exit recovery and is
-      promoted as a master.
+    * ``promote``: Once recovery target is reached, the server will exit the recovery
+      operation and is promoted as a master.
     * ``shutdown``: Once recovery target is reached, the server is shut down.
 
 ``--target-immediate``
-    Recover is completed when a consistent state is reached (end of the base backup).
+    Recovery is completed when a consistent state is reached (end of the base backup).
 
 ``--target-lsn``
     Recover to the specified LSN (Log Sequence Number). Requires Postgres 10 or above.

@@ -546,10 +546,12 @@ For a more in-depth exploration of this topic, please refer to the main section 
 Restore and recover
 ^^^^^^^^^^^^^^^^^^^
 
+In Barman, recovery is the process of restoring a backup along with all necessary WAL
+files in a new location, effectively preparing a Postgres instance for recovery.
+
 As outlined in :ref:`concepts-postgres-backup-concepts-recovery`, the recovery process
 in Postgres consists of several steps, from preparing the base directory to starting the
 server itself. Barman is able to perform all the steps required to prepare your backup
 to be recovered, a process known as "restore" in Barman's terminology. In this case,
 completing the recovery is usually just a matter of starting the server so that
 Postgres can apply the required WALs and go live.
-

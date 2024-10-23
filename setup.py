@@ -91,7 +91,7 @@ setup(
                 "new_docs/_build/man/barman-put-wal.1",
                 "new_docs/_build/man/barman-rebuild-xlogdb.1",
                 "new_docs/_build/man/barman-receive-wal.1",
-                "new_docs/_build/man/barman-recover.1",
+                "new_docs/_build/man/barman-restore.1",
                 "new_docs/_build/man/barman-replication-status.1",
                 "new_docs/_build/man/barman-show-backup.1",
                 "new_docs/_build/man/barman-show-servers.1",

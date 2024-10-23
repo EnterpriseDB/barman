@@ -3,13 +3,15 @@
 Recovery
 ========
 
-The recover command is used to restore an entire Postgres server from a backup created
+The restore command is used to restore an entire Postgres server from a backup created
 with the backup command. To use it, run:
 
-``barman recover [OPTIONS] SERVER_NAME BACKUP_ID DESTINATION_PATH``
+``barman restore [OPTIONS] SERVER_NAME BACKUP_ID DESTINATION_PATH``
 
 .. note::
-  * Do not run the recover command on a directory where a Postgres instance is currently
+  * Refer to :ref:`concepts-barman-concepts-restore-and-recover` for a clearer
+    understanding of the recovery concept in Barman.
+  * Do not run the restore command on a directory where a Postgres instance is currently
     running. Ensure Postgres is stopped before initiating recovery, including recovery
     of tablespace directories.
   * The backup is restored to the specified directory, which will be ready to start a
@@ -89,7 +91,8 @@ Fetching WALs from Barman
 -------------------------
 
 Use ``--get-wal`` to configure Postgres to fetch WALs from Barman during recovery. If not
-set, Barman will copy the WALs required for recovery.
+set, Barman will copy all the WALs required for Postgres recovery as part of the restore
+command.
 
 .. note:: 
   When using ``--no-get-wal`` with targets like ``--target-xid``, ``--target-name``, or 
@@ -103,12 +106,12 @@ effectively turning the Barman server into a WAL hub for your servers.
 
   recovery_options = 'get-wal'
 
-If ``get-wal`` is included during recovery, Barman will set up the ``restore_command``
+If ``get-wal`` is included during restore, Barman will set up the ``restore_command``
 to use either ``barman get-wal`` or ``barman-wal-restore`` to retrieve the required WAL
 files, depending on whether the recovery is local or remote.
 
 If ``get-wal`` is specified in ``recovery_options`` but not needed during a specific
-recovery, you can disable it using the ``--no-get-wal`` option with the recover command.
+recovery, you can disable it using the ``--no-get-wal`` option with the restore command.
 
 Here's an example of a ``restore_command`` for **local recovery**:
 
@@ -176,26 +179,26 @@ Recovering Compressed Backups
 -----------------------------
 
 If a backup is compressed using the ``backup_compression`` option, Barman can decompress
-it during recovery. 
+it during restore. 
 
 The process involves a few steps:
 
 1. The compressed backup files are copied to a staging directory on either the local or
    remote server using Rsync. 
-2. These files are then decompressed to the recovery destination directory.
+2. These files are then decompressed to the restore destination directory.
 3. For remote recovery, configuration files requiring special handling are copied from the
-   recovery destination directory to a local temporary directory in the barman node,
-   edited and mangled as needed, and then returned to the recovery directory using
-   Rsync. For local recovery, the local temporary directory is the recovery destination
+   restore destination directory to a local temporary directory in the barman node,
+   edited and mangled as needed, and then returned to the restore directory using
+   Rsync. For local recovery, the local temporary directory is the restore destination
    itself, so editing and mangling operations are done in place. This intermediate step
-   is necessary because Barman can only access individual files in the recovery
+   is necessary because Barman can only access individual files in the restore
    directory, as the backup directory contains only a compressed tarball file.
-4. The staging directory is removed after recovery is complete.
+4. The staging directory is removed after restore is complete.
 
 Since Barman does not have knowledge of the deployment environment, it depends on the
 ``recovery_staging_path`` option to determine an appropriate location for the staging
 directory. Set the option in the global/server configuration or use the
-``--recovery-staging-path`` option with the barman recover command. Failing to do so
+``--recovery-staging-path`` option with the barman restore command. Failing to do so
 will result in an error, as Barman cannot guess a suitable location on its own.
 
 .. _recovery-recovering-block-level-incremental-backups:
@@ -209,7 +212,7 @@ subsequent incremental backups up to the one being recovered.
 
 To successfully recover from a block-level incremental backup, you must specify the
 ``local_staging_path`` in the global/server configuration or use the
-``--local-staging-path`` option with the barman recover command. Failing to do so will
+``--local-staging-path`` option with the barman restore command. Failing to do so will
 result in an error, as Barman cannot automatically determine a suitable staging
 location.
 
@@ -221,7 +224,7 @@ The process involves the following steps:
 2. If the recovery is local, the synthetic backup is moved directly to the target
    location. If it is a remote recovery, the synthetic backup is transferred to the
    target location using Rsync.
-3. After the recovery is complete, the temporary subfolder in the local staging
+3. After the restore is complete, the temporary subfolder in the local staging
    directory used for combining backups is removed. The local staging directory itself
    is kept.
 
@@ -252,7 +255,7 @@ delivered to the archiving process.
 Starting with Barman version 2.10, the ``get-wal`` command can retrieve the content of
 the current ``.partial`` WAL file using the ``--partial`` or ``-P`` option. This is
 useful for recovery, whether performing a full restore or a point-in-time recovery. When
-you initiate a recovery command with ``get-wal`` and without ``--standby-mode``, Barman
+you initiate a restore command with ``get-wal`` and without ``--standby-mode``, Barman
 will automatically include the ``-P`` option in the ``barman-wal-restore`` command to
 handle the ``.partial`` file.
 
@@ -267,7 +270,7 @@ limitation arises because snapshot recovery requires provisioning and managing n
 infrastructure, a task best handled by dedicated :term:`IAC` solutions like Terraform
 or OpenTofu.
 
-However, you can still use the barman recover command to validate the snapshot recovery
+However, you can still use the barman restore command to validate the snapshot recovery
 instance and perform post-recovery tasks, such as checking the Postgres configuration for
 unsafe settings and configuring any necessary PITR options. The command will also copy
 the ``backup_label`` file into place, as this file is not included in the volume
@@ -276,7 +279,7 @@ option is specified, in which case it configures the Postgres ``restore_command`
 the WALs.
 
 If restoring from a backup created with ``barman-cloud-backup``, you should use the
-``barman-cloud-restore`` command instead of ``barman recover``.
+``barman-cloud-restore`` command instead of ``barman restore``.
 
 .. note::
   The same requirements and configurations apply for restore when working with a cloud
@@ -288,8 +291,10 @@ Recovery Steps
 """"""""""""""
 
 1. Provision a new disk for each snapshot taken during the backup.
-2. Provision a compute instance to which each disk from step 1 is attached and mounted according to the backup metadata.
-3. Use the ``barman recover`` or ``barman-cloud-restore`` command to validate and finalize the recovery.
+2. Provision a compute instance to which each disk from step 1 is attached and mounted
+   according to the backup metadata.
+3. Use the ``barman restore`` or ``barman-cloud-restore`` command to validate and
+   finalize the recovery.
 
 Steps 1 and 2 are ideally managed by an existing IAC system, but they can also be
 performed manually or via a custom script.
@@ -304,11 +309,11 @@ Helpful Resources
 These resources make assumptions about your backup and recovery environment and should be
 customized before use in production.
 
-Running the Recovery Command
+Running the restore command
 """"""""""""""""""""""""""""
 
 Once the recovery instance is provisioned and the disks cloned from the backup snapshots
-are attached and mounted, execute the barman recover command with the following
+are attached and mounted, execute the barman restore command with the following
 additional arguments:
 
 * ``--remote-ssh-command``: The SSH command required to log into the recovery instance.
@@ -321,7 +326,7 @@ Example Command
 
 .. code:: bash
   
-  barman recover SERVER_NAME BACKUP_ID REMOTE_RECOVERY_DIRECTORY \
+  barman restore SERVER_NAME BACKUP_ID REMOTE_RECOVERY_DIRECTORY \
     --remote-ssh-command 'ssh USER@HOST' \
     --snapshot-recovery-instance INSTANCE_NAME
 
