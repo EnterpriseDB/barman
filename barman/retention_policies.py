@@ -141,10 +141,6 @@ class RetentionPolicy(with_metaclass(ABCMeta, object)):
         :param str ret_status:  The status of the backup according to retention
             policies
         """
-        # As KEEP status doesn't make sense for incremental backups, we simply
-        # set them as VALID if their root full backup has KEEP annotation
-        if ret_status in (BackupInfo.KEEP_STANDALONE, BackupInfo.KEEP_FULL):
-            ret_status = BackupInfo.VALID
         backup_tree = backup_info.walk_backups_tree(return_self=False)
         for backup in backup_tree:
             report[backup.backup_id] = ret_status
@@ -222,6 +218,19 @@ class RedundancyRetentionPolicy(RetentionPolicy):
 
             if backups[bid].has_children:
                 status = report[bid]
+                # If the root backup retention status is KEEP:STANDALONE and the backup
+                # is still VALID for retention policy, the incremental backups will have
+                # the VALID retention status. But if this backup falls outside the
+                # retention policy, it will be kept but the incremental backups will get
+                # the status OBSOLETE.
+                if status == BackupInfo.KEEP_STANDALONE:
+                    status = BackupInfo.VALID
+                    if i > redundancy:
+                        status = BackupInfo.OBSOLETE
+                # If the root backup retention status is KEEP:FULL, the incremental
+                # backups will have the VALID retention status.
+                elif status == BackupInfo.KEEP_FULL:
+                    status = BackupInfo.VALID
                 self._propagate_retention_status_to_children(
                     backup_info=backups[bid],
                     report=report,
@@ -402,6 +411,19 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
 
             if backups[bid].has_children:
                 status = report[bid]
+                # If the root backup retention status is KEEP:STANDALONE and the backup
+                # is still VALID for retention policy, the incremental backups will have
+                # the VALID retention status. But if this backup falls outside the
+                # retention policy, it will be kept but the incremental backups will get
+                # the status OBSOLETE.
+                if status == BackupInfo.KEEP_STANDALONE:
+                    status = BackupInfo.VALID
+                    if found:
+                        status = BackupInfo.OBSOLETE
+                # If the root backup retention status is KEEP:FULL, the incremental
+                # backups will have the VALID retention status.
+                elif status == BackupInfo.KEEP_FULL:
+                    status = BackupInfo.VALID
                 self._propagate_retention_status_to_children(
                     backup_info=backups[bid],
                     report=report,
