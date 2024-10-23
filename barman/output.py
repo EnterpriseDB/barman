@@ -551,7 +551,7 @@ class ConsoleOutputWriter(object):
             )
             self.info(
                 "You need to manually restore them "
-                "in order to start the recovered PostgreSQL instance:"
+                "in order to start the restored PostgreSQL instance:"
             )
             self.info("")
             for file_name in results["missing_files"]:
@@ -580,7 +580,7 @@ class ConsoleOutputWriter(object):
             )
         self.info("")
         self.info(
-            "Recovery completed (start time: %s, elapsed time: %s)",
+            "Restore operation completed (start time: %s, elapsed time: %s)",
             results["recovery_start_time"],
             human_readable_timedelta(
                 datetime.datetime.now(tz.tzlocal()) - results["recovery_start_time"]

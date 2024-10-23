@@ -239,7 +239,7 @@ class RecoveryExecutor(object):
                 data = LocalBackupInfo(self.server, backup_info.filename)
                 if data.status == BackupInfo.WAITING_FOR_WALS:
                     output.warning(
-                        "IMPORTANT: The backup we have recovered IS NOT "
+                        "IMPORTANT: The backup we have restored IS NOT "
                         "VALID. Required WAL files for consistency are "
                         "missing. Please verify that WAL archiving is "
                         "working correctly or evaluate using the 'get-wal' "
@@ -1864,7 +1864,7 @@ class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
         # raise a warning at the end so the user can optionally take action about it
         if not backup_info.is_checksum_consistent():
             output.warning(
-                "You recovered from an incremental backup where checksums were enabled on "
+                "You restored from an incremental backup where checksums were enabled on "
                 "that backup, but not all backups in the chain. It is advised to disable, and "
                 "optionally re-enable, checksums on the destination directory to avoid failures."
             )
