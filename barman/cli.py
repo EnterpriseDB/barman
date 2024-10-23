@@ -1918,13 +1918,13 @@ def check_wal_archive(args):
             "server_name",
             completer=server_completer,
             help="specifies the name of the server which configuration should "
-            "be override by the model",
+            "be overriden by the model",
         ),
         argument(
             "model_name",
             help="specifies the name of the model which configuration should "
-            "override the server configuration. Not used when called with "
-            "the '--reset' flag",
+            "override the server configuration. This is an optional argument "
+            "and will not be used when called with the '--reset' flag.",
             nargs="?",
         ),
         argument(
