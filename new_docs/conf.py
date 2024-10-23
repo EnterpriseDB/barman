@@ -360,8 +360,8 @@ man_pages = [
         1,
     ),
     (
-        "user_guide/commands/barman/recover.inc",
-        "barman-recover",
+        "user_guide/commands/barman/restore.inc",
+        "barman-restore",
         "Barman Sub-Commands",
         [author],
         1,

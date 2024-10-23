@@ -366,21 +366,21 @@ And show the details of a specific backup with this command:
     barman show-backup <server_name> first-backup
 
 
-.. _quickstart-recovering-from-a-backup:
+.. _quickstart-restoring-a-backup:
 
-Recovering from a backup
-------------------------
+Restoring a backup
+------------------
 
-If you ever need to recover from a backup, you can do so with this command:
+If you ever need to restore a backup, you can do so with this command:
 
 .. code-block:: bash
 
-    barman recover <server_name> first-backup /path/to/recover
+    barman restore <server_name> first-backup /path/to/restore
 
-If recovering to a remote server, a passwordless SSH connection from the Barman host to
+If restoring to a remote server, a passwordless SSH connection from the Barman host to
 the destination host is required and its SSH command must be specified using
 the ``--remote-ssh-command`` option:
 
 .. code-block:: bash
 
-    barman recover --remote-ssh-command="ssh user@host" <server_name> first-backup /path/to/recover
+    barman restore --remote-ssh-command="ssh user@host" <server_name> first-backup /path/to/restore

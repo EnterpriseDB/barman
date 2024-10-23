@@ -150,21 +150,21 @@ Before and after a WAL file is deleted
 Before and after restoring a backup
 -----------------------------------
 
-* ``pre_recovery_script``: A hook script that runs once before a backup recovery,
+* ``pre_recovery_script``: A hook script that runs once before a backup restore,
   without checking the exit code.
 * ``pre_recovery_retry_script``: A retry hook script that executes before a backup
-  recovery, running repeatedly until it succeeds or is aborted.
-* ``post_recovery_retry_script``: A retry hook script that runs after a backup recovery,
+  restore, running repeatedly until it succeeds or is aborted.
+* ``post_recovery_retry_script``: A retry hook script that runs after a backup restore,
   executing repeatedly until it succeeds or is aborted.
-* ``post_recovery_script``: A hook script that runs once after a backup recovery,
+* ``post_recovery_script``: A hook script that runs once after a backup restore,
   without checking the exit code.
 
 **Recovery scripts** utilize the same environmental variables as **backup scripts**,
 plus:
 
-* ``BARMAN_DESTINATION_DIRECTORY``: The directory where the new instance is recovered.
+* ``BARMAN_DESTINATION_DIRECTORY``: The directory where the new instance is restored.
 * ``BARMAN_TABLESPACES``: The tablespace relocation map (in JSON format, if applicable).
-* ``BARMAN_REMOTE_COMMAND``: The secure shell command used during recovery (if
+* ``BARMAN_REMOTE_COMMAND``: The secure shell command used during restore (if
   applicable).
 * ``BARMAN_RECOVER_OPTIONS``: Additional recovery options (in JSON format, if
   applicable).
