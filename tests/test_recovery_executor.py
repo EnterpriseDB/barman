@@ -1496,7 +1496,7 @@ class TestRecoveryExecutor(object):
                     "are required for consistency."
                 ),
                 mock.call(
-                    "IMPORTANT: The backup we have recovered IS NOT "
+                    "IMPORTANT: The backup we have restored IS NOT "
                     "VALID. Required WAL files for consistency are "
                     "missing. Please verify that WAL archiving is "
                     "working correctly or evaluate using the 'get-wal' "
