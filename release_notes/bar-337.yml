@@ -1,0 +1,16 @@
+- summary: Update documentation and user-facing features for Barman's recovery process.
+  description: |
+    Barman docs and the tool itself used to use the terms "recover"/"recovery" both for
+    referencing:
+
+    * The Postgres recovery process;
+    * The process of restoring a backup and preparing it for recovery.
+
+    Both the code and documentation have been revised to accurately reflect the usage of
+    the the terms "restore" and "recover"/"recovery".
+
+    Also, the `barman recover` command was renamed to `barman restore`. The old name is
+    still kept as an alias for backward compatibility.
+  type: minor_change
+  jira_tickets:
+    - BAR-337
