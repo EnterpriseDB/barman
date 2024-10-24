@@ -1,0 +1,23 @@
+- summary: |
+    Modify behavior when enforcing retention policy for `KEEP:STANDALONE` full backups
+  description: |
+    When enforcing the retention policy on full backups created with
+    `backup_method = postgres`, Barman was previously marking all dependent (child)
+    incremental backups as `VALID`, regardless of the KEEP target used. However, this
+    approach is incorrect:
+
+    - For backups labeled `KEEP:STANDALONE`, Barman only retains the WAL files needed to
+    restore the server to the exact state of that backup. Because these backups are
+    self-contained, any dependent child backups are no longer needed once the root
+    backup is outside the retention policy.
+
+    - In contrast, backups marked `KEEP:FULL` are intended for point-in-time recovery.
+    To support this, Barman retains all WALs, as well as any child backups, to ensure
+    the backup's consistency and allow recovery to the latest possible point.
+
+    This distinction ensures that `KEEP:STANDALONE` backups serve as snapshots of a
+    specific moment, while `KEEP:FULL` backups retain everything needed for full
+    point-in-time recovery.
+  type: minor_change
+  jira_tickets:
+    - BAR-366
