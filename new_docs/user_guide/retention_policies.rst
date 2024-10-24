@@ -218,10 +218,16 @@ Retention policy for block-level incremental backups
 When retention policy is applied:
 
 * Barman will focus on the root backup.
-* If the root backup is marked as ``KEEP:FULL``, ``KEEP:STANDALONE`` or ``VALID``, all
-  associated incremental backups are marked as ``VALID``.
-* If the root backup is marked as ``OBSOLETE``, all associated incremental backups are
+* If the root backup is marked as ``KEEP:FULL``, all associated incremental backups are
+  marked as ``VALID``, regardless of whether the root backup is within the retention
+  policy.
+* If the root backup is marked as ``KEEP:STANDALONE``and is still within the retention
+  policy, all associated incremental backups are marked as ``VALID``. However, if the
+  root backup is outside the retention policy, all associated incremental backups are
   marked as ``OBSOLETE``.
+* If the root backup is not marked with a ``KEEP`` flag, all associated incremental
+  backups inherit the same label. For instance, if the root backup is marked as
+  ``OBSOLETE``, all associated incremental backups are also marked as ``OBSOLETE``.
 
 .. _retention-policies-retention-policy-for-cloud-backups:
 
