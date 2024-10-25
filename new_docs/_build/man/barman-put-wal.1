@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-PUT-WAL" "1" "Oct 10, 2024" "3.11" "Barman"
+.TH "BARMAN-PUT-WAL" "1" "Nov 7, 2024" "3.11" "Barman"
 .SH NAME
 barman-put-wal \- Barman Sub-Commands
 .SH SYNOPSIS
@@ -44,10 +44,12 @@ put\-wal [ { \-t | \-\-test } ] SERVER_NAME
 .SH DESCRIPTION
 .sp
 Receive a WAL file from a remote server and securely save it into the server incoming
-directory. The WAL file should be provided via \fBSTDIN\fP, encapsulated in a tar stream along
-with an \fBMD5SUMS\fP file for validation. This command is intended to be executed via SSH from
-a remote \fBbarman\-wal\-archive\fP utility (included in the barman\-cli package). Avoid
-using this command directly unless you fully manage the content of the files.
+directory. The WAL file should be provided via \fBSTDIN\fP, encapsulated in a tar stream
+along with a \fBSHA256SUMS\fP or \fBMD5SUMS\fP file for validation (\fBsha256\fP is the default
+hash algorithm, but the user can choose \fBmd5\fP when setting the \fBarchive\-command\fP via
+\fBbarman\-wal\-archive\fP). This command is intended to be executed via SSH from a remote
+\fBbarman\-wal\-archive\fP utility (included in the barman\-cli package). Avoid using this
+command directly unless you fully manage the content of the files.
 .SH PARAMETERS
 .INDENT 0.0
 .TP
@@ -55,7 +57,7 @@ using this command directly unless you fully manage the content of the files.
 Name of the server in barman node
 .TP
 .B \fB\-t\fP / \fB\-\-test\fP
-Test both the connection and configuration of the specified PostgreSQL
+Test both the connection and configuration of the specified Postgres
 server in Barman for WAL retrieval.
 .UNINDENT
 .SH AUTHOR

@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN" "1" "Oct 10, 2024" "3.11" "Barman"
+.TH "BARMAN" "1" "Nov 7, 2024" "3.11" "Barman"
 .SH NAME
 barman \- Barman Commands
 .sp
@@ -65,11 +65,11 @@ barman
 This is the syntax for the synopsis:
 .INDENT 0.0
 .IP \(bu 2
-Options between square brackets are optional;
+Options between square brackets are optional.
 .IP \(bu 2
-Options between curly brackets represent a \fIchoose one of set\fP operation;
+Options between curly brackets represent a choose one of set operation.
 .IP \(bu 2
-Options with \fB[ ... ]\fP can be specified multiple times;
+Options with \fB[ ... ]\fP can be specified multiple times.
 .IP \(bu 2
 Things written in uppercase represent a literal that should be given a value to.
 .UNINDENT
@@ -690,7 +690,7 @@ diagnose
 .SS Description
 .sp
 Display diagnostic information about the Barman node, which is the server where Barman
-is installed, as well as all configured PostgreSQL servers. This includes details such as
+is installed, as well as all configured Postgres servers. This includes details such as
 global configuration, SSH version, Python version, rsync version, the current
 configuration and status of all servers, and many more.
 .SS \fBbarman generate\-manifest\fP
@@ -805,7 +805,7 @@ per row.
 Additionally, collect partial WAL files (.partial).
 .TP
 .B \fB\-t\fP / \fB\-\-test\fP
-Test both the connection and configuration of the specified PostgreSQL server in
+Test both the connection and configuration of the specified Postgres server in
 Barman for WAL retrieval. When this option is used, the required \fBWAL_NAME\fP
 argument is disregarded.
 .TP
@@ -1076,10 +1076,12 @@ put\-wal [ { \-t | \-\-test } ] SERVER_NAME
 .SS Description
 .sp
 Receive a WAL file from a remote server and securely save it into the server incoming
-directory. The WAL file should be provided via \fBSTDIN\fP, encapsulated in a tar stream along
-with an \fBMD5SUMS\fP file for validation. This command is intended to be executed via SSH from
-a remote \fBbarman\-wal\-archive\fP utility (included in the barman\-cli package). Avoid
-using this command directly unless you fully manage the content of the files.
+directory. The WAL file should be provided via \fBSTDIN\fP, encapsulated in a tar stream
+along with a \fBSHA256SUMS\fP or \fBMD5SUMS\fP file for validation (\fBsha256\fP is the default
+hash algorithm, but the user can choose \fBmd5\fP when setting the \fBarchive\-command\fP via
+\fBbarman\-wal\-archive\fP). This command is intended to be executed via SSH from a remote
+\fBbarman\-wal\-archive\fP utility (included in the barman\-cli package). Avoid using this
+command directly unless you fully manage the content of the files.
 .SS Parameters
 .INDENT 0.0
 .TP
@@ -1087,7 +1089,7 @@ using this command directly unless you fully manage the content of the files.
 Name of the server in barman node
 .TP
 .B \fB\-t\fP / \fB\-\-test\fP
-Test both the connection and configuration of the specified PostgreSQL
+Test both the connection and configuration of the specified Postgres
 server in Barman for WAL retrieval.
 .UNINDENT
 .SS \fBbarman rebuild\-xlogdb\fP
@@ -1153,7 +1155,7 @@ receive\-wal
 .SS Description
 .sp
 Initiate the streaming of transaction logs for a server. This process uses
-\fBpg_receivewal\fP or \fBpg_receivexlog\fP to receive WAL files from PostgreSQL servers via
+\fBpg_receivewal\fP or \fBpg_receivexlog\fP to receive WAL files from Postgres servers via
 the streaming protocol.
 .SS Parameters
 .INDENT 0.0
@@ -1176,14 +1178,14 @@ of the server.
 .B \fB\-\-stop\fP
 Stop the process for the server.
 .UNINDENT
-.SS \fBbarman recover\fP
+.SS \fBbarman restore\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
 .nf
 .ft C
-recover
+restore
     [ \-\-aws\-region AWS_REGION } ]
     [ \-\-azure\-resource\-group AZURE_RESOURCE_GRP ]
     [ \-\-bwlimit KBPS ]
@@ -1218,8 +1220,8 @@ recover
 .UNINDENT
 .SS Description
 .sp
-Execute a PostreSQL server recovery operation. Barman will recover the backup from a
-server in the destination directory. The recovery can be performed locally (on the
+Execute a PostreSQL server restore operation. Barman will restore the backup from a
+server in the destination directory. The restoration can be performed locally (on the
 barman node itself) or remotely (on another machine accessible via SSH). The location is
 determined by whether or not the \fB\-\-remote\-ssh\-command\fP option is used. More
 information on this command can be found in the \fI\%Recovery\fP section. You can use a
@@ -1234,7 +1236,7 @@ Name of the server in barman node
 Id of the backup in barman catalog.
 .TP
 .B \fBDESTINATION_DIR\fP
-Destination directory to recover.
+Destination directory to restore the backup.
 .TP
 .B \fB\-\-aws\-region\fP
 Specify the AWS region where the instance and disks for snapshot recovery are
@@ -1281,12 +1283,12 @@ the configuration file. The default is \fB10\fP workers.
 .B \fB\-\-local\-staging\-path\fP
 Specify path on the Barman host where the chain of backups will be combined before
 being copied to the destination directory. The contents created within the staging
-path will be removed upon completion of the recovery process. This option is
-necessary for recovering from block\-level incremental backups and has no effect
+path will be removed upon completion of the restore process. This option is
+necessary for restoring from block\-level incremental backups and has no effect
 otherwise.
 .TP
 .B \fB\-\-network\-compression\fP / \fB\-\-no\-network\-compression\fP
-Enable/disable network compression during remote recovery. Default is based on
+Enable/disable network compression during remote restore. Default is based on
 \fBnetwork_compression\fP configuration setting.
 .TP
 .B \fB\-\-no\-retry\fP
@@ -1307,22 +1309,22 @@ Specify a path on the recovery host where files for a compressed backup will be
 staged before being uncompressed to the destination directory. Backups will be
 staged in their own directory within the staging path, following the naming
 convention: \fBbarman\-staging\-SERVER_NAME\-BACKUP_ID\fP\&. This staging directory will be
-removed after the recovery process is complete. This option is mandatory for
-recovering from compressed backups and has no effect otherwise.
+removed after the restore process is complete. This option is mandatory for
+restoring from compressed backups and has no effect otherwise.
 .TP
 .B \fB\-\-remote\-ssh\-command\fP
-This option enables remote recovery by specifying the secure shell command to
+This option enables remote restore by specifying the secure shell command to
 execute on a remote host. It functions similarly to the \fBssh_command\fP server
-option in the configuration file for remote recovery, that is, \fB\(aqssh USER@SERVER\(aq\fP\&.
+option in the configuration file for remote restore, that is, \fB\(aqssh USER@SERVER\(aq\fP\&.
 .TP
 .B \fB\-\-retry\-sleep\fP
 Specify the number of seconds to wait after a failed copy before retrying. This
-setting applies to both backup and recovery operations and overrides the
+setting applies to both backup and restore operations and overrides the
 \fBbasebackup_retry_sleep\fP parameter if it is defined in the configuration file.
 .TP
 .B \fB\-\-retry\-times\fP
 Specify the number of times to retry the base backup copy in case of an error. This
-applies to both backup and recovery operations and overrides the
+applies to both backup and restore operations and overrides the
 \fBbasebackup_retry_times\fP parameter if it is set in the configuration file.
 .TP
 .B \fB\-\-snapshot\-recovery\-instance\fP
@@ -1331,11 +1333,11 @@ attached. This option is necessary when recovering backups created with
 \fBbackup_method=snapshot\fP\&.
 .TP
 .B \fB\-\-standby\-mode\fP
-Whether to start the PostgreSQL server as a standby.
+Whether to start the Postgres server as a standby.
 .TP
 .B \fB\-\-tablespace\fP
 Specify tablespace relocation rule. \fBNAME\fP is the tablespace name and \fBLOCATION\fP
-is the recovery host destination path to recover the tablespace.
+is the recovery host destination path to restore the tablespace.
 .TP
 .B \fB\-\-target\-action\fP
 Trigger the specified action when the recovery target is reached. This option
@@ -1345,14 +1347,14 @@ requires defining a target along with one of these actions. The possible values 
 \fBpause\fP: Once recovery target is reached, the server is started in pause state,
 allowing users to inspect the instance
 .IP \(bu 2
-\fBpromote\fP: Once recovery target is reached, the server will exit recovery and is
-promoted as a master.
+\fBpromote\fP: Once recovery target is reached, the server will exit the recovery
+operation and is promoted as a master.
 .IP \(bu 2
 \fBshutdown\fP: Once recovery target is reached, the server is shut down.
 .UNINDENT
 .TP
 .B \fB\-\-target\-immediate\fP
-Recover is completed when a consistent state is reached (end of the base backup).
+Recovery is completed when a consistent state is reached (end of the base backup).
 .TP
 .B \fB\-\-target\-lsn\fP
 Recover to the specified LSN (Log Sequence Number). Requires Postgres 10 or above.
@@ -1672,7 +1674,7 @@ Forces the switch by executing a CHECKPOINT before \fBpg_switch_wal()\fP\&.
 \fBNOTE:\fP
 .INDENT 7.0
 .INDENT 3.5
-Running a CHECKPOINT may increase I/O load on the PostgreSQL server, so use this
+Running a CHECKPOINT may increase I/O load on the Postgres server, so use this
 option cautiously.
 .UNINDENT
 .UNINDENT
@@ -1878,7 +1880,7 @@ Alias for \fBverify\-backup\fP command.
 .SH BARMAN-CLI COMMANDS
 .sp
 The \fBbarman\-cli\fP package includes a collection of recommended client utilities that
-should be installed alongside the PostgreSQL server. Here are the command references for
+should be installed alongside the Postgres server. Here are the command references for
 both utilities.
 .SS \fBbarman\-wal\-archive\fP
 .SS Synopsis
@@ -1901,10 +1903,10 @@ barman\-wal\-archive
 .UNINDENT
 .SS Description
 .sp
-This script can be utilized in the \fBarchive_command\fP of a PostgreSQL server to
+This script can be utilized in the \fBarchive_command\fP of a Postgres server to
 transfer WAL files to a Barman host using the \fBput\-wal\fP command (introduced in Barman
 2.6). It establishes an SSH connection to the Barman host, enabling seamless integration
-of Barman within PostgreSQL clusters for improved business continuity.
+of Barman within Postgres clusters for improved business continuity.
 .sp
 \fBExit Statuses\fP are:
 .INDENT 0.0
@@ -1943,7 +1945,7 @@ Define the port used for the SSH connection to the Barman server.
 Specify the configuration file on the Barman server.
 .TP
 .B \fB\-t\fP / \fB\-\-test\fP
-Test the connection and configuration of the specified PostgreSQL server in Barman to
+Test the connection and configuration of the specified Postgres server in Barman to
 ensure it is ready to receive WAL files. This option ignores the mandatory arguments
 \fBWAL_NAME\fP and \fBWAL_DEST\fP\&.
 .UNINDENT
@@ -1974,10 +1976,10 @@ barman\-wal\-restore
 .UNINDENT
 .SS Description
 .sp
-This script serves as a \fBrestore_command\fP for PostgreSQL servers, enabling the
+This script serves as a \fBrestore_command\fP for Postgres servers, enabling the
 retrieval of WAL files through Barman\(aqs \fBget\-wal\fP feature. It establishes an SSH
 connection to the Barman host and facilitates the integration of Barman within
-PostgreSQL clusters, enhancing business continuity.
+Postgres clusters, enhancing business continuity.
 .sp
 \fBExit Statuses\fP are:
 .INDENT 0.0
@@ -2044,7 +2046,7 @@ Transfer WAL files compressed with \fBbzip2\fP\&.
 Specify the configuration file on the Barman server.
 .TP
 .B \fB\-t\fP / \fB\-\-test\fP
-Test the connection and configuration of the specified PostgreSQL server in Barman to
+Test the connection and configuration of the specified Postgres server in Barman to
 ensure it is ready to receive WAL files. This option ignores the mandatory arguments
 \fBWAL_NAME\fP and \fBWAL_DEST\fP\&.
 .UNINDENT
