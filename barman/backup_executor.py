@@ -63,6 +63,10 @@ from barman.postgres import PostgresKeepAlive
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import (
+    check_aws_expiration_date_format,
+    check_aws_snapshot_lock_cool_off_period_range,
+    check_aws_snapshot_lock_duration_range,
+    check_aws_snapshot_lock_mode,
     force_str,
     human_readable_timedelta,
     mkpath,
@@ -1534,6 +1538,59 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
                 self.server.config.update_msg_list_and_disable_server(
                     "%s option is required by snapshot backup_method" % config_var
                 )
+
+        # Check if aws_snapshot_lock_mode is set with snapshot_provider = aws.
+        if (
+            getattr(self.server.config, "aws_snapshot_lock_mode")
+            and getattr(self.server.config, "snapshot_provider") == "aws"
+        ):
+            self._validate_aws_lock_configuration()
+
+    def _validate_aws_lock_configuration(self):
+        """Verify configuration is valid for locking a snapshot backup using AWS
+        provider.
+        """
+        if not (
+            getattr(self.server.config, "aws_snapshot_lock_duration")
+            or getattr(self.server.config, "aws_snapshot_lock_expiration_date")
+        ):
+            self.server.config.update_msg_list_and_disable_server(
+                "'aws_snapshot_lock_mode' is set, you must specify "
+                "'aws_snapshot_lock_duration' or 'aws_snapshot_lock_expiration_date'."
+            )
+
+        if getattr(self.server.config, "aws_snapshot_lock_duration") and getattr(
+            self.server.config, "aws_snapshot_lock_expiration_date"
+        ):
+            self.server.config.update_msg_list_and_disable_server(
+                "You must specify either 'aws_snapshot_lock_duration' or "
+                "'aws_snapshot_lock_expiration_date' in the configuration, but not both."
+            )
+
+        if getattr(
+            self.server.config, "aws_snapshot_lock_mode"
+        ) == "governance" and getattr(
+            self.server.config, "aws_snapshot_lock_cool_off_period"
+        ):
+            self.server.config.update_msg_list_and_disable_server(
+                "'aws_snapshot_lock_cool_off_period' cannot be used with "
+                "'aws_snapshot_lock_mode' = 'governance'."
+            )
+
+        lock_args = {
+            "aws_snapshot_lock_cool_off_period": check_aws_snapshot_lock_cool_off_period_range,
+            "aws_snapshot_lock_duration": check_aws_snapshot_lock_duration_range,
+            "aws_snapshot_lock_mode": check_aws_snapshot_lock_mode,
+            "aws_snapshot_lock_expiration_date": check_aws_expiration_date_format,
+        }
+        for arg, parser in lock_args.items():
+            lock_arg = getattr(self.server.config, arg)
+            if lock_arg:
+                try:
+                    _ = parser(lock_arg)
+                except Exception as e:
+                    error_message = str(e)
+                    self.server.config.update_msg_list_and_disable_server(error_message)
 
     @staticmethod
     def add_mount_data_to_volume_metadata(volumes, remote_cmd):
