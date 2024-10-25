@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CLOUD-BACKUP" "1" "Oct 10, 2024" "3.11" "Barman"
+.TH "BARMAN-CLOUD-BACKUP" "1" "Oct 25, 2024" "3.11" "Barman"
 .SH NAME
 barman-cloud-backup \- Barman-cloud Commands
 .sp
@@ -66,6 +66,10 @@ barman\-cloud\-backup
                 [ { \-e | \-\-encryption } ENCRYPTION ]
                 [ \-\-sse\-kms\-key\-id SSE_KMS_KEY_ID ]
                 [ \-\-aws\-region AWS_REGION ]
+                [ \-\-aws\-snapshot\-lock\-mode { compliance | governance } ]
+                [ \-\-aws\-snapshot\-lock\-duration DAYS ]
+                [ \-\-aws\-snapshot\-lock\-cool\-off\-period HOURS ]
+                [ \-\-aws\-snapshot\-lock\-expiration\-date DATETIME ]
                 [ \-\-azure\-credential { azure\-cli | managed\-identity } ]
                 [ \-\-encryption\-scope ENCRYPTION_SCOPE ]
                 [ \-\-azure\-subscription\-id AZURE_SUBSCRIPTION_ID ]
@@ -81,7 +85,7 @@ barman\-cloud\-backup
 .sp
 \fBDescription\fP
 .sp
-The \fBbarman\-cloud\-backup\fP script is used to create a local backup of a PostgreSQL
+The \fBbarman\-cloud\-backup\fP script is used to create a local backup of a Postgres
 server and transfer it to a supported cloud provider, bypassing the Barman server. It
 can also be utilized as a hook script for copying Barman backups from the Barman server
 to one of the supported clouds (post_backup_retry_script).
@@ -92,11 +96,6 @@ where Barman backups are stored. If \fB\-\-snapshot\-\fP arguments are used and 
 supported by the selected cloud provider, the backup will be performed using snapshots
 of the specified disks (\fB\-\-snapshot\-disk\fP). The backup label and metadata will also be
 uploaded to the cloud.
-.sp
-This script requires read access to the directory where Barman backups are stored. If
-\fB\-\-snapshot\-\fP arguments are used and snapshots are supported by the selected cloud
-provider, the backup will be performed using snapshots of the specified disks
-(\fB\-\-snapshot\-disk\fP). The backup label and metadata will also be uploaded to the cloud.
 .sp
 \fBNOTE:\fP
 .INDENT 0.0
@@ -122,7 +121,7 @@ Name of the server to be backed up.
 .TP
 .B \fBDESTINATION_URL\fP
 URL of the cloud destination, such as a bucket in AWS S3. For example:
-\fIs3://bucket/path/to/folder\fP\&.
+\fBs3://bucket/path/to/folder\fP\&.
 .TP
 .B \fB\-V\fP / \fB\-\-version\fP
 Show version and exit.
@@ -142,7 +141,7 @@ Test cloud connectivity and exit.
 .B \fB\-\-cloud\-provider\fP
 The cloud provider to use as a storage backend.
 .sp
-Allowed options are:
+Allowed options:
 .INDENT 7.0
 .IP \(bu 2
 \fBaws\-s3\fP\&.
@@ -241,6 +240,33 @@ specified using the key ID on its own or using the full ARN for the key. Only al
 .B \fB\-\-aws\-region\fP
 The name of the AWS region containing the EC2 VM and storage volumes defined by the
 \fB\-\-snapshot\-instance\fP and \fB\-\-snapshot\-disk\fP arguments.
+.TP
+.B \fB\-\-aws\-snapshot\-lock\-mode\fP
+The lock mode for the snapshot. This is only valid if \fB\-\-snapshot\-instance\fP and
+\fB\-\-snapshot\-disk\fP are set.
+.sp
+Allowed options:
+.INDENT 7.0
+.IP \(bu 2
+\fBcompliance\fP\&.
+.IP \(bu 2
+\fBgovernance\fP\&.
+.UNINDENT
+.TP
+.B \fB\-\-aws\-snapshot\-lock\-duration\fP
+The lock duration is the period of time (in days) for which the snapshot is to remain
+locked, ranging from 1 to 36,500. Set either the lock duration or the expiration date
+(not both).
+.TP
+.B \fB\-\-aws\-snapshot\-lock\-cool\-off\-period\fP
+The cooling\-off period is an optional period of time (in hours) that you can specify
+when you lock a snapshot in \fBcompliance\fP mode, ranging from 1 to 72.
+.TP
+.B \fB\-\-aws\-snapshot\-lock\-expiration\-date\fP
+The lock duration is determined by an expiration date in the future. It must be at
+least 1 day after the snapshot creation date and time, using the format
+\fBYYYY\-MM\-DDTHH:MM:SS.sssZ\fP\&. Set either the lock duration or the expiration date
+(not both).
 .UNINDENT
 .sp
 \fBExtra options for the Azure cloud provider\fP
@@ -253,7 +279,7 @@ the default Azure authentication flow will be used for authenticating with all o
 Azure services. If no credentials can be found in the environment then the default
 Azure authentication flow will also be used for Azure Blob Storage.
 .sp
-Allowed options are:
+Allowed options:
 .INDENT 7.0
 .IP \(bu 2
 \fBazure\-cli\fP\&.

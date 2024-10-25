@@ -689,6 +689,43 @@ Barman will return an error.
     aws_profile = AWS_PROFILE_NAME
     aws_await_snapshots_timeout = TIMEOUT_IN_SECONDS
 
+4. **Ransomware Protection**
+
+Ransomware protection is essential to secure data and maintain operational stability.
+With Amazon EBS Snapshot Lock, snapshots are protected from deletion, providing an
+immutable backup that safeguards against ransomware attacks. By locking snapshots,
+unwanted deletions are prevented, ensuring reliable recovery options in case of
+compromise. Barman can prevent unwanted deletion of backups by locking the snapshots
+when creating the backup.
+
+.. note::
+    To delete a locked backup, you must first manually remove the lock in the AWS
+    console.
+
+To lock a snapshot during backup creation, you need to configure the following options:
+
+1. Choose the snapshot lock mode: either ``compliance`` or ``governance``.
+2. Set either the lock duration or the expiration date (not both). Lock duration is
+   specified in days, ranging from 1 to 36,500. If you choose an expiration date, it must
+   be at least 1 day after the snapshot creation date and time, using the format
+   ``YYYY-MM-DDTHH:MM:SS.sssZ``.
+3. Optionally, set a cool-off period (in hours), from 1 to 72. This option only applies
+   when the lock mode is set to ``compliance``.
+
+.. code-block:: text
+
+    aws_snapshot_lock_mode = compliance | governance
+    aws_snapshot_lock_duration = 1
+    aws_snapshot_lock_cool_off_period = 1
+    aws_snapshot_lock_expiration_date = "2024-10-07T21:53:00.606Z"
+
+.. important::
+    Ensure you have the permission listed below:
+
+    * ``ec2:LockSnapshot``
+
+For the concepts behing AWS Snapshot Lock, refer to the `Amazon EBS snapshot lock concepts <https://docs.aws.amazon.com/ebs/latest/userguide/snapshot-lock-concepts.html>`_.
+
 Backup Process
 """"""""""""""
 

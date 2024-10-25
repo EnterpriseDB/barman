@@ -36,6 +36,10 @@
                   [ { -e | --encryption } ENCRYPTION ]
                   [ --sse-kms-key-id SSE_KMS_KEY_ID ]
                   [ --aws-region AWS_REGION ]
+                  [ --aws-snapshot-lock-mode { compliance | governance } ]
+                  [ --aws-snapshot-lock-duration DAYS ]
+                  [ --aws-snapshot-lock-cool-off-period HOURS ]
+                  [ --aws-snapshot-lock-expiration-date DATETIME ]
                   [ --azure-credential { azure-cli | managed-identity } ]
                   [ --encryption-scope ENCRYPTION_SCOPE ]
                   [ --azure-subscription-id AZURE_SUBSCRIPTION_ID ]
@@ -94,7 +98,7 @@ uploaded to the cloud.
 ``--cloud-provider``
   The cloud provider to use as a storage backend.
   
-  Allowed options are:
+  Allowed options:
 
   * ``aws-s3``.
   * ``azure-blob-storage``.
@@ -185,6 +189,30 @@ uploaded to the cloud.
   The name of the AWS region containing the EC2 VM and storage volumes defined by the
   ``--snapshot-instance`` and ``--snapshot-disk`` arguments.
 
+``--aws-snapshot-lock-mode``
+  The lock mode for the snapshot. This is only valid if ``--snapshot-instance`` and
+  ``--snapshot-disk`` are set.
+  
+  Allowed options:
+
+  * ``compliance``.
+  * ``governance``.
+
+``--aws-snapshot-lock-duration``
+  The lock duration is the period of time (in days) for which the snapshot is to remain
+  locked, ranging from 1 to 36,500. Set either the lock duration or the expiration date
+  (not both).
+
+``--aws-snapshot-lock-cool-off-period``
+  The cooling-off period is an optional period of time (in hours) that you can specify
+  when you lock a snapshot in ``compliance`` mode, ranging from 1 to 72.
+
+``--aws-snapshot-lock-expiration-date``
+  The lock duration is determined by an expiration date in the future. It must be at
+  least 1 day after the snapshot creation date and time, using the format
+  ``YYYY-MM-DDTHH:MM:SS.sssZ``. Set either the lock duration or the expiration date
+  (not both).
+
 **Extra options for the Azure cloud provider**
 
 ``--azure-credential / --credential``
@@ -194,7 +222,7 @@ uploaded to the cloud.
   Azure services. If no credentials can be found in the environment then the default
   Azure authentication flow will also be used for Azure Blob Storage. 
   
-  Allowed options are:
+  Allowed options:
 
   * ``azure-cli``.
   * ``managed-identity``.
