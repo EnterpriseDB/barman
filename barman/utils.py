@@ -728,6 +728,89 @@ def check_positive(value):
     return int_value
 
 
+def check_aws_expiration_date_format(value):
+    """
+    Check user input for aws expiration date timestamp with a specific format.
+
+    :param value: str containing the value to check.
+    :raise ValueError: Fails with an invalid date.
+    """
+    fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
+    try:
+        # Attempt to parse the input date string into a datetime object
+        return datetime.datetime.strptime(value, fmt)
+    except ValueError:
+        raise ArgumentTypeError(
+            "Invalid date: '%s'. Expected format is '%s'." % (value, fmt)
+        )
+
+
+def check_aws_snapshot_lock_duration_range(value):
+    """
+    Check for AWS Snapshot Lock duration range option
+
+    :param value: str containing the value to check
+    """
+    if value is None:
+        return None
+    try:
+        int_value = int(value)
+    except Exception:
+        raise ArgumentTypeError("'%s' is not a valid input" % value)
+
+    if not 1 <= int_value <= 36500:
+        raise ValueError(
+            "aws_snapshot_lock_duration must be between 1 and 36,500 days."
+        )
+
+    return int_value
+
+
+def check_aws_snapshot_lock_cool_off_period_range(value):
+    """
+    Check for AWS Snapshot Lock cool-off period range option
+
+    :param value: str containing the value to check
+    """
+    if value is None:
+        return None
+    try:
+        int_value = int(value)
+    except Exception:
+        raise ArgumentTypeError("'%s' is not a valid input" % value)
+
+    if not 1 <= int_value <= 72:
+        raise ValueError(
+            "aws_snapshot_lock_cool_off_period must be between 1 and 72 hours."
+        )
+
+    return int_value
+
+
+def check_aws_snapshot_lock_mode(value):
+    """
+    Replication slot names may only contain lower case letters, numbers,
+    and the underscore character. This function parse a replication slot name
+
+    :param str value: slot_name value
+    :return:
+    """
+
+    AWS_SNAPSHOT_LOCK_MODE = ["governance", "compliance"]
+    if value is None:
+        return None
+
+    value = value.lower()
+    if value not in AWS_SNAPSHOT_LOCK_MODE:
+        raise ValueError(
+            "Invalid AWS snapshot lock mode. "
+            "Please specify either 'governance' or 'compliance'. "
+            "Ensure that the mode you choose aligns with your snapshot locking "
+            "requirements."
+        )
+    return value
+
+
 def check_tli(value):
     """
     Check for a positive integer option, and also make "current" and "latest" acceptable values

@@ -201,6 +201,10 @@ def get_snapshot_interface(config):
             config.aws_profile,
             config.aws_region,
             config.aws_await_snapshots_timeout,
+            config.aws_snapshot_lock_mode,
+            config.aws_snapshot_lock_duration,
+            config.aws_snapshot_lock_cool_off_period,
+            config.aws_snapshot_lock_expiration_date,
         ]
         return AwsCloudSnapshotInterface(*args)
     else:
@@ -253,6 +257,10 @@ def get_snapshot_interface_from_server_config(server_config):
             server_config.aws_profile,
             server_config.aws_region,
             server_config.aws_await_snapshots_timeout,
+            server_config.aws_snapshot_lock_mode,
+            server_config.aws_snapshot_lock_duration,
+            server_config.aws_snapshot_lock_cool_off_period,
+            server_config.aws_snapshot_lock_expiration_date,
         )
     else:
         raise CloudProviderUnsupported(
@@ -321,10 +329,16 @@ def get_snapshot_interface_from_backup_info(backup_info, config=None):
         # from the backup_info, unless a region is set in the config in which case the
         # config region takes precedence.
         region = None
-        profile = None
-        if config is not None and hasattr(config, "aws_region"):
-            region = config.aws_region
-            profile = config.aws_profile
+        if config is not None:
+            if hasattr(config, "aws_region"):
+                region = config.aws_region
+            try:
+                if getattr(config, "aws_profile"):
+                    profile = config.aws_profile
+            except AttributeError:
+                raise SystemExit(
+                    "Unable to locate credentials. You should configure an AWS profile."
+                )
         if region is None:
             region = backup_info.snapshots_info.region
         return AwsCloudSnapshotInterface(profile, region)
