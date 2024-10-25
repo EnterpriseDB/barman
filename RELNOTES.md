@@ -26,16 +26,18 @@
     `latest-full` takes the latest full backup.
 
   - `barman keep` command can only be applied to full backups when
-    `backup_method = postgres`. If a full backup has incremental backups that
-    depend on it, all of the incrementals are also kept by Barman.
-
-  - When deleting a backup all the incremental backups depending on it, if any,
-    are also removed.
+    `backup_method = postgres`.
 
   - Retention policies do not take incremental backups into consideration. As
     incremental backups cannot be recovered without having the complete chain of
     backups available up to the full backup, only full backups account for
-    retention policies.
+    retention policies. If a full backup has dependent incremental backups and the
+    retention policy is applied, the full backup will propagate its status to the
+    associated incremental backups. When the full backup is flagged with any `KEEP`
+    target, Barman will set the status of all related incremental backups to `VALID`.
+
+  - When deleting a backup all the incremental backups depending on it, if any,
+    are also removed.
 
   - `barman recover` needs to combine the full backup with the chain of incremental
     backups when recovering. The new CLI option `--local-staging-path`, and the
@@ -79,7 +81,8 @@
     backups with `rsync` or `pg_basebackup`. It compares the backup size with
     the estimated cluster size to estimate the amount of disk and network
     resources that were saved by taking an incremental backup. In JSON format,
-    the field was renamed from `incremental_size` to `resource_savings` under `base_backup_information`.
+    the field was renamed from `incremental_size` to `resource_savings` under
+    `base_backup_information`.
 
   - Add the `system_id` field to the JSON document. This field contains the
     system identifier of Postgres. It was present in console format, but was
