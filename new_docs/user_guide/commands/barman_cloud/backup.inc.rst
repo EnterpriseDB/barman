@@ -154,7 +154,8 @@ uploaded to the cloud.
   Name of a disk from which snapshots should be taken.
 
 ``--tags``
-  Tags to be added to archived WAL files in cloud storage.
+  Tags to be added to archived WAL files in cloud storage and to snapshots created, if
+  snapshots are used.
 
 **Extra options for the AWS cloud provider**
 
