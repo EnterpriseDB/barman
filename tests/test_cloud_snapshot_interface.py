@@ -389,6 +389,7 @@ class TestGetSnapshotInterface(object):
             aws_snapshot_lock_duration=1,
             aws_snapshot_lock_cool_off_period=2,
             aws_snapshot_lock_expiration_date=datetime.datetime(2024, 1, 1),
+            tags=None,
         )
         # WHEN get_snapshot_interface is called
         snapshot_interface = get_snapshot_interface(mock_config)
@@ -2738,12 +2739,16 @@ class TestAwsCloudSnapshotInterface(object):
             # AND the default region is set on the snapshot interface
             assert snapshot_interface.region == mock_session.region_name
 
-    def test_create_snapshot(self, caplog):
+    @pytest.mark.parametrize(
+        "tags", (None, [("environment", "production"), ("project", "my-project")])
+    )
+    def test_create_snapshot(self, tags, caplog):
         """
         Verify that _create_snapshot calls boto3 and returns the expected values.
+        Check if tags are applied when set.
         """
         # GIVEN a new AwsCloudInterface
-        snapshot_interface = AwsCloudSnapshotInterface()
+        snapshot_interface = AwsCloudSnapshotInterface(tags=tags)
         # AND a backup_info for a given server name and backup ID
         backup_info = mock.Mock(backup_id=self.backup_id, server_name=self.server_name)
         # AND a mock create_snapshot function which returns a successful response
@@ -2764,13 +2769,19 @@ class TestAwsCloudSnapshotInterface(object):
 
         # THEN create_snapshot is called on the EC2 client with the expected args
         mock_ec2_client.create_snapshot.assert_called_once()
-        mock_ec2_client.create_snapshot.assert_called_once_with(
-            TagSpecifications=[
-                {
-                    "ResourceType": "snapshot",
-                    "Tags": [{"Key": "Name", "Value": snapshot_name}],
-                }
+        tag_specs = {
+            "ResourceType": "snapshot",
+            "Tags": [
+                {"Key": "Name", "Value": snapshot_name},
             ],
+        }
+
+        if tags:
+            for key, value in tags:
+                tag_specs["Tags"].append({"Key": key, "Value": value})
+
+        mock_ec2_client.create_snapshot.assert_called_once_with(
+            TagSpecifications=[tag_specs],
             VolumeId=volume_id,
         )
         # AND snapshot_name has the expected value
