@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CLOUD-BACKUP" "1" "Oct 25, 2024" "3.11" "Barman"
+.TH "BARMAN-CLOUD-BACKUP" "1" "Nov 11, 2024" "3.11" "Barman"
 .SH NAME
 barman-cloud-backup \- Barman-cloud Commands
 .sp
@@ -201,7 +201,8 @@ Instance where the disks to be backed up as snapshots are attached.
 Name of a disk from which snapshots should be taken.
 .TP
 .B \fB\-\-tags\fP
-Tags to be added to archived WAL files in cloud storage.
+Tags to be added to archived WAL files in cloud storage and to snapshots created, if
+snapshots are used.
 .UNINDENT
 .sp
 \fBExtra options for the AWS cloud provider\fP
