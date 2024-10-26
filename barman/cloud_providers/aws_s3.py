@@ -487,6 +487,7 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
         lock_duration=None,
         lock_cool_off_period=None,
         lock_expiration_date=None,
+        tags=None,
     ):
         """
         Creates the client necessary for creating and managing snapshots.
@@ -501,6 +502,7 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
         :param int lock_cool_off_period: The cool-off period (in hours) for the snapshot.
         :param str lock_expiration_date: The expiration date for the snapshot in the format
             ``YYYY-MM-DDThh:mm:ss.sssZ``.
+        :param List[Tuple[str, str]] tags: Key value pairs for tags to be applied.
         """
 
         self.session = boto3.Session(profile_name=profile_name)
@@ -509,6 +511,7 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
         self.region = region or self.session.region_name
         self.ec2_client = self.session.client("ec2", region_name=self.region)
         self.await_snapshots_timeout = await_snapshots_timeout
+        self.tags = tags
         self.lock_mode = lock_mode
         self.lock_duration = lock_duration
         self.lock_cool_off_period = lock_cool_off_period
@@ -745,13 +748,19 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
             volume_name,
             volume_id,
         )
+        tags = [
+            {"Key": "Name", "Value": snapshot_name},
+        ]
+
+        if self.tags is not None:
+            for key, value in self.tags:
+                tags.append({"Key": key, "Value": value})
+
         resp = self.ec2_client.create_snapshot(
             TagSpecifications=[
                 {
                     "ResourceType": "snapshot",
-                    "Tags": [
-                        {"Key": "Name", "Value": snapshot_name},
-                    ],
+                    "Tags": tags,
                 }
             ],
             VolumeId=volume_id,

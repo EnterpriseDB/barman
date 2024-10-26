@@ -205,6 +205,7 @@ def get_snapshot_interface(config):
             config.aws_snapshot_lock_duration,
             config.aws_snapshot_lock_cool_off_period,
             config.aws_snapshot_lock_expiration_date,
+            config.tags,
         ]
         return AwsCloudSnapshotInterface(*args)
     else:
