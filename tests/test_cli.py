@@ -174,9 +174,9 @@ class TestCli(object):
             # If wal_streaming_conninfo is set and wal_conninfo is unset then
             # wal_streaming_conninfo is used for conninfo
             (True, "ws_conninfo", None, "ws_conninfo", "ws_conninfo"),
-            # If wal_streaming_conninfo is not set then conninfo and streaming_conninfo
-            # are not overridden even if wal_conninfo is set
-            (True, None, "w_conninfo", "s_conninfo", "conninfo"),
+            # If wal_streaming_conninfo is not set then conninfo is overridden and
+            # streaming_conninfo is not overridden if wal_conninfo is set
+            (True, None, "w_conninfo", "s_conninfo", "w_conninfo"),
         ),
     )
     @patch("barman.cli.manage_server_command")
@@ -412,9 +412,9 @@ class TestCli(object):
             # If wal_streaming_conninfo is set and wal_conninfo is unset then
             # wal_streaming_conninfo is used for conninfo
             (True, "ws_conninfo", None, "ws_conninfo", "ws_conninfo"),
-            # If wal_streaming_conninfo is not set then conninfo and streaming_conninfo
-            # are not overridden even if wal_conninfo is set
-            (True, None, "w_conninfo", "s_conninfo", "conninfo"),
+            # If wal_streaming_conninfo is not set then conninfo is overriden and
+            # streaming_conninfo is not overridden if wal_conninfo is set
+            (True, None, "w_conninfo", "s_conninfo", "w_conninfo"),
         ),
     )
     def test_get_server_list_wal_streaming(
