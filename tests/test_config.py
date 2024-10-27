@@ -1529,9 +1529,9 @@ class TestModelConfig:
             # If neither wal_streaming_conninfo nor wal_conninfo are set then we expect
             # the regular conninfo to be returned
             (None, None, ("s_conninfo", "conninfo")),
-            # If wal_streaming_conninfo is not set we expect the regular conninfo to be
+            # If wal_streaming_conninfo is not set we expect the wal_conninfo to be
             # returned
-            (None, "w_conninfo", ("s_conninfo", "conninfo")),
+            (None, "w_conninfo", ("s_conninfo", "w_conninfo")),
             # If wal_streaming_conninfo is set and wal_conninfo is not then we expect
             # wal_streaming_conninfo to be returned for both
             ("ws_conninfo", None, ("ws_conninfo", "ws_conninfo")),
