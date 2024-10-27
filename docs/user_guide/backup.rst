@@ -408,6 +408,7 @@ options are set to point to the standby:
 * ``streaming_conninfo`` (if using ``backup_method = postgres`` or
   ``streaming_archiver = on``)
 * ``ssh_command`` (if using ``backup_method = rsync``)
+* ``wal_conninfo`` (connecting to the primary if ``conninfo`` is pointing to a standby)
 
 The ``primary_conninfo`` option should point to the primary server. Barman will use
 ``primary_conninfo`` to trigger a new WAL switch on the primary, allowing the concurrent
