@@ -969,30 +969,35 @@ Scope: Server.
 
 **wal_conninfo**
 
-This optional connection string is used by Barman for monitoring the status of the
-replication slot used for receiving WALs. When specified, it takes precedence over
-``wal_streaming_conninfo`` for these checks. If ``wal_conninfo`` is set, but
-``wal_streaming_conninfo`` is not, ``wal_conninfo`` will be ignored. Both connection
-strings must access a Postgres instance within the same cluster as defined by
-``streaming_conninfo`` and ``conninfo``. Additionally, ``wal_streaming_conninfo`` must
-support streaming replication connections, and either it or ``wal_conninfo`` (if used)
-must have the necessary permissions to read settings and check replication slot
-status, such as the ``pg_monitor`` role, both ``pg_read_all_settings`` and
-``pg_read_all_stats`` roles, or ``superuser`` privileges.
+The ``wal_conninfo`` connection string is used by Barman for monitoring the status of
+the replication slot receiving WALs. If specified, it takes precedence over
+``wal_streaming_conninfo`` for these checks. If ``wal_conninfo`` is not set but
+``wal_streaming_conninfo`` is, ``wal_conninfo`` will fall back to
+``wal_streaming_conninfo``. If neither ``wal_conninfo`` nor ``wal_streaming_conninfo``
+is set, ``wal_conninfo`` will fall back to ``conninfo``. Both connection strings must
+access a Postgres instance within the same cluster as defined by ``streaming_conninfo``
+and ``conninfo``. If both ``wal_conninfo`` and ``wal_streaming_conninfo`` are set, only
+``wal_conninfo`` needs the appropriate permissions to read settings and check the
+replication slot status. However, if only ``wal_streaming_conninfo`` is set, it must
+have the necessary permissions to perform these tasks. The required permissions include
+roles such as ``pg_monitor``, both ``pg_read_all_settings`` and ``pg_read_all_stats``,
+or superuser privileges.
 
 Scope: Server / Model.
 
 **wal_streaming_conninfo**
 
-This connection string is used by Barman to connect to the Postgres server for
-receiving WAL segments via streaming replication and for checking the replication slot
-status. If not specified, Barman defaults to using ``streaming_conninfo`` for these
-tasks. ``wal_streaming_conninfo`` must connect to a Postgres instance within the
-same cluster as defined by ``streaming_conninfo`` and ``conninfo``, and it must support
-streaming replication. It, or the optional ``wal_conninfo``, must also have the
-required permissions to read settings and check the replication slot status, such as
-the ``pg_monitor`` role, both ``pg_read_all_settings`` and ``pg_read_all_stats``
-roles, or ``superuser`` privileges.
+This connection string is used by Barman to connect to the Postgres server for receiving
+WAL segments via streaming replication and checking the replication slot status, if
+``wal_conninfo`` is not set. If not specified, Barman defaults to using
+``streaming_conninfo`` for these tasks. ``wal_streaming_conninfo`` must connect to a
+Postgres instance within the same cluster as defined by ``streaming_conninfo``, and it
+must support streaming replication. If both ``wal_streaming_conninfo`` and
+``wal_conninfo`` are set, only ``wal_conninfo`` needs the required permissions to read
+settings and check the replication slot status. If only ``wal_streaming_conninfo`` is
+specified, it must have these permissions. The necessary permissions include roles such
+as ``pg_monitor``, both ``pg_read_all_settings`` and ``pg_read_all_stats``, or superuser
+privileges.
 
 Scope: Server / Model.
 
@@ -1248,10 +1253,10 @@ Benefits
     cluster = streaming
 
   **server2**
-    * Connect to Postgres using the ``conninfo``. This is used to check the status
-      of replication slots.
-    * Connect to Postgres using the ``streaming_conninfo``. This is used to create
-      ``pg_receivewal`` processes to stream WAL segments.
+    * Connect to Postgres using the ``conninfo``. This is used for backups (rsync) and
+      to check the status of replication slots.
+    * Connect to Postgres using the ``streaming_conninfo``. This is used for backups
+      (postgres) and to create ``pg_receivewal`` processes to stream WAL segments.
     * Set the ``backup_method`` as ``postgres``.
     * Configure the ``streaming_archiver`` option to ship WALs using the streaming
       replication, the ``slot_name`` that will be created in the Postgres server and
@@ -1284,12 +1289,13 @@ Benefits
   **server2:switch_over_wal_streaming_conn_to_pg3**
     * Tag this model to a cluster named ``streaming`` to override configurations.
     * Configure this as a model (``model = true``).
-    * ``wal_conninfo`` is set, so this connection will be used specifically for monitoring
-      WAL streaming status and perform checks.
+    * ``wal_conninfo`` is set, so this connection will be used specifically for
+      monitoring WAL streaming status and perform checks.
     * ``wal_streaming_conninfo`` is set, Barman will use this instead of
       ``streaming_conninfo`` when receiving WAL segments via streaming replication
       protocol. If ``wal_conninfo`` was unset, this option would also be used
-      to monitor and check WAL streaming replication statuses.
+      to monitor and check WAL streaming replication statuses and it should use a user
+      with proper permissions.
     * WAL files will be compressed with ``gzip``.
     * All backups will be compressed with ``gzip``.
     * Recovery for compressed backups will use the ``recovery_staging_path`` as the
