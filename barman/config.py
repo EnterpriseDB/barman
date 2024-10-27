@@ -957,20 +957,18 @@ class ServerConfig(BaseConfig):
 
         :rtype: (str,str)
         :return: Tuple consisting of the ``wal_streaming_conninfo`` and
-            ``wal_conninfo`` defined in the configuration if ``wal_streaming_conninfo``
-            is set, a tuple of ``streaming_conninfo`` and ``conninfo`` otherwise.
+            ``wal_conninfo``.
         """
-        wal_streaming_conninfo, wal_conninfo = None, None
-        if self.wal_streaming_conninfo is not None:
-            wal_streaming_conninfo = self.wal_streaming_conninfo
-            if self.wal_conninfo is not None:
-                wal_conninfo = self.wal_conninfo
-            else:
-                wal_conninfo = self.wal_streaming_conninfo
+        # If `wal_streaming_conninfo` is not set, fall back to `streaming_conninfo`
+        wal_streaming_conninfo = self.wal_streaming_conninfo or self.streaming_conninfo
+
+        # If `wal_conninfo` is not set, fall back to `wal_streaming_conninfo`. If
+        # `wal_streaming_conninfo` is not set, fall back to `conninfo`.
+        if self.wal_conninfo is not None:
+            wal_conninfo = self.wal_conninfo
+        elif self.wal_streaming_conninfo is not None:
+            wal_conninfo = self.wal_streaming_conninfo
         else:
-            # If wal_streaming_conninfo is not set then return the original
-            # streaming_conninfo and conninfo parameters
-            wal_streaming_conninfo = self.streaming_conninfo
             wal_conninfo = self.conninfo
         return wal_streaming_conninfo, wal_conninfo
 
