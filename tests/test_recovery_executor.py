@@ -16,18 +16,18 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-from functools import partial
 import os
 import shutil
 from contextlib import closing
+from functools import partial
 
 import dateutil
 import dateutil.tz
 import mock
 import pytest
+import testing_helpers
 from mock import MagicMock, Mock, call
 
-import testing_helpers
 from barman import xlog
 from barman.exceptions import (
     CommandFailedException,
@@ -38,20 +38,16 @@ from barman.exceptions import (
     RecoveryTargetActionException,
     SnapshotBackupException,
 )
-from barman.infofile import (
-    BackupInfo,
-    WalFileInfo,
-    SyntheticBackupInfo,
-)
+from barman.infofile import BackupInfo, SyntheticBackupInfo, WalFileInfo
 from barman.recovery_executor import (
     Assertion,
+    ConfigurationFileMangeler,
+    IncrementalRecoveryExecutor,
     RecoveryExecutor,
     RemoteConfigRecoveryExecutor,
     SnapshotRecoveryExecutor,
     TarballRecoveryExecutor,
-    ConfigurationFileMangeler,
     recovery_executor_factory,
-    IncrementalRecoveryExecutor,
 )
 
 

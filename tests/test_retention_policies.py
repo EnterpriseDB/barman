@@ -24,6 +24,7 @@ from datetime import datetime, timedelta
 import mock
 import pytest
 from dateutil.tz import tzlocal
+from testing_helpers import build_mocked_server, build_test_backup_info
 
 from barman.annotations import KeepManager
 from barman.infofile import BackupInfo
@@ -32,7 +33,6 @@ from barman.retention_policies import (
     RedundancyRetentionPolicy,
     RetentionPolicyFactory,
 )
-from testing_helpers import build_mocked_server, build_test_backup_info
 
 
 class TestRetentionPolicies(object):

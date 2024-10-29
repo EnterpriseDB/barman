@@ -26,21 +26,7 @@ import dateutil.parser
 import dateutil.tz
 import mock
 import pytest
-from mock import Mock, patch, call
-from barman.backup import BackupManager
-from barman.lockfile import ServerBackupIdLock
-
-import barman.utils
-from barman.annotations import KeepManager
-from barman.config import BackupOptions
-from barman.exceptions import (
-    BackupException,
-    CompressionIncompatibility,
-    RecoveryInvalidTargetException,
-    CommandFailedException,
-)
-from barman.infofile import BackupInfo
-from barman.retention_policies import RetentionPolicyFactory
+from mock import Mock, call, patch
 from testing_helpers import (
     build_backup_directories,
     build_backup_manager,
@@ -49,6 +35,20 @@ from testing_helpers import (
     caplog_reset,
     interpolate_wals,
 )
+
+import barman.utils
+from barman.annotations import KeepManager
+from barman.backup import BackupManager
+from barman.config import BackupOptions
+from barman.exceptions import (
+    BackupException,
+    CommandFailedException,
+    CompressionIncompatibility,
+    RecoveryInvalidTargetException,
+)
+from barman.infofile import BackupInfo
+from barman.lockfile import ServerBackupIdLock
+from barman.retention_policies import RetentionPolicyFactory
 
 
 # noinspection PyMethodMayBeStatic

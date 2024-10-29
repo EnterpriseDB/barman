@@ -17,15 +17,14 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+
 import mock
 import pytest
-
 from azure.core.exceptions import ResourceNotFoundError
 from botocore.exceptions import ClientError
 from google.api_core.exceptions import NotFound
 
 from barman.cloud import CloudProviderError
-
 from barman.cloud_providers import (
     CloudProviderUnsupported,
     get_snapshot_interface,

@@ -15,17 +15,17 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
-from abc import ABCMeta, abstractmethod
 import logging
 import os
+from abc import ABCMeta, abstractmethod
 from contextlib import closing
 
 from barman.clients.cloud_cli import (
     CLIErrorExit,
-    create_argument_parser,
     GeneralErrorExit,
     NetworkErrorExit,
     OperationErrorExit,
+    create_argument_parser,
 )
 from barman.cloud import CloudBackupCatalog, configure_logging
 from barman.cloud_providers import (

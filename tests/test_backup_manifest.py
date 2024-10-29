@@ -21,11 +21,11 @@ import os
 
 import pytest
 from mock import Mock, patch
+from testing_helpers import build_backup_manager
 
 from barman.backup_manifest import BackupManifest, FileIdentity
 from barman.exceptions import BackupManifestException
 from barman.utils import SHA256
-from testing_helpers import build_backup_manager
 
 
 class TestFileIdentity:

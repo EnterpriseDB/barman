@@ -16,42 +16,13 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-from argparse import ArgumentTypeError
-
 import json
 import os
-import pytest
 import sys
-from mock import MagicMock, Mock, patch
+from argparse import ArgumentTypeError
 
-import barman.config
-from barman import output
-from barman.cli import (
-    ArgumentParser,
-    argument,
-    backup,
-    check_target_action,
-    check_wal_archive,
-    command,
-    generate_manifest,
-    get_model,
-    get_models_list,
-    get_server,
-    get_server_list,
-    manage_model_command,
-    manage_server_command,
-    OrderedHelpFormatter,
-    parse_backup_id,
-    receive_wal,
-    recover,
-    replication_status,
-    keep,
-    show_servers,
-    config_switch,
-)
-from barman.exceptions import WalArchiveContentError
-from barman.infofile import BackupInfo
-from barman.server import Server
+import pytest
+from mock import MagicMock, Mock, patch
 from testing_helpers import (
     build_config_dictionary,
     build_config_from_dicts,
@@ -59,6 +30,35 @@ from testing_helpers import (
     build_real_server,
     build_test_backup_info,
 )
+
+import barman.config
+from barman import output
+from barman.cli import (
+    ArgumentParser,
+    OrderedHelpFormatter,
+    argument,
+    backup,
+    check_target_action,
+    check_wal_archive,
+    command,
+    config_switch,
+    generate_manifest,
+    get_model,
+    get_models_list,
+    get_server,
+    get_server_list,
+    keep,
+    manage_model_command,
+    manage_server_command,
+    parse_backup_id,
+    receive_wal,
+    recover,
+    replication_status,
+    show_servers,
+)
+from barman.exceptions import WalArchiveContentError
+from barman.infofile import BackupInfo
+from barman.server import Server
 
 
 # noinspection PyMethodMayBeStatic

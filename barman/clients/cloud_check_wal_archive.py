@@ -19,16 +19,16 @@
 import logging
 
 from barman.clients.cloud_cli import (
-    create_argument_parser,
     GeneralErrorExit,
-    OperationErrorExit,
     NetworkErrorExit,
+    OperationErrorExit,
     UrlArgumentType,
+    create_argument_parser,
 )
-from barman.cloud import configure_logging, CloudBackupCatalog
+from barman.cloud import CloudBackupCatalog, configure_logging
 from barman.cloud_providers import get_cloud_interface
 from barman.exceptions import WalArchiveContentError
-from barman.utils import force_str, check_positive
+from barman.utils import check_positive, force_str
 from barman.xlog import check_archive_usable
 
 

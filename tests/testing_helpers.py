@@ -24,8 +24,8 @@ import mock
 from dateutil import tz
 
 from barman.backup import BackupManager
-from barman.config import BackupOptions, Config
 from barman.compression import PgBaseBackupCompressionConfig
+from barman.config import BackupOptions, Config
 from barman.infofile import BackupInfo, LocalBackupInfo, Tablespace, WalFileInfo
 from barman.server import Server
 from barman.utils import mkpath

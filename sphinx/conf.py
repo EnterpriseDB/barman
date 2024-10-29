@@ -20,9 +20,10 @@
 import os
 import re
 import sys
+from distutils.version import LooseVersion
 
 import sphinx_bootstrap_theme
-from distutils.version import LooseVersion
+
 from sphinx import __version__ as sphinx_version
 
 # read barman_dir from the environment

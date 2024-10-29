@@ -20,10 +20,10 @@ import errno
 import os
 
 import mock
+from testing_helpers import build_config_from_dicts
 
 from barman.lockfile import ServerWalReceiveLock
 from barman.process import ProcessInfo, ProcessManager
-from testing_helpers import build_config_from_dicts
 
 
 # noinspection PyMethodMayBeStatic

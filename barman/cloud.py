@@ -34,14 +34,15 @@ from functools import partial
 from io import BytesIO, RawIOBase
 from tempfile import NamedTemporaryFile
 
+from barman import xlog
 from barman.annotations import KeepManagerMixinCloud
 from barman.backup_executor import ConcurrentBackupStrategy, SnapshotBackupExecutor
 from barman.clients import cloud_compression
 from barman.clients.cloud_cli import get_missing_attrs
 from barman.exceptions import (
+    BackupException,
     BackupPreconditionException,
     BarmanException,
-    BackupException,
     ConfigurationException,
 )
 from barman.fs import UnixLocalCommand, path_allowed
@@ -58,7 +59,6 @@ from barman.utils import (
     total_seconds,
     with_metaclass,
 )
-from barman import xlog
 
 try:
     # Python 3.x

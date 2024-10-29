@@ -23,17 +23,12 @@ This module represents the interface towards a PostgreSQL server.
 import atexit
 import datetime
 import logging
-from abc import ABCMeta
-from multiprocessing import Process, Queue
 import os
 import signal
 import threading
 import time
-
-try:
-    from queue import Empty
-except ImportError:
-    from Queue import Empty
+from abc import ABCMeta
+from multiprocessing import Process, Queue
 
 import psycopg2
 from psycopg2.errorcodes import DUPLICATE_OBJECT, OBJECT_IN_USE, UNDEFINED_OBJECT
@@ -41,8 +36,10 @@ from psycopg2.extensions import STATUS_IN_TRANSACTION, STATUS_READY
 from psycopg2.extras import DictCursor, NamedTupleCursor
 
 from barman.exceptions import (
+    BackupFunctionsAccessRequired,
     ConninfoException,
     PostgresAppNameError,
+    PostgresCheckpointPrivilegesRequired,
     PostgresConnectionError,
     PostgresConnectionLost,
     PostgresDuplicateReplicationSlot,
@@ -52,14 +49,17 @@ from barman.exceptions import (
     PostgresObsoleteFeature,
     PostgresReplicationSlotInUse,
     PostgresReplicationSlotsFull,
-    BackupFunctionsAccessRequired,
-    PostgresCheckpointPrivilegesRequired,
     PostgresUnsupportedFeature,
 )
 from barman.infofile import Tablespace
 from barman.postgres_plumbing import function_name_map
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import force_str, simplify_version, with_metaclass
+
+try:
+    from queue import Empty
+except ImportError:
+    from Queue import Empty
 
 # This is necessary because the CONFIGURATION_LIMIT_EXCEEDED constant
 # has been added in psycopg2 2.5, but Barman supports version 2.4.2+ so

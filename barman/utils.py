@@ -23,7 +23,6 @@ This module contains utility functions used in Barman.
 import datetime
 import decimal
 import errno
-from glob import glob
 import grp
 import hashlib
 import json
@@ -34,14 +33,15 @@ import pwd
 import re
 import signal
 import sys
-from argparse import ArgumentTypeError
 from abc import ABCMeta, abstractmethod
+from argparse import ArgumentTypeError
 from contextlib import contextmanager
+from distutils.version import Version
+from glob import glob
+
 from dateutil import tz
 
-from distutils.version import Version
 from barman import lockfile
-
 from barman.exceptions import TimeoutError
 
 _logger = logging.getLogger(__name__)

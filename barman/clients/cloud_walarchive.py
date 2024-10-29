@@ -22,15 +22,15 @@ import os.path
 from contextlib import closing
 
 from barman.clients.cloud_cli import (
-    add_tag_argument,
-    create_argument_parser,
     CLIErrorExit,
     GeneralErrorExit,
     NetworkErrorExit,
     UrlArgumentType,
+    add_tag_argument,
+    create_argument_parser,
 )
-from barman.cloud import configure_logging
 from barman.clients.cloud_compression import compress
+from barman.cloud import configure_logging
 from barman.cloud_providers import get_cloud_interface
 from barman.exceptions import BarmanException
 from barman.utils import check_positive, check_size, force_str

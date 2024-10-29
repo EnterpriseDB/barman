@@ -16,23 +16,21 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-import mock
 import os
-import pytest
-
 from io import BytesIO
 from tarfile import TarFile, TarInfo
 
+import mock
+import pytest
+from testing_helpers import build_mocked_server, get_compression_config
+
 from barman.backup_executor import PostgresBackupStrategy
 from barman.compression import (
-    PgBaseBackupCompression,
     GZipPgBaseBackupCompressionOption,
+    PgBaseBackupCompression,
 )
-from barman.exceptions import FileNotFoundException
-from barman.exceptions import BackupException
+from barman.exceptions import BackupException, FileNotFoundException
 from barman.infofile import LocalBackupInfo
-
-from testing_helpers import build_mocked_server, get_compression_config
 
 
 def _tar_file(items):

@@ -22,13 +22,13 @@ import sys
 from contextlib import closing
 
 from barman.clients.cloud_cli import (
-    create_argument_parser,
     CLIErrorExit,
     GeneralErrorExit,
     NetworkErrorExit,
     OperationErrorExit,
+    create_argument_parser,
 )
-from barman.cloud import configure_logging, ALLOWED_COMPRESSIONS
+from barman.cloud import ALLOWED_COMPRESSIONS, configure_logging
 from barman.cloud_providers import get_cloud_interface
 from barman.exceptions import BarmanException
 from barman.utils import force_str

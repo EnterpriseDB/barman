@@ -350,15 +350,11 @@ def snapshots_info_from_dict(snapshots_info):
 
         return GcpSnapshotsInfo.from_dict(snapshots_info)
     elif "provider" in snapshots_info and snapshots_info["provider"] == "azure":
-        from barman.cloud_providers.azure_blob_storage import (
-            AzureSnapshotsInfo,
-        )
+        from barman.cloud_providers.azure_blob_storage import AzureSnapshotsInfo
 
         return AzureSnapshotsInfo.from_dict(snapshots_info)
     elif "provider" in snapshots_info and snapshots_info["provider"] == "aws":
-        from barman.cloud_providers.aws_s3 import (
-            AwsSnapshotsInfo,
-        )
+        from barman.cloud_providers.aws_s3 import AwsSnapshotsInfo
 
         return AwsSnapshotsInfo.from_dict(snapshots_info)
     else:

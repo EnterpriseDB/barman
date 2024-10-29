@@ -18,8 +18,10 @@
 
 import datetime
 import json
+
 import mock
 import pytest
+from testing_helpers import build_test_backup_info
 
 from barman.clients import cloud_backup_show
 from barman.clients.cloud_cli import OperationErrorExit
@@ -27,7 +29,6 @@ from barman.cloud_providers.google_cloud_storage import (
     GcpSnapshotMetadata,
     GcpSnapshotsInfo,
 )
-from testing_helpers import build_test_backup_info
 
 
 class TestCloudBackupShow(object):

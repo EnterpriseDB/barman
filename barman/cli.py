@@ -25,35 +25,17 @@ import json
 import logging
 import os
 import sys
-from argparse import (
-    SUPPRESS,
-    ArgumentTypeError,
-    ArgumentParser,
-    HelpFormatter,
-)
-
-from barman.lockfile import ConfigUpdateLock
-
-if sys.version_info.major < 3:
-    from argparse import Action, _SubParsersAction, _ActionsContainer
-try:
-    import argcomplete
-except ImportError:
-    argcomplete = None
+from argparse import SUPPRESS, ArgumentParser, ArgumentTypeError, HelpFormatter
 from collections import OrderedDict
 from contextlib import closing
-
 
 import barman.config
 import barman.diagnose
 import barman.utils
 from barman import output
 from barman.annotations import KeepManager
-from barman.config import (
-    ConfigChangesProcessor,
-    RecoveryOptions,
-    parse_staging_path,
-)
+from barman.backup_manifest import BackupManifest
+from barman.config import ConfigChangesProcessor, RecoveryOptions, parse_staging_path
 from barman.exceptions import (
     BadXlogSegmentName,
     LockFileBusy,
@@ -62,8 +44,12 @@ from barman.exceptions import (
     WalArchiveContentError,
 )
 from barman.infofile import BackupInfo, WalFileInfo
+from barman.lockfile import ConfigUpdateLock
 from barman.server import Server
+from barman.storage.local_file_manager import LocalFileManager
 from barman.utils import (
+    RESERVED_BACKUP_IDS,
+    SHA256,
     BarmanEncoder,
     check_backup_name,
     check_non_negative,
@@ -72,15 +58,19 @@ from barman.utils import (
     configure_logging,
     drop_privileges,
     force_str,
-    get_log_levels,
     get_backup_id_using_shortcut,
+    get_log_levels,
     parse_log_level,
-    RESERVED_BACKUP_IDS,
-    SHA256,
 )
 from barman.xlog import check_archive_usable
-from barman.backup_manifest import BackupManifest
-from barman.storage.local_file_manager import LocalFileManager
+
+if sys.version_info.major < 3:
+    from argparse import Action, _ActionsContainer, _SubParsersAction
+try:
+    import argcomplete
+except ImportError:
+    argcomplete = None
+
 
 _logger = logging.getLogger(__name__)
 

@@ -24,17 +24,17 @@ from contextlib import closing
 from shutil import rmtree
 
 from barman.clients.cloud_cli import (
-    add_tag_argument,
-    create_argument_parser,
     GeneralErrorExit,
     NetworkErrorExit,
     OperationErrorExit,
     UrlArgumentType,
+    add_tag_argument,
+    create_argument_parser,
 )
 from barman.cloud import (
     CloudBackupSnapshot,
-    CloudBackupUploaderBarman,
     CloudBackupUploader,
+    CloudBackupUploaderBarman,
     configure_logging,
 )
 from barman.cloud_providers import get_cloud_interface, get_snapshot_interface

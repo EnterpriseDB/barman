@@ -17,6 +17,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
+
 import pytest
 from mock import call, patch
 

@@ -32,7 +32,6 @@ import signal
 import subprocess
 import sys
 import time
-
 from distutils.version import LooseVersion as Version
 
 import barman.utils

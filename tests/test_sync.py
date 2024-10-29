@@ -23,6 +23,11 @@ import dateutil
 import mock
 import pytest
 from dateutil import tz
+from testing_helpers import (
+    build_config_from_dicts,
+    build_real_server,
+    build_test_backup_info,
+)
 
 import barman.server
 from barman.exceptions import (
@@ -33,11 +38,6 @@ from barman.exceptions import (
 )
 from barman.infofile import BackupInfo, LocalBackupInfo
 from barman.lockfile import LockFileBusy
-from testing_helpers import (
-    build_config_from_dicts,
-    build_real_server,
-    build_test_backup_info,
-)
 
 # expected result of the sync --status command
 EXPECTED_MINIMAL = {

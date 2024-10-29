@@ -16,10 +16,10 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-import sys
 import logging
 import re
 import shutil
+import sys
 from abc import ABCMeta, abstractmethod
 
 from barman import output
