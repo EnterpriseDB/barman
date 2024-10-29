@@ -454,11 +454,11 @@ class TestPgBaseBackupCompression(object):
         )
         base_backup_compression = get_pg_basebackup_compression(server)
 
-        assert type(base_backup_compression) == expected_class
+        assert type(base_backup_compression) is expected_class
         if base_backup_compression is not None:
-            assert type(base_backup_compression.options) == expected_option_class
+            assert type(base_backup_compression.options) is expected_option_class
             assert (
-                type(base_backup_compression.compression) == expected_compression_class
+                type(base_backup_compression.compression) is expected_compression_class
             )
 
     def test_get_pg_basebackup_compression_not_supported(self):

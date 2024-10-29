@@ -63,7 +63,7 @@ class CompressionManager(object):
             # If custom_compression_magic is set then we should not assume
             # unidentified files are custom compressed and should rely on the
             # magic for identification instead.
-            elif type(config.custom_compression_magic) == str:
+            elif isinstance(config.custom_compression_magic, str):
                 # Since we know the custom compression magic we can now add it
                 # to the class property.
                 compression_registry["custom"].MAGIC = binascii.unhexlify(
@@ -419,14 +419,12 @@ class CustomCompressor(CommandCompressor):
         :param compression: str compression name
         :param path: str|None
         """
-        if (
-            config.custom_compression_filter is None
-            or type(config.custom_compression_filter) != str
+        if config.custom_compression_filter is None or not isinstance(
+            config.custom_compression_filter, str
         ):
             raise CompressionIncompatibility("custom_compression_filter")
-        if (
-            config.custom_decompression_filter is None
-            or type(config.custom_decompression_filter) != str
+        if config.custom_decompression_filter is None or not isinstance(
+            config.custom_decompression_filter, str
         ):
             raise CompressionIncompatibility("custom_decompression_filter")
 
