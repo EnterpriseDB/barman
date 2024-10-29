@@ -26,6 +26,13 @@ import mock
 import pytest
 from dateutil.tz import tzlocal, tzoffset
 from mock import PropertyMock, patch
+from testing_helpers import (
+    build_backup_manager,
+    build_mocked_server,
+    build_real_server,
+    build_test_backup_info,
+)
+
 from barman.cloud_providers.aws_s3 import AwsSnapshotMetadata, AwsSnapshotsInfo
 from barman.cloud_providers.azure_blob_storage import (
     AzureSnapshotMetadata,
@@ -35,7 +42,6 @@ from barman.cloud_providers.google_cloud_storage import (
     GcpSnapshotMetadata,
     GcpSnapshotsInfo,
 )
-
 from barman.infofile import (
     BackupInfo,
     Field,
@@ -43,15 +49,9 @@ from barman.infofile import (
     LocalBackupInfo,
     SyntheticBackupInfo,
     WalFileInfo,
-    load_datetime_tz,
     dump_backup_ids,
     load_backup_ids,
-)
-from testing_helpers import (
-    build_backup_manager,
-    build_mocked_server,
-    build_real_server,
-    build_test_backup_info,
+    load_datetime_tz,
 )
 
 BASE_BACKUP_INFO = """backup_label=None

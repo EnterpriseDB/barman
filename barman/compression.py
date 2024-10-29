@@ -31,13 +31,13 @@ from distutils.version import LooseVersion as Version
 
 import barman.infofile
 from barman.command_wrappers import Command
-from barman.fs import unix_command_factory
 from barman.exceptions import (
     CommandFailedException,
     CompressionException,
     CompressionIncompatibility,
     FileNotFoundException,
 )
+from barman.fs import unix_command_factory
 from barman.utils import force_str, with_metaclass
 
 _logger = logging.getLogger(__name__)

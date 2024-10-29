@@ -24,9 +24,8 @@ import logging
 import os
 import shutil
 from abc import ABCMeta, abstractmethod
-from glob import glob
-
 from distutils.version import LooseVersion as Version
+from glob import glob
 
 from barman import output, xlog
 from barman.command_wrappers import CommandFailedException, PgReceiveXlog

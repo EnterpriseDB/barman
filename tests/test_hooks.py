@@ -20,11 +20,11 @@ import time
 
 import pytest
 from mock import MagicMock, patch
+from testing_helpers import build_backup_manager
 
 from barman.exceptions import AbortedRetryHookScript, UnknownBackupIdException
 from barman.hooks import HookScriptRunner, RetryHookScriptRunner
 from barman.version import __version__ as version
-from testing_helpers import build_backup_manager
 
 
 class TestHooks(object):

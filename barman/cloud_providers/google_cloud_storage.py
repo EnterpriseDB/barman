@@ -22,16 +22,15 @@ import posixpath
 
 from barman.clients.cloud_compression import decompress_to_file
 from barman.cloud import (
+    DEFAULT_DELIMITER,
     CloudInterface,
     CloudProviderError,
     CloudSnapshotInterface,
     DecompressingStreamingIO,
-    DEFAULT_DELIMITER,
     SnapshotMetadata,
     SnapshotsInfo,
     VolumeMetadata,
 )
-
 from barman.exceptions import CommandException, SnapshotBackupException
 
 try:
@@ -42,8 +41,8 @@ except ImportError:
     from urlparse import urlparse
 
 try:
+    from google.api_core.exceptions import Conflict, GoogleAPIError, NotFound
     from google.cloud import storage
-    from google.api_core.exceptions import GoogleAPIError, Conflict, NotFound
 except ImportError:
     raise SystemExit("Missing required python module: google-cloud-storage")
 

@@ -21,7 +21,6 @@ This module is responsible for all the things related to
 Barman configuration, such as parsing configuration file.
 """
 
-from copy import deepcopy
 import collections
 import datetime
 import inspect
@@ -30,6 +29,7 @@ import logging.handlers
 import os
 import re
 import sys
+from copy import deepcopy
 from glob import iglob
 from typing import List
 

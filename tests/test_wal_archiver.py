@@ -19,9 +19,10 @@ import os
 
 import pytest
 from mock import ANY, MagicMock, patch
+from testing_helpers import build_backup_manager, build_test_backup_info, caplog_reset
 
 import barman.xlog
-from barman.compression import PyGZipCompressor, CompressionManager
+from barman.compression import CompressionManager, PyGZipCompressor
 from barman.exceptions import (
     ArchiverFailure,
     CommandFailedException,
@@ -31,12 +32,7 @@ from barman.exceptions import (
 from barman.infofile import WalFileInfo
 from barman.process import ProcessInfo
 from barman.server import CheckOutputStrategy
-from barman.wal_archiver import (
-    FileWalArchiver,
-    StreamingWalArchiver,
-    WalArchiverQueue,
-)
-from testing_helpers import build_backup_manager, build_test_backup_info, caplog_reset
+from barman.wal_archiver import FileWalArchiver, StreamingWalArchiver, WalArchiverQueue
 
 
 # noinspection PyMethodMayBeStatic

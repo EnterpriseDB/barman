@@ -39,17 +39,19 @@ from barman.backup_executor import (
     RsyncBackupExecutor,
     SnapshotBackupExecutor,
 )
+from barman.backup_manifest import BackupManifest
 from barman.cloud_providers import get_snapshot_interface_from_backup_info
+from barman.command_wrappers import PgVerifyBackup
 from barman.compression import CompressionManager
 from barman.config import BackupOptions
 from barman.exceptions import (
     AbortedRetryHookScript,
     BackupException,
+    CommandFailedException,
     CompressionIncompatibility,
     LockFileBusy,
     SshCommandException,
     UnknownBackupIdException,
-    CommandFailedException,
 )
 from barman.fs import unix_command_factory
 from barman.hooks import HookScriptRunner, RetryHookScriptRunner
@@ -57,18 +59,16 @@ from barman.infofile import BackupInfo, LocalBackupInfo, WalFileInfo
 from barman.lockfile import ServerBackupIdLock, ServerBackupSyncLock
 from barman.recovery_executor import recovery_executor_factory
 from barman.remote_status import RemoteStatusMixin
+from barman.storage.local_file_manager import LocalFileManager
 from barman.utils import (
+    SHA256,
     force_str,
     fsync_dir,
     fsync_file,
     get_backup_info_from_name,
     human_readable_timedelta,
     pretty_size,
-    SHA256,
 )
-from barman.command_wrappers import PgVerifyBackup
-from barman.storage.local_file_manager import LocalFileManager
-from barman.backup_manifest import BackupManifest
 
 _logger = logging.getLogger(__name__)
 

@@ -19,16 +19,17 @@
 import logging
 import os
 import re
+from io import SEEK_END, BytesIO, RawIOBase
+
 import requests
-from io import BytesIO, RawIOBase, SEEK_END
 
 from barman.clients.cloud_compression import decompress_to_file
 from barman.cloud import (
+    DEFAULT_DELIMITER,
     CloudInterface,
     CloudProviderError,
     CloudSnapshotInterface,
     DecompressingStreamingIO,
-    DEFAULT_DELIMITER,
     SnapshotMetadata,
     SnapshotsInfo,
     VolumeMetadata,
@@ -43,15 +44,12 @@ except ImportError:
     from urlparse import urlparse
 
 try:
-    from azure.storage.blob import (
-        ContainerClient,
-        PartialBatchErrorException,
-    )
     from azure.core.exceptions import (
         HttpResponseError,
         ResourceNotFoundError,
         ServiceRequestError,
     )
+    from azure.storage.blob import ContainerClient, PartialBatchErrorException
 except ImportError:
     raise SystemExit("Missing required python module: azure-storage-blob")
 

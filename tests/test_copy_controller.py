@@ -18,13 +18,18 @@
 
 import multiprocessing.dummy
 import os
-from datetime import datetime
 import time
+from datetime import datetime
 
 import dateutil.tz
 import mock
 import pytest
 from mock import patch
+from testing_helpers import (
+    build_backup_manager,
+    build_real_server,
+    build_test_backup_info,
+)
 
 from barman.copy_controller import (
     BUCKET_SIZE,
@@ -33,11 +38,6 @@ from barman.copy_controller import (
     _RsyncCopyItem,
 )
 from barman.exceptions import CommandFailedException, RsyncListFilesFailure
-from testing_helpers import (
-    build_backup_manager,
-    build_real_server,
-    build_test_backup_info,
-)
 
 
 # noinspection PyMethodMayBeStatic

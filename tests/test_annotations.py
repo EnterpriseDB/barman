@@ -17,8 +17,9 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import io
-import mock
 import os
+
+import mock
 import pytest
 
 from barman.annotations import (

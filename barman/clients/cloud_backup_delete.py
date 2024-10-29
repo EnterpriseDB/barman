@@ -21,13 +21,14 @@ import os
 from contextlib import closing
 from operator import attrgetter
 
+from barman import xlog
 from barman.backup import BackupManager
 from barman.clients.cloud_cli import (
-    create_argument_parser,
     CLIErrorExit,
     GeneralErrorExit,
     NetworkErrorExit,
     OperationErrorExit,
+    create_argument_parser,
 )
 from barman.cloud import CloudBackupCatalog, configure_logging
 from barman.cloud_providers import (
@@ -37,7 +38,6 @@ from barman.cloud_providers import (
 from barman.exceptions import BadXlogPrefix, InvalidRetentionPolicy
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import check_non_negative, force_str
-from barman import xlog
 
 
 def _get_files_for_backup(catalog, backup_info):

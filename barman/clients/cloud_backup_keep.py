@@ -21,10 +21,10 @@ from contextlib import closing
 
 from barman.annotations import KeepManager
 from barman.clients.cloud_cli import (
-    create_argument_parser,
     GeneralErrorExit,
     NetworkErrorExit,
     OperationErrorExit,
+    create_argument_parser,
 )
 from barman.cloud import CloudBackupCatalog, configure_logging
 from barman.cloud_providers import get_cloud_interface

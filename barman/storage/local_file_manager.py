@@ -17,6 +17,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+
 from .file_manager import FileManager
 from .file_stats import FileStats
 

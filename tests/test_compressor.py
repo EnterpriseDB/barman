@@ -17,39 +17,40 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import base64
+import io
 import os
+import tarfile
 
 import mock
 import pytest
-import tarfile
-import io
+from testing_helpers import build_mocked_server, get_compression_config
+
 from barman.compression import (
     BZip2Compressor,
     CommandCompressor,
     CompressionManager,
     Compressor,
     CustomCompressor,
+    GZipCompression,
     GZipCompressor,
-    PyBZip2Compressor,
-    PyGZipCompressor,
-    get_pg_basebackup_compression,
+    GZipPgBaseBackupCompressionOption,
+    LZ4Compression,
+    LZ4PgBaseBackupCompressionOption,
+    NoneCompression,
+    NonePgBaseBackupCompressionOption,
     PgBaseBackupCompression,
     PgBaseBackupCompressionOption,
-    GZipPgBaseBackupCompressionOption,
-    GZipCompression,
-    LZ4PgBaseBackupCompressionOption,
-    LZ4Compression,
-    ZSTDPgBaseBackupCompressionOption,
+    PyBZip2Compressor,
+    PyGZipCompressor,
     ZSTDCompression,
-    NonePgBaseBackupCompressionOption,
-    NoneCompression,
+    ZSTDPgBaseBackupCompressionOption,
+    get_pg_basebackup_compression,
 )
 from barman.exceptions import (
+    CommandFailedException,
     CompressionException,
     FileNotFoundException,
-    CommandFailedException,
 )
-from testing_helpers import build_mocked_server, get_compression_config
 
 # Filename patterns used by the tests
 ZIP_FILE = "%s/zipfile.zip"

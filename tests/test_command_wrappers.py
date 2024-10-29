@@ -25,6 +25,7 @@ from subprocess import PIPE
 
 import mock
 import pytest
+from testing_helpers import u
 
 from barman import command_wrappers
 from barman.command_wrappers import (
@@ -34,7 +35,6 @@ from barman.command_wrappers import (
     shell_quote,
 )
 from barman.exceptions import CommandFailedException, CommandMaxRetryExceeded
-from testing_helpers import u
 
 
 def _mock_pipe(popen, pipe_processor_loop, ret=0, out="", err=""):

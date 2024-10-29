@@ -21,9 +21,10 @@ This module represents the barman diagnostic tool.
 """
 
 import datetime
-from dateutil import tz
 import json
 import logging
+
+from dateutil import tz
 
 import barman
 from barman import fs, output

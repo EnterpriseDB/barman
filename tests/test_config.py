@@ -27,12 +27,12 @@ from mock import MagicMock, Mock, call, mock_open, patch
 from barman.config import (
     BackupOptions,
     BaseConfig,
-    ConfigMapping,
     Config,
     ConfigChange,
     ConfigChangeSet,
     ConfigChangesProcessor,
     ConfigChangesQueue,
+    ConfigMapping,
     CsvOption,
     ModelConfig,
     RecoveryOptions,
@@ -40,9 +40,9 @@ from barman.config import (
     parse_backup_compression_format,
     parse_backup_compression_location,
     parse_si_suffix,
-    parse_staging_path,
     parse_slot_name,
     parse_snapshot_disks,
+    parse_staging_path,
     parse_time_interval,
 )
 

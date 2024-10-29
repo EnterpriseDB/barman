@@ -17,16 +17,16 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import datetime
+
 import mock
 import pytest
+from testing_helpers import interpolate_wals
 
 from barman.annotations import KeepManager
 from barman.clients import cloud_backup_delete
 from barman.clients.cloud_cli import OperationErrorExit
 from barman.cloud import CloudBackupCatalog
 from barman.utils import is_backup_id
-
-from testing_helpers import interpolate_wals
 
 
 class TestCloudBackupDeleteArguments(object):

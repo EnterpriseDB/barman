@@ -19,11 +19,11 @@
 import json
 
 from mock import Mock, patch
+from testing_helpers import build_config_from_dicts
 
 import barman
 from barman.cli import diagnose
 from barman.utils import redact_passwords
-from testing_helpers import build_config_from_dicts
 
 
 class TestDiagnose(object):

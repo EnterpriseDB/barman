@@ -21,35 +21,35 @@ import time
 from multiprocessing import Queue
 from unittest.mock import MagicMock
 
-try:
-    from queue import Queue as SyncQueue
-except ImportError:
-    from Queue import Queue as SyncQueue
-
 import psycopg2
 import pytest
 from mock import Mock, PropertyMock, call, patch
 from psycopg2.errorcodes import DUPLICATE_OBJECT, UNDEFINED_OBJECT
+from testing_helpers import build_real_server
 
 from barman.exceptions import (
+    BackupFunctionsAccessRequired,
+    PostgresCheckpointPrivilegesRequired,
     PostgresConnectionError,
     PostgresConnectionLost,
     PostgresDuplicateReplicationSlot,
     PostgresException,
     PostgresInvalidReplicationSlot,
     PostgresIsInRecovery,
-    BackupFunctionsAccessRequired,
     PostgresObsoleteFeature,
-    PostgresCheckpointPrivilegesRequired,
     PostgresUnsupportedFeature,
 )
 from barman.postgres import (
-    PostgreSQLConnection,
     PostgresKeepAlive,
-    StandbyPostgreSQLConnection,
     PostgreSQL,
+    PostgreSQLConnection,
+    StandbyPostgreSQLConnection,
 )
-from testing_helpers import build_real_server
+
+try:
+    from queue import Queue as SyncQueue
+except ImportError:
+    from Queue import Queue as SyncQueue
 
 
 class MockProgrammingError(psycopg2.ProgrammingError):

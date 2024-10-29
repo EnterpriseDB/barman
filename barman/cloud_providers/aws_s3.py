@@ -23,11 +23,11 @@ from io import RawIOBase
 
 from barman.clients.cloud_compression import decompress_to_file
 from barman.cloud import (
+    DEFAULT_DELIMITER,
     CloudInterface,
     CloudProviderError,
     CloudSnapshotInterface,
     DecompressingStreamingIO,
-    DEFAULT_DELIMITER,
     SnapshotMetadata,
     SnapshotsInfo,
     VolumeMetadata,
@@ -38,14 +38,14 @@ from barman.exceptions import (
     SnapshotInstanceNotFoundException,
 )
 
-
 try:
     # Python 3.x
     from urllib.parse import urlencode, urlparse
 except ImportError:
     # Python 2.x
-    from urlparse import urlparse
     from urllib import urlencode
+
+    from urlparse import urlparse
 
 try:
     import boto3

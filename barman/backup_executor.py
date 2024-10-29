@@ -34,10 +34,10 @@ import re
 import shutil
 from abc import ABCMeta, abstractmethod
 from contextlib import closing
+from distutils.version import LooseVersion as Version
 from functools import partial
 
 import dateutil.parser
-from distutils.version import LooseVersion as Version
 
 from barman import output, xlog
 from barman.cloud_providers import get_snapshot_interface_from_server_config
@@ -49,13 +49,13 @@ from barman.exceptions import (
     BackupException,
     CommandFailedException,
     DataTransferFailure,
+    FileNotFoundException,
     FsOperationFailed,
     PostgresConnectionError,
     PostgresConnectionLost,
     PostgresIsInRecovery,
     SnapshotBackupException,
     SshCommandException,
-    FileNotFoundException,
 )
 from barman.fs import UnixLocalCommand, UnixRemoteCommand, unix_command_factory
 from barman.infofile import BackupInfo

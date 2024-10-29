@@ -52,6 +52,7 @@ from barman.exceptions import (
     LockFileBusy,
     LockFileException,
     LockFilePermissionDenied,
+    PostgresCheckpointPrivilegesRequired,
     PostgresDuplicateReplicationSlot,
     PostgresException,
     PostgresInvalidReplicationSlot,
@@ -60,7 +61,6 @@ from barman.exceptions import (
     PostgresReplicationSlotInUse,
     PostgresReplicationSlotsFull,
     PostgresSuperuserRequired,
-    PostgresCheckpointPrivilegesRequired,
     PostgresUnsupportedFeature,
     SyncError,
     SyncNothingToDo,
@@ -80,14 +80,14 @@ from barman.lockfile import (
     ServerXLOGDBLock,
 )
 from barman.postgres import (
+    PostgreSQL,
     PostgreSQLConnection,
     StandbyPostgreSQLConnection,
     StreamingConnection,
-    PostgreSQL,
 )
 from barman.process import ProcessManager
 from barman.remote_status import RemoteStatusMixin
-from barman.retention_policies import RetentionPolicyFactory, RetentionPolicy
+from barman.retention_policies import RetentionPolicy, RetentionPolicyFactory
 from barman.utils import (
     BarmanEncoder,
     file_md5,

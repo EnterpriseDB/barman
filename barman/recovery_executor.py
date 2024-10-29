@@ -24,22 +24,28 @@ from __future__ import print_function
 
 import collections
 import datetime
-
-from functools import partial
 import logging
 import os
 import re
 import shutil
 import socket
 import tempfile
+from functools import partial
 from io import BytesIO
 
 import dateutil.parser
 import dateutil.tz
 
+import barman.fs as fs
 from barman import output, xlog
 from barman.cloud_providers import get_snapshot_interface_from_backup_info
 from barman.command_wrappers import PgCombineBackup, RsyncPgData
+from barman.compression import (
+    GZipCompression,
+    LZ4Compression,
+    NoneCompression,
+    ZSTDCompression,
+)
 from barman.config import RecoveryOptions
 from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (
@@ -48,18 +54,11 @@ from barman.exceptions import (
     DataTransferFailure,
     FsOperationFailed,
     RecoveryInvalidTargetException,
+    RecoveryPreconditionException,
     RecoveryStandbyModeException,
     RecoveryTargetActionException,
-    RecoveryPreconditionException,
     SnapshotBackupException,
 )
-from barman.compression import (
-    GZipCompression,
-    LZ4Compression,
-    ZSTDCompression,
-    NoneCompression,
-)
-import barman.fs as fs
 from barman.infofile import BackupInfo, LocalBackupInfo, SyntheticBackupInfo
 from barman.utils import force_str, mkpath, total_seconds
 

@@ -17,11 +17,12 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import datetime
+
 import mock
+from testing_helpers import build_test_backup_info
 
 from barman.annotations import KeepManager
 from barman.clients import cloud_backup_list
-from testing_helpers import build_test_backup_info
 
 
 class TestCloudBackupList(object):

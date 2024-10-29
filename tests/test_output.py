@@ -16,14 +16,19 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import datetime
 import json
 
 import mock
-from mock import PropertyMock
 import pytest
-
-import datetime
 from dateutil import tz
+from mock import PropertyMock
+from testing_helpers import (
+    build_backup_manager,
+    build_test_backup_info,
+    find_by_attr,
+    mock_backup_ext_info,
+)
 
 from barman import output
 from barman.cloud_providers.google_cloud_storage import (
@@ -32,12 +37,6 @@ from barman.cloud_providers.google_cloud_storage import (
 )
 from barman.infofile import BackupInfo
 from barman.utils import BarmanEncoder, human_readable_timedelta, pretty_size
-from testing_helpers import (
-    build_backup_manager,
-    build_test_backup_info,
-    find_by_attr,
-    mock_backup_ext_info,
-)
 
 # Color output constants
 RED = "\033[31m"

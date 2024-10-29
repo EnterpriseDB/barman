@@ -19,7 +19,6 @@
 import errno
 import io
 import os
-
 from abc import ABCMeta, abstractmethod
 
 from barman.exceptions import ArchivalBackupException

@@ -18,6 +18,7 @@
 
 import pytest
 from mock import patch
+
 from barman.storage.local_file_manager import LocalFileManager
 
 

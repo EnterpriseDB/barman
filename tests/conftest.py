@@ -17,9 +17,10 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+
+import mock
 import psycopg2
 import pytest
-import mock
 
 
 @pytest.fixture(scope="session", autouse=True)

@@ -17,14 +17,19 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import datetime
-from functools import partial
 import logging
 import os
+from functools import partial
 
 import mock
 import pytest
 from dateutil import tz
-from mock import Mock, PropertyMock, patch, call
+from mock import Mock, PropertyMock, call, patch
+from testing_helpers import (
+    build_backup_manager,
+    build_mocked_server,
+    build_test_backup_info,
+)
 
 from barman.backup_executor import (
     ExclusiveBackupStrategy,
@@ -46,11 +51,6 @@ from barman.exceptions import (
 from barman.infofile import BackupInfo, LocalBackupInfo, Tablespace
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
 from barman.server import CheckOutputStrategy, CheckStrategy
-from testing_helpers import (
-    build_backup_manager,
-    build_mocked_server,
-    build_test_backup_info,
-)
 
 
 # noinspection PyMethodMayBeStatic

@@ -16,8 +16,9 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-import mock
 import os
+
+import mock
 import pytest
 
 from barman.clients import cloud_backup

@@ -20,10 +20,10 @@ import bz2
 import gzip
 import logging
 import os
-import snappy
 
 import mock
 import pytest
+import snappy
 
 from barman.clients import cloud_walarchive
 from barman.clients.cloud_walarchive import CloudWalUploader
@@ -31,7 +31,6 @@ from barman.cloud_providers.aws_s3 import S3CloudInterface
 from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
 from barman.exceptions import BarmanException
 from barman.xlog import hash_dir
-
 
 EXAMPLE_WAL_PATH = "wal_dir/000000080000ABFF000000C1"
 

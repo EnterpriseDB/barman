@@ -23,13 +23,13 @@ import re
 import sys
 from typing import Any, NamedTuple
 
-from barman.cli import get_server, global_config, parse_backup_id
-from barman.fs import unix_command_factory
-from barman.cloud_providers.google_cloud_storage import GcpCloudSnapshotInterface
-
-from google.api_core.exceptions import NotFound, GoogleAPICallError
+from google.api_core.exceptions import GoogleAPICallError, NotFound
 from google.api_core.extended_operation import ExtendedOperation
 from google.cloud import compute
+
+from barman.cli import get_server, global_config, parse_backup_id
+from barman.cloud_providers.google_cloud_storage import GcpCloudSnapshotInterface
+from barman.fs import unix_command_factory
 
 if sys.version_info.major < 3 or sys.version_info.minor < 7:
     print("Minimal python version is 3.7")

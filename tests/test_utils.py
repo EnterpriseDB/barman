@@ -19,21 +19,20 @@
 import decimal
 import json
 import logging
+import os
+import re
 import signal
 import sys
-import re
-import os
 from argparse import ArgumentTypeError
 from datetime import datetime, timedelta
-from dateutil import tz
+from distutils.version import LooseVersion
 
 import mock
 import pytest
-from distutils.version import LooseVersion
-from barman.lockfile import LockFile
+from dateutil import tz
 
 import barman.utils
-
+from barman.lockfile import LockFile
 
 LOGFILE_NAME = "logfile.log"
 

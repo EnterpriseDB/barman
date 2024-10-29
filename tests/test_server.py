@@ -23,13 +23,18 @@ import os
 import tarfile
 import time
 from collections import namedtuple
-import dateutil.tz
 from io import BytesIO
 
+import dateutil.tz
 import mock
 import pytest
 from mock import MagicMock, Mock, PropertyMock, patch
 from psycopg2.tz import FixedOffsetTimezone
+from testing_helpers import (
+    build_config_from_dicts,
+    build_real_server,
+    build_test_backup_info,
+)
 
 from barman import output
 from barman.exceptions import (
@@ -52,11 +57,6 @@ from barman.lockfile import (
 from barman.postgres import PostgreSQLConnection
 from barman.process import ProcessInfo
 from barman.server import CheckOutputStrategy, CheckStrategy, Server
-from testing_helpers import (
-    build_config_from_dicts,
-    build_real_server,
-    build_test_backup_info,
-)
 
 
 class ExceptionTest(Exception):
