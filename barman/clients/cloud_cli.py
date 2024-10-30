@@ -178,6 +178,12 @@ def create_argument_parser(description, source_or_destination=UrlArgumentType.so
         help="Override default S3 endpoint URL with the given one",
     )
     s3_arguments.add_argument(
+        "--aws-irsa",
+        help="bypasses credentials/profile and uses iam service account",
+        action="store_true",
+        default=False,
+    )
+    s3_arguments.add_argument(
         "-P",
         "--aws-profile",
         help="profile name (e.g. INI section in AWS credentials file)",
