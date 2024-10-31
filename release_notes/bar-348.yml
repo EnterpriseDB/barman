@@ -1,0 +1,19 @@
+- summary: Lighten standby checks related to conninfo and primary_conninfo
+  description: |
+    When backing up a standby server, Barman performs some checks to assert
+    that `conninfo` is really pointing to a standby (in recovery mode) and
+    that `primary_conninfo` is pointing to a primary (not in recovery).
+
+    The problem, as reported in the issues #704 and #744, is that when a
+    failover occurs, the `conninfo` will now be pointing to a primary
+    instead and the checks will start failing, requiring the user to change
+    Barman configs manually whenever a failover occurs.
+
+    This fix solved the issue by making such checks non-critical, which
+    means they will still fail but Barman will keep operating regardless.
+    Essentially, Barman will ignore `primary_conninfo` if `conninfo` does
+    not point to a standby. Warnings about this misconfiguration will also
+    be emited whenever running any Barman command so the user can be aware.
+  type: bugfix
+  jira_tickets:
+    - BAR-348
