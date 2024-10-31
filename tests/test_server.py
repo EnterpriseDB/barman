@@ -54,7 +54,7 @@ from barman.lockfile import (
     ServerWalArchiveLock,
     ServerWalReceiveLock,
 )
-from barman.postgres import PostgreSQLConnection
+from barman.postgres import PostgreSQLConnection, StandbyPostgreSQLConnection
 from barman.process import ProcessInfo
 from barman.server import CheckOutputStrategy, CheckStrategy, Server
 
@@ -187,15 +187,29 @@ class TestServer(object):
         assert not hasattr(server.postgres, "primary")
 
     def test_standby_init(self):
-        """Verify standby properties exist when primary_conninfo is set"""
+        """Verify standby properties exist when the server is in recovery"""
         # GIVEN a server with primary_conninfo set
         cfg = build_config_from_dicts(
             main_conf={"primary_conninfo": "db=primary"},
         ).get_server("main")
-        # WHEN the server is instantiated
-        server = Server(cfg)
-        # THEN the postgres connection has a primary connection
-        assert server.postgres.primary is not None
+
+        # When the server is not in recovery, uses a standard connection and primary does no exist
+        with patch(
+            "barman.server.PostgreSQLConnection.is_in_recovery"
+        ) as is_in_recovery:
+            is_in_recovery.__get__ = Mock(return_value=False)
+            server = Server(cfg)
+            assert isinstance(server.postgres, PostgreSQLConnection)
+            assert hasattr(server.postgres, "primary") is False
+
+        # When the server is in recovery, uses a standby connection and the primary attribute exists
+        with patch(
+            "barman.server.PostgreSQLConnection.is_in_recovery"
+        ) as is_in_recovery:
+            is_in_recovery.__get__ = Mock(return_value=True)
+            server = Server(cfg)
+            assert isinstance(server.postgres, StandbyPostgreSQLConnection)
+            assert server.postgres.primary is not None
 
     def test_check_config_missing(self, tmpdir):
         """
@@ -1037,8 +1051,10 @@ class TestServer(object):
     @patch("barman.server.StandbyPostgreSQLConnection")
     @patch("barman.server.PostgreSQLConnection")
     @patch("barman.server.Server.get_remote_status")
+    @patch("barman.server.isinstance", return_value=True)
     def test_check_standby(
         self,
+        _mock_is_instance,
         _mock_remote_status,
         _pgconn_mock,
         _standby_pgconn_mock,
