@@ -425,7 +425,6 @@ class ZSTDCompressor(InternalCompressor):
     def __init__(self, config, compression, path=None):
         """
         Constructor.
-
         :param config: barman.config.ServerConfig
         :param compression: str compression name
         :param path: str|None
@@ -438,6 +437,38 @@ class ZSTDCompressor(InternalCompressor):
 
     def _decompressor(self, src):
         return self._zstd.ZstdDecompressor().stream_reader(open(src, mode="rb"))
+
+
+def _try_import_lz4():
+    try:
+        import lz4.frame
+    except ImportError:
+        raise SystemExit("Missing required python module: lz4")
+    return lz4
+
+
+class LZ4Compressor(InternalCompressor):
+    """
+    Predefined compressor with lz4
+    """
+
+    MAGIC = b"\x04\x22\x4D\x18"
+
+    def __init__(self, config, compression, path=None):
+        """
+        Constructor.
+        :param config: barman.config.ServerConfig
+        :param compression: str compression name
+        :param path: str|None
+        """
+        super(LZ4Compressor, self).__init__(config, compression, path)
+        self._lz4 = _try_import_lz4()
+
+    def _compressor(self, dst):
+        return self._lz4.frame.open(dst, mode="wb")
+
+    def _decompressor(self, src):
+        return self._lz4.frame.open(src, mode="rb")
 
 
 class CustomCompressor(CommandCompressor):
@@ -477,6 +508,7 @@ compression_registry = {
     "pygzip": PyGZipCompressor,
     "pybzip2": PyBZip2Compressor,
     "zstd": ZSTDCompressor,
+    "lz4": LZ4Compressor,
     "custom": CustomCompressor,
 }
 

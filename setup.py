@@ -148,6 +148,7 @@ setup(
             'cramjam >= 2.7.0; python_version>="3.7"',
         ],
         "zstandard": ["zstandard"],
+        "lz4": ["lz4"],
     },
     platforms=["Linux", "Mac OS X"],
     classifiers=[

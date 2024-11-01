@@ -77,6 +77,7 @@ ALLOWED_COMPRESSIONS = {
     ".bz2": "bzip2",
     ".snappy": "snappy",
     ".zst": "zstd",
+    ".lz4": "lz4",
 }
 
 DEFAULT_DELIMITER = "/"
