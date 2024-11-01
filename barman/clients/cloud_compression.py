@@ -22,7 +22,7 @@ import shutil
 from abc import ABCMeta, abstractmethod
 from io import BytesIO
 
-from barman.compression import _try_import_zstd
+from barman.compression import _try_import_lz4, _try_import_zstd
 from barman.utils import with_metaclass
 
 
@@ -116,7 +116,7 @@ def compress(wal_file, compression):
     compressed data.
     :param IOBase wal_file: A file-like object containing the WAL file data.
     :param str compression: The compression algorithm to apply. Can be one of:
-      bzip2, gzip, snappy, zstd.
+      bzip2, gzip, snappy, zstd, lz4.
     :return: The compressed data
     :rtype: BytesIO
     """
@@ -132,6 +132,11 @@ def compress(wal_file, compression):
         zstd.ZstdCompressor().copy_stream(wal_file, in_mem_zstd)
         in_mem_zstd.seek(0)
         return in_mem_zstd
+    elif compression == "lz4":
+        lz4 = _try_import_lz4()
+        in_mem_lz4 = BytesIO(lz4.frame.compress(wal_file.read()))
+        in_mem_lz4.seek(0)
+        return in_mem_lz4
     elif compression == "gzip":
         # Create a BytesIO for in memory compression
         in_mem_gzip = BytesIO()
@@ -177,7 +182,7 @@ def decompress_to_file(blob, dest_file, compression):
     :param IOBase dest_file: A file-like object into which the uncompressed data
       should be written.
     :param str compression: The compression algorithm to apply. Can be one of:
-      bzip2, gzip, snappy, zstd.
+      bzip2, gzip, snappy, zstd, lz4.
     :rtype: None
     """
     if compression == "snappy":
@@ -187,6 +192,9 @@ def decompress_to_file(blob, dest_file, compression):
     elif compression == "zstd":
         zstd = _try_import_zstd()
         source_file = zstd.ZstdDecompressor().stream_reader(blob)
+    elif compression == "lz4":
+        lz4 = _try_import_lz4()
+        source_file = lz4.frame.open(blob, mode="rb")
     elif compression == "gzip":
         source_file = gzip.GzipFile(fileobj=blob, mode="rb")
     elif compression == "bzip2":

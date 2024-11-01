@@ -161,6 +161,13 @@ def parse_arguments(args=None):
         "(requires optional zstandard library)",
         action="store_const",
         const="zstd",
+    )
+    compression.add_argument(
+        "--lz4",
+        help="lz4-compress the WAL while uploading to the cloud "
+        "(requires optional lz4 library)",
+        action="store_const",
+        const="lz4",
         dest="compression",
     )
     add_tag_argument(
@@ -331,6 +338,10 @@ class CloudWalUploader(object):
         elif self.compression == "zstd":
             # add zst extension
             return "%s.zst" % wal_name
+
+        elif self.compression == "lz4":
+            # add lz4 extension
+            return "%s.lz4" % wal_name
         else:
             raise ValueError("Unknown compression type: %s" % self.compression)
 

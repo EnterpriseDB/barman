@@ -1,0 +1,10 @@
+- summary: Add lz4 compression for WAL files
+  description: |
+    Introduced support for lz4 compression on WAL files. It can be enabled by
+    specifying `lz4` in the `compression` server parameter. It can also be specified
+    using the --lz4 command line argument in barman-wal-restore to compress WAL files
+    at restore time. Lastly, a --lz4 command line argument was also added to
+    barman-cloud-wal-archive for compression on cloud uploads.
+  type: minor_change
+  jira_tickets:
+    - BAR-264
