@@ -3,6 +3,7 @@
 .[azure]
 .[snappy]
 .[zstandard]
+.[lz4]
 .[google]
 pytest
 mock

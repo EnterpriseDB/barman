@@ -35,6 +35,7 @@ from barman.compression import (
     GZipCompressor,
     GZipPgBaseBackupCompressionOption,
     LZ4Compression,
+    LZ4Compressor,
     LZ4PgBaseBackupCompressionOption,
     NoneCompression,
     NonePgBaseBackupCompressionOption,
@@ -60,6 +61,8 @@ BZIP2_FILE = "%s/bzipfile.bz2"
 BZIP2_FILE_UNCOMPRESSED = "%s/bzipfile.uncompressed"
 ZSTD_FILE = "%s/zstdfile.zst"
 ZSTD_FILE_UNCOMPRESSED = "%s/zstdfile.uncompressed"
+LZ4_FILE = "%s/lz4file.bz2"
+LZ4_FILE_UNCOMPRESSED = "%s/lz4file.uncompressed"
 
 
 def _tar_file(items):
@@ -181,6 +184,11 @@ class TestCompressionManager(object):
         # prepare mock obj
         config_mock = mock.Mock()
         config_mock.compression = "zstd"
+
+    def test_get_compressor_lz4(self):
+        # prepare mock obj
+        config_mock = mock.Mock()
+        config_mock.compression = "lz4"
 
         # check custom compression method creation
         comp_manager = CompressionManager(config_mock, None)
@@ -329,31 +337,6 @@ class TestCommandCompressors(object):
         f = open(BZIP2_FILE_UNCOMPRESSED % tmpdir.strpath).read()
         assert f == "content"
 
-    def test_zstd(self, tmpdir):
-        config_mock = mock.Mock()
-
-        compression_manager = CompressionManager(config_mock, tmpdir.strpath)
-
-        compressor = ZSTDCompressor(config=config_mock, compression="zstd")
-
-        src = tmpdir.join("sourcefile")
-        src.write("content")
-
-        compressor.compress(src.strpath, ZSTD_FILE % tmpdir.strpath)
-        assert os.path.exists(ZSTD_FILE % tmpdir.strpath)
-        compression_found = compression_manager.identify_compression(
-            ZSTD_FILE % tmpdir.strpath,
-        )
-        assert compression_found == "zstd"
-
-        compressor.decompress(
-            ZSTD_FILE % tmpdir.strpath,
-            ZSTD_FILE_UNCOMPRESSED % tmpdir.strpath,
-        )
-
-        f = open(ZSTD_FILE_UNCOMPRESSED % tmpdir.strpath).read()
-        assert f == "content"
-
 
 # noinspection PyMethodMayBeStatic
 class TestInternalCompressors(object):
@@ -405,6 +388,56 @@ class TestInternalCompressors(object):
         )
 
         f = open(BZIP2_FILE_UNCOMPRESSED % tmpdir.strpath).read()
+        assert f == "content"
+
+    def test_zstd(self, tmpdir):
+        config_mock = mock.Mock()
+
+        compression_manager = CompressionManager(config_mock, tmpdir.strpath)
+
+        compressor = ZSTDCompressor(config=config_mock, compression="zstd")
+
+        src = tmpdir.join("sourcefile")
+        src.write("content")
+
+        compressor.compress(src.strpath, ZSTD_FILE % tmpdir.strpath)
+        assert os.path.exists(ZSTD_FILE % tmpdir.strpath)
+        compression_found = compression_manager.identify_compression(
+            ZSTD_FILE % tmpdir.strpath,
+        )
+        assert compression_found == "zstd"
+
+        compressor.decompress(
+            ZSTD_FILE % tmpdir.strpath,
+            ZSTD_FILE_UNCOMPRESSED % tmpdir.strpath,
+        )
+
+        f = open(ZSTD_FILE_UNCOMPRESSED % tmpdir.strpath).read()
+        assert f == "content"
+
+    def test_lz4(self, tmpdir):
+        config_mock = mock.Mock()
+
+        compression_manager = CompressionManager(config_mock, tmpdir.strpath)
+
+        compressor = LZ4Compressor(config=config_mock, compression="lz4")
+
+        src = tmpdir.join("sourcefile")
+        src.write("content")
+
+        compressor.compress(src.strpath, LZ4_FILE % tmpdir.strpath)
+        assert os.path.exists(LZ4_FILE % tmpdir.strpath)
+        compression_found = compression_manager.identify_compression(
+            LZ4_FILE % tmpdir.strpath,
+        )
+        assert compression_found == "lz4"
+
+        compressor.decompress(
+            LZ4_FILE % tmpdir.strpath,
+            LZ4_FILE_UNCOMPRESSED % tmpdir.strpath,
+        )
+
+        f = open(LZ4_FILE_UNCOMPRESSED % tmpdir.strpath).read()
         assert f == "content"
 
 
