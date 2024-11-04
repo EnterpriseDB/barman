@@ -90,7 +90,7 @@ from barman.remote_status import RemoteStatusMixin
 from barman.retention_policies import RetentionPolicy, RetentionPolicyFactory
 from barman.utils import (
     BarmanEncoder,
-    file_md5,
+    file_hash,
     force_str,
     fsync_dir,
     fsync_file,
@@ -2429,7 +2429,9 @@ class Server(RemoteStatusMixin):
         # The closing wrapper is needed only for Python 2.6
         extracted_files = {}
         validated_files = {}
-        md5sums = {}
+        hashsums = {}
+        extracted_files_with_checksums = {}
+        hash_algorithm = "sha256"
         try:
             with closing(tarfile.open(mode="r|", fileobj=fileobj)) as tar:
                 for item in tar:
@@ -2458,7 +2460,7 @@ class Server(RemoteStatusMixin):
                         )
                         return
                     # Checksum file
-                    if name == "MD5SUMS":
+                    if name in ("MD5SUMS", "SHA256SUMS"):
                         # Parse content and store it in md5sums dictionary
                         for line in tar.extractfile(item).readlines():
                             line = line.decode().rstrip()
@@ -2477,7 +2479,9 @@ class Server(RemoteStatusMixin):
                             # Strip leading './' from path in the checksum file
                             if path.startswith("./"):
                                 path = path[2:]
-                            md5sums[path] = checksum
+                            hashsums[path] = checksum
+                        if name == "MD5SUMS":
+                            hash_algorithm = "md5"
                     else:
                         # Extract using a temp name (with PID)
                         tmp_path = os.path.join(
@@ -2488,15 +2492,25 @@ class Server(RemoteStatusMixin):
                         # Set the original timestamp
                         tar.utime(item, tmp_path)
                         # Add the tuple to the dictionary of extracted files
-                        extracted_files[name] = incoming_file(
-                            name, tmp_path, path, file_md5(tmp_path)
+                        extracted_files[name] = dict(
+                            name=name,
+                            tmp_path=tmp_path,
+                            path=path,
                         )
                         validated_files[name] = False
 
+            for name, _dict in extracted_files.items():
+                extracted_files_with_checksums[name] = incoming_file(
+                    _dict["name"],
+                    _dict["tmp_path"],
+                    _dict["path"],
+                    file_hash(_dict["tmp_path"], hash_algorithm=hash_algorithm),
+                )
+
             # For each received checksum verify the corresponding file
-            for name in md5sums:
+            for name in hashsums:
                 # Check that file is present in the tar archive
-                if name not in extracted_files:
+                if name not in extracted_files_with_checksums:
                     output.error(
                         "Checksum without corresponding file '%s' "
                         "in put-wal for server '%s'%s",
@@ -2506,13 +2520,13 @@ class Server(RemoteStatusMixin):
                     )
                     return
                 # Verify the checksum of the file
-                if extracted_files[name].checksum != md5sums[name]:
+                if extracted_files_with_checksums[name].checksum != hashsums[name]:
                     output.error(
                         "Bad file checksum '%s' (should be %s) "
                         "for file '%s' "
                         "in put-wal for server '%s'%s",
-                        extracted_files[name].checksum,
-                        md5sums[name],
+                        extracted_files_with_checksums[name].checksum,
+                        hashsums[name],
                         name,
                         self.config.name,
                         source_suffix,
@@ -2522,14 +2536,14 @@ class Server(RemoteStatusMixin):
                     "Received file '%s' with checksum '%s' "
                     "by put-wal for server '%s'%s",
                     name,
-                    md5sums[name],
+                    hashsums[name],
                     self.config.name,
                     source_suffix,
                 )
                 validated_files[name] = True
 
             # Put the files in the final place, atomically and fsync all
-            for item in extracted_files.values():
+            for item in extracted_files_with_checksums.values():
                 # Final verification of checksum presence for each file
                 if not validated_files[item.name]:
                     output.error(
@@ -2558,7 +2572,7 @@ class Server(RemoteStatusMixin):
             fsync_dir(dest_dir)
         finally:
             # Cleanup of any remaining temp files (where applicable)
-            for item in extracted_files.values():
+            for item in extracted_files_with_checksums.values():
                 if os.path.exists(item.tmp_path):
                     os.unlink(item.tmp_path)
 

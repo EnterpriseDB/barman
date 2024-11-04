@@ -182,6 +182,12 @@ def parse_arguments(args=None):
         "ignored.",
     )
     parser.add_argument(
+        "--md5",
+        action="store_true",
+        help="Use MD5 as the hash algorithm to maintain compatibility between "
+        "mismatched client and server versions.",
+    )
+    parser.add_argument(
         "barman_host",
         metavar="BARMAN_HOST",
         help="The host of the Barman server.",
@@ -199,14 +205,14 @@ def parse_arguments(args=None):
     return parser.parse_args(args=args)
 
 
-def md5copyfileobj(src, dst, length=None):
+def hashCopyfileobj(src, dst, length=None, hash_algorithm="sha256"):
     """
     Copy length bytes from fileobj src to fileobj dst.
     If length is None, copy the entire content.
     This method is used by the ChecksumTarFile.addfile().
-    Returns the md5 checksum
+    Returns the checksum for the specified hashing algorithm.
     """
-    checksum = hashlib.md5()
+    checksum = hashlib.new(hash_algorithm)
     if length == 0:
         return checksum.hexdigest()
 
@@ -248,20 +254,24 @@ class ChecksumTarInfo(tarfile.TarInfo):
 
 class ChecksumTarFile(tarfile.TarFile):
     """
-    Custom TarFile class that automatically calculates md5 checksum
-    of each file and appends a file called 'MD5SUMS' to the stream.
+    Custom TarFile class that automatically calculates hash checksum
+    of each file and appends a file called 'MD5SUMS' or 'SHA256SUMS' to the stream,
+    depending on the hash algorithm specified.
     """
+
+    def __init__(self, *args, **kwargs):
+        super(ChecksumTarFile, self).__init__(*args, **kwargs)
+        self.hash_algorithm = "sha256"
+        self.HASHSUMS_FILE = "SHA256SUMS"
 
     tarinfo = ChecksumTarInfo  # The default TarInfo class used by TarFile
 
     format = tarfile.PAX_FORMAT  # Use PAX format to better preserve metadata
 
-    MD5SUMS_FILE = "MD5SUMS"
-
     def addfile(self, tarinfo, fileobj=None):
         """
-        Add the provided fileobj to the tar using md5copyfileobj
-        and saves the file md5 in the provided ChecksumTarInfo object.
+        Add the provided fileobj to the tar using hashCopyfileobj
+        and saves the file hash in the provided ChecksumTarInfo object.
 
         This method completely replaces TarFile.addfile()
         """
@@ -275,18 +285,19 @@ class ChecksumTarFile(tarfile.TarFile):
 
         # If there's data to follow, append it.
         if fileobj is not None:
-            tarinfo.data_checksum = md5copyfileobj(fileobj, self.fileobj, tarinfo.size)
+            tarinfo.data_checksum = hashCopyfileobj(
+                fileobj, self.fileobj, tarinfo.size, self.hash_algorithm
+            )
             blocks, remainder = divmod(tarinfo.size, tarfile.BLOCKSIZE)
             if remainder > 0:
                 self.fileobj.write(tarfile.NUL * (tarfile.BLOCKSIZE - remainder))
                 blocks += 1
             self.offset += blocks * tarfile.BLOCKSIZE
-
         self.members.append(tarinfo)
 
     def close(self):
         """
-        Add an MD5SUMS file to the tar just before closing.
+        Add a :attr:`HASHSUMS_FILE` file to the tar just before closing.
 
         This method extends TarFile.close().
         """
@@ -294,16 +305,16 @@ class ChecksumTarFile(tarfile.TarFile):
             return
 
         if self.mode in "aw":
-            with BytesIO() as md5sums:
+            with BytesIO() as hashsums:
                 for tarinfo in self.members:
                     line = "%s *%s\n" % (tarinfo.data_checksum, tarinfo.name)
-                    md5sums.write(line.encode())
-                md5sums.seek(0, os.SEEK_END)
-                size = md5sums.tell()
-                md5sums.seek(0, os.SEEK_SET)
-                tarinfo = self.tarinfo(self.MD5SUMS_FILE)
+                    hashsums.write(line.encode())
+                hashsums.seek(0, os.SEEK_END)
+                size = hashsums.tell()
+                hashsums.seek(0, os.SEEK_SET)
+                tarinfo = self.tarinfo(self.HASHSUMS_FILE)
                 tarinfo.size = size
-                self.addfile(tarinfo, md5sums)
+                self.addfile(tarinfo, hashsums)
 
         super(ChecksumTarFile, self).close()
 
@@ -334,9 +345,15 @@ class RemotePutWal(object):
         # Register the spawned processes in the class registry
         self.processes.add(self.ssh_process)
 
+        # Check if md5 flag was used.
+        hash_settings = {True: ("md5", "MD5SUMS"), False: ("sha256", "SHA256SUMS")}
+        hash_algorithm, HASHSUMS_FILE = hash_settings[config.md5]
+
         # Send the data as a tar file (containing checksums)
         with self.ssh_process.stdin as dest_file:
             with closing(ChecksumTarFile.open(mode="w|", fileobj=dest_file)) as tar:
+                tar.hash_algorithm = hash_algorithm
+                tar.HASHSUMS_FILE = HASHSUMS_FILE
                 tar.add(wal_path, os.path.basename(wal_path))
 
     @classmethod

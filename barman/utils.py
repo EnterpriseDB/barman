@@ -570,25 +570,27 @@ def is_power_of_two(number):
     return number != 0 and (number & (number - 1)) == 0
 
 
-def file_md5(file_path, buffer_size=1024 * 16):
+def file_hash(file_path, buffer_size=1024 * 16, hash_algorithm="sha256"):
     """
-    Calculate the md5 checksum for the provided file path
+    Calculate the checksum for the provided file path with a specific
+    hashing algorithm
 
     :param str file_path: path of the file to read
     :param int buffer_size: read buffer size, default 16k
+    :param str hash_algorithm: sha256 | md5
     :return str: Hexadecimal md5 string
     """
-    md5 = hashlib.md5()
+    hash_func = hashlib.new(hash_algorithm)
     with open(file_path, "rb") as file_object:
         while 1:
             buf = file_object.read(buffer_size)
             if not buf:
                 break
-            md5.update(buf)
-    return md5.hexdigest()
+            hash_func.update(buf)
+    return hash_func.hexdigest()
 
 
-# Might be better to use stream instead of full file content. As done in file_md5.
+# Might be better to use stream instead of full file content. As done in file_hash.
 # Might create performance issue for large files.
 class ChecksumAlgorithm(with_metaclass(ABCMeta)):
     @abstractmethod
