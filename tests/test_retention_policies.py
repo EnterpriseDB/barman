@@ -36,7 +36,6 @@ from barman.retention_policies import (
 
 
 class TestRetentionPolicies(object):
-
     @pytest.fixture
     def server(self):
         backup_manager = mock.Mock()

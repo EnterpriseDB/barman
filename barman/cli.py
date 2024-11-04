@@ -1813,9 +1813,14 @@ def generate_manifest(args):
         argument(
             "backup_id", completer=backup_completer, help="specifies the backup ID"
         ),
-        argument("--release", help="remove the keep annotation", action="store_true"),
         argument(
-            "--status", help="return the keep status of the backup", action="store_true"
+            "-r", "--release", help="remove the keep annotation", action="store_true"
+        ),
+        argument(
+            "-s",
+            "--status",
+            help="return the keep status of the backup",
+            action="store_true",
         ),
         argument(
             "--target",
