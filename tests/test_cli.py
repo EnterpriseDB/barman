@@ -53,6 +53,7 @@ from barman.cli import (
     parse_backup_id,
     receive_wal,
     replication_status,
+    restore,
     show_servers,
 )
 from barman.exceptions import WalArchiveContentError
