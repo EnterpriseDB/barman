@@ -190,8 +190,17 @@ class TestBackup(object):
         # checked that the raised error is the correct error
         assert "Unable to parse the target time parameter " in str(exc.value)
 
+    @patch("barman.backup.BackupManager.release_delete_annotation")
+    @patch("barman.backup.BackupManager.put_delete_annotation")
     @patch("barman.backup.BackupManager.get_available_backups")
-    def test_delete_backup(self, mock_available_backups, tmpdir, caplog):
+    def test_delete_backup(
+        self,
+        mock_available_backups,
+        mock_put_annotation,
+        mock_delete_annotation,
+        tmpdir,
+        caplog,
+    ):
         """
         Simple test for the deletion of a backup.
         We want to test the behaviour of the delete_backup method
@@ -247,6 +256,9 @@ class TestBackup(object):
             "fake_backup": b_pre_info,
             "fake_backup_id": b_info,
         }
+
+        # Mock the put_annotation method to simulate successful annotation
+        mock_put_annotation.return_value = None
 
         # Test 1: normal delete expecting no errors (old format)
         caplog_reset(caplog)
@@ -390,6 +402,20 @@ class TestBackup(object):
                 deleted = backup_manager.delete_backup(given_backup)
                 assert deleted is True
                 set_backup_sizes.assert_called_once_with(next_backup)
+
+        # Test 9: ensure the delete annotation is created and removed during the deletion
+        caplog_reset(caplog)
+        mock_put_annotation.reset_mock()
+        mock_delete_annotation.reset_mock()
+        build_backup_directories(b_info)
+        mock_available_backups.return_value = {
+            "fake_backup_id": b_info,
+        }
+        backup_manager.delete_backup(b_info)
+        # Ensure the annotation was created
+        mock_put_annotation.assert_called_once_with(b_info.backup_id)
+        # Ensure the annotation was deleted
+        mock_delete_annotation.assert_called_once_with(b_info.backup_id)
 
     @patch("os.stat")
     @patch("barman.backup.fsync_file")
@@ -907,6 +933,96 @@ class TestBackup(object):
         assert not delete_backup.called
         assert "skipping retention policy application" in err
 
+    @patch("barman.backup.BackupManager.delete_backup")
+    @patch("barman.backup.BackupManager.get_available_backups")
+    @patch("barman.backup.BackupManager.check_delete_annotation")
+    @patch("barman.backup.BackupManager.release_delete_annotation")
+    def test_cron_retention_obsoletes_backups_with_delete_annotation(
+        self,
+        release_delete_annotation,
+        check_delete_annotation,
+        get_available_backups,
+        delete_backup,
+        tmpdir,
+    ):
+        """
+        Verify that a backup with the delete annotation is marked as obsolete and then deleted.
+        """
+        backup_manager = build_backup_manager()
+        backup_manager.server.config.name = "TestServer"
+        backup_manager.server.config.barman_lock_directory = tmpdir.strpath
+        backup_manager.server.config.backup_options = []
+        backup_manager.server.config.retention_policy = Mock()
+        backup_manager.config.retention_policy.report.return_value = {
+            "test_backup": BackupInfo.VALID,
+        }
+        available_backups = {
+            "test_backup": build_test_backup_info(
+                server=backup_manager.server, backup_id="test_backup"
+            )
+        }
+        get_available_backups.return_value = available_backups
+        check_delete_annotation.return_value = True
+
+        backup_manager.cron_retention_policy()
+
+        # Ensure the backup was marked as obsolete
+        assert (
+            backup_manager.config.retention_policy.report.return_value["test_backup"]
+            == BackupInfo.OBSOLETE
+        )
+        # Ensure the delete annotation was released
+        release_delete_annotation.assert_called_once_with("test_backup")
+        # Ensure the backup was deleted
+        delete_backup.assert_called_once_with(
+            available_backups["test_backup"], skip_wal_cleanup_if_standalone=False
+        )
+
+    @patch("barman.backup.BackupManager.delete_backup")
+    @patch("barman.backup.BackupManager.get_available_backups")
+    @patch("barman.backup.BackupManager.check_delete_annotation")
+    @patch("barman.backup.BackupManager.release_delete_annotation")
+    def test_cron_retention_orphan_backup_warning(
+        self,
+        release_delete_annotation,
+        check_delete_annotation,
+        get_available_backups,
+        delete_backup,
+        tmpdir,
+        caplog,
+    ):
+        """
+        Verify that if the backup is orphaned, cron will output a warning.
+        """
+        backup_manager = build_backup_manager()
+        backup_manager.server.config.name = "TestServer"
+        backup_manager.server.config.barman_lock_directory = tmpdir.strpath
+        backup_manager.server.config.backup_options = []
+        backup_manager.server.config.retention_policy = Mock()
+        backup_manager.config.retention_policy.report.return_value = {
+            "test_backup": BackupInfo.VALID,
+        }
+        available_backups = {
+            "test_backup": build_test_backup_info(
+                server=backup_manager.server, backup_id="test_backup"
+            )
+        }
+        get_available_backups.return_value = available_backups
+        check_delete_annotation.return_value = False
+
+        # Simulate orphan backup
+        with patch("barman.infofile.LocalBackupInfo.is_orphan") as mock_is_orphan:
+            mock_is_orphan.return_value = True
+            backup_manager.cron_retention_policy()
+
+        # Ensure the warning was logged
+        expected_warning = (
+            f"WARNING: Backup directory {available_backups['test_backup'].get_basebackup_directory()} "
+            "contains only a non-empty backup.info file "
+            "which may indicate an incomplete delete operation. Please manually delete the directory."
+        )
+        assert any(expected_warning in message for message in caplog.messages)
+
     @pytest.mark.parametrize("should_fail", (True, False))
     @patch("barman.backup.LocalBackupInfo.save")
     @patch("barman.backup.output")
@@ -1256,6 +1372,12 @@ class TestWalCleanup(object):
         )
         yield backup_manager
 
+    @pytest.fixture
+    def mock_put_annotation(self):
+        with patch("barman.backup.AnnotationManagerFile.put_annotation") as mock:
+            mock.return_value = None
+            yield mock
+
     def _assert_wals_exist(self, wals_directory, begin_wal, end_wal):
         """
         Assert all WALs between begin_wal and end_wal (inclusive) exist in
@@ -1342,6 +1464,7 @@ class TestWalCleanup(object):
 
     def test_delete_wal_cleanup(self, backup_manager):
         """Verify correct WALs are removed when the oldest backup is deleted"""
+
         # GIVEN two backups
         oldest_backup = build_test_backup_info(
             backup_id="20210722T095432",
@@ -2054,8 +2177,10 @@ class TestSnapshotBackup(object):
     @patch("barman.backup.get_snapshot_interface_from_backup_info")
     @patch("barman.backup.BackupManager.remove_wal_before_backup")
     @patch("barman.backup.BackupManager.get_available_backups")
+    @patch("barman.backup.AnnotationManagerFile.put_annotation")
     def test_snapshot_delete(
         self,
+        mock_put_annotation,
         mock_get_available_backups,
         mock_remove_wal_before_backup,
         mock_get_snapshot_interface,

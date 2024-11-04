@@ -538,6 +538,44 @@ class TestBackupInfo(object):
 
         assert backup_info.backup_type == expected_backup_type
 
+    def test_is_orphan(self, tmpdir):
+        """
+        Ensure :meth:`LocalBackupInfo.is_orphan` returns the correct value.
+        """
+        server = build_mocked_server(
+            main_conf={"basebackups_directory": tmpdir.strpath},
+        )
+
+        # Case 1: Orphan backup (only backup.info file, status not empty)
+        backup_dir = tmpdir.mkdir("orphan_backup")
+        backup_info_path = backup_dir.join("backup.info")
+        backup_info_path.write("status = DONE\n")
+        b_info = LocalBackupInfo(server, backup_id="orphan_backup")
+        b_info.status = BackupInfo.DONE
+        assert b_info.is_orphan is True
+
+        # Case 2: Not orphan (backup.info file and other files)
+        backup_dir = tmpdir.mkdir("not_orphan_backup")
+        backup_info_path = backup_dir.join("backup.info")
+        backup_info_path.write("status = DONE\n")
+        backup_dir.join("other_file").write("some content")
+        b_info = LocalBackupInfo(server, backup_id="not_orphan_backup")
+        b_info.status = BackupInfo.DONE
+        assert b_info.is_orphan is False
+
+        # Case 3: Not orphan (status is empty)
+        backup_dir = tmpdir.mkdir("empty_status_backup")
+        backup_info_path = backup_dir.join("backup.info")
+        backup_info_path.write("status = EMPTY\n")
+        b_info = LocalBackupInfo(server, backup_id="empty_status_backup")
+        b_info.status = BackupInfo.EMPTY
+        assert b_info.is_orphan is False
+
+        # Case 4: Not orphan (no backup.info file)
+        backup_dir = tmpdir.mkdir("no_backup_info")
+        b_info = LocalBackupInfo(server, backup_id="no_backup_info")
+        assert b_info.is_orphan is False
+
     def test_backup_info_save(self, tmpdir):
         """
         Test the save method of a BackupInfo object

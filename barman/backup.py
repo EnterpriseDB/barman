@@ -32,7 +32,7 @@ import dateutil.parser
 import dateutil.tz
 
 from barman import output, xlog
-from barman.annotations import KeepManager, KeepManagerMixin
+from barman.annotations import AnnotationManagerFile, KeepManager, KeepManagerMixin
 from barman.backup_executor import (
     PassiveBackupExecutor,
     PostgresBackupExecutor,
@@ -77,6 +77,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
     """Manager of the backup archive for a server"""
 
     DEFAULT_STATUS_FILTER = BackupInfo.STATUS_COPY_DONE
+    DELETE_ANNOTATION = "delete_this"
 
     def __init__(self, server):
         """
@@ -88,6 +89,9 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         self.config = server.config
         self._backup_cache = None
         self.compression_manager = CompressionManager(self.config, server.path)
+        self.annotation_manager = AnnotationManagerFile(
+            self.server.config.basebackups_directory
+        )
         self.executor = None
         try:
             if server.passive_node:
@@ -423,6 +427,42 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         if backup_info is not None:
             return backup_info.backup_id
 
+    def put_delete_annotation(self, backup_id):
+        """
+        Add a delete annotation to the specified backup.
+
+        This method adds an annotation to the backup identified by *backup_id* to mark it
+        for deletion. The annotation is stored using the annotation manager.
+
+        :param str backup_id: The ID of the backup to annotate.
+        """
+        self.annotation_manager.put_annotation(
+            backup_id, self.DELETE_ANNOTATION, "delete"
+        )
+
+    def check_delete_annotation(self, backup_id):
+        """
+        Check if a delete annotation exists for the specified backup.
+
+        This method checks if the backup identified by *backup_id* has a delete annotation.
+        It returns ``True`` if the annotation exists, otherwise ``False``.
+
+        :param str backup_id: The ID of the backup to check.
+        :return bool: ``True`` if the delete annotation exists, ``False`` otherwise.
+        """
+        return (
+            self.annotation_manager.get_annotation(backup_id, self.DELETE_ANNOTATION)
+            is not None
+        )
+
+    def release_delete_annotation(self, backup_id):
+        """
+        Remove the delete annotation from the backup identified by *backup_id*.
+
+        :param str backup_id: The ID of the backup to remove the annotation from.
+        """
+        self.annotation_manager.delete_annotation(backup_id, self.DELETE_ANNOTATION)
+
     @staticmethod
     def get_timelines_to_protect(remove_until, deleted_backup, available_backups):
         """
@@ -459,6 +499,9 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
           backups.
         :return bool: True if deleted, False if could not delete the backup
         """
+        # Set the delete annotation
+        self.put_delete_annotation(backup.backup_id)
+
         # Keep track of when the delete operation started.
         delete_start_time = datetime.datetime.now()
 
@@ -527,6 +570,9 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             ):
                 output.info("\t%s", name)
 
+        # Remove the delete annotation
+        self.release_delete_annotation(backup.backup_id)
+
         # As last action, remove the backup directory,
         # ending the delete operation
         try:
@@ -541,7 +587,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 backup.get_basebackup_directory(),
             )
             return False
-        self.backup_cache_remove(backup)
+
         # Save the time of the complete removal of the backup
         delete_end_time = datetime.datetime.now()
         output.info(
@@ -603,6 +649,8 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         script = HookScriptRunner(self, "delete_script", "post")
         script.env_from_backup_info(backup)
         script.run()
+
+        self.backup_cache_remove(backup)
 
         return True
 
@@ -989,9 +1037,27 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         """
         enforce_retention_policies = self.server.enforce_retention_policies
         retention_policy_mode = self.config.retention_policy_mode
+
         if enforce_retention_policies and retention_policy_mode == "auto":
             available_backups = self.get_available_backups(BackupInfo.STATUS_ALL)
             retention_status = self.config.retention_policy.report()
+
+            # Find backups with the delete annotation and mark as obsolete
+            for backup in available_backups.values():
+                if self.check_delete_annotation(backup.backup_id):
+                    retention_status[backup.backup_id] = BackupInfo.OBSOLETE
+                    self.release_delete_annotation(backup.backup_id)
+
+                # Check if the backup path still exists while the delete annotation
+                # was already removed
+                elif backup.is_orphan:
+                    output.warning(
+                        "WARNING: Backup directory %s contains only a non-empty "
+                        "backup.info file which may indicate an incomplete delete operation. "
+                        "Please manually delete the directory.",
+                        backup.get_basebackup_directory(),
+                    )
+
             for bid in sorted(retention_status.keys()):
                 if retention_status[bid] == BackupInfo.OBSOLETE:
                     try:
@@ -1027,6 +1093,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         """
         backup_dir = backup.get_basebackup_directory()
         _logger.debug("Deleting base backup directory: %s" % backup_dir)
+
         shutil.rmtree(backup_dir)
 
     def delete_backup_data(self, backup):
