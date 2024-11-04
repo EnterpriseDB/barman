@@ -136,6 +136,7 @@ class CheckStrategy(object):
         "incoming WALs directory",
         "streaming WALs directory",
         "wal maximum age",
+        "PostgreSQL server is standby",
     ]
 
     def __init__(self, ignore_checks=NON_CRITICAL_CHECKS):
@@ -299,7 +300,18 @@ class Server(RemoteStatusMixin):
                     config.slot_name,
                     config.primary_checkpoint_timeout,
                 )
-            else:
+                # If primary_conninfo is set but conninfo does not point to a standby
+                # it could be that a failover happend and the standby has been promoted.
+                # In this case, don't set a standby connection and just warn the user.
+                # A standard connection will be set further so that Barman keeps working.
+                if self.postgres.is_in_recovery is False:
+                    self.postgres.close()
+                    self.postgres = None
+                    output.warning(
+                        "'primary_conninfo' is set but 'conninfo' does not point to a "
+                        "standby server. Ignoring 'primary_conninfo'."
+                    )
+            if self.postgres is None:
                 self.postgres = PostgreSQLConnection(
                     config.conninfo, config.immediate_checkpoint, config.slot_name
                 )
@@ -1007,9 +1019,12 @@ class Server(RemoteStatusMixin):
         :param CheckStrategy check_strategy: The strategy for the management
             of the results of the various checks.
         """
+        is_standby_conn = isinstance(self.postgres, StandbyPostgreSQLConnection)
+
         # Check that standby is standby
         check_strategy.init_check("PostgreSQL server is standby")
-        is_in_recovery = self.postgres.is_in_recovery
+        # The server only is in recovery if we have a standby connection and pg_is_in_recovery() is True
+        is_in_recovery = is_standby_conn and self.postgres.is_in_recovery
         if is_in_recovery:
             check_strategy.result(self.config.name, True)
         else:
@@ -1021,6 +1036,11 @@ class Server(RemoteStatusMixin):
                     "primary_conninfo is set"
                 ),
             )
+
+        # if we don't have a standby connection object then we can't perform
+        # any of the further checks as they require a primary reference
+        if not is_standby_conn:
+            return
 
         # Check that primary is not standby
         check_strategy.init_check("Primary server is not a standby")
