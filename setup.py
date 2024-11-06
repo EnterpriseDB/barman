@@ -147,6 +147,7 @@ setup(
             'python-snappy; python_version>="3.7"',
             'cramjam >= 2.7.0; python_version>="3.7"',
         ],
+        "zstandard": ["zstandard"],
     },
     platforms=["Linux", "Mac OS X"],
     classifiers=[

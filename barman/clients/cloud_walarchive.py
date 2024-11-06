@@ -155,6 +155,14 @@ def parse_arguments(args=None):
         const="snappy",
         dest="compression",
     )
+    compression.add_argument(
+        "--zstd",
+        help="zstd-compress the WAL while uploading to the cloud "
+        "(requires optional zstandard library)",
+        action="store_const",
+        const="zstd",
+        dest="compression",
+    )
     add_tag_argument(
         parser,
         name="tags",
@@ -319,6 +327,10 @@ class CloudWalUploader(object):
         elif self.compression == "snappy":
             # add snappy extension
             return "%s.snappy" % wal_name
+
+        elif self.compression == "zstd":
+            # add zst extension
+            return "%s.zst" % wal_name
         else:
             raise ValueError("Unknown compression type: %s" % self.compression)
 

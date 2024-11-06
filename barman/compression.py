@@ -407,6 +407,39 @@ class PyBZip2Compressor(InternalCompressor):
         return bz2.BZ2File(name, mode="rb")
 
 
+def _try_import_zstd():
+    try:
+        import zstandard
+    except ImportError:
+        raise SystemExit("Missing required python module: zstandard")
+    return zstandard
+
+
+class ZSTDCompressor(InternalCompressor):
+    """
+    Predefined compressor with zstd
+    """
+
+    MAGIC = b"(\xb5/\xfd"
+
+    def __init__(self, config, compression, path=None):
+        """
+        Constructor.
+
+        :param config: barman.config.ServerConfig
+        :param compression: str compression name
+        :param path: str|None
+        """
+        super(ZSTDCompressor, self).__init__(config, compression, path)
+        self._zstd = _try_import_zstd()
+
+    def _compressor(self, dst):
+        return self._zstd.ZstdCompressor().stream_writer(open(dst, mode="wb"))
+
+    def _decompressor(self, src):
+        return self._zstd.ZstdDecompressor().stream_reader(open(src, mode="rb"))
+
+
 class CustomCompressor(CommandCompressor):
     """
     Custom compressor
@@ -443,6 +476,7 @@ compression_registry = {
     "bzip2": BZip2Compressor,
     "pygzip": PyGZipCompressor,
     "pybzip2": PyBZip2Compressor,
+    "zstd": ZSTDCompressor,
     "custom": CustomCompressor,
 }
 
