@@ -43,6 +43,7 @@ from barman.compression import (
     PyBZip2Compressor,
     PyGZipCompressor,
     ZSTDCompression,
+    ZSTDCompressor,
     ZSTDPgBaseBackupCompressionOption,
     get_pg_basebackup_compression,
 )
@@ -57,6 +58,8 @@ ZIP_FILE = "%s/zipfile.zip"
 ZIP_FILE_UNCOMPRESSED = "%s/zipfile.uncompressed"
 BZIP2_FILE = "%s/bzipfile.bz2"
 BZIP2_FILE_UNCOMPRESSED = "%s/bzipfile.uncompressed"
+ZSTD_FILE = "%s/zstdfile.zst"
+ZSTD_FILE_UNCOMPRESSED = "%s/zstdfile.uncompressed"
 
 
 def _tar_file(items):
@@ -154,7 +157,7 @@ class TestCompressionManager(object):
 
         # AND the value of MAGIC_MAX_LENGTH equals the max length of the default
         # compressions
-        assert comp_manager.MAGIC_MAX_LENGTH == 3
+        assert comp_manager.MAGIC_MAX_LENGTH == 4
 
     def test_get_compressor_gzip(self):
         # prepare mock obj
@@ -169,6 +172,15 @@ class TestCompressionManager(object):
         # prepare mock obj
         config_mock = mock.Mock()
         config_mock.compression = "bzip2"
+
+        # check custom compression method creation
+        comp_manager = CompressionManager(config_mock, None)
+        assert comp_manager.get_default_compressor() is not None
+
+    def test_get_compressor_zstd(self):
+        # prepare mock obj
+        config_mock = mock.Mock()
+        config_mock.compression = "zstd"
 
         # check custom compression method creation
         comp_manager = CompressionManager(config_mock, None)
@@ -315,6 +327,31 @@ class TestCommandCompressors(object):
         )
 
         f = open(BZIP2_FILE_UNCOMPRESSED % tmpdir.strpath).read()
+        assert f == "content"
+
+    def test_zstd(self, tmpdir):
+        config_mock = mock.Mock()
+
+        compression_manager = CompressionManager(config_mock, tmpdir.strpath)
+
+        compressor = ZSTDCompressor(config=config_mock, compression="zstd")
+
+        src = tmpdir.join("sourcefile")
+        src.write("content")
+
+        compressor.compress(src.strpath, ZSTD_FILE % tmpdir.strpath)
+        assert os.path.exists(ZSTD_FILE % tmpdir.strpath)
+        compression_found = compression_manager.identify_compression(
+            ZSTD_FILE % tmpdir.strpath,
+        )
+        assert compression_found == "zstd"
+
+        compressor.decompress(
+            ZSTD_FILE % tmpdir.strpath,
+            ZSTD_FILE_UNCOMPRESSED % tmpdir.strpath,
+        )
+
+        f = open(ZSTD_FILE_UNCOMPRESSED % tmpdir.strpath).read()
         assert f == "content"
 
 
