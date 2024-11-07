@@ -28,6 +28,7 @@ DBAs during the recovery phase.
    diagnose_and_troubleshooting
    configuration
    commands
+   geographical_redundancy
    hook_scripts
    barman_cloud
    glossary
