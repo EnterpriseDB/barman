@@ -111,7 +111,6 @@ class S3CloudInterface(CloudInterface):
         self,
         url,
         encryption=None,
-        aws_irsa=False,
         jobs=2,
         profile_name=None,
         endpoint_url=None,
@@ -119,6 +118,7 @@ class S3CloudInterface(CloudInterface):
         delete_batch_size=None,
         read_timeout=None,
         sse_kms_key_id=None,
+        aws_irsa=False,
     ):
         """
         Create a new S3 interface given the S3 destination url and the profile
