@@ -300,7 +300,28 @@ archiving and have both options. See the image below.
 Geographical redundancy
 -----------------------
 
-TODO: Add content here.
+A very common setup for Barman is to have it installed in the same data center where
+your PostgreSQL servers are. In this case, the single point of failure is the data
+center. Fortunately, the impact of such a :term:`SPOF` can be alleviated thanks to two features
+that Barman provides to increase the number of backup tiers:
+
+
+1. geographical redundancy (introduced in Barman 2.6)
+2. hook scripts
+
+With geographical redundancy, you can rely on another Barman instance that is located
+in a different data center/availability zone, and synchronize the entire content of the
+primary Barman server.
+
+There's more: given that geo-redundancy can be configured in Barman not only at global
+level, but also at server level, you can create hybrid installations of Barman where
+some servers are directly connected to the local PostgreSQL servers, and others are
+backing up subsets of different Barman installations (cross-site backup).
+
+Figure below shows two availability zones (one in Europe and one in the US), each with
+a primary PostgreSQL server that is backed up in a local Barman installation, and
+relayed on the other Barman server (defined as passive) for multi-tier backup via
+rsync/SSH. Further information on geo-redundancy is available in the :ref:`Geographical Redundancy <geographical-redundancy>` section.
 
 
 .. _architectures-cloud-snaphost-backups:
