@@ -8,7 +8,7 @@ Synopsis
 
 .. code-block:: text
     
-    sync-info SERVER_NAME [ LAST_WAL [ LAST_POS ] ]
+    sync-info [ --primary ] SERVER_NAME [ LAST_WAL [ LAST_POS ] ]
 
 Description
 ^^^^^^^^^^^
