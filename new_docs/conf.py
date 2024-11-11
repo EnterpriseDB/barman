@@ -54,6 +54,7 @@ excludes = ["tests", "setup.py", "conf"]
 # extensions coming with Sphinx (named "sphinx.ext.*") or your custom
 # ones.
 extensions = [
+    "myst_parser",  # To support Markdown-based docs, Sphinx can use MyST-Parser.
     "sphinx.ext.intersphinx",  # Implicit links to Python official docs
     "sphinx.ext.todo",  # Support for .. todo:: directive
     "sphinx.ext.mathjax",  # Math symbols
@@ -80,8 +81,10 @@ templates_path = ["_templates"]
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 #
-# source_suffix = [".rst", ".md"]
-source_suffix = ".rst"
+source_suffix = {
+    ".rst": "restructuredtext",
+    ".md": "markdown",
+}
 
 # The master toctree document.
 master_doc = "index"
