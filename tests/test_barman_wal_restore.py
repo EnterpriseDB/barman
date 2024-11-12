@@ -27,7 +27,8 @@ from barman.clients import walrestore
 # noinspection PyMethodMayBeStatic
 class TestRemoteGetWal(object):
     @mock.patch("barman.clients.walrestore.subprocess.Popen")
-    def test_string_dest_file(self, popen_mock, tmpdir):
+    @mock.patch("barman.clients.walrestore.shutil")
+    def test_string_dest_file(self, shutil_mock, popen_mock, tmpdir):
         config = mock.Mock(
             compression=False,
             user="barman",
@@ -78,7 +79,8 @@ class TestRemoteGetWal(object):
         ) in err
 
     @mock.patch("barman.clients.walrestore.subprocess.Popen")
-    def test_ssh_port(self, popen_mock):
+    @mock.patch("barman.clients.walrestore.shutil")
+    def test_ssh_port(self, shutil_mock, popen_mock):
         # WHEN barman-wal-restore is called with the --port option
         with pytest.raises(SystemExit):
             walrestore.main(

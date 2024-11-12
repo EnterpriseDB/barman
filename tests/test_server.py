@@ -2262,7 +2262,9 @@ class TestServer(object):
         )
 
         # WHEN get_wal_sendfile is called
-        server.get_wal_sendfile("test_wal_file", "some compression", "/path/to/dest")
+        server.get_wal_sendfile(
+            "test_wal_file", "some compression", False, "/path/to/dest"
+        )
 
         # THEN output indicates an error
         assert output.error_occurred
