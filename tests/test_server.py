@@ -2273,6 +2273,51 @@ class TestServer(object):
         _out, err = capsys.readouterr()
         assert "ERROR: Error decompressing WAL: an error happened" in err
 
+    @patch("barman.server.open")
+    @patch("barman.server.shutil")
+    @patch("barman.server.NamedTemporaryFile")
+    @patch("barman.backup.CompressionManager")
+    def test_get_wal_keep_compression(
+        self,
+        mock_compression_manager,
+        _mock_named_temporary_file,
+        _mock_shutil,
+        _mock_open,
+    ):
+        """Assert `--keep-compression` option works in the ``get_wal_sendfile`` method"""
+        # GIVEN a server
+        server = build_real_server()
+        # AND a mock compressor, which is only present if the WAL is compressed
+        mock_compressor = Mock()
+        mock_compressor.compression = "some compression"
+        mock_compression_manager.return_value.get_compressor.side_effect = [
+            mock_compressor,
+            Mock(),
+        ]
+
+        # WHEN get_wal_sendfile is called and keep_compression is False
+        keep_compression = False
+        server.get_wal_sendfile(
+            "test_wal_file", "some compression", keep_compression, "/path/to/dest"
+        )
+        # THEN decompression should occur
+        mock_compressor.decompress.assert_called_once()
+
+        # Reset mock and side effect
+        mock_compressor.reset_mock()
+        mock_compression_manager.return_value.get_compressor.side_effect = [
+            mock_compressor,
+            Mock(),
+        ]
+
+        # WHEN get_wal_sendfile is called and keep_compression is True
+        keep_compression = True
+        server.get_wal_sendfile(
+            "test_wal_file", "some compression", keep_compression, "/path/to/dest"
+        )
+        # THEN decompression should not occur
+        mock_compressor.decompress.assert_not_called()
+
     @pytest.mark.parametrize(
         "obj, HASHSUMS_FILE, hash_algorithm, checksum, mode, success, error_msg",
         [
