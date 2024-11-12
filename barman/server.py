@@ -2168,6 +2168,7 @@ class Server(RemoteStatusMixin):
         self,
         wal_name,
         compression=None,
+        keep_compression=False,
         output_directory=None,
         peek=None,
         partial=False,
@@ -2177,6 +2178,7 @@ class Server(RemoteStatusMixin):
 
         :param str wal_name: id of the WAL file to find into the WAL archive
         :param str|None compression: compression format for the output
+        :param bool keep_compression: if True, do not uncompress compressed WAL files
         :param str|None output_directory: directory where to deposit the
             WAL file
         :param int|None peek: if defined list the next N WAL file
@@ -2311,7 +2313,9 @@ class Server(RemoteStatusMixin):
 
             try:
                 # Try returning the wal_file to the client
-                self.get_wal_sendfile(wal_file, compression, destination)
+                self.get_wal_sendfile(
+                    wal_file, compression, keep_compression, destination
+                )
                 # We are done, return to the caller
                 return
             except CommandFailedException:
@@ -2343,12 +2347,13 @@ class Server(RemoteStatusMixin):
             source_suffix,
         )
 
-    def get_wal_sendfile(self, wal_file, compression, destination):
+    def get_wal_sendfile(self, wal_file, compression, keep_compression, destination):
         """
         Send a WAL file to the destination file, using the required compression
 
         :param str wal_file: WAL file path
         :param str compression: required compression
+        :param bool keep_compression: if True, do not uncompress compressed WAL files
         :param destination: file stream to use to write the data
         """
         # Identify the wal file
@@ -2370,37 +2375,38 @@ class Server(RemoteStatusMixin):
         uncompressed_file = None
         compressed_file = None
 
-        # If the required compression is different from the source we
-        # decompress/compress it into the required format (getattr is
-        # used here to gracefully handle None objects)
-        if getattr(wal_compressor, "compression", None) != getattr(
-            out_compressor, "compression", None
-        ):
-            # If source is compressed, decompress it into a temporary file
-            if wal_compressor is not None:
-                uncompressed_file = NamedTemporaryFile(
-                    dir=self.config.wals_directory,
-                    prefix=".%s." % os.path.basename(wal_file),
-                    suffix=".uncompressed",
-                )
-                # decompress wal file
-                try:
-                    wal_compressor.decompress(source_file, uncompressed_file.name)
-                except CommandFailedException as exc:
-                    output.error("Error decompressing WAL: %s", str(exc))
-                    return
-                source_file = uncompressed_file.name
+        if not keep_compression:
+            # If the required compression is different from the source we
+            # decompress/compress it into the required format (getattr is
+            # used here to gracefully handle None objects)
+            if getattr(wal_compressor, "compression", None) != getattr(
+                out_compressor, "compression", None
+            ):
+                # If source is compressed, decompress it into a temporary file
+                if wal_compressor is not None:
+                    uncompressed_file = NamedTemporaryFile(
+                        dir=self.config.wals_directory,
+                        prefix=".%s." % os.path.basename(wal_file),
+                        suffix=".uncompressed",
+                    )
+                    # decompress wal file
+                    try:
+                        wal_compressor.decompress(source_file, uncompressed_file.name)
+                    except CommandFailedException as exc:
+                        output.error("Error decompressing WAL: %s", str(exc))
+                        return
+                    source_file = uncompressed_file.name
 
-            # If output compression is required compress the source
-            # into a temporary file
-            if out_compressor is not None:
-                compressed_file = NamedTemporaryFile(
-                    dir=self.config.wals_directory,
-                    prefix=".%s." % os.path.basename(wal_file),
-                    suffix=".compressed",
-                )
-                out_compressor.compress(source_file, compressed_file.name)
-                source_file = compressed_file.name
+                # If output compression is required compress the source
+                # into a temporary file
+                if out_compressor is not None:
+                    compressed_file = NamedTemporaryFile(
+                        dir=self.config.wals_directory,
+                        prefix=".%s." % os.path.basename(wal_file),
+                        suffix=".compressed",
+                    )
+                    out_compressor.compress(source_file, compressed_file.name)
+                    source_file = compressed_file.name
 
         # Copy the prepared source file to destination
         with open(source_file, "rb") as input_file:

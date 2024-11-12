@@ -31,8 +31,11 @@ import shutil
 import subprocess
 import sys
 import time
+from tempfile import NamedTemporaryFile
+from types import SimpleNamespace
 
 import barman
+from barman.compression import CompressionManager, InternalCompressor
 from barman.utils import force_str
 
 DEFAULT_USER = "barman"
@@ -56,6 +59,13 @@ def main(args=None):
     if config.test:
         connectivity_test(config)
         return  # never reached
+
+    if config.compression is not None:
+        print(
+            "WARNING: `%s` option is deprecated and will be removed in future versions. "
+            "For WAL compression, please make sure to enable it directly on the Barman "
+            "server via the `compression` configuration option" % config.compression
+        )
 
     # Check WAL destination is not a directory
     if os.path.isdir(config.wal_dest):
@@ -201,6 +211,8 @@ def build_ssh_command(config, wal_name, peek=0):
         options.append("--peek '%s'" % peek)
     if config.compression:
         options.append("--%s" % config.compression)
+    if config.keep_compression:
+        options.append("--keep-compression")
     if config.partial:
         options.append("--partial")
 
@@ -353,7 +365,8 @@ def parse_arguments(args=None):
         dest="partial",
         default=False,
     )
-    parser.add_argument(
+    compression_parser = parser.add_mutually_exclusive_group()
+    compression_parser.add_argument(
         "-z",
         "--gzip",
         help="Transfer the WAL files compressed with gzip",
@@ -361,13 +374,19 @@ def parse_arguments(args=None):
         const="gzip",
         dest="compression",
     )
-    parser.add_argument(
+    compression_parser.add_argument(
         "-j",
         "--bzip2",
         help="Transfer the WAL files compressed with bzip2",
         action="store_const",
         const="bzip2",
         dest="compression",
+    )
+    compression_parser.add_argument(
+        "--keep-compression",
+        help="Preserve compression during transfer, decompress once received",
+        action="store_true",
+        dest="keep_compression",
     )
     parser.add_argument(
         "-c",
@@ -425,8 +444,9 @@ class RemoteGetWal(object):
         """
         self.config = config
         self.wal_name = wal_name
-        self.decompressor = None
+        self.source_file = None
         self.dest_file = None
+        self.decompressor_process = None
 
         # If a string has been passed, it's the name of the destination file
         # We convert it in a writable binary file object
@@ -434,33 +454,63 @@ class RemoteGetWal(object):
             self.dest_file = dest_file
             dest_file = open(dest_file, "wb")
 
-        with dest_file:
-            # If compression has been required, we need to spawn two processes
-            if config.compression:
-                # Spawn a remote get-wal process
-                self.ssh_process = subprocess.Popen(
-                    build_ssh_command(config, wal_name), stdout=subprocess.PIPE
-                )
-                # Spawn the local decompressor
-                self.decompressor = subprocess.Popen(
+        # Spawn a remote get-wal process
+        self.ssh_process = subprocess.Popen(
+            build_ssh_command(config, wal_name), stdout=subprocess.PIPE
+        )
+
+        # Create a temporary file with the WAL content received
+        self.source_file = NamedTemporaryFile(
+            mode="r+b", prefix=".%s." % os.path.basename(wal_name)
+        )
+        shutil.copyfileobj(self.ssh_process.stdout, self.source_file)
+        self.source_file.seek(0)
+
+        # Close the pipe descriptor, letting the ssh process receive the SIGPIPE
+        self.ssh_process.stdout.close()
+
+        # Identify the WAL compression, if any
+        server_config = self._get_server_config_minimal(config)
+        compression_manager = CompressionManager(server_config, None)
+        compression = compression_manager.identify_compression(self.source_file.name)
+
+        # If there's no compression then just copy the content to the destination file
+        if compression is None:
+            shutil.copyfileobj(self.source_file, dest_file)
+        else:
+            # If compression is present we proceed differently depending on the compressor
+            compressor = compression_manager.get_compressor(compression)
+            # If InternalCompressor, we can decompress directly to the destination file
+            if isinstance(compressor, InternalCompressor):
+                compressor.decompress(self.source_file.name, dest_file.name)
+            else:
+                # Otherwise it's a CommandCompressor so we spawn the local decompressor
+                self.decompressor_process = subprocess.Popen(
                     [config.compression, "-d"],
-                    stdin=self.ssh_process.stdout,
+                    stdin=self.source_file,
                     stdout=dest_file,
                 )
-                # Close the pipe descriptor, letting the decompressor process
-                # to receive the SIGPIPE
-                self.ssh_process.stdout.close()
-            else:
-                # With no compression only the remote get-wal process
-                # is required
-                self.ssh_process = subprocess.Popen(
-                    build_ssh_command(config, wal_name), stdout=dest_file
-                )
 
+        # close the opened file
+        dest_file.close()
         # Register the spawned processes in the class registry
         self.processes.add(self.ssh_process)
-        if self.decompressor:
-            self.processes.add(self.decompressor)
+        if self.decompressor_process:
+            self.processes.add(self.decompressor_process)
+
+    def _get_server_config_minimal(self, config):
+        """
+        Returns a placeholder for a server config object with all compression
+        parameters relevant to ``CompressionManager`` filled.
+
+        :param argparse.Namespace config: the configuration from command line
+        """
+        return SimpleNamespace(
+            compression=config.compression,
+            custom_compression_magic=None,
+            custom_compression_filter=None,
+            custom_decompression_filter=None,
+        )
 
     @classmethod
     def wait_for_all(cls):
@@ -492,9 +542,9 @@ class RemoteGetWal(object):
         """
         if self.ssh_process.returncode != 0:
             return self.ssh_process.returncode
-        if self.decompressor:
-            if self.decompressor.returncode != 0:
-                return self.decompressor.returncode
+        if self.decompressor_process:
+            if self.decompressor_process.returncode != 0:
+                return self.decompressor_process.returncode
         return 0
 
 

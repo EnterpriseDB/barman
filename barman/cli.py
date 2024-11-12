@@ -1537,6 +1537,12 @@ def delete(args):
             default=SUPPRESS,
         ),
         argument(
+            "--keep-compression",
+            help="do not decompress the output if compressed",
+            action="store_true",
+            dest="keep_compression",
+        ),
+        argument(
             "--peek",
             "-p",
             help="peek from the WAL archive up to 'SIZE' WAL files, starting "
@@ -1576,13 +1582,21 @@ def get_wal(args):
     # the namespace doesn't contain it due to SUPPRESS default.
     # In that case we pick 'None' using getattr third argument.
     compression = getattr(args, "compression", None)
+    keep_compression = getattr(args, "keep_compression", False)
     output_directory = getattr(args, "output_directory", None)
     peek = getattr(args, "peek", None)
+
+    if compression and keep_compression:
+        output.error(
+            "argument `%s` not allowed with argument `keep-compression`" % compression
+        )
+        output.close_and_exit()
 
     with closing(server):
         server.get_wal(
             args.wal_name,
             compression=compression,
+            keep_compression=keep_compression,
             output_directory=output_directory,
             peek=peek,
             partial=args.partial,
