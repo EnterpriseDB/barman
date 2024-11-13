@@ -75,6 +75,7 @@ LOGGING_FORMAT = "%(asctime)s [%(process)s] %(levelname)s: %(message)s"
 ALLOWED_COMPRESSIONS = {
     ".gz": "gzip",
     ".bz2": "bzip2",
+    ".xz": "xz",
     ".snappy": "snappy",
     ".zst": "zstd",
     ".lz4": "lz4",

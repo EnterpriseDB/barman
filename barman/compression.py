@@ -24,6 +24,7 @@ import binascii
 import bz2
 import gzip
 import logging
+import lzma
 import shutil
 from abc import ABCMeta, abstractmethod, abstractproperty
 from contextlib import closing
@@ -407,6 +408,20 @@ class PyBZip2Compressor(InternalCompressor):
         return bz2.BZ2File(name, mode="rb")
 
 
+class XZCompressor(InternalCompressor):
+    """
+    Predefined compressor with XZ Python library
+    """
+
+    MAGIC = b"\xfd7zXZ\x00"
+
+    def _compressor(self, dst):
+        return lzma.open(dst, mode="wb")
+
+    def _decompressor(self, src):
+        return lzma.open(src, mode="rb")
+
+
 def _try_import_zstd():
     try:
         import zstandard
@@ -507,6 +522,7 @@ compression_registry = {
     "bzip2": BZip2Compressor,
     "pygzip": PyGZipCompressor,
     "pybzip2": PyBZip2Compressor,
+    "xz": XZCompressor,
     "zstd": ZSTDCompressor,
     "lz4": LZ4Compressor,
     "custom": CustomCompressor,

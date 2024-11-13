@@ -148,6 +148,14 @@ def parse_arguments(args=None):
         dest="compression",
     )
     compression.add_argument(
+        "--xz",
+        help="xz-compress the WAL while uploading to the cloud "
+        "(should not be used with python < 3.3)",
+        action="store_const",
+        const="xz",
+        dest="compression",
+    )
+    compression.add_argument(
         "--snappy",
         help="snappy-compress the WAL while uploading to the cloud "
         "(requires optional python-snappy library)",
@@ -330,6 +338,10 @@ class CloudWalUploader(object):
         elif self.compression == "bzip2":
             # add bz2 extension
             return "%s.bz2" % wal_name
+
+        elif self.compression == "xz":
+            # add xz extension
+            return "%s.xz" % wal_name
 
         elif self.compression == "snappy":
             # add snappy extension
