@@ -43,6 +43,7 @@ from barman.compression import (
     PgBaseBackupCompressionOption,
     PyBZip2Compressor,
     PyGZipCompressor,
+    XZCompressor,
     ZSTDCompression,
     ZSTDCompressor,
     ZSTDPgBaseBackupCompressionOption,
@@ -59,9 +60,11 @@ ZIP_FILE = "%s/zipfile.zip"
 ZIP_FILE_UNCOMPRESSED = "%s/zipfile.uncompressed"
 BZIP2_FILE = "%s/bzipfile.bz2"
 BZIP2_FILE_UNCOMPRESSED = "%s/bzipfile.uncompressed"
+XZ_FILE = "%s/xzfile.xz"
+XZ_FILE_UNCOMPRESSED = "%s/xzflile.uncompressed"
 ZSTD_FILE = "%s/zstdfile.zst"
 ZSTD_FILE_UNCOMPRESSED = "%s/zstdfile.uncompressed"
-LZ4_FILE = "%s/lz4file.bz2"
+LZ4_FILE = "%s/lz4file.lz4"
 LZ4_FILE_UNCOMPRESSED = "%s/lz4file.uncompressed"
 
 
@@ -133,7 +136,7 @@ class TestCompressionManager(object):
         assert comp_manager.unidentified_compression is None
 
         # AND the value of MAGIC_MAX_LENGTH equals the length of the magic bytes
-        assert comp_manager.MAGIC_MAX_LENGTH == 4
+        assert comp_manager.MAGIC_MAX_LENGTH == 6
 
     def test_get_compressor_custom_nomagic(self, _reset_custom_compressor):
         # GIVEN a Barman config which specifies custom compression
@@ -160,7 +163,7 @@ class TestCompressionManager(object):
 
         # AND the value of MAGIC_MAX_LENGTH equals the max length of the default
         # compressions
-        assert comp_manager.MAGIC_MAX_LENGTH == 4
+        assert comp_manager.MAGIC_MAX_LENGTH == 6
 
     def test_get_compressor_gzip(self):
         # prepare mock obj
@@ -175,6 +178,15 @@ class TestCompressionManager(object):
         # prepare mock obj
         config_mock = mock.Mock()
         config_mock.compression = "bzip2"
+
+        # check custom compression method creation
+        comp_manager = CompressionManager(config_mock, None)
+        assert comp_manager.get_default_compressor() is not None
+
+    def test_get_compressor_xz(self):
+        # prepare mock obj
+        config_mock = mock.Mock()
+        config_mock.compression = "xz"
 
         # check custom compression method creation
         comp_manager = CompressionManager(config_mock, None)
@@ -388,6 +400,31 @@ class TestInternalCompressors(object):
         )
 
         f = open(BZIP2_FILE_UNCOMPRESSED % tmpdir.strpath).read()
+        assert f == "content"
+
+    def test_xz(self, tmpdir):
+        config_mock = mock.Mock()
+
+        compression_manager = CompressionManager(config_mock, tmpdir.strpath)
+
+        compressor = XZCompressor(config=config_mock, compression="xz")
+
+        src = tmpdir.join("sourcefile")
+        src.write("content")
+
+        compressor.compress(src.strpath, XZ_FILE % tmpdir.strpath)
+        assert os.path.exists(XZ_FILE % tmpdir.strpath)
+        compression_found = compression_manager.identify_compression(
+            XZ_FILE % tmpdir.strpath,
+        )
+        assert compression_found == "xz"
+
+        compressor.decompress(
+            XZ_FILE % tmpdir.strpath,
+            XZ_FILE_UNCOMPRESSED % tmpdir.strpath,
+        )
+
+        f = open(XZ_FILE_UNCOMPRESSED % tmpdir.strpath).read()
         assert f == "content"
 
     def test_zstd(self, tmpdir):
