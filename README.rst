@@ -26,7 +26,7 @@ Barman:
 -  LICENSE : GNU GPL3 details
 -  TODO : our wishlist for Barman
 -  barman : sources in Python
--  doc : tutorial and man pages
+-  old_docs : tutorial and man pages
 -  scripts : auxiliary scripts
 -  tests : unit tests
 
@@ -36,8 +36,6 @@ Web resources
 -  Website : http://www.pgbarman.org/
 -  Download : http://github.com/EnterpriseDB/barman
 -  Documentation : http://www.pgbarman.org/documentation/
--  Man page, section 1 : http://docs.pgbarman.org/barman.1.html
--  Man page, section 5 : http://docs.pgbarman.org/barman.5.html
 -  Community support : http://www.pgbarman.org/support/
 -  Professional support : https://www.enterprisedb.com/
 -  pre barman 2.13 versions : https://sourceforge.net/projects/pgbarman/files/
