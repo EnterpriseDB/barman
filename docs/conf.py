@@ -170,8 +170,8 @@ html_context = {
     "github_user": "EnterpriseDB",
     "github_repo": "barman",
     "github_version": "master",
-    "doc_path": "new_docs",
-    "conf_py_path": "/new_docs/",
+    "doc_path": "docs",
+    "conf_py_path": "/docs/",
 }
 
 # sphinx-github-style options, https://sphinx-github-style.readthedocs.io/en/latest/index.html

@@ -312,7 +312,7 @@ Images
 Use `images <https://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.html#images>`_
 to clarify a topic, but use them only as needed.
 
-Images are put inside the folder ``new_docs/images``.
+Images are put inside the folder ``docs/images``.
 
 Cross-reference labels standard
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -388,7 +388,7 @@ To build the HTML documentation, run:
 
     tox -e docs -- html
 
-To view the HTML documentation, open the file ``new_docs/_build/html/index.html`` using
+To view the HTML documentation, open the file ``docs/_build/html/index.html`` using
 your web browser.
 
 PDF documentation
@@ -400,7 +400,7 @@ To build the PDF documentation, run:
 
     tox -e docs -- latexpdf
 
-To view the PDF documentation, open the file ``new_docs/_build/latex/Barman.pdf``
+To view the PDF documentation, open the file ``docs/_build/latex/Barman.pdf``
 using your PDF reader.
 
 Linux man page
@@ -416,4 +416,4 @@ To view the Linux man page, run:
 
 .. code-block:: bash
 
-    man new_docs/_build/man/barman.1
+    man docs/_build/man/barman.1

@@ -1,7 +1,7 @@
 # User documentation and man pages
 
 The user documentation and the man pages for Barman are built using Sphinx.
-All the docs content and the configuration for Sphinx are found inside the `new_docs`
+All the docs content and the configuration for Sphinx are found inside the `docs`
 directory.
 
 There is an automation through tox to build the docs, which takes care of
@@ -35,6 +35,6 @@ tox -e docs -- latexpdf
 
 Once the build finishes, you can read the built documentation:
 
-* For HTML docs: open `new_docs/_build/html/index.html` with your web browser;
-* For man pages: run `man new_docs/_build/man/barman.1`;
-* For PDF docs: open `new_docs/_build/latex/Barman.pdf` with your PDF reader.
+* For HTML docs: open `docs/_build/html/index.html` with your web browser;
+* For man pages: run `man docs/_build/man/barman.1`;
+* For PDF docs: open `docs/_build/latex/Barman.pdf` with your PDF reader.
