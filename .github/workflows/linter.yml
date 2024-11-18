@@ -58,10 +58,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Linters configuration.
           LINTER_RULES_PATH: '.'
-          # We are not interested in linting these files:
-          # * Markdown files under `doc` or `sphinx` directories, which belong to the
-          #   old docs, and are going to be replaced soon.
-          FILTER_REGEX_EXCLUDE: '(doc|sphinx)/.*\.md'
+          # We are not interested in linting files from the old docs, which are going
+          # to be removed soon:
+          FILTER_REGEX_EXCLUDE: 'old_docs/.*\.md'
           DOCKERFILE_HADOLINT_FILE_NAME: .hadolint.yaml
           GITLEAKS_CONFIG_FILE: .gitleaks.toml
           MARKDOWN_CONFIG_FILE: .markdownlint.yml

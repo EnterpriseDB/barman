@@ -1,6 +1,0 @@
-argcomplete
-psycopg2-binary
-python-dateutil
-Sphinx
-sphinx-bootstrap-theme
-sphinx-rtd-theme
