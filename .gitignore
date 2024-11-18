@@ -38,8 +38,8 @@ venv/*
 .python-version
 
 # Sphinx docs
-new_docs/_build/*
-new_docs/contributor_guide/modules
+docs/_build/*
+docs/contributor_guide/modules
 
 # Allow the man directory
-!new_docs/_build/man/
+!docs/_build/man/

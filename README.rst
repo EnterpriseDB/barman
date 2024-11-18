@@ -26,7 +26,7 @@ Barman:
 -  LICENSE : GNU GPL3 details
 -  TODO : our wishlist for Barman
 -  barman : sources in Python
--  old_docs : tutorial and man pages
+-  docs : tutorial and man pages
 -  scripts : auxiliary scripts
 -  tests : unit tests
 

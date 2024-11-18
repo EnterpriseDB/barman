@@ -1,6 +1,6 @@
 recursive-include barman *.py
 recursive-include rpm *
-recursive-include new_docs/barman.d *
-include new_docs/barman.conf
+recursive-include docs/barman.d *
+include docs/barman.conf
 include scripts/barman.bash_completion
 include AUTHORS RELNOTES.md ChangeLog LICENSE MANIFEST.in setup.py INSTALL README.rst

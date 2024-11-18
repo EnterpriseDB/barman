@@ -22,7 +22,7 @@
 
 set -xeu
 
-DOCDIR="${BASEDIR}/new_docs"
+DOCDIR="${BASEDIR}/docs"
 DISTDIR="${DOCDIR}/dist"
 
 USERMAP=$(docker run --rm -v "${BASEDIR}":"${BASEDIR}" "${SPHINX_IMAGE}" \
