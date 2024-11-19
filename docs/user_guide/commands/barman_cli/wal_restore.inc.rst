@@ -88,6 +88,10 @@ Parameters
 ``-j`` /  ``--bzip2``
     Transfer WAL files compressed with ``bzip2``.
 
+``--keep-compression``
+    If specified, compressed files will be trasnfered as-is and decompressed on arrival
+    on the client-side.
+
 ``-c`` /  ``--config``
     Specify the configuration file on the Barman server.
 
@@ -95,3 +99,10 @@ Parameters
     Test the connection and configuration of the specified Postgres server in Barman to
     ensure it is ready to receive WAL files. This option ignores the mandatory arguments
     ``WAL_NAME`` and ``WAL_DEST``.
+
+
+.. warning::
+
+    ``-z`` / ``--gzip`` and ``-j`` /  ``--bzip2`` options are deprecated and will be
+    removed in the future. For WAL compression, please make sure to enable it directly
+    on the Barman server via the ``compression`` configuration option.

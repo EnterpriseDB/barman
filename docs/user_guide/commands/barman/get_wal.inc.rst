@@ -32,8 +32,15 @@ Parameters
 ``WAL_NAME``
     Id of the backup in barman catalog.
 
-``-j``
+``-j`` /  ``--bzip2``
     Output will be compressed using bzip2.
+
+``-z`` / ``--gzip``
+    Output will be compressed using gzip.
+
+``--keep-compression``
+    Do not uncompress the file content. The output will be the original compressed
+    file.
 
 ``-o``
     Destination directory where barman will store the WAL file.
@@ -52,5 +59,9 @@ Parameters
     Barman for WAL retrieval. When this option is used, the required ``WAL_NAME``
     argument is disregarded.
 
-``-z``
-    Output will be compressed using gzip.
+
+.. warning::
+
+    ``-z`` / ``--gzip`` and ``-j`` /  ``--bzip2`` options are deprecated and will be
+    removed in the future. For WAL compression, please make sure to enable it directly
+    on the Barman server via the ``compression`` configuration option.
