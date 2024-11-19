@@ -22,6 +22,7 @@ DBAs during the recovery phase.
    pre_requisites
    barman_check
    backup
+   wal_archiving
    catalog
    recovery
    retention_policies
