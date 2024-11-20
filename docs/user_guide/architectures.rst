@@ -63,10 +63,9 @@ passive) for multi-tier backup via Rsync/SSH. Further information on geo-redunda
 available in the :ref:`geographical redundancy <architectures-geographical-redundancy>`
 section.
 
-.. image:: /images/barman-architecture-georedundancy.png
+.. image:: /images/barman-multilocation-georedundancy.png
    :scale: 50%
    :align: center
-
 
 Thanks to :ref:`Hook Scripts <concepts-barman-concepts-hook-scripts>`, backups of Barman
 can be exported to different media, such as tape via tar, or locations, like an object
@@ -211,7 +210,7 @@ The streaming backup method is usually the recommended approach for most use cas
 
 The figure below illustrates how this setup would function in practice.
 
-.. image:: /images/barman-architecture-scenario1.png
+.. image:: /images/barman-full-streaming.png
    :scale: 50%
    :align: center
 
@@ -248,7 +247,7 @@ usage, including on a per-tablespace basis. You can check
 
 The figure below illustrates how this setup would function in practice.
 
-.. image:: /images/barman-architecture-scenario2.png
+.. image:: /images/barman-remote-copy.png
    :scale: 50%
    :align: center
 
@@ -268,32 +267,47 @@ on the Barman server.
 
 .. _architectures-scenarios-for-backups-hybrid-scenarios:
 
-Hybrid scenarios
-^^^^^^^^^^^^^^^^
+Hybrid scenario
+^^^^^^^^^^^^^^^
 
-It is also possible to use a hybrid approach, combining both backup and WAL
-transferring methods in order to achieve optimal results for a specific use case.
+It is also possible to use a hybrid approach, combining rsync backups with WAL
+streaming in order to achieve results that have the advantages of rsync backups
+(file-level incremental backups, parallel jobs, etc) together with WAL streaming ones
+(more efficient WAL transfer, optional RPO zero).
 
-1. When using the streaming-only setup, described in the 
-:ref:`Scenario 1 <architectures-scenarios-for-backups-backup-via-streaming>`, you can
-also configure WAL archiving via SSH in addition to WAL streaming. In such scenarios,
-WAL archiving would act as a fallback mechanism in case WAL streaming failed. See the
-image below.
+The figure below illustrates how this setup would function in practice.
 
-.. image:: /images/barman-architecture-scenario1b.png
+.. image:: /images/barman-rsync-backup-receivewal.png
    :scale: 50%
    :align: center
+
+To accomplish this, you will need to configure the ``backup_method`` as ``rsync``, and
+set ``streaming_archiver`` to ``on`` in your Barman server configuration. You will also
+need to have a streaming replication connection to be used by ``pg_receivewal`` for WAL
+archiving and an SSH connection to be used by Rsync for base backup operations.
+
+
+WAL archiving fallback redundancy
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+With Barman, you can configure WAL archiving in addition to WAL streaming in order to
+have a fallback mechanism in case WAL streaming fails. This can be done with either of
+the ``backup_method`` configurations described above.
+
+1. When using the streaming-only setup, described in the
+:ref:`Scenario 1 <architectures-scenarios-for-backups-backup-via-streaming>`, you can
+also configure WAL archiving via SSH in addition to WAL streaming. In such scenarios,
+WAL archiving would act as a fallback mechanism in case WAL streaming failed.
+
 
 2. When using the Rsync backup method, described in
 :ref:`Scenario 2 <architectures-scenarios-for-backups-backup-via-rsync>`, you can also
 configure WAL streaming instead of using the ``archive_command`` in order to have a
 lower :term:`RPO`. You can also opt for configuring WAL streaming in addition to WAL
-archiving and have both options. See the image below.
+archiving and have both options.
 
-.. image:: /images/barman-architecture-scenario2b.png
-   :scale: 50%
-   :align: center
-
+In either cases, Barman will automatically verify that the WAL files are not duplicated
+in the archive, and will only store them once.
 
 .. _architectures-geographical-redundancy:
 
@@ -321,7 +335,14 @@ backing up subsets of different Barman installations (cross-site backup).
 Figure below shows two availability zones (one in Europe and one in the US), each with
 a primary PostgreSQL server that is backed up in a local Barman installation, and
 relayed on the other Barman server (defined as passive) for multi-tier backup via
-rsync/SSH. Further information on geo-redundancy is available in the :ref:`Geographical Redundancy <geographical-redundancy>` section.
+rsync/SSH. Further information on geo-redundancy is available in the
+:ref:`Geographical Redundancy <geographical-redundancy>` section.
+
+The image below illustrates how this setup would function in practice.
+
+.. image:: /images/barman-georedundancy.png
+   :scale: 50%
+   :align: center
 
 
 .. _architectures-cloud-snaphost-backups:
