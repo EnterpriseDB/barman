@@ -2,6 +2,217 @@
 
 © Copyright EnterpriseDB UK Limited 2024 - All rights reserved.
 
+## 3.12.0 (2024-11-21)
+
+### Minor changes
+
+- Add FIPS support to Barman
+
+  The `md5` hash algorithm is not FIPS compliant, so it is going to be replaced by
+  `sha256`. `sha256` is FIPS compliant, vastly used, and is considered secure for most
+  practical purposes.
+  Up until this release, Barman's WAL archive client used `hashlib.md5` to generate
+  checksums for tar files before they were sent to the Barman server. Here, a tar file is
+  a file format used for bundling multiple files together with a `MD5SUMS` file that lists
+  the checksums and their corresponding paths.
+  In this release, the `md5` hashing algorithm is replaced by `sha256` as the default.
+  As a result, checksums for the tar files will be calculated using `sha256`, and the
+  `MD5SUMS` file will be named `SHA256SUMS`. Barman still has the ability to use the
+  nondefault `md5` algorithm and the `MD5SUMS` file from the client if there is a use
+  case for it. The user just needs to add the `--md5` flag to the `barman-wal-archive`
+  `archive_command`.
+
+  References: BAR-155, CP-34954, CP-34391.
+
+- Removed el7, debian10, and ubuntu1804 support; updated Debian and SLES.
+
+  Support for el7, debian10, and ubuntu1804 has been removed. Additionally, version 12
+  and version name "bookworm" has been added for Debian, addressing a previously
+  missing entry. The SLES image version has also been updated from sp4 to sp5.
+
+  References: BAR-389.
+
+- Add support for Postgres Extended 17 (PGE) and Postgres Advanced Server 17 (EPAS)
+
+  Tests were conducted on Postgres Extended 17 (PGE) and Postgres Advanced Server 17
+  (EPAS), confirming full compatibility with the latest features in Barman. This
+  validation ensures that users of the latest version of PGE and EPAS can leverage all the new
+  capabilities of Barman with confidence.
+
+  References: BAR-331.
+
+- Improve WAL compression with `zstd`, `lz4` and `xz` algorithms
+
+  Introduced support for xz compression on WAL files. It can be enabled by specifying
+  `xz` in the `compression` server parameter. WALs will be compressed when entering
+  the Barman's WAL archive. For the cloud, it can be enabled by specifying `--xz`
+  when running `barman-cloud-wal-archive`.
+
+  Introduced support for zstandard compression on WAL files. It can be enabled by
+  specifying `zstd` in the `compression` server parameter. WALs will be compressed
+  when entering the Barman's WAL archive. For the cloud, it can be enabled by
+  specifying `--zstd` when running `barman-cloud-wal-archive`.
+
+  Introduced support for lz4 compression on WAL files. It can be enabled by
+  specifying `lz4` in the `compression` server parameter. WALs will be compressed
+  when entering the Barman's WAL archive. For the cloud, it can be enabled by
+  specifying `--lz4` when running `barman-cloud-wal-archive`.
+
+  References: BAR-265, BAR-423, BAR-264.
+
+- Improve WAL upload performance on S3 buckets by avoiding multipart uploads
+
+  Previously, WAL files were being uploaded to S3 buckets using multipart uploads
+  provided by the boto3 library via the `upload_fileobj` method. It was noticed that
+  multipart upload is slower when used for small files, such as WAL segments,
+  compared to when uploading it in a single PUT request.
+  This has been improved by avoiding multipart uploads for files smaller than 100MB.
+  The average upload time of each WAL file is expected to be reduced by around 15%
+  with this change.
+
+  References: BAR-374.
+
+- Modify behavior when enforcing retention policy for `KEEP:STANDALONE` full backups
+
+  When enforcing the retention policy on full backups created with
+  `backup_method = postgres`, Barman was previously marking all dependent (child)
+  incremental backups as `VALID`, regardless of the KEEP target used. However, this
+  approach is incorrect:
+
+  - For backups labeled `KEEP:STANDALONE`, Barman only retains the WAL files needed to
+  restore the server to the exact state of that backup. Because these backups are
+  self-contained, any dependent child backups are no longer needed once the root
+  backup is outside the retention policy.
+
+  - In contrast, backups marked `KEEP:FULL` are intended for point-in-time recovery.
+  To support this, Barman retains all WALs, as well as any child backups, to ensure
+  the backup's consistency and allow recovery to the latest possible point.
+
+  This distinction ensures that `KEEP:STANDALONE` backups serve as snapshots of a
+  specific moment, while `KEEP:FULL` backups retain everything needed for full
+  point-in-time recovery.
+
+  References: BAR-366.
+
+- Update documentation and user-facing features for Barman's recovery process.
+
+  Barman docs and the tool itself used to use the terms "recover"/"recovery" both for
+  referencing:
+
+  - The Postgres recovery process;
+  - The process of restoring a backup and preparing it for recovery.
+
+  Both the code and documentation have been revised to accurately reflect the usage of
+  the terms "restore" and "recover"/"recovery".
+
+  Also, the `barman recover` command was renamed to `barman restore`. The old name is
+  still kept as an alias for backward compatibility.
+
+  References: BAR-337.
+
+- Add --keep-compression flag to barman-wal-restore and get-wal
+
+  A new `--keep-compression` option has been added to both `barman-wal-restore` and
+  `get-wal`. This option controls whether compressed WAL files should be decompressed
+  on the Barman server before being fetched. When specified with `get-wal`, default
+  decompression is skipped, and the output is the WAL file content in its original
+  state. When specified with `barman-wal-restore`, the WAL file is fetched as-is and,
+  if compressed, decompressed on the client side.
+
+  References: BAR-435.
+
+- Ransomware protection - Add AWS Snapshot Lock Support
+
+  Barman now supports AWS EBS Snapshot Lock, a new integrated feature to prevent
+  accidental or malicious deletions of Amazon EBS snapshots. When a snapshot is
+  locked, it can't be deleted by any user but remains fully accessible for use. This
+  feature enables you to store snapshots in WORM (Write-Once-Read-Many) format for a
+  specified duration, helping to meet regulatory requirements by keeping the data
+  secure and tamper-proof until the lock expires.
+
+  Special thanks to Rui Marinho, our community contributor who started this feature.
+
+  References: BAR-242.
+
+- Prevent orphan files from being left from a crash while deleting a backup
+
+  This commit fixes an issue where backups could leave behind files if the system
+  crashed during the deletion of a backup.
+
+  Now, when a backup is deleted, it will get a "delete marker" at the start.
+  If a crash happens while the backup is being deleted, the marker will help
+  recognize incomplete backup removals when the server restarts.
+
+  The Barman cron job has been updated to look for these deleted markers. If it finds
+  a backup with a "delete marker", it will complete the process.
+
+  References: BAR-244.
+
+- Add support for using tags with snapshots
+
+  Barman now supports tagging the snapshots when creating backups using the
+  barman-cloud-backup script command. A new argument called --tags was added.
+
+  Special thanks to Rui Marinho, our community contributor who started this feature.
+
+  References: BAR-417.
+
+### Bugfixes
+
+- Fix barman check which returns wrong results for Replication Slot
+
+  Previously, when using architectures which backup from a standby node and stream WALs
+  from the primary, Barman would incorrectly use `conninfo` (pointing to a standby server)
+  for replication checks, leading to errors such as:
+
+  `replication slot (WAL streaming): FAILED (replication slot 'barman' doesn't exist.
+  Please execute 'barman receive-wal --create-slot pg17')`
+
+  This fixes the following issue
+  [#1024](https://github.com/EnterpriseDB/barman/issues/1024) by ensuring
+  `wal_conninfo` is used for WAL replication checks if it's set.
+
+  `wal_conninfo` takes precedence over `wal_streaming_conninfo`, when both are set.
+  With this change, if only `wal_conninfo` is set, it will be used and will not fall
+  back to `conninfo`.
+
+  Also, in the documentation, changes were made so it is explicit that when `conninfo`
+  points to a standby server, `wal_conninfo` must be set and used for accurate
+  replication status checks.
+
+  References: BAR-409.
+
+- Fix missing options for `barman keep`
+
+  The error message that the Barman CLI emitted when running `barman keep`
+  without any options suggested there were shortcut aliases for status and
+  release. These aliases, -s and -r, do not exist, so the error message was
+  misleading.
+  This fixes the issue by including these short options in the Barman CLI,
+  aligning it with other tools like `barman-cloud-backup-keep`, where these
+  shortcuts already exist.
+
+  References: BAR-356.
+
+- Lighten standby checks related to conninfo and primary_conninfo
+
+  When backing up a standby server, Barman performs some checks to assert
+  that `conninfo` is really pointing to a standby (in recovery mode) and
+  that `primary_conninfo` is pointing to a primary (not in recovery).
+
+  The problem, as reported in the issues #704 and #744, is that when a
+  failover occurs, the `conninfo` will now be pointing to a primary
+  instead and the checks will start failing, requiring the user to change
+  Barman configs manually whenever a failover occurs.
+
+  This fix solved the issue by making such checks non-critical, which
+  means they will still fail but Barman will keep operating regardless.
+  Essentially, Barman will ignore `primary_conninfo` if `conninfo` does
+  not point to a standby. Warnings about this misconfiguration will also
+  be emitted whenever running any Barman command so the user can be aware.
+
+  References: BAR-348.
+
 ## 3.11.1 (2024-08-22)
 
 ### Bugfixes
