@@ -27,22 +27,20 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-SWITCH-WAL" "1" "Oct 10, 2024" "3.11" "Barman"
+.TH "BARMAN-SWITCH-WAL" "1" "Nov 21, 2024" "3.12" "Barman"
 .SH NAME
 barman-switch-wal \- Barman Sub-Commands
 .SH SYNOPSIS
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 switch\-wal
     [ \-\-archive ]
     [ \-\-archive\-timeout ]
     [ \-\-force ]
     SERVER_NAME
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SH DESCRIPTION
@@ -71,7 +69,7 @@ Forces the switch by executing a CHECKPOINT before \fBpg_switch_wal()\fP\&.
 \fBNOTE:\fP
 .INDENT 7.0
 .INDENT 3.5
-Running a CHECKPOINT may increase I/O load on the PostgreSQL server, so use this
+Running a CHECKPOINT may increase I/O load on the Postgres server, so use this
 option cautiously.
 .UNINDENT
 .UNINDENT

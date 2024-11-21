@@ -27,15 +27,14 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-WAL-ARCHIVE" "1" "Oct 10, 2024" "3.11" "Barman"
+.TH "BARMAN-WAL-ARCHIVE" "1" "Nov 21, 2024" "3.12" "Barman"
 .SH NAME
 barman-wal-archive \- Barman-cli Commands
 .SH SYNOPSIS
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 barman\-wal\-archive
     [ { \-h, \-\-help } ]
     [ { \-V, \-\-version } ]
@@ -44,16 +43,15 @@ barman\-wal\-archive
     [ { \-c, \-\-config } CONFIG ]
     [ { \-t \-\-test } ]
     BARMAN_HOST SERVER_NAME WAL_PATH
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SH DESCRIPTION
 .sp
-This script can be utilized in the \fBarchive_command\fP of a PostgreSQL server to
+This script can be utilized in the \fBarchive_command\fP of a Postgres server to
 transfer WAL files to a Barman host using the \fBput\-wal\fP command (introduced in Barman
 2.6). It establishes an SSH connection to the Barman host, enabling seamless integration
-of Barman within PostgreSQL clusters for improved business continuity.
+of Barman within Postgres clusters for improved business continuity.
 .sp
 \fBExit Statuses\fP are:
 .INDENT 0.0
@@ -92,7 +90,7 @@ Define the port used for the SSH connection to the Barman server.
 Specify the configuration file on the Barman server.
 .TP
 .B \fB\-t\fP / \fB\-\-test\fP
-Test the connection and configuration of the specified PostgreSQL server in Barman to
+Test the connection and configuration of the specified Postgres server in Barman to
 ensure it is ready to receive WAL files. This option ignores the mandatory arguments
 \fBWAL_NAME\fP and \fBWAL_DEST\fP\&.
 .UNINDENT

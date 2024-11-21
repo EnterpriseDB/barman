@@ -27,18 +27,16 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-SYNC-INFO" "1" "Oct 10, 2024" "3.11" "Barman"
+.TH "BARMAN-SYNC-INFO" "1" "Nov 21, 2024" "3.12" "Barman"
 .SH NAME
 barman-sync-info \- Barman Sub-Commands
 .SH SYNOPSIS
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
-sync\-info SERVER_NAME [ LAST_WAL [ LAST_POS ] ]
-.ft P
-.fi
+.EX
+sync\-info [ \-\-primary ] SERVER_NAME [ LAST_WAL [ LAST_POS ] ]
+.EE
 .UNINDENT
 .UNINDENT
 .SH DESCRIPTION

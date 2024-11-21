@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CLOUD-CHECK-WAL-ARCHIVE" "1" "Oct 10, 2024" "3.11" "Barman"
+.TH "BARMAN-CLOUD-CHECK-WAL-ARCHIVE" "1" "Nov 21, 2024" "3.12" "Barman"
 .SH NAME
 barman-cloud-check-wal-archive \- Barman-cloud Commands
 .sp
@@ -35,8 +35,7 @@ barman-cloud-check-wal-archive \- Barman-cloud Commands
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 barman\-cloud\-check\-wal\-archive
                 [ { \-V | \-\-version } ]
                 [ \-\-help ]
@@ -50,8 +49,7 @@ barman\-cloud\-check\-wal\-archive
                 [ \-\-azure\-credential { azure\-cli | managed\-identity } ]
                 [ \-\-timeline TIMELINE ]
                 DESTINATION_URL SERVER_NAME
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .sp
@@ -75,7 +73,7 @@ For GCP, only authentication with \fBGOOGLE_APPLICATION_CREDENTIALS\fP env is su
 Name of the server that needs to be checked.
 .TP
 .B \fBDESTINATION_URL\fP
-URL of the cloud destination, such as a bucket in AWS S3. For example: \fIs3://bucket/path/to/folder\fP\&.
+URL of the cloud destination, such as a bucket in AWS S3. For example: \fBs3://bucket/path/to/folder\fP\&.
 .TP
 .B \fB\-V\fP / \fB\-\-version\fP
 Show version and exit.
