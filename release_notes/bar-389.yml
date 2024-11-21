@@ -1,8 +1,0 @@
-- summary: Removed el7, debian10, and ubuntu1804 support; updated Debian and SLES.
-  description: |
-    Support for el7, debian10, and ubuntu1804 has been removed. Additionally, version 12
-    and version name "bookworm" have been added for Debian, addressing a previously
-    missing entry. The SLES image version has also been updated from sp4 to sp5.
-  type: minor_change
-  jira_tickets:
-    - BAR-389

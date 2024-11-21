@@ -1,9 +1,0 @@
-- summary: Add xz compression for WAL files
-  description: |
-    Introduced support for xz compression on WAL files. It can be enabled by specifying
-    `xz` in the `compression` server parameter. WALs will be compressed when entering
-    the Barman's WAL archive. For the cloud, it can ne enabled by specifying `--xz`
-    when running `barman-cloud-wal-archive`.
-  type: minor_change
-  jira_tickets:
-    - BAR-265

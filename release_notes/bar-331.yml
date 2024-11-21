@@ -1,9 +1,0 @@
-- summary: Add support for Postgres Extended 17 (PGE) and Postgres Advanced Server 17 (EPAS)
-  description: |
-    Tests were conducted on Postgres Extended 17 (PGE) and Postgres Advanced Server 17
-    (EPAS), confirming full compatibility with the latest features in Barman. This
-    validation ensures that users of the latest version of PGE and EPAS can leverage all the new
-    capabilities of Barman with confidence.
-  type: minor_change
-  jira_tickets:
-    - BAR-331
