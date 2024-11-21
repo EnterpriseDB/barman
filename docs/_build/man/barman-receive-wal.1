@@ -27,29 +27,27 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-RECEIVE-WAL" "1" "Oct 10, 2024" "3.11" "Barman"
+.TH "BARMAN-RECEIVE-WAL" "1" "Nov 21, 2024" "3.12" "Barman"
 .SH NAME
 barman-receive-wal \- Barman Sub-Commands
 .SH SYNOPSIS
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 receive\-wal
     [ \-\-create\-slot ]
     [ \-\-drop\-slot ]
     [ \-\-reset ]
     [ \-\-stop ]
     SERVER_NAME
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SH DESCRIPTION
 .sp
 Initiate the streaming of transaction logs for a server. This process uses
-\fBpg_receivewal\fP or \fBpg_receivexlog\fP to receive WAL files from PostgreSQL servers via
+\fBpg_receivewal\fP or \fBpg_receivexlog\fP to receive WAL files from Postgres servers via
 the streaming protocol.
 .SH PARAMETERS
 .INDENT 0.0

@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CLOUD-WAL-ARCHIVE" "1" "Oct 10, 2024" "3.11" "Barman"
+.TH "BARMAN-CLOUD-WAL-ARCHIVE" "1" "Nov 21, 2024" "3.12" "Barman"
 .SH NAME
 barman-cloud-wal-archive \- Barman-cloud Commands
 .sp
@@ -35,8 +35,7 @@ barman-cloud-wal-archive \- Barman-cloud Commands
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 barman\-cloud\-wal\-archive
                 [ { \-V | \-\-version } ]
                 [ \-\-help ]
@@ -61,15 +60,14 @@ barman\-cloud\-wal\-archive
                 [ \-\-max\-single\-put\-size MAX_SINGLE_PUT_SIZE ]
                 [ \-\-kms\-key\-name KMS_KEY_NAME ]
                 DESTINATION_URL SERVER_NAME [ WAL_PATH ]
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .sp
 \fBDescription\fP
 .sp
 The \fBbarman\-cloud\-wal\-archive\fP command is designed to be used in the
-\fBarchive_command\fP of a PostgreSQL server to directly ship WAL files to cloud storage.
+\fBarchive_command\fP of a Postgres server to directly ship WAL files to cloud storage.
 .sp
 \fBNOTE:\fP
 .INDENT 0.0
@@ -98,7 +96,7 @@ For GCP, only authentication with \fBGOOGLE_APPLICATION_CREDENTIALS\fP env is su
 Name of the server that will have the WALs archived.
 .TP
 .B \fBDESTINATION_URL\fP
-URL of the cloud destination, such as a bucket in AWS S3. For example: \fIs3://bucket/path/to/folder\fP\&.
+URL of the cloud destination, such as a bucket in AWS S3. For example: \fBs3://bucket/path/to/folder\fP\&.
 .TP
 .B \fBWAL_PATH\fP
 The value of the \(aq%p\(aq keyword (according to \fBarchive_command\fP).

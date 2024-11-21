@@ -1,3 +1,4 @@
+'\" t
 .\" Man page generated from reStructuredText.
 .
 .
@@ -27,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN" "1" "Nov 7, 2024" "3.11" "Barman"
+.TH "BARMAN" "1" "Nov 21, 2024" "3.12" "Barman"
 .SH NAME
 barman \- Barman Commands
 .sp
@@ -42,8 +43,7 @@ behavior of the sub\-commands and can be used as follows:
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 barman
     [ { \-c | \-\-config } CONFIG ]
     [ { \-color | \-\-colour } { never | always | auto } ]
@@ -54,8 +54,7 @@ barman
     [ { \-q | \-\-quiet } ]
     [ { \-v | \-\-version } ]
     [ SUBCOMMAND ]
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .sp
@@ -160,9 +159,8 @@ For some commands, you can use the following shortcuts or aliases to identify a 
 for a given server. Specifically, the \fBall\fP shortcut can be used to identify all
 servers:
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -199,7 +197,6 @@ T{
 T}	T{
 Most recent backup that failed, in chronological order.
 T}
-_
 .TE
 .SH EXIT STATUSES
 .sp
@@ -218,11 +215,9 @@ quickly navigate to it.
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 archive\-wal SERVER_NAME
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -242,8 +237,7 @@ Name of the server in barman node.
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 backup
     [ \-\-bwlimit KBPS ]
     [ \-\-incremental BACKUP_ID ]
@@ -263,8 +257,7 @@ backup
     [ { \-\-wait | \-w } ]
     [ \-\-wait\-timeout SECONDS ]
     SERVER_NAME [ ... ]
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -384,9 +377,8 @@ before timing out.
 .sp
 Use shortcuts instead of \fBSERVER_NAME\fP\&.
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -398,18 +390,15 @@ T{
 T}	T{
 All available servers
 T}
-_
 .TE
 .SS \fBbarman check\-backup\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 check\-backup SERVER_NAME BACKUP_ID
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -430,9 +419,8 @@ Id of the backup in barman catalog.
 .sp
 Use shortcuts instead of \fBBACKUP_ID\fP\&.
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -463,18 +451,15 @@ T{
 T}	T{
 Most recent backup that failed, in chronological order.
 T}
-_
 .TE
 .SS \fBbarman check\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 check [ \-\-nagios ] SERVER_NAME
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -496,9 +481,8 @@ Nagios plugin compatible output.
 .sp
 Use shortcuts instead of \fBSERVER_NAME\fP\&.
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -510,18 +494,15 @@ T{
 T}	T{
 All available servers
 T}
-_
 .TE
 .SS \fBbarman config\-switch\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 config\-switch SERVER_NAME { \-\-reset | MODEL_NAME }
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -554,11 +535,9 @@ Reset the server\(aqs configurations.
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 config\-update STRING
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -595,11 +574,9 @@ List of JSON formatted string.
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 cron [ \-\-keep\-descriptors ]
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -617,11 +594,9 @@ main process. This is especially useful for Docker\-based installations.
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 delete SERVER_NAME BACKUP_ID
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -640,9 +615,8 @@ Id of the backup in barman catalog.
 .sp
 Use shortcuts instead of \fBBACKUP_ID\fP\&.
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -673,18 +647,15 @@ T{
 T}	T{
 Most recent backup that failed, in chronological order.
 T}
-_
 .TE
 .SS \fBbarman diagnose\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 diagnose
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -698,11 +669,9 @@ configuration and status of all servers, and many more.
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 generate\-manifest SERVER_NAME BACKUP_ID
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -722,9 +691,8 @@ Id of the backup in barman catalog.
 .sp
 Use shortcuts instead of \fBBACKUP_ID\fP\&.
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -755,15 +723,13 @@ T{
 T}	T{
 Most recent backup that failed, in chronological order.
 T}
-_
 .TE
 .SS \fBbarman get\-wal\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 get\-wal
     [ \-j ]
     [ \-o  OUTPUT_DIRECTORY ]
@@ -772,8 +738,7 @@ get\-wal
     [ { \-t | \-\-test } ]
     [ \-z ]
     SERVER_NAME WAL_NAME
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -789,8 +754,15 @@ Name of the server in barman node
 .B \fBWAL_NAME\fP
 Id of the backup in barman catalog.
 .TP
-.B \fB\-j\fP
+.B \fB\-j\fP /  \fB\-\-bzip2\fP
 Output will be compressed using bzip2.
+.TP
+.B \fB\-z\fP / \fB\-\-gzip\fP
+Output will be compressed using gzip.
+.TP
+.B \fB\-\-keep\-compression\fP
+Do not uncompress the file content. The output will be the original compressed
+file.
 .TP
 .B \fB\-o\fP
 Destination directory where barman will store the WAL file.
@@ -808,22 +780,26 @@ Additionally, collect partial WAL files (.partial).
 Test both the connection and configuration of the specified Postgres server in
 Barman for WAL retrieval. When this option is used, the required \fBWAL_NAME\fP
 argument is disregarded.
-.TP
-.B \fB\-z\fP
-Output will be compressed using gzip.
+.UNINDENT
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+\fB\-z\fP / \fB\-\-gzip\fP and \fB\-j\fP /  \fB\-\-bzip2\fP options are deprecated and will be
+removed in the future. For WAL compression, please make sure to enable it directly
+on the Barman server via the \fBcompression\fP configuration option.
+.UNINDENT
 .UNINDENT
 .SS \fBbarman keep\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 keep
     { \-\-release | \-\-status | \-\-target { full | standalone } }
     SERVER_NAME BACKUP_ID
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -867,9 +843,8 @@ backup\(aqs consistency.
 .sp
 Use shortcuts instead of \fBBACKUP_ID\fP\&.
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -900,18 +875,15 @@ T{
 T}	T{
 Most recent backup that failed, in chronological order.
 T}
-_
 .TE
 .SS \fBbarman list\-backups\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 list\-backups SERVER_NAME
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -929,9 +901,8 @@ Name of the server in barman node
 .sp
 Use shortcuts instead of \fBSERVER_NAME\fP\&.
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -943,20 +914,17 @@ T{
 T}	T{
 All available servers
 T}
-_
 .TE
 .SS \fBbarman list\-files\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 list\-files
     [ \-\-target { data | full | standalone | wal } ]
     SERVER_NAME BACKUP_ID
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -990,9 +958,8 @@ specified base backup is the most recent one available).
 .sp
 Use shortcuts instead of \fBBACKUP_ID\fP\&.
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -1023,18 +990,15 @@ T{
 T}	T{
 Most recent backup that failed, in chronological order.
 T}
-_
 .TE
 .SS \fBbarman list\-servers\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 list\-servers [ \-\-minimal ]
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -1051,11 +1015,9 @@ Machine readable output.
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 lock\-directory\-cleanup
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -1066,11 +1028,9 @@ Automatically removes unused lock files from the \fBbarman_lock_directory\fP\&.
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 put\-wal [ { \-t | \-\-test } ] SERVER_NAME
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -1097,11 +1057,9 @@ server in Barman for WAL retrieval.
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 rebuild\-xlogdb SERVER_NAME
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -1119,9 +1077,8 @@ Name of the server in barman node.
 .sp
 Use shortcuts instead of \fBSERVER_NAME\fP\&.
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -1133,23 +1090,20 @@ T{
 T}	T{
 All available servers
 T}
-_
 .TE
 .SS \fBbarman receive\-wal\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 receive\-wal
     [ \-\-create\-slot ]
     [ \-\-drop\-slot ]
     [ \-\-reset ]
     [ \-\-stop ]
     SERVER_NAME
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -1183,8 +1137,7 @@ Stop the process for the server.
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 restore
     [ \-\-aws\-region AWS_REGION } ]
     [ \-\-azure\-resource\-group AZURE_RESOURCE_GRP ]
@@ -1214,8 +1167,7 @@ restore
     [ \-\-target\-tli TLI ]
     [ \-\-target\-xid XID ]
     SERVER_NAME BACKUP_ID DESTINATION_DIR
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -1380,9 +1332,8 @@ Recover to the specified transaction ID.
 .sp
 Use shortcuts instead of \fBBACKUP_ID\fP\&.
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -1413,22 +1364,19 @@ T{
 T}	T{
 Most recent backup that failed, in chronological order.
 T}
-_
 .TE
 .SS \fBbarman replication\-status\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 replication\-status
     [ \-\-minimal ]
     [ \-\-source { backup\-host | wal\-host } ]
     [ \-\-target { hot\-standby | wal\-streamer | all } ]
 SERVER_NAME
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -1471,9 +1419,8 @@ The possible values are:
 .sp
 Use shortcuts instead of \fBSERVER_NAME\fP\&.
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -1485,18 +1432,15 @@ T{
 T}	T{
 All available servers
 T}
-_
 .TE
 .SS \fBbarman show\-backup\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 show\-backup SERVER_NAME BACKUP_ID
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -1516,9 +1460,8 @@ Id of the backup in barman catalog.
 .sp
 Use shortcuts instead of \fBBACKUP_ID\fP\&.
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -1549,18 +1492,15 @@ T{
 T}	T{
 Most recent backup that failed, in chronological order.
 T}
-_
 .TE
 .SS \fBbarman show\-servers\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 show\-servers SERVER_NAME
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -1576,9 +1516,8 @@ Name of the server in barman node
 .UNINDENT
 .SS Shortcuts
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -1590,18 +1529,15 @@ T{
 T}	T{
 All available servers
 T}
-_
 .TE
 .SS \fBbarman status\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 status SERVER_NAME
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -1616,9 +1552,8 @@ Name of the server in barman node
 .UNINDENT
 .SS Shortcuts
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -1630,22 +1565,19 @@ T{
 T}	T{
 All available servers
 T}
-_
 .TE
 .SS \fBbarman switch\-wal\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 switch\-wal
     [ \-\-archive ]
     [ \-\-archive\-timeout ]
     [ \-\-force ]
     SERVER_NAME
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -1688,11 +1620,9 @@ Alias for the \fBswitch\-wal\fP command.
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 sync\-backup SERVER_NAME BACKUP_ID
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -1715,9 +1645,8 @@ Id of the backup in barman catalog.
 For some commands, instead of using the timestamp backup ID, you can use the following
 shortcuts or aliases to identify a backup for a given server:
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -1748,18 +1677,15 @@ T{
 T}	T{
 Most recent backup that failed, in chronological order.
 T}
-_
 .TE
 .SS \fBbarman sync\-info\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
-sync\-info SERVER_NAME [ LAST_WAL [ LAST_POS ] ]
-.ft P
-.fi
+.EX
+sync\-info [ \-\-primary ] SERVER_NAME [ LAST_WAL [ LAST_POS ] ]
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -1788,11 +1714,9 @@ Hint for quickly positioning in the \fBxlog.db\fP file (for incremental synchron
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 sync\-wals SERVER_NAME
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -1811,11 +1735,9 @@ Name of the server in barman node
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 verify\-backup SERVER_NAME BACKUP_ID
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -1838,9 +1760,8 @@ Id of the backup in barman catalog.
 For some commands, instead of using the timestamp backup ID, you can use the following
 shortcuts or aliases to identify a backup for a given server:
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -1871,7 +1792,6 @@ T{
 T}	T{
 Most recent backup that failed, in chronological order.
 T}
-_
 .TE
 .SS \fBbarman verify\fP
 .SS Description
@@ -1887,8 +1807,7 @@ both utilities.
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 barman\-wal\-archive
     [ { \-h, \-\-help } ]
     [ { \-V, \-\-version } ]
@@ -1897,8 +1816,7 @@ barman\-wal\-archive
     [ { \-c, \-\-config } CONFIG ]
     [ { \-t \-\-test } ]
     BARMAN_HOST SERVER_NAME WAL_PATH
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -1954,8 +1872,7 @@ ensure it is ready to receive WAL files. This option ignores the mandatory argum
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 barman\-wal\-restore
     [ { \-h, \-\-help } ]
     [ { \-V, \-\-version } ]
@@ -1970,8 +1887,7 @@ barman\-wal\-restore
     [ { \-c, \-\-config } CONFIG ]
     [ { \-t \-\-test } ]
     BARMAN_HOST SERVER_NAME WAL_NAME WAL_DEST
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS Description
@@ -2042,6 +1958,10 @@ Transfer WAL files compressed with \fBgzip\fP\&.
 .B \fB\-j\fP /  \fB\-\-bzip2\fP
 Transfer WAL files compressed with \fBbzip2\fP\&.
 .TP
+.B \fB\-\-keep\-compression\fP
+If specified, compressed files will be trasnfered as\-is and decompressed on arrival
+on the client\-side.
+.TP
 .B \fB\-c\fP /  \fB\-\-config\fP
 Specify the configuration file on the Barman server.
 .TP
@@ -2049,6 +1969,15 @@ Specify the configuration file on the Barman server.
 Test the connection and configuration of the specified Postgres server in Barman to
 ensure it is ready to receive WAL files. This option ignores the mandatory arguments
 \fBWAL_NAME\fP and \fBWAL_DEST\fP\&.
+.UNINDENT
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+\fB\-z\fP / \fB\-\-gzip\fP and \fB\-j\fP /  \fB\-\-bzip2\fP options are deprecated and will be
+removed in the future. For WAL compression, please make sure to enable it directly
+on the Barman server via the \fBcompression\fP configuration option.
+.UNINDENT
 .UNINDENT
 .SH AUTHOR
 EnterpriseDB

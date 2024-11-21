@@ -1,3 +1,4 @@
+'\" t
 .\" Man page generated from reStructuredText.
 .
 .
@@ -27,15 +28,14 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-BACKUP" "1" "Oct 10, 2024" "3.11" "Barman"
+.TH "BARMAN-BACKUP" "1" "Nov 21, 2024" "3.12" "Barman"
 .SH NAME
 barman-backup \- Barman Sub-Commands
 .SH SYNOPSIS
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 backup
     [ \-\-bwlimit KBPS ]
     [ \-\-incremental BACKUP_ID ]
@@ -55,8 +55,7 @@ backup
     [ { \-\-wait | \-w } ]
     [ \-\-wait\-timeout SECONDS ]
     SERVER_NAME [ ... ]
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SH DESCRIPTION
@@ -176,9 +175,8 @@ before timing out.
 .sp
 Use shortcuts instead of \fBSERVER_NAME\fP\&.
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -190,7 +188,6 @@ T{
 T}	T{
 All available servers
 T}
-_
 .TE
 .SH AUTHOR
 EnterpriseDB

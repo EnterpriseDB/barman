@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CLOUD-BACKUP-DELETE" "1" "Oct 10, 2024" "3.11" "Barman"
+.TH "BARMAN-CLOUD-BACKUP-DELETE" "1" "Nov 21, 2024" "3.12" "Barman"
 .SH NAME
 barman-cloud-backup-delete \- Barman-cloud Commands
 .sp
@@ -35,8 +35,7 @@ barman-cloud-backup-delete \- Barman-cloud Commands
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 barman\-cloud\-backup\-delete
                 [ { \-V | \-\-version } ]
                 [ \-\-help ]
@@ -54,8 +53,7 @@ barman\-cloud\-backup\-delete
                 [ \-\-azure\-credential { azure\-cli | managed\-identity } ]
                 [\-\-batch\-size DELETE_BATCH_SIZE]
                 SOURCE_URL SERVER_NAME
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .sp
@@ -104,7 +102,7 @@ Name of the server that holds the backup to be deleted.
 .TP
 .B \fBSOURCE_URL\fP
 URL of the cloud source, such as a bucket in AWS S3. For example:
-\fIs3://bucket/path/to/folder\fP\&.
+\fBs3://bucket/path/to/folder\fP\&.
 .TP
 .B \fB\-V\fP / \fB\-\-version\fP
 Show version and exit.

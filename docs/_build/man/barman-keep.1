@@ -1,3 +1,4 @@
+'\" t
 .\" Man page generated from reStructuredText.
 .
 .
@@ -27,20 +28,18 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-KEEP" "1" "Oct 10, 2024" "3.11" "Barman"
+.TH "BARMAN-KEEP" "1" "Nov 21, 2024" "3.12" "Barman"
 .SH NAME
 barman-keep \- Barman Sub-Commands
 .SH SYNOPSIS
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 keep
     { \-\-release | \-\-status | \-\-target { full | standalone } }
     SERVER_NAME BACKUP_ID
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SH DESCRIPTION
@@ -84,9 +83,8 @@ backup\(aqs consistency.
 .sp
 Use shortcuts instead of \fBBACKUP_ID\fP\&.
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -117,7 +115,6 @@ T{
 T}	T{
 Most recent backup that failed, in chronological order.
 T}
-_
 .TE
 .SH AUTHOR
 EnterpriseDB

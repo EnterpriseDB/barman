@@ -1,3 +1,4 @@
+'\" t
 .\" Man page generated from reStructuredText.
 .
 .
@@ -27,15 +28,14 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-RESTORE" "1" "Oct 11, 2024" "3.11" "Barman"
+.TH "BARMAN-RESTORE" "1" "Nov 21, 2024" "3.12" "Barman"
 .SH NAME
 barman-restore \- Barman Sub-Commands
 .SH SYNOPSIS
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 restore
     [ \-\-aws\-region AWS_REGION } ]
     [ \-\-azure\-resource\-group AZURE_RESOURCE_GRP ]
@@ -65,8 +65,7 @@ restore
     [ \-\-target\-tli TLI ]
     [ \-\-target\-xid XID ]
     SERVER_NAME BACKUP_ID DESTINATION_DIR
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SH DESCRIPTION
@@ -113,7 +112,7 @@ This option allows you to override the \fBgcp_zone\fP value in the Barman
 configuration.
 .TP
 .B \fB\-\-get\-wal\fP / \fB\-\-no\-get\-wal\fP
-Enable/disable usage of \fBget\-wal\fP for WAL fetching during restoration. Default is based on
+Enable/disable usage of \fBget\-wal\fP for WAL fetching during recovery. Default is based on
 \fBrecovery_options\fP setting.
 .TP
 .B \fB\-j\fP / \fB\-\-jobs\fP
@@ -198,42 +197,41 @@ requires defining a target along with one of these actions. The possible values 
 \fBpause\fP: Once recovery target is reached, the server is started in pause state,
 allowing users to inspect the instance
 .IP \(bu 2
-\fBpromote\fP: Once recovery target is reached, the server will exit the restore
+\fBpromote\fP: Once recovery target is reached, the server will exit the recovery
 operation and is promoted as a master.
 .IP \(bu 2
 \fBshutdown\fP: Once recovery target is reached, the server is shut down.
 .UNINDENT
 .TP
 .B \fB\-\-target\-immediate\fP
-Restore is completed when a consistent state is reached (end of the base backup).
+Recovery is completed when a consistent state is reached (end of the base backup).
 .TP
 .B \fB\-\-target\-lsn\fP
-Restore to the specified LSN (Log Sequence Number). Requires Postgres 10 or above.
+Recover to the specified LSN (Log Sequence Number). Requires Postgres 10 or above.
 .TP
 .B \fB\-\-target\-name\fP
-Restore to the specified name of a restore point previously created with the
+Recover to the specified name of a restore point previously created with the
 \fBpg_create_restore_point(name)\fP\&.
 .TP
 .B \fB\-\-target\-time\fP
-Restore to the specified time. Use the format \fBYYYY\-MM\-DD HH:MM:SS.mmm\fP\&.
+Recover to the specified time. Use the format \fBYYYY\-MM\-DD HH:MM:SS.mmm\fP\&.
 .TP
 .B \fB\-\-target\-tli\fP
-Restore the specified timeline. You can use the special values \fBcurrent\fP and
+Recover the specified timeline. You can use the special values \fBcurrent\fP and
 \fBlatest\fP in addition to a numeric timeline ID. For Postgres versions 12 and above,
-the default is to restore to the latest timeline in the WAL archive. For Postgres
-versions below 12, the default is to restore to the timeline that was current at the
+the default is to recover to the latest timeline in the WAL archive. For Postgres
+versions below 12, the default is to recover to the timeline that was current at the
 time the backup was taken.
 .TP
 .B \fB\-\-target\-xid\fP
-Restore to the specified transaction ID.
+Recover to the specified transaction ID.
 .UNINDENT
 .SH SHORTCUTS
 .sp
 Use shortcuts instead of \fBBACKUP_ID\fP\&.
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -264,7 +262,6 @@ T{
 T}	T{
 Most recent backup that failed, in chronological order.
 T}
-_
 .TE
 .SH AUTHOR
 EnterpriseDB

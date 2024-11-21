@@ -27,15 +27,14 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-GET-WAL" "1" "Oct 10, 2024" "3.11" "Barman"
+.TH "BARMAN-GET-WAL" "1" "Nov 21, 2024" "3.12" "Barman"
 .SH NAME
 barman-get-wal \- Barman Sub-Commands
 .SH SYNOPSIS
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 get\-wal
     [ \-j ]
     [ \-o  OUTPUT_DIRECTORY ]
@@ -44,8 +43,7 @@ get\-wal
     [ { \-t | \-\-test } ]
     [ \-z ]
     SERVER_NAME WAL_NAME
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SH DESCRIPTION
@@ -61,8 +59,15 @@ Name of the server in barman node
 .B \fBWAL_NAME\fP
 Id of the backup in barman catalog.
 .TP
-.B \fB\-j\fP
+.B \fB\-j\fP /  \fB\-\-bzip2\fP
 Output will be compressed using bzip2.
+.TP
+.B \fB\-z\fP / \fB\-\-gzip\fP
+Output will be compressed using gzip.
+.TP
+.B \fB\-\-keep\-compression\fP
+Do not uncompress the file content. The output will be the original compressed
+file.
 .TP
 .B \fB\-o\fP
 Destination directory where barman will store the WAL file.
@@ -77,12 +82,18 @@ per row.
 Additionally, collect partial WAL files (.partial).
 .TP
 .B \fB\-t\fP / \fB\-\-test\fP
-Test both the connection and configuration of the specified PostgreSQL server in
+Test both the connection and configuration of the specified Postgres server in
 Barman for WAL retrieval. When this option is used, the required \fBWAL_NAME\fP
 argument is disregarded.
-.TP
-.B \fB\-z\fP
-Output will be compressed using gzip.
+.UNINDENT
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+\fB\-z\fP / \fB\-\-gzip\fP and \fB\-j\fP /  \fB\-\-bzip2\fP options are deprecated and will be
+removed in the future. For WAL compression, please make sure to enable it directly
+on the Barman server via the \fBcompression\fP configuration option.
+.UNINDENT
 .UNINDENT
 .SH AUTHOR
 EnterpriseDB

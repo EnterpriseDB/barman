@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CLOUD-BACKUP-KEEP" "1" "Oct 10, 2024" "3.11" "Barman"
+.TH "BARMAN-CLOUD-BACKUP-KEEP" "1" "Nov 21, 2024" "3.12" "Barman"
 .SH NAME
 barman-cloud-backup-keep \- Barman-cloud Commands
 .sp
@@ -35,8 +35,7 @@ barman-cloud-backup-keep \- Barman-cloud Commands
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 barman\-cloud\-backup\-keep
                 [ { \-V | \-\-version } ]
                 [ \-\-help ]
@@ -52,8 +51,7 @@ barman\-cloud\-backup\-keep
                 [ { \-s | \-\-status } ]
                 [ \-\-target { full | standalone } ]
                 SOURCE_URL SERVER_NAME BACKUP_ID
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .sp
@@ -81,7 +79,7 @@ Name of the server that holds the backup to be kept.
 .TP
 .B \fBSOURCE_URL\fP
 URL of the cloud source, such as a bucket in AWS S3. For example:
-\fIs3://bucket/path/to/folder\fP\&.
+\fBs3://bucket/path/to/folder\fP\&.
 .TP
 .B \fBBACKUP_ID\fP
 The ID of the backup to be kept.

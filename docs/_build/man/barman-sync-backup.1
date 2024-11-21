@@ -1,3 +1,4 @@
+'\" t
 .\" Man page generated from reStructuredText.
 .
 .
@@ -27,18 +28,16 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-SYNC-BACKUP" "1" "Oct 10, 2024" "3.11" "Barman"
+.TH "BARMAN-SYNC-BACKUP" "1" "Nov 21, 2024" "3.12" "Barman"
 .SH NAME
 barman-sync-backup \- Barman Sub-Commands
 .SH SYNOPSIS
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 sync\-backup SERVER_NAME BACKUP_ID
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SH DESCRIPTION
@@ -61,9 +60,8 @@ Id of the backup in barman catalog.
 For some commands, instead of using the timestamp backup ID, you can use the following
 shortcuts or aliases to identify a backup for a given server:
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fBShortcut\fP
 T}	T{
@@ -94,7 +92,6 @@ T{
 T}	T{
 Most recent backup that failed, in chronological order.
 T}
-_
 .TE
 .SH AUTHOR
 EnterpriseDB

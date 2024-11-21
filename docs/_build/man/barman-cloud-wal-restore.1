@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CLOUD-WAL-RESTORE" "1" "Oct 10, 2024" "3.11" "Barman"
+.TH "BARMAN-CLOUD-WAL-RESTORE" "1" "Nov 21, 2024" "3.12" "Barman"
 .SH NAME
 barman-cloud-wal-restore \- Barman-cloud Commands
 .sp
@@ -35,8 +35,7 @@ barman-cloud-wal-restore \- Barman-cloud Commands
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 barman\-cloud\-wal\-restore
                 [ { \-V | \-\-version } ]
                 [ \-\-help ]
@@ -50,15 +49,14 @@ barman\-cloud\-wal\-restore
                 [ \-\-azure\-credential { azure\-cli | managed\-identity } ]
                 [ \-\-no\-partial ]
                 DESTINATION_URL SERVER_NAME WAL_NAME WAL_DEST
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .sp
 \fBDescription\fP
 .sp
 The \fBbarman\-cloud\-wal\-restore\fP script functions as the \fBrestore_command\fP for
-retrieving WAL files from cloud storage and placing them directly into a PostgreSQL
+retrieving WAL files from cloud storage and placing them directly into a Postgres
 standby server, bypassing the Barman server.
 .sp
 This script is used to download WAL files that were previously archived with the
@@ -90,7 +88,7 @@ For GCP, only authentication with \fBGOOGLE_APPLICATION_CREDENTIALS\fP env is su
 Name of the server that will have WALs restored.
 .TP
 .B \fBDESTINATION_URL\fP
-URL of the cloud destination, such as a bucket in AWS S3. For example: \fIs3://bucket/path/to/folder\fP\&.
+URL of the cloud destination, such as a bucket in AWS S3. For example: \fBs3://bucket/path/to/folder\fP\&.
 .TP
 .B \fBWAL_NAME\fP
 The value of the \(aq%f\(aq keyword (according to \fBrestore_command\fP).
