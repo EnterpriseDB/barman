@@ -8,23 +8,6 @@ on:
     branches: [master]
 
 jobs:
-  linter:
-    name: flake8
-    runs-on: ubuntu-latest
-    steps:
-      - name: Step 1 - Checkout repository
-        uses: actions/checkout@v4
-      - name: Step 2 - Install python
-        uses: actions/setup-python@v5
-        with:
-          python-version: 3.7
-      - name: Step 3 - Install dependencies
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          python -m pip install -r requirements-tox.txt
-      - name: Step 4 - Run flake with tox
-        run: "python -m tox -e flake8"
-
   unit-tests:
     name: "Python ${{ matrix.python-version }} ${{ matrix.tox-env }}"
     runs-on: ubuntu-20.04
