@@ -1,0 +1,10 @@
+- summary: Add `--staging-wal-directory` option on `restore` command to allow alternative WAL directory on PITR
+  description: |
+    A new command line option `--staging-wal-directory` was added to the `restore`/`recover`
+    command to allow an alternative destination directory for WAL files when performing
+    PITR. Previously, WAL files were copied to a `barman_wal` directory within
+    the restore destination directory. This enhancement provides greater flexibility, such as
+    storing WALs on separate partitions during recovery.
+  type: minor_change
+  jira_tickets:
+    - BAR-224
