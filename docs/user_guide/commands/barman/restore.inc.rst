@@ -36,6 +36,7 @@ Synopsis
         [ --target-time TIMESTAMP ]
         [ --target-tli TLI ]
         [ --target-xid XID ]
+        [ --staging-wal-directory ]
         SERVER_NAME BACKUP_ID DESTINATION_DIR
 
 Description
@@ -193,6 +194,10 @@ Parameters
 
 ``--target-xid``
     Recover to the specified transaction ID.
+
+``--staging-wal-directory``
+    A staging directory on the destination host for WAL files when performing PITR. If
+    unspecified, it uses a ``barman_wal`` directory inside the destination directory.
 
 .. only:: man
 
