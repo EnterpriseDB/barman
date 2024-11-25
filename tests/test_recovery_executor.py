@@ -387,7 +387,17 @@ class TestRecoveryExecutor(object):
         # Build a recovery executor
         executor = RecoveryExecutor(backup_manager)
         executor._set_pitr_targets(
-            recovery_info, backup_info, dest.strpath, "", "", "", "", "", False, None
+            recovery_info,
+            backup_info,
+            dest.strpath,
+            None,
+            "",
+            "",
+            "",
+            "",
+            "",
+            False,
+            None,
         )
         # Test with empty values (no PITR)
         assert recovery_info["target_datetime"] is None
@@ -398,6 +408,7 @@ class TestRecoveryExecutor(object):
             recovery_info,
             backup_info,
             dest.strpath,
+            None,
             "target_name",
             "2015-06-03 16:11:03.71038+02",
             "2",
@@ -416,6 +427,7 @@ class TestRecoveryExecutor(object):
             recovery_info,
             backup_info,
             dest.strpath,
+            None,
             "target_name",
             "2015-06-03 16:11:03.71038",
             "2",
@@ -436,6 +448,7 @@ class TestRecoveryExecutor(object):
                 recovery_info,
                 backup_info,
                 dest.strpath,
+                None,
                 None,
                 "2015-06-03 16:11:00.71038+02",
                 None,
@@ -458,6 +471,7 @@ class TestRecoveryExecutor(object):
                 recovery_info,
                 backup_info,
                 dest.strpath,
+                None,
                 "target_name",
                 "2015-06-03 16:11:03.71038+02",
                 "2",
@@ -477,6 +491,7 @@ class TestRecoveryExecutor(object):
             recovery_info,
             backup_info,
             dest.strpath,
+            None,
             "target_name",
             "2015-06-03 16:11:03.71038+02",
             "2",
@@ -491,6 +506,7 @@ class TestRecoveryExecutor(object):
             recovery_info,
             backup_info,
             dest.strpath,
+            None,
             "target_name",
             "2015-06-03 16:11:03.71038+02",
             "2",
@@ -507,6 +523,7 @@ class TestRecoveryExecutor(object):
                 recovery_info,
                 backup_info,
                 dest.strpath,
+                None,
                 "target_name",
                 "2015-06-03 16:11:03.71038+02",
                 "2",
@@ -526,6 +543,7 @@ class TestRecoveryExecutor(object):
             recovery_info,
             backup_info,
             dest.strpath,
+            None,
             "target_name",
             "2015-06-03 16:11:03.71038+02",
             "2",
@@ -540,6 +558,7 @@ class TestRecoveryExecutor(object):
             recovery_info,
             backup_info,
             dest.strpath,
+            None,
             "target_name",
             "2015-06-03 16:11:03.71038+02",
             "2",
@@ -555,6 +574,7 @@ class TestRecoveryExecutor(object):
                 recovery_info,
                 backup_info,
                 dest.strpath,
+                None,
                 "target_name",
                 "2015-06-03 16:11:03.71038+02",
                 "2",
@@ -581,6 +601,7 @@ class TestRecoveryExecutor(object):
                 None,
                 None,
                 None,
+                None,
                 False,
                 "pause",
             )
@@ -596,6 +617,7 @@ class TestRecoveryExecutor(object):
                 recovery_info,
                 backup_info,
                 dest.strpath,
+                None,
                 None,
                 None,
                 None,
@@ -618,6 +640,7 @@ class TestRecoveryExecutor(object):
                 recovery_info,
                 backup_info,
                 dest.strpath,
+                None,
                 None,
                 None,
                 None,
@@ -667,6 +690,7 @@ class TestRecoveryExecutor(object):
         # GIVEN A simple recovery_info object
         recovery_info = {
             "is_pitr": False,
+            "results": {},
         }
         # AND a recent backup on timeline 2
         backup_info = testing_helpers.build_test_backup_info(
@@ -691,6 +715,7 @@ class TestRecoveryExecutor(object):
             recovery_info,
             backup_info,
             "/path/to/nowhere",
+            None,
             "",
             "",
             target_tli,
@@ -716,15 +741,17 @@ class TestRecoveryExecutor(object):
         Test the generation of recovery.conf file
         """
         # Build basic folder/files structure
+        dest = tmpdir.mkdir("destination")
+        wal_dest = os.path.join(dest, "barman_wal")
         recovery_info = {
             "configuration_files": ["postgresql.conf", "postgresql.auto.conf"],
             "tempdir": tmpdir.strpath,
             "results": {"changes": [], "warnings": []},
             "get_wal": False,
             "target_datetime": "2015-06-03 16:11:03.71038+02",
+            "wal_dest": wal_dest,
         }
         backup_info = testing_helpers.build_test_backup_info()
-        dest = tmpdir.mkdir("destination")
 
         # Build a recovery executor using a real server
         server = testing_helpers.build_real_server()
@@ -757,7 +784,8 @@ class TestRecoveryExecutor(object):
         assert "recovery_target_lsn" not in recovery_conf
         assert "recovery_target_name" in recovery_conf
         assert "recovery_target" not in recovery_conf
-        assert recovery_conf["recovery_end_command"] == "'rm -fr barman_wal'"
+        assert recovery_conf["recovery_end_command"] == f"'rm -fr {wal_dest}'"
+        assert recovery_conf["restore_command"] == f"'cp {wal_dest}/%f %p'"
         # what matters is the 'target_datetime', which always contain the target time
         # with a time zone, even if the user specified no time zone through
         # '--target-time'.
@@ -873,17 +901,19 @@ class TestRecoveryExecutor(object):
         :type tmpdir: py.path.local
         """
         # Build basic folder/files structure
+        dest = tmpdir.mkdir("destination")
+        wal_dest = os.path.join(dest, "barman_wal")
         recovery_info = {
             "configuration_files": ["postgresql.conf", "postgresql.auto.conf"],
             "tempdir": tmpdir.strpath,
             "results": {"changes": [], "warnings": []},
             "get_wal": False,
             "target_datetime": "2015-06-03 16:11:03.71038+02",
+            "wal_dest": wal_dest,
         }
         backup_info = testing_helpers.build_test_backup_info(
             version=120000,
         )
-        dest = tmpdir.mkdir("destination")
 
         # Build a recovery executor using a real server
         server = testing_helpers.build_real_server()
@@ -919,7 +949,8 @@ class TestRecoveryExecutor(object):
         assert "recovery_target_lsn" not in pg_auto_conf
         assert "recovery_target_name" in pg_auto_conf
         assert "recovery_target" in pg_auto_conf
-        assert pg_auto_conf["recovery_end_command"] == "'rm -fr barman_wal'"
+        assert pg_auto_conf["restore_command"] == f"'cp {wal_dest}/%f %p'"
+        assert pg_auto_conf["recovery_end_command"] == f"'rm -fr {wal_dest}'"
         # what matters is the 'target_datetime', which always contain the target time
         # with a time zone, even if the user specified no time zone through
         # '--target-time'.
@@ -1801,6 +1832,7 @@ class TestSnapshotRecoveryExecutor(object):
         mock_superclass_recover.assert_called_once_with(
             backup_info,
             recovery_dest,
+            wal_dest=None,
             tablespaces=None,
             remote_command=None,
             target_tli=None,
@@ -2382,11 +2414,17 @@ class TestIncrementalRecoveryExecutor(object):
 
         with mock.patch("barman.recovery_executor.RecoveryExecutor.recover") as mock_sr:
             _ = executor.recover(
-                mock_backup_info, "fake/destination/path", remote_command=None
+                mock_backup_info,
+                "fake/destination/path",
+                None,
+                remote_command=None,
             )
 
             mock_sr.assert_called_once_with(
-                synthetic_backup_info, "fake/destination/path", remote_command=None
+                synthetic_backup_info,
+                "fake/destination/path",
+                None,
+                remote_command=None,
             )
 
     @mock.patch("barman.recovery_executor.PgCombineBackup")
