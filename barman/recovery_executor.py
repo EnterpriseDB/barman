@@ -95,6 +95,7 @@ class RecoveryExecutor(object):
         self,
         backup_info,
         dest,
+        wal_dest=None,
         tablespaces=None,
         remote_command=None,
         target_tli=None,
@@ -115,6 +116,9 @@ class RecoveryExecutor(object):
 
         :param barman.infofile.BackupInfo backup_info: the backup to recover
         :param str dest: the destination directory
+        :param str|None wal_dest: the destination directory for WALs when doing PITR.
+            See :meth:`~barman.recovery_executor.RecoveryExecutor._set_pitr_targets`
+            for more details.
         :param dict[str,str]|None tablespaces: a tablespace
             name -> location map (for relocation)
         :param str|None remote_command: The remote command to recover
@@ -164,6 +168,7 @@ class RecoveryExecutor(object):
             recovery_info,
             backup_info,
             dest,
+            wal_dest,
             target_name,
             target_time,
             target_tli,
@@ -181,6 +186,20 @@ class RecoveryExecutor(object):
             recovery_info["cmd"].create_dir_if_not_exists(dest, mode="700")
         except FsOperationFailed as e:
             output.error("unable to initialise destination directory '%s': %s", dest, e)
+            output.close_and_exit()
+
+        # check WALs destination directory. If doesn't exist create it
+        # we use the value from recovery_info as it contains the final path
+        try:
+            recovery_info["cmd"].create_dir_if_not_exists(
+                recovery_info["wal_dest"], mode="700"
+            )
+        except FsOperationFailed as e:
+            output.error(
+                "unable to initialise WAL destination directory '%s': %s",
+                wal_dest,
+                e,
+            )
             output.close_and_exit()
 
         # Initialize tablespace directories
@@ -427,6 +446,7 @@ class RecoveryExecutor(object):
         recovery_info,
         backup_info,
         dest,
+        wal_dest,
         target_name,
         target_time,
         target_tli,
@@ -443,6 +463,7 @@ class RecoveryExecutor(object):
         :param barman.infofile.LocalBackupInfo backup_info: representation of a
             backup
         :param str dest: destination directory of the recovery
+        :param str|None wal_dest: the destination directory for WALs when doing PITR
         :param str|None target_name: recovery target name for PITR
         :param str|None target_time: recovery target time for PITR
         :param str|None target_tli: recovery target timeline for PITR
@@ -550,7 +571,12 @@ class RecoveryExecutor(object):
                 "Doing PITR. Recovery target %s",
                 (", ".join(["%s: %r" % (k, v) for k, v in targets.items()])),
             )
-            recovery_info["wal_dest"] = os.path.join(dest, "barman_wal")
+            # If a custom WALs directory has been given, use it, otherwise defaults to
+            # using a `barman_wal` directory inside the destination directory
+            if wal_dest:
+                recovery_info["wal_dest"] = wal_dest
+            else:
+                recovery_info["wal_dest"] = os.path.join(dest, "barman_wal")
         else:
             # Raise an error if target_lsn is used with a pgversion < 10
             if backup_info.version < 100000:
@@ -1001,10 +1027,11 @@ class RecoveryExecutor(object):
         :param bool|None standby_mode: standby mode
         """
 
+        wal_dest = recovery_info["wal_dest"]
         recovery_conf_lines = []
         # If GET_WAL has been set, use the get-wal command to retrieve the
         # required wal files. Otherwise use the unix command "cp" to copy
-        # them from the barman_wal directory
+        # them from the wal_dest directory
         if recovery_info["get_wal"]:
             partial_option = ""
             if not standby_mode:
@@ -1042,9 +1069,9 @@ class RecoveryExecutor(object):
                 )
             recovery_info["results"]["get_wal"] = True
         else:
-            recovery_conf_lines.append("restore_command = 'cp barman_wal/%f %p'")
+            recovery_conf_lines.append(f"restore_command = 'cp {wal_dest}/%f %p'")
         if backup_info.version >= 80400 and not recovery_info["get_wal"]:
-            recovery_conf_lines.append("recovery_end_command = 'rm -fr barman_wal'")
+            recovery_conf_lines.append(f"recovery_end_command = 'rm -fr {wal_dest}'")
 
         # Writes recovery target
         if target_time:
@@ -1679,6 +1706,7 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
         self,
         backup_info,
         dest,
+        wal_dest=None,
         tablespaces=None,
         remote_command=None,
         target_tli=None,
@@ -1700,6 +1728,9 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
 
         :param barman.infofile.BackupInfo backup_info: the backup to recover
         :param str dest: the destination directory
+        :param str|None wal_dest: the destination directory for WALs when doing PITR.
+            See :meth:`~barman.recovery_executor.RecoveryExecutor._set_pitr_targets`
+            for more details.
         :param dict[str,str]|None tablespaces: a tablespace
             name -> location map (for relocation)
         :param str|None remote_command: The remote command to recover
@@ -1733,6 +1764,7 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
         return super(SnapshotRecoveryExecutor, self).recover(
             backup_info,
             dest,
+            wal_dest=wal_dest,
             tablespaces=None,
             remote_command=remote_command,
             target_tli=target_tli,
@@ -1823,7 +1855,7 @@ class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
         self.combine_start_time = None
         self.combine_end_time = None
 
-    def recover(self, backup_info, dest, remote_command=None, **kwargs):
+    def recover(self, backup_info, dest, wal_dest=None, remote_command=None, **kwargs):
         """
         Performs the recovery of an incremental backup.
 
@@ -1835,6 +1867,9 @@ class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
         :param barman.infofile.BackupInfo backup_info: the incremental
             backup to recover
         :param str dest: the destination directory
+        :param str|None wal_dest: the destination directory for WALs when doing PITR.
+            See :meth:`~barman.recovery_executor.RecoveryExecutor._set_pitr_targets`
+            for more details.
         :param str|None remote_command: The remote command to recover
             the base backup, in case of remote backup.
         :return dict: ``recovery_info`` dictionary, holding the values related
@@ -1850,7 +1885,11 @@ class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
 
         # Perform the standard recovery process passing the synthetic backup
         recovery_info = super(IncrementalRecoveryExecutor, self).recover(
-            synthetic_backup_info, dest, remote_command=remote_command, **kwargs
+            synthetic_backup_info,
+            dest,
+            wal_dest,
+            remote_command=remote_command,
+            **kwargs,
         )
 
         # If the checksum configuration is not consistent among all backups in the chain, we

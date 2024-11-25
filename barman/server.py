@@ -2134,7 +2134,13 @@ class Server(RemoteStatusMixin):
         return wal_info
 
     def recover(
-        self, backup_info, dest, tablespaces=None, remote_command=None, **kwargs
+        self,
+        backup_info,
+        dest,
+        wal_dest=None,
+        tablespaces=None,
+        remote_command=None,
+        **kwargs,
     ):
         """
         Performs a recovery of a backup
@@ -2142,6 +2148,9 @@ class Server(RemoteStatusMixin):
         :param barman.infofile.LocalBackupInfo backup_info: the backup
             to recover
         :param str dest: the destination directory
+        :param str|None wal_dest: the destination directory for WALs when doing PITR.
+            See :meth:`~barman.recovery_executor.RecoveryExecutor._set_pitr_targets`
+            for more details.
         :param dict[str,str]|None tablespaces: a tablespace
             name -> location map (for relocation)
         :param str|None remote_command: default None. The remote command to
@@ -2161,7 +2170,7 @@ class Server(RemoteStatusMixin):
             configurations
         """
         return self.backup_manager.recover(
-            backup_info, dest, tablespaces, remote_command, **kwargs
+            backup_info, dest, wal_dest, tablespaces, remote_command, **kwargs
         )
 
     def get_wal(

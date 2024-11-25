@@ -756,6 +756,12 @@ def rebuild_xlogdb(args):
             help="the directory where the new server is created",
         ),
         argument(
+            "--staging-wal-directory",
+            help="a staging directory in the target host for WAL files when performing "
+            "PITR. If unspecified, it uses a `barman_wal` directory inside the "
+            "destination directory.",
+        ),
+        argument(
             "--bwlimit",
             help="maximum transfer rate in kilobytes per second. "
             "A value of 0 means no limit. Overrides 'bandwidth_limit' "
@@ -1122,6 +1128,7 @@ def restore(args):
             server.recover(
                 backup_id,
                 args.destination_directory,
+                wal_dest=args.staging_wal_directory,
                 tablespaces=tablespaces,
                 target_tli=args.target_tli,
                 target_time=args.target_time,
