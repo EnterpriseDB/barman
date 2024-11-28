@@ -713,10 +713,19 @@ class BackupInfo(FieldListFile):
         # Convert fields which need special types not supported by json
         if data.get("tablespaces") is not None:
             data["tablespaces"] = [list(item) for item in data["tablespaces"]]
+        # Note on the `begin_time_iso`` and `end_time_iso`` fields:
+        # as ctime is not timezone-aware and mostly for human-readable output,
+        # we want to migrate to isoformat for datetime objects representation.
+        # To retain, for now, compatibility with the previous version of the output
+        # we add two new _iso fields to the json document.
         if data.get("begin_time") is not None:
-            data["begin_time"] = data["begin_time"].ctime()
+            begin_time = data["begin_time"]
+            data["begin_time"] = begin_time.ctime()
+            data["begin_time_iso"] = begin_time.isoformat()
         if data.get("end_time") is not None:
-            data["end_time"] = data["end_time"].ctime()
+            end_time = data["end_time"]
+            data["end_time"] = end_time.ctime()
+            data["end_time_iso"] = end_time.isoformat()
         return data
 
     @classmethod
@@ -734,9 +743,15 @@ class BackupInfo(FieldListFile):
             data["tablespaces"] = [
                 Tablespace._make(item) for item in data["tablespaces"]
             ]
-        if data.get("begin_time") is not None:
+        if data.get("begin_time_iso") is not None:
+            data["begin_time"] = load_datetime_tz(data["begin_time_iso"])
+            del data["begin_time_iso"]
+        elif data.get("begin_time") is not None:
             data["begin_time"] = load_datetime_tz(data["begin_time"])
-        if data.get("end_time") is not None:
+        if data.get("end_time_iso") is not None:
+            data["end_time"] = load_datetime_tz(data["end_time_iso"])
+            del data["end_time_iso"]
+        elif data.get("end_time") is not None:
             data["end_time"] = load_datetime_tz(data["end_time"])
         # Instantiate a BackupInfo object using the converted fields
         return cls(server, **data)
