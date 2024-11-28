@@ -20,6 +20,7 @@ import json
 from datetime import datetime, timedelta
 
 import dateutil
+import dateutil.tz
 import mock
 import pytest
 from dateutil import tz
@@ -51,6 +52,7 @@ EXPECTED_MINIMAL = {
             "version": 90302,
             "ident_file": "/pgdata/location/pg_ident.conf",
             "end_time": "Wed Jul 23 12:00:43 2014",
+            "end_time_iso": "2014-07-23T12:00:43+02:00",
             "status": "DONE",
             "backup_id": "1234567890",
             "config_file": "/pgdata/location/postgresql.conf",
@@ -58,6 +60,7 @@ EXPECTED_MINIMAL = {
             "end_xlog": "0/20000B8",
             "pgdata": "/pgdata/location",
             "begin_time": "Wed Jul 23 11:00:43 2014",
+            "begin_time_iso": "2014-07-23T11:00:43+02:00",
             "hba_file": "/pgdata/location/pg_hba.conf",
             "end_offset": 184,
             "tablespaces": [
@@ -199,8 +202,8 @@ class TestSync(object):
         server.get_available_backups = lambda: {
             "1234567890": build_test_backup_info(
                 server=server,
-                begin_time=dateutil.parser.parse("Wed Jul 23 11:00:43 2014"),
-                end_time=dateutil.parser.parse("Wed Jul 23 12:00:43 2014"),
+                begin_time=dateutil.parser.parse("2014-07-23T11:00:43+02:00"),
+                end_time=dateutil.parser.parse("2014-07-23T12:00:43+02:00"),
             )
         }
 
