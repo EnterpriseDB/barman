@@ -19,6 +19,7 @@
 import datetime
 import json
 
+import dateutil
 import mock
 import pytest
 from testing_helpers import build_test_backup_info
@@ -40,9 +41,13 @@ class TestCloudBackupShow(object):
     def cloud_backup_catalog(self, backup_id):
         backup_info = build_test_backup_info(
             backup_id="backup_id_1",
-            begin_time=datetime.datetime(2038, 1, 19, 3, 14, 8),
+            begin_time=datetime.datetime(
+                2038, 1, 19, 3, 14, 8, tzinfo=dateutil.tz.tzutc()
+            ),
             begin_wal="000000010000000000000002",
-            end_time=datetime.datetime(2038, 1, 19, 4, 14, 8),
+            end_time=datetime.datetime(
+                2038, 1, 19, 4, 14, 8, tzinfo=dateutil.tz.tzutc()
+            ),
             end_wal="000000010000000000000004",
             size=2048,
             data_checksums="on",
@@ -133,8 +138,8 @@ class TestCloudBackupShow(object):
             "    Timeline             : 1\n"
             "    Begin WAL            : 000000010000000000000002\n"
             "    End WAL              : 000000010000000000000004\n"
-            "    Begin time           : 2038-01-19 03:14:08\n"
-            "    End time             : 2038-01-19 04:14:08\n"
+            "    Begin time           : 2038-01-19 03:14:08+00:00\n"
+            "    End time             : 2038-01-19 04:14:08+00:00\n"
             "    Begin Offset         : 40\n"
             "    End Offset           : 184\n"
             "    Begin LSN            : 0/2000028\n"
@@ -167,6 +172,7 @@ class TestCloudBackupShow(object):
             "backup_label": None,
             "begin_offset": 40,
             "begin_time": "Tue Jan 19 03:14:08 2038",
+            "begin_time_iso": "2038-01-19T03:14:08+00:00",
             "begin_wal": "000000010000000000000002",
             "begin_xlog": "0/2000028",
             "children_backup_ids": None,
@@ -178,6 +184,7 @@ class TestCloudBackupShow(object):
             "deduplicated_size": 1024,
             "end_offset": 184,
             "end_time": "Tue Jan 19 04:14:08 2038",
+            "end_time_iso": "2038-01-19T04:14:08+00:00",
             "end_wal": "000000010000000000000004",
             "end_xlog": "0/20000B8",
             "error": None,
