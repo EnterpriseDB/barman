@@ -714,9 +714,9 @@ class BackupInfo(FieldListFile):
         if data.get("tablespaces") is not None:
             data["tablespaces"] = [list(item) for item in data["tablespaces"]]
         if data.get("begin_time") is not None:
-            data["begin_time"] = data["begin_time"].isoformat()
+            data["begin_time"] = data["begin_time"].ctime()
         if data.get("end_time") is not None:
-            data["end_time"] = data["end_time"].isoformat()
+            data["end_time"] = data["end_time"].ctime()
         return data
 
     @classmethod
