@@ -166,7 +166,7 @@ class TestCloudBackupShow(object):
         assert json.loads(out)["main"] == {
             "backup_label": None,
             "begin_offset": 40,
-            "begin_time": "2038-01-19T03:14:08",
+            "begin_time": "Tue Jan 19 03:14:08 2038",
             "begin_wal": "000000010000000000000002",
             "begin_xlog": "0/2000028",
             "children_backup_ids": None,
@@ -177,7 +177,7 @@ class TestCloudBackupShow(object):
             "data_checksums": "on",
             "deduplicated_size": 1024,
             "end_offset": 184,
-            "end_time": "2038-01-19T04:14:08",
+            "end_time": "Tue Jan 19 04:14:08 2038",
             "end_wal": "000000010000000000000004",
             "end_xlog": "0/20000B8",
             "error": None,
