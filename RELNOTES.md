@@ -2,6 +2,25 @@
 
 © Copyright EnterpriseDB UK Limited 2024 - All rights reserved.
 
+## 3.12.1 (2024-12-09)
+
+### Bugfixes
+
+- Add isoformat fields for backup start and end times in json output
+
+  This patch modifies the json output of the infofile object
+  adding two new fields: `begin_time_iso` and `end_time_iso`.
+  The new fields allow the use of a more standard and timezone aware
+  time format, preserving compatibility with previous versions.
+  It is worth noting that in the future the iso format for dates will be the
+  standard used by barman for storing dates and will be used everywhere
+  non human readable output is requested.
+
+  As part of the work, this patch reverts BAR-316, which was introduced on Barman
+  3.12.0.
+
+  References: BAR-494.
+
 ## 3.12.0 (2024-11-21)
 
 ### Minor changes
