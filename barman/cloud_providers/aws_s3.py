@@ -503,6 +503,7 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
     def __init__(
         self,
         profile_name=None,
+        aws_irsa=False,
         region=None,
         await_snapshots_timeout=3600,
         lock_mode=None,
@@ -510,7 +511,6 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
         lock_cool_off_period=None,
         lock_expiration_date=None,
         tags=None,
-        aws_irsa=False,
     ):
         """
         Creates the client necessary for creating and managing snapshots.
