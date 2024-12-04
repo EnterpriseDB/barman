@@ -123,6 +123,13 @@ Remember that the :ref:`barman get-wal <commands-barman-get-wal>` command should
 be executed as the ``barman`` user, with the necessary permissions to access WAL files
 from the catalog, which is why ``sudo -u barman`` is used in this example.
 
+To allow the ``postgres`` user to run the ``get-wal`` command as the ``barman`` user, 
+you can add the following line to the ``/etc/sudoers`` file:
+
+.. code-block:: text
+
+  postgres ALL=(barman) NOPASSWD: /usr/bin/barman get-wal SERVER_NAME *
+
 For remote recovery, setting ``recovery_options`` to ``get-wal`` will create a
 ``restore_command`` using the :ref:`commands-barman-cli-barman-wal-restore` script,
 which is designed to handle SSH connection errors more robustly.
