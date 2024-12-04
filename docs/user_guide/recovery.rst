@@ -24,7 +24,7 @@ based on the recovery criteria:
 * ``target_tli``: Barman will retrieve the most recent backup available from timeline
   ``target_tli``, e.g., ``2``.
 
-*  ``target_tli`` combined with one of the other two targets: Barman will retrieve the
+* ``target_tli`` combined with one of the other two targets: Barman will retrieve the
   most recent backup available up to the ``target_lsn`` or ``target_time`` which belongs
   to the ``target_tli``, e.g., ``2025-01-21 10:00:00`` from timeline ``2``.
 
@@ -144,9 +144,10 @@ command.
   When using ``--no-get-wal`` with targets like ``--target-xid``, ``--target-name``, or 
   ``--target-time``, Barman will copy the entire WAL archive to ensure availability.
 
-Another option is to include the ``recovery_options`` configuration at the global/server
-level prior to a recovery operation to retrieve WAL files during the recovery process,
-effectively turning the Barman server into a WAL hub for your servers.
+Another option is to include ``get-wal`` inside the ``recovery_options`` configuration
+at the global/server level prior to a recovery operation to retrieve WAL files during
+the recovery process without the need to specifying the ``--get-wal``, effectively
+turning the Barman server into a WAL hub for your servers.
 
 .. code-block:: text
 
@@ -157,9 +158,13 @@ to use either ``barman get-wal`` or ``barman-wal-restore`` to retrieve the requi
 files, depending on whether the recovery is local or remote.
 
 If ``get-wal`` is specified in ``recovery_options`` but not needed during a specific
-recovery, you can disable it using the ``--no-get-wal`` option with the restore command.
+recovery, you can disable it using the ``--no-get-wal`` option with the ``barman
+restore`` command.
 
-Here's an example of a ``restore_command`` for **local recovery**:
+Using ``get-wal`` for local recovery
+""""""""""""""""""""""""""""""""""""
+
+Here's an example of a ``restore_command`` for local recovery:
 
 .. code-block:: text
 
@@ -168,6 +173,17 @@ Here's an example of a ``restore_command`` for **local recovery**:
 Remember that the :ref:`barman get-wal <commands-barman-get-wal>` command should always
 be executed as the ``barman`` user, with the necessary permissions to access WAL files
 from the catalog, which is why ``sudo -u barman`` is used in this example.
+
+To allow the ``postgres`` user to run the ``get-wal`` command as the ``barman`` user, 
+you can add the following line to the ``/etc/sudoers`` file (replace SERVER with the
+actual server name):
+
+.. code-block:: text
+
+  postgres ALL=(barman) NOPASSWD: /usr/bin/barman get-wal SERVER *
+
+Using ``get-wal`` for remote recovery
+"""""""""""""""""""""""""""""""""""""
 
 For remote recovery, setting ``recovery_options`` to ``get-wal`` will create a
 ``restore_command`` using the :ref:`commands-barman-cli-barman-wal-restore` script,
