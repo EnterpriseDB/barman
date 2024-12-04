@@ -199,6 +199,7 @@ def get_snapshot_interface(config):
         from barman.cloud_providers.aws_s3 import AwsCloudSnapshotInterface
 
         args = [
+            config.aws_irsa,
             config.aws_profile,
             config.aws_region,
             config.aws_await_snapshots_timeout,
@@ -256,6 +257,7 @@ def get_snapshot_interface_from_server_config(server_config):
         from barman.cloud_providers.aws_s3 import AwsCloudSnapshotInterface
 
         return AwsCloudSnapshotInterface(
+            server_config.aws_irsa,
             server_config.aws_profile,
             server_config.aws_region,
             server_config.aws_await_snapshots_timeout,
