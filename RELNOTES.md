@@ -221,6 +221,16 @@
 
   References: BAR-348.
 
+- Check for USAGE instead of MEMBER when calling pg_has_role in Barman
+
+  To work correctly Barman database user needs to be included in some roles. Barman was
+  verifying the conditions was satisfied by calling `pg_has_role` in Postgres. However,
+  it was check for the `MEMBER` privilege instead of `USAGE`. This oversight was fixed.
+
+  This change is a contribution from @RealGreenDragon.
+
+  References: BAR-489.
+
 ## 3.11.1 (2024-08-22)
 
 ### Bugfixes
