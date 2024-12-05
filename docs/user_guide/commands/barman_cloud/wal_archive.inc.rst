@@ -14,9 +14,7 @@
                   [ { -q | --quiet } ]
                   [ { -t | --test } ]
                   [ --cloud-provider { aws-s3 | azure-blob-storage | google-cloud-storage } ]
-                  [ { -z | --gzip } ]
-                  [ { -j | --bzip2 } ]
-                  [ --snappy ]
+                  [ { { -z | --gzip } | { -j | --bzip2 } | --xz | --snappy | --zstd | --lz4 } ]
                   [ --tags [ TAGS ... ] ]
                   [ --history-tags [ HISTORY_TAGS ... ] ]
                   [ --endpoint-url ENDPOINT_URL ]
@@ -92,9 +90,20 @@ Barman server. Additionally, it can be utilized as a hook script for WAL archivi
   bzip2-compress the WAL while uploading to the cloud (should not be used with python <
   3.3).
 
+``--xz``
+  xz-compress the WAL while uploading to the cloud (should not be used with python <
+  3.3).
+
 ``--snappy``
   snappy-compress the WAL while uploading to the cloud (requires optional
   ``python-snappy`` library).
+
+``--zstd``
+  zstd-compress the WAL while uploading to the cloud (requires optional ``zstandard``
+  library).
+
+``--lz4``
+  lz4-compress the WAL while uploading to the cloud (requires optional ``lz4`` library).
 
 ``--tags``
   Tags to be added to archived WAL files in cloud storage.
