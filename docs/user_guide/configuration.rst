@@ -612,6 +612,54 @@ Indicates the AWS region where the EC2 VM and storage volumes, as defined by
 
 Scope: Global / Server / Model.
 
+**aws_snapshot_lock_mode**
+
+The lock mode for the snapshot. This is only valid if ``snapshot_instance`` and
+``snapshot_disk`` are set.
+
+Allowed options:
+
+* ``compliance``.
+* ``governance``.
+
+.. note::
+  Only supported when ``backup_method = snapshot`` and ``snapshot_provider = aws``.
+
+Scope: Global / Server / Model.
+
+**aws_snapshot_lock_duration**
+
+The lock duration is the period of time (in days) for which the snapshot is to remain
+locked, ranging from 1 to 36,500. Set either the lock duration or the expiration date
+(not both).
+
+.. note::
+  Only supported when ``backup_method = snapshot`` and ``snapshot_provider = aws``.
+
+Scope: Global / Server / Model.
+
+**aws_snapshot_lock_cool_off_period**
+
+The cooling-off period is an optional period of time (in hours) that you can specify
+when you lock a snapshot in ``compliance`` mode, ranging from 1 to 72.
+
+.. note::
+  Only supported when ``backup_method = snapshot`` and ``snapshot_provider = aws``.
+
+Scope: Global / Server / Model.
+
+**aws_snapshot_lock_expiration_date**
+
+The lock duration is determined by an expiration date in the future. It must be at least
+1 day after the snapshot creation date and time, using the format
+``YYYY-MM-DDTHH:MM:SS.sssZ``. Set either the lock duration or the expiration date (not
+both).
+
+.. note::
+  Only supported when ``backup_method = snapshot`` and ``snapshot_provider = aws``.
+
+Scope: Global / Server / Model.
+
 **azure_credential**
 
 Specifies the type of Azure credential to use for authentication, either ``azure-cli``
