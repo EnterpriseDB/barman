@@ -15,6 +15,7 @@ Synopsis
         [ --port PORT ]
         [ { -c, --config } CONFIG ]
         [ { -t --test } ]
+        [ --md5 ]
         BARMAN_HOST SERVER_NAME WAL_PATH
     
 Description
@@ -63,3 +64,9 @@ Parameters
     Test the connection and configuration of the specified Postgres server in Barman to
     ensure it is ready to receive WAL files. This option ignores the mandatory arguments
     ``WAL_NAME`` and ``WAL_DEST``.
+
+``--md5``
+    Use MD5 instead of SHA256 as the hash algorithm to calculate the checksum of the WAL
+    file when transmitting it to the Barman server. This is used to maintain
+    compatibility with older server versions, as older versions of Barman server used to
+    support only MD5.
