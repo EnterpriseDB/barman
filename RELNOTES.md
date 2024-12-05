@@ -157,6 +157,14 @@
 
   References: BAR-417.
 
+- Use ISO format instead of ctime when producing JSON output of Barman cloud commands
+
+  The ctime format has no information about the time zone associated with the timestamp.
+  Besides that, that format is better suited for human consumption. For machine
+  consumption the ISO format is better suited.
+
+  References: BAR-316.
+
 ### Bugfixes
 
 - Fix barman check which returns wrong results for Replication Slot
