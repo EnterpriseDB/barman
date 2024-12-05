@@ -19,6 +19,7 @@ Synopsis
         [ { -P, --partial } ]
         [ { -z, --gzip } ]
         [ { -j, --bzip2 } ]
+        [ --keep-compression ]
         [ { -c, --config } CONFIG ]
         [ { -t --test } ]
         BARMAN_HOST SERVER_NAME WAL_NAME WAL_DEST
