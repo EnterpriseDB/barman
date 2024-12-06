@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN" "5" "Nov 21, 2024" "3.12" "Barman"
+.TH "BARMAN" "5" "Dec 09, 2024" "3.12" "Barman"
 .SH NAME
 barman \- Barman Configurations
 .sp
@@ -725,6 +725,73 @@ Scope: Global / Server / Model.
 .sp
 Indicates the AWS region where the EC2 VM and storage volumes, as defined by
 \fBsnapshot_instance\fP and \fBsnapshot_disks\fP, are located.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = aws\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBaws_snapshot_lock_mode\fP
+.sp
+The lock mode for the snapshot. This is only valid if \fBsnapshot_instance\fP and
+\fBsnapshot_disk\fP are set.
+.sp
+Allowed options:
+.INDENT 0.0
+.IP \(bu 2
+\fBcompliance\fP\&.
+.IP \(bu 2
+\fBgovernance\fP\&.
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = aws\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBaws_snapshot_lock_duration\fP
+.sp
+The lock duration is the period of time (in days) for which the snapshot is to remain
+locked, ranging from 1 to 36,500. Set either the lock duration or the expiration date
+(not both).
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = aws\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBaws_snapshot_lock_cool_off_period\fP
+.sp
+The cooling\-off period is an optional period of time (in hours) that you can specify
+when you lock a snapshot in \fBcompliance\fP mode, ranging from 1 to 72.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = aws\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBaws_snapshot_lock_expiration_date\fP
+.sp
+The lock duration is determined by an expiration date in the future. It must be at least
+1 day after the snapshot creation date and time, using the format
+\fBYYYY\-MM\-DDTHH:MM:SS.sssZ\fP\&. Set either the lock duration or the expiration date (not
+both).
 .sp
 \fBNOTE:\fP
 .INDENT 0.0
