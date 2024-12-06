@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CLOUD-WAL-ARCHIVE" "1" "Nov 21, 2024" "3.12" "Barman"
+.TH "BARMAN-CLOUD-WAL-ARCHIVE" "1" "Dec 09, 2024" "3.12" "Barman"
 .SH NAME
 barman-cloud-wal-archive \- Barman-cloud Commands
 .sp
@@ -43,9 +43,7 @@ barman\-cloud\-wal\-archive
                 [ { \-q | \-\-quiet } ]
                 [ { \-t | \-\-test } ]
                 [ \-\-cloud\-provider { aws\-s3 | azure\-blob\-storage | google\-cloud\-storage } ]
-                [ { \-z | \-\-gzip } ]
-                [ { \-j | \-\-bzip2 } ]
-                [ \-\-snappy ]
+                [ { { \-z | \-\-gzip } | { \-j | \-\-bzip2 } | \-\-xz | \-\-snappy | \-\-zstd | \-\-lz4 } ]
                 [ \-\-tags [ TAGS ... ] ]
                 [ \-\-history\-tags [ HISTORY_TAGS ... ] ]
                 [ \-\-endpoint\-url ENDPOINT_URL ]
@@ -137,9 +135,20 @@ gzip\-compress the WAL while uploading to the cloud (should not be used with pyt
 bzip2\-compress the WAL while uploading to the cloud (should not be used with python <
 3.3).
 .TP
+.B \fB\-\-xz\fP
+xz\-compress the WAL while uploading to the cloud (should not be used with python <
+3.3).
+.TP
 .B \fB\-\-snappy\fP
 snappy\-compress the WAL while uploading to the cloud (requires optional
 \fBpython\-snappy\fP library).
+.TP
+.B \fB\-\-zstd\fP
+zstd\-compress the WAL while uploading to the cloud (requires optional \fBzstandard\fP
+library).
+.TP
+.B \fB\-\-lz4\fP
+lz4\-compress the WAL while uploading to the cloud (requires optional \fBlz4\fP library).
 .TP
 .B \fB\-\-tags\fP
 Tags to be added to archived WAL files in cloud storage.

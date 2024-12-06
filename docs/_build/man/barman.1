@@ -28,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN" "1" "Nov 21, 2024" "3.12" "Barman"
+.TH "BARMAN" "1" "Dec 09, 2024" "3.12" "Barman"
 .SH NAME
 barman \- Barman Commands
 .sp
@@ -1815,6 +1815,7 @@ barman\-wal\-archive
     [ \-\-port PORT ]
     [ { \-c, \-\-config } CONFIG ]
     [ { \-t \-\-test } ]
+    [ \-\-md5 ]
     BARMAN_HOST SERVER_NAME WAL_PATH
 .EE
 .UNINDENT
@@ -1866,6 +1867,12 @@ Specify the configuration file on the Barman server.
 Test the connection and configuration of the specified Postgres server in Barman to
 ensure it is ready to receive WAL files. This option ignores the mandatory arguments
 \fBWAL_NAME\fP and \fBWAL_DEST\fP\&.
+.TP
+.B \fB\-\-md5\fP
+Use MD5 instead of SHA256 as the hash algorithm to calculate the checksum of the WAL
+file when transmitting it to the Barman server. This is used to maintain
+compatibility with older server versions, as older versions of Barman server used to
+support only MD5.
 .UNINDENT
 .SS \fBbarman\-wal\-restore\fP
 .SS Synopsis
@@ -1884,6 +1891,7 @@ barman\-wal\-restore
     [ { \-P, \-\-partial } ]
     [ { \-z, \-\-gzip } ]
     [ { \-j, \-\-bzip2 } ]
+    [ \-\-keep\-compression ]
     [ { \-c, \-\-config } CONFIG ]
     [ { \-t \-\-test } ]
     BARMAN_HOST SERVER_NAME WAL_NAME WAL_DEST
