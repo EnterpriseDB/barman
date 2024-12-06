@@ -27,6 +27,7 @@ of PostgreSQL servers written in Python and maintained by EnterpriseDB.
 usage: barman-cloud-backup-keep [-V] [--help] [-v | -q] [-t]
                                 [--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}]
                                 [--endpoint-url ENDPOINT_URL]
+                                [--aws-irsa]
                                 [-P AWS_PROFILE] [--profile AWS_PROFILE]
                                 [--read-timeout READ_TIMEOUT]
                                 [--azure-credential {azure-cli,managed-identity}]
