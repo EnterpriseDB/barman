@@ -43,6 +43,7 @@ parameter.
 usage: barman-cloud-backup [-V] [--help] [-v | -q] [-t]
                            [--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}]
                            [--endpoint-url ENDPOINT_URL] [-P AWS_PROFILE]
+                           [--aws-irsa]
                            [--profile AWS_PROFILE]
                            [--read-timeout READ_TIMEOUT]
                            [--azure-credential {azure-cli,managed-identity}]
@@ -129,11 +130,15 @@ optional arguments:
 Extra options for the aws-s3 cloud provider:
   --endpoint-url ENDPOINT_URL
                         Override default S3 endpoint URL with the given one
+  --aws-irsa
+                        use iam role service account instead of aws profile (recommended if running from an aws service)
   -P AWS_PROFILE, --aws-profile AWS_PROFILE
                         profile name (e.g. INI section in AWS credentials
                         file)
   --profile AWS_PROFILE
                         profile name (deprecated: replaced by --aws-profile)
+  --aws-irsa aws_irsa
+                        bypasses credentials/profile and uses iam service account
   --read-timeout READ_TIMEOUT
                         the time in seconds until a timeout is raised when
                         waiting to read from a connection (defaults to 60

@@ -32,6 +32,7 @@ of PostgreSQL servers written in Python and maintained by EnterpriseDB.
 usage: barman-cloud-wal-archive [-V] [--help] [-v | -q] [-t]
                                 [--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}]
                                 [--endpoint-url ENDPOINT_URL] [-P AWS_PROFILE]
+                                [--aws-irsa]
                                 [--profile AWS_PROFILE]
                                 [--read-timeout READ_TIMEOUT]
                                 [--azure-credential {azure-cli,managed-identity}]
@@ -81,6 +82,8 @@ optional arguments:
 Extra options for the aws-s3 cloud provider:
   --endpoint-url ENDPOINT_URL
                         Override default S3 endpoint URL with the given one
+  --aws-irsa
+                        use iam role service account instead of aws profile (recommended if running from an aws service)
   -P AWS_PROFILE, --aws-profile AWS_PROFILE
                         profile name (e.g. INI section in AWS credentials
                         file)
