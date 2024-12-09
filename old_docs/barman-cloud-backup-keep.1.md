@@ -62,6 +62,10 @@ optional arguments:
 Extra options for the aws-s3 cloud provider:
   --endpoint-url ENDPOINT_URL
                         Override default S3 endpoint URL with the given one
+
+  --aws-irsa
+                        uses the iam role service account instead of aws profile (recommended if running from an eks pod)
+
   -P AWS_PROFILE, --aws-profile AWS_PROFILE
                         profile name (e.g. INI section in AWS credentials
                         file)

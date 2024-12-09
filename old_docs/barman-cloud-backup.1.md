@@ -131,14 +131,13 @@ Extra options for the aws-s3 cloud provider:
   --endpoint-url ENDPOINT_URL
                         Override default S3 endpoint URL with the given one
   --aws-irsa
-                        use iam role service account instead of aws profile (recommended if running from an aws service)
+                        uses the iam role service account instead of aws profile (recommended if running from an eks pod)
+
   -P AWS_PROFILE, --aws-profile AWS_PROFILE
                         profile name (e.g. INI section in AWS credentials
                         file)
   --profile AWS_PROFILE
                         profile name (deprecated: replaced by --aws-profile)
-  --aws-irsa aws_irsa
-                        bypasses credentials/profile and uses iam service account
   --read-timeout READ_TIMEOUT
                         the time in seconds until a timeout is raised when
                         waiting to read from a connection (defaults to 60
