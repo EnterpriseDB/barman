@@ -127,7 +127,7 @@ class S3CloudInterface(CloudInterface):
         :param str url: Full URL of the cloud destination/source
         :param str|None encryption: Encryption type string
         :param bool|False aws_irsa: Amazon aws iam role for service account
-          should be used instead of profile_name
+          should be used instead of profile_name when running from eks pod
         :param int jobs: How many sub-processes to use for asynchronous
           uploading, defaults to 2.
         :param str profile_name: Amazon auth profile identifier
@@ -527,7 +527,7 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
             ``YYYY-MM-DDThh:mm:ss.sssZ``.
         :param List[Tuple[str, str]] tags: Key value pairs for tags to be applied.
         :param bool|False aws_irsa: Amazon aws iam role for service account
-            should be used instead of profile_name
+            should be used instead of profile_name if running from eks pod
         """
         if aws_irsa:
             client = boto3.client('sts')
