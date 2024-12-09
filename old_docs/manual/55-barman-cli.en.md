@@ -226,6 +226,7 @@ If the `--cloud-provider` is `azure-blob-storage` then the following arguments a
 
 If the `--cloud-provider` is `aws-s3` then the following optional arguments can be used:
 
+- `--aws-irsa`
 - `--aws-profile`
 - `--aws-region`
 

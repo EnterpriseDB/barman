@@ -287,6 +287,7 @@ def build_config_dictionary(config_keys=None):
         "aws_snapshot_lock_duration": None,
         "aws_snapshot_lock_cool_off_period": None,
         "aws_snapshot_lock_expiration_date": None,
+        "aws_irsa": False,
         "aws_profile": None,
         "aws_region": None,
         "azure_credential": None,

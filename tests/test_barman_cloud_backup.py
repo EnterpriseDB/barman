@@ -381,6 +381,7 @@ class TestCloudBackup(object):
             url="cloud_storage_url",
             jobs=2,
             tags=None,
+            aws_irsa=False,
             profile_name=None,
             endpoint_url=None,
             read_timeout=None,
