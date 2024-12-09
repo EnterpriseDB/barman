@@ -72,7 +72,7 @@ the target bucket is not found. Any other conditions will result in a failure.
   Override default S3 endpoint URL with the given one.
 
 ``--aws-irsa``
-  Uses IAM Role Service Account in AWS instead of Profile (e.g. ec2, eks pod).
+  Uses IAM Role Service Account in AWS instead of Profile (running from an eks pod).
 
 ``-P`` / ``--aws-profile``
   Profile name (e.g. ``INI`` section in AWS credentials file).
