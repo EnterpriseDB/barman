@@ -18,6 +18,7 @@
                   [ --tags [ TAGS ... ] ]
                   [ --history-tags [ HISTORY_TAGS ... ] ]
                   [ --endpoint-url ENDPOINT_URL ]
+                  [ --aws-irsa ]
                   [ { -P | --aws-profile } AWS_PROFILE ]
                   [ --read-timeout READ_TIMEOUT ]
                   [ { -e | --encryption } ENCRYPTION ]
@@ -115,6 +116,9 @@ Barman server. Additionally, it can be utilized as a hook script for WAL archivi
 
 ``--endpoint-url``
   Override default S3 endpoint URL with the given one.
+
+``--aws-irsa``
+  Uses IAM Role Service Account in AWS instead of Profile (e.g. ec2, eks pod).
 
 ``-P`` / ``--aws-profile``
   Profile name (e.g. ``INI`` section in AWS credentials file).
