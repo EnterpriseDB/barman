@@ -124,7 +124,7 @@ class RetentionPolicy(with_metaclass(ABCMeta, object)):
         """
         Output representation of the obj for JSON serialization
         """
-        return "%s %s %s" % (self.mode, self.value, self.unit)
+        return self.__str__()
 
     def _propagate_retention_status_to_children(self, backup_info, report, ret_status):
         """
