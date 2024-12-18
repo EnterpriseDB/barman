@@ -474,6 +474,8 @@ class TestS3CloudInterface(object):
         assert cloud_interface.path == "path/to/dir"
         # AND no profile name is passed to the boto3 Session
         boto_mock.Session.assert_called_once_with(profile_name=None)
+        # AND no irsa (iam role service account) is passed to the boto3 Session
+        boto_mock.Session.assert_called_once_with(aws_irsa=False)
         # AND a Config is created with empty arguments
         config_mock.assert_called_once_with()
         # AND the boto3 resource is created with no specified endpoint_url
@@ -2697,6 +2699,7 @@ class TestGetCloudInterface(object):
     def mock_config_aws(self):
         return Namespace(
             endpoint_url=None,
+            aws_irsa=False,
             aws_profile=None,
             source_url="test-url",
             read_timeout=None,
@@ -2735,6 +2738,7 @@ class TestGetCloudInterface(object):
         get_cloud_interface(mock_config_aws)
         mock_s3_cloud_interface.assert_called_once_with(
             url="test-url",
+            aws_irsa=False,
             profile_name=None,
             endpoint_url=None,
             read_timeout=None,

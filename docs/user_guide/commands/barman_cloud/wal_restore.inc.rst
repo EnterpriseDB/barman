@@ -16,6 +16,7 @@
                   [ --cloud-provider { aws-s3 | azure-blob-storage | google-cloud-storage } ]
                   [ --endpoint-url ENDPOINT_URL ]
                   [ { -P | --aws-profile } AWS_PROFILE ]
+                  [ --aws-irsa ]
                   [ --read-timeout READ_TIMEOUT ]
                   [ --azure-credential { azure-cli | managed-identity } ]
                   [ --no-partial ]
@@ -86,6 +87,9 @@ calling ``--no-partial`` option.
 
 ``--endpoint-url``
   Override default S3 endpoint URL with the given one.
+
+``--aws-irsa``
+  Uses IAM Role Service Account in AWS instead of Profile (running from an eks pod).
 
 ``-P`` / ``--aws-profile``
   Profile name (e.g. ``INI`` section in AWS credentials file).

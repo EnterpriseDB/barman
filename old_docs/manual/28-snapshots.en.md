@@ -156,10 +156,12 @@ The following optional parameters can be set when using AWS:
 
 ``` ini
 aws_region = AWS_REGION
+aws_irsa = true/false
 aws_profile = AWS_PROFILE_NAME
 aws_await_snapshots_timeout = TIMEOUT_IN_SECONDS
 ```
 
+If `aws_irsa` is used it will attempt to use the IAM role of the service account using AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE in the EKS pod.
 If `aws_profile` is used it should be set to the name of a section in the AWS credentials file.
 If `aws_profile` is not used then the default profile will be used.
 If no credentials file exists then credentials will be sourced from the environment.

@@ -31,6 +31,7 @@
                   [ --snapshot-disk NAME ]
                   [ --tags [ TAGS ... ] ]
                   [ --endpoint-url ENDPOINT_URL ]
+                  [ --aws-irsa ]
                   [ { -P | --aws-profile } AWS_PROFILE ]
                   [ --read-timeout READ_TIMEOUT ]
                   [ { -e | --encryption } ENCRYPTION ]
@@ -161,6 +162,9 @@ uploaded to the cloud.
 
 ``--endpoint-url``
   Override default S3 endpoint URL with the given one.
+
+``--aws-irsa``
+  Uses IAM Role Service Account in AWS instead of Profile (running from an eks pod).
 
 ``-P`` / ``--aws-profile``
   Profile name (e.g. ``INI`` section in AWS credentials file).
