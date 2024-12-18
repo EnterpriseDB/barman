@@ -1455,6 +1455,19 @@ class Server(RemoteStatusMixin):
             "status", self.config.name, "disabled", "Disabled", self.config.disabled
         )
 
+        # Show active configuration model information
+        active_model = (
+            self.config.active_model.name if self.config.active_model else None
+        )
+
+        output.result(
+            "status",
+            self.config.name,
+            "active_model",
+            "Active configuration model",
+            active_model,
+        )
+
         # Postgres status is available only if node is not passive
         if not self.passive_node:
             self.status_postgres()
