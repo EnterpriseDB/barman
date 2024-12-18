@@ -302,6 +302,26 @@ def generate_segment_names(begin, end=None, version=None, xlog_segment_size=None
             cur_log += 1
 
 
+def previous_segment_name(segment, xlog_segment_size):
+    """
+    Get the previous XLOG segment name
+
+    :param str segment: segment name
+    :param int xlog_segment_size: the size of a XLOG segment
+    :rtype: str
+    :raise: BadXlogSegmentName
+    """
+    tli, log, seg = decode_segment_name(segment)
+    xlog_seg_per_file = xlog_segments_per_file(xlog_segment_size)
+    prev_log, prev_seg = log, seg
+    if prev_seg == 0:
+        prev_seg = xlog_seg_per_file
+        prev_log -= 1
+    else:
+        prev_seg -= 1
+    return encode_segment_name(tli, prev_log, prev_seg)
+
+
 def hash_dir(path):
     """
     Get the directory where the xlog segment will be stored

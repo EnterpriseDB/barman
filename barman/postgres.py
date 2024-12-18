@@ -55,6 +55,7 @@ from barman.infofile import Tablespace
 from barman.postgres_plumbing import function_name_map
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import force_str, simplify_version, with_metaclass
+from barman.xlog import previous_segment_name
 
 try:
     from queue import Empty
@@ -739,7 +740,14 @@ class PostgreSQLConnection(PostgreSQL):
                     "CURRENT_TIMESTAMP AS timestamp "
                     "FROM {pg_current_wal_lsn}() AS location".format(**self.name_map)
                 )
-                return cur.fetchone()
+                result = cur.fetchone()
+                # pg_walfile_name_offset() in Postgres 17 returns the current segment
+                # if on a segment boundary so return the previous segment name in that case.
+                if self.server_version >= 170000 and result["file_offset"] == 00000000:
+                    result["file_name"] = previous_segment_name(
+                        result["file_name"], self.xlog_segment_size
+                    )
+                return result
             else:
                 cur.execute(
                     "SELECT location, "
