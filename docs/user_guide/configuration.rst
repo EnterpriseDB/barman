@@ -1055,6 +1055,14 @@ Directory containing WAL files. Defaults to ``<backup_directory>/wals``.
 
 Scope: Server.
 
+**xlogdb_directory**
+
+A custom directory for the ``SERVER-xlog.db`` file, ``SERVER`` being the server name.
+This file stores metadata of archived WAL files and is used internally by Barman. If
+unset, it defaults to the value of ``wals_directory``.
+
+Scope: Global / Server.
+
 .. _configuration-options-restore:
 
 Restore
