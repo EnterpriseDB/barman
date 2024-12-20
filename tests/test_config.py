@@ -361,6 +361,7 @@ class TestConfig(object):
                 "custom_compression_filter": "bzip2 -c -9",
                 "custom_compression_magic": "0x425a68",
                 "wals_directory": "wals",
+                "xlogdb_directory": "wals",
                 "custom_decompression_filter": "bzip2 -c -d",
                 "backup_method": "rsync",
                 "max_incoming_wals_queue": None,
@@ -394,6 +395,7 @@ class TestConfig(object):
                 "retention_policy": "redundancy 2",
                 "custom_compression_magic": None,
                 "wals_directory": "/some/barman/home/web/wals",
+                "xlogdb_directory": "/some/barman/home/web/wals",
                 "wal_retention_policy": "base",
                 "last_backup_maximum_age": timedelta(1),
                 "last_backup_minimum_size": 1048576,
@@ -1050,6 +1052,7 @@ class TestServerConfig(object):
             "backup_directory": "/some/barman/home/main",
             "basebackups_directory": "/some/barman/home/main/base",
             "wals_directory": "wals",
+            "xlogdb_directory": "wals",
             "incoming_wals_directory": "/some/barman/home/main/incoming",
             "backup_compression": '"none"',
             "custom_compression_filter": "bzip2 -c -9",
@@ -1083,6 +1086,7 @@ class TestServerConfig(object):
             "compression": "gzip",
             "backup_compression": "none",
             "wals_directory": "wals",
+            "xlogdb_directory": "wals",
             "last_backup_minimum_size": 1048576,
         }
         expected = testing_helpers.build_config_dictionary(expected_override)

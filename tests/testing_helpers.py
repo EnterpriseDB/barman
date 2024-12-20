@@ -348,6 +348,7 @@ def build_config_dictionary(config_keys=None):
         "tablespace_bandwidth_limit": None,
         "wal_retention_policy": "main",
         "wals_directory": "/some/barman/home/main/wals",
+        "xlogdb_directory": "/some/barman/home/main/wals",
         "basebackup_retry_sleep": 30,
         "basebackup_retry_times": 0,
         "post_archive_script": None,
