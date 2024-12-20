@@ -161,7 +161,12 @@ unchanged files are linked rather than duplicated. For this reason, each rsync b
 a full "snapshot", independent of previous backups, and deleting any of the backups
 would not alter any of the others.
 
-In contrast, with the ``backup_method = postgres`` method (Postgres 17+), incremental
+.. note::
+    A hard link is a pointer to the actual data of a file stored on the disk. When a
+    hard link is created, it points to the same underlying data blocks on the storage
+    device, so the same data can be accessed via multiple file names.
+
+In comparison, with the ``backup_method = postgres`` method (Postgres 17+), incremental
 backups depend on a chain of backups, and restoring an incremental backup requires
 combining it with its full backup and any intermediate incremental backups. In This
 case, deleting an incremental backup would invalidate the following incremental
