@@ -160,8 +160,17 @@ that everything is OK with your server:
 
     barman check streaming-backup-server
 
-If you see failed checks related to replication slot and ``pg_receivewal``, run the
-following command.
+If you see a failed check related to WAL archive, don't worry. It just means that
+Barman has not received any complete WAL file yet, probably because no WAL segment has
+been switched on your Postgres server since the server was first created. You can force
+a WAL switch from ``barmanhost`` with this command:
+
+.. code-block:: bash
+
+    barman switch-wal --force streaming-backup-server
+
+Also, if you see failed checks related to replication slot and ``pg_receivewal``, run
+the following command.
 
 .. code-block:: bash
 
