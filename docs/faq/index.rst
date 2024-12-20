@@ -148,20 +148,24 @@ Yes, Barman natively supports backup from standby servers for both ``postgres`` 
 **What's the difference between Full and Incremental backups when using the rsync backup
 method in Barman?**
 
-With the ``rsync`` backup method in Barman, there is no clear distinction between
-full and incremental backups as seen with other backup methods like
-``backup_method = postgres`` on Postgres 17+. In practice, all backups created with
-``rsync`` are full backups, but they can share common files using hard-links, which
+With the ``rsync`` backup method, the on-disk backup has no clear distinction between
+a full and an incremental backup. In practice, all backups created with
+``rsync`` are full backups, but they may share common files using hard-links, which
 reduces storage space and speeds up backup creation.
-When using ``rsync`` with ``reuse_backup = link``, files that are exactly the same since
-the last backup are not copied again; instead, hard links to the existing files are
-created. This makes the backups appear to be incremental because unchanged files are
-linked rather than duplicated. However, each rsync backup is a full "snapshot",
-independent of previous backups.
+
+When using ``rsync`` with ``reuse_backup = link``, files that are exactly the same
+since the last backup are not copied again; instead, hard links to the existing files
+are created. This makes the backups appear to full as all files are completely available
+in the backup folder, yet the real size used on-disk and transfered is less because
+unchanged files are linked rather than duplicated. For this reason, each rsync backup is
+a full "snapshot", independent of previous backups, and deleting any of the backups
+would not alter any of the others.
 
 In contrast, with the ``backup_method = postgres`` method (Postgres 17+), incremental
 backups depend on a chain of backups, and restoring an incremental backup requires
-combining it with its full backup and any intervening incremental backups.
+combining it with its full backup and any intermediate incremental backups. In This
+case, deleting an incremental backup would invalidate the following incremental
+backups.
 
 To summarize, while rsync backups are file-level incremental in that they avoid
 duplicating unchanged files, each backup remains a full "snapshot", independent of
