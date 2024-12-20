@@ -20,6 +20,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 import tarfile
 import time
 from collections import namedtuple
@@ -295,6 +296,118 @@ class TestServer(object):
         # If the file is readonly exit method of the context manager must
         # skip calls on fsync method
         assert not os_mock.fsync.called
+
+    @patch("barman.server.os")
+    @patch("barman.server.ServerXLOGDBLock")
+    def test_xlogdb_is_rebuilt_if_not_present(self, lock_file_mock, os_mock, tmpdir):
+        """
+        Test that xlogdb file is rebuilt if it does not exist yet when accessed
+        """
+        # unpatch os.path
+        os_mock.path = os.path
+        server = build_real_server(
+            global_conf={"barman_lock_directory": tmpdir.mkdir("lock").strpath},
+            main_conf={"wals_directory": tmpdir.mkdir("wals")},
+        )
+        server.rebuild_xlogdb = Mock(wraps=server.rebuild_xlogdb)
+        with server.xlogdb("r"):
+            pass
+        server.rebuild_xlogdb.assert_called_once_with(silent=True)
+
+    def test_rebuild_xlogdb(self, tmpdir):
+        """Test rebuilding the xlogdb guessing it from the wals directory structure"""
+        # set up the wal and xlogdb temp directories
+        xlogdb_dir = tmpdir.mkdir("xlogdb_directory")
+        wals_dir = tmpdir.mkdir("wals")
+        # set up a server
+        server = build_real_server(
+            global_conf={"barman_lock_directory": tmpdir.mkdir("lock").strpath},
+            main_conf={
+                "xlogdb_directory": xlogdb_dir.strpath,
+                "wals_directory": wals_dir.strpath,
+            },
+        )
+        # create some WAL files in the wals directory
+        w1 = wals_dir.join("0000000100000000").join("000000010000000000000001").ensure()
+        w2 = wals_dir.join("0000000100000000").join("000000010000000000000002").ensure()
+        w3 = wals_dir.join("0000000100000000").join("000000010000000000000003").ensure()
+        w4 = (
+            wals_dir.join("0000000100000000")
+            .join("000000010000000000000004.00000001.backup")
+            .ensure()
+        )
+        w5 = wals_dir.join("0000000100000000").join("000000010000000000000005").ensure()
+        w6 = wals_dir.join("00000001.history").ensure()
+        w7 = wals_dir.join("0000000200000000").join("000000010000000000000001").ensure()
+        # the history file is the first to be read so the list ordering reflects it
+        wals_created = [w6, w1, w2, w3, w4, w5, w7]
+        # rebuild the xlogdb based on the wals present in the wals directory
+        server.rebuild_xlogdb()
+        # assert that every wal has been registered in the xlogdb file
+        with open(server.xlogdb_file_path, mode="r") as xlogdb_file:
+            for wal in wals_created:
+                # {walname} + tab + {size} + tab + {timecreated} + tab + {compression}
+                expected_line = rf"^{wal.basename}\t0\t[0-9]+\.[0-9]+\tNone$"
+                assert re.match(expected_line, xlogdb_file.readline()) is not None
+            assert xlogdb_file.readline() == ""
+
+    def test_rebuild_xlogdb_unkown_files_present(self, tmpdir):
+        """Test rebuilding the xlogdb is ignoring unkown files present"""
+        # set up the wal and xlogdb temp directories
+        xlogdb_dir = tmpdir.mkdir("xlogdb_directory")
+        wals_dir = tmpdir.mkdir("wals")
+        # set up a server
+        server = build_real_server(
+            global_conf={"barman_lock_directory": tmpdir.mkdir("lock").strpath},
+            main_conf={
+                "xlogdb_directory": xlogdb_dir.strpath,
+                "wals_directory": wals_dir.strpath,
+            },
+        )
+        # create some WAL files together with random files inside the wals directory
+        w1 = wals_dir.join("0000000100000000").join("000000010000000000000001").ensure()
+        wals_dir.join("0000000100000000").join("random-file").ensure()
+        w3 = wals_dir.join("0000000100000000").join("000000010000000000000002").ensure()
+        wals_dir.join("random-file").ensure()
+        # only the legitimate wal files should be considered, so this list reflects it
+        wals_created = [w1, w3]
+        # rebuild the xlogdb based on the wals present in the wals directory
+        server.rebuild_xlogdb()
+        # assert that only legimitate wal files have been registered in the xlogdb file
+        with open(server.xlogdb_file_path, mode="r") as xlogdb_file:
+            for wal in wals_created:
+                # {walname} + tab + {size} + tab + {timecreated} + tab + {compression}
+                expected_line = rf"^{wal.basename}\t0\t[0-9]+\.[0-9]+\tNone$"
+                assert re.match(expected_line, xlogdb_file.readline()) is not None
+            assert xlogdb_file.readline() == ""
+
+    @patch("barman.backup.CompressionManager")
+    def test_rebuild_xlogdb_with_compression(self, mock_comp_manager, tmpdir):
+        """Test rebuilding the xlogdb when compression is enabled"""
+        # set up the wal and xlogdb temp directories
+        xlogdb_dir = tmpdir.mkdir("xlogdb_directory")
+        wals_dir = tmpdir.mkdir("wals")
+        # set up a server
+        server = build_real_server(
+            global_conf={"barman_lock_directory": tmpdir.mkdir("lock").strpath},
+            main_conf={
+                "xlogdb_directory": xlogdb_dir.strpath,
+                "wals_directory": wals_dir.strpath,
+            },
+        )
+        # create a WAL file
+        wals_dir.join("0000000100000000").join("000000010000000000000001").ensure()
+        # mock the wal_file object returned by the compression manager
+        mock_wal_info = Mock()
+        expected_line = "000000010000000000000001\t16777216\t1733775204.2337587\tgzip"
+        mock_wal_info.to_xlogdb_line.return_value = expected_line
+        mock_comp_manager.return_value.get_wal_file_info.return_value = mock_wal_info
+        # rebuild the xlogdb based on the wals present in the wals directory
+        server.rebuild_xlogdb()
+        # assert that the correct line was written to the file
+        with open(server.xlogdb_file_path, mode="r") as xlogdb_file:
+            assert xlogdb_file.readline() == expected_line
+            assert xlogdb_file.readline() == ""
 
     def test_get_wal_full_path(self, tmpdir):
         """
@@ -1913,6 +2026,14 @@ class TestServer(object):
         assert len(server.get_children_timelines(3)) == 0
         assert len(server.get_children_timelines(4)) == 0
 
+    def test_xlogdb_directory(self):
+        """
+        Test the xlogdb_directory server property
+        """
+        # It's just a shortcut to config.xlogdb_directory
+        server = build_real_server()
+        assert server.xlogdb_directory == server.config.xlogdb_directory
+
     def test_xlogdb_file_name(self):
         """
         Test the xlogdb_file_name server property
@@ -1921,9 +2042,25 @@ class TestServer(object):
         server = build_real_server()
         assert server.xlogdb_file_name == "%s-xlog.db" % server.config.name
 
-        result = os.path.join(server.config.wals_directory, server.XLOG_DB)
+    def test_xlogdb_file_path(self):
+        """
+        Test the xlogdb_file_path server property
+        """
+        server = build_real_server()
 
-        assert server.xlogdb_file_name == result
+        # It should be a combination of xlogdb_directory and xlogdb_file_name
+        with patch.object(
+            Server, "xlogdb_directory", new_callable=PropertyMock
+        ) as xlogdb_dir_mock:
+            with patch.object(
+                Server, "xlogdb_file_name", new_callable=PropertyMock
+            ) as xlogdb_name_mock:
+                xlogdb_dir_mock.return_value = "/custom/global/xlogdb_directory"
+                xlogdb_name_mock.return_value = "servername_xlog.db"
+                assert (
+                    server.xlogdb_file_path
+                    == "/custom/global/xlogdb_directory/servername_xlog.db"
+                )
 
     def test_create_physical_repslot(self, capsys):
         """
