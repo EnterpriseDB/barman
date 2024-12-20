@@ -1,0 +1,10 @@
+- summary: Document procedure to clear WAL archive failure check
+  description: |
+    While redesigning the Barman docs we missed adding a note advising
+    users to run a `switch-wal` command if the server is idle and
+    `barman check` returns a failure on "WAL archiving".
+
+    This addresses the gap left from the previous documentation.
+  type: minor_change
+  jira_tickets:
+    - BAR-521
