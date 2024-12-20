@@ -73,6 +73,7 @@ quickly navigate to it.
 .. include:: commands/barman/lock_directory_cleanup.inc.rst
 .. include:: commands/barman/put_wal.inc.rst
 .. include:: commands/barman/rebuild_xlogdb.inc.rst
+.. include:: commands/barman/recover.inc.rst
 .. include:: commands/barman/receive_wal.inc.rst
 .. include:: commands/barman/restore.inc.rst
 .. include:: commands/barman/replication_status.inc.rst
