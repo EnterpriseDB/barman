@@ -304,7 +304,7 @@ Helpful Resources
 
 `Example recovery script for GCP <https://github.com/EnterpriseDB/barman/blob/master/scripts/prepare_snapshot_recovery.py>`_.
 
-`Example runbook for Azure <https://github.com/EnterpriseDB/barman/blob/master/old_docs/runbooks/snapshot_recovery_azure.md>`_.
+`Example runbook for Azure <https://github.com/EnterpriseDB/barman/blob/master/scripts/runbooks/snapshot_recovery_azure.md>`_.
 
 These resources make assumptions about your backup and recovery environment and should be
 customized before use in production.

@@ -24,12 +24,12 @@ In order to recover the snapshot backup the following steps must be taken:
 4. Mount each attached disk at the expected mount point for your PostgreSQL installation.
 5. Finalize the recovery with Barman.
 
-### Review the necessary metadata for recovering the snapshot backup.
+### Review the necessary metadata for recovering the snapshot backup
 
 The information required to recover the snapshots can be found in the backup metadata managed by Barman.
 For example, for backup `20230614T130700` made with `barman backup`:
 
-```
+```bash
 barman@barman:~$ barman show-backup primary 20230614T130700
 Backup 20230614T130700:
   Server Name            : primary
@@ -59,7 +59,7 @@ Backup 20230614T130700:
 
 Alternatively, for backup `20230614T103507` made with `barman-cloud-backup`:
 
-```
+```bash
 postgres@primary:~ $ barman-cloud-backup-show --cloud-provider=azure-blob-storage https://barmanteststorage.blob.core.windows.net/barman-test-container primary 20230614T103507
 Backup 20230614T103507:
   Server Name            : primary
@@ -89,7 +89,7 @@ Backup 20230614T103507:
 The `--format=json` option can be used with either command to view the metadata as a JSON object.
 Snapshot metadata will be available under the `snapshots_info` key and will have the following structure:
 
-```
+```json
 "snapshots_info": {
   "provider": "azure",
   "provider_info": {
@@ -141,7 +141,7 @@ New disks can be created using the [`az disk` command][az-disk-create] and the s
 
 For example, for backup `20230614T130700`, the following commands should be run:
 
-```
+```bash
 az disk create --resource-group barman-test-rg --name recovery-pgdata --sku StandardSSD_LRS --source barman-test-primary-pgdata-20230614t130700
 az disk create --resource-group barman-test-rg --name recovery-tbs1 --sku StandardSSD_LRS --source barman-test-primary-tbs1-20230614t130700
 ```
@@ -155,7 +155,7 @@ This can be achieved using the [`az-vm-disk-attach` command][az-vm-disk-attach].
 
 To recover the backup `20230614T130700` onto a recovery instance named `barman-test-recovery`, the following commands should be run to attach the disks created in the previous step:
 
-```
+```bash
 az vm disk attach --resource-group barman-test-rg --vm-name barman-test-recovery --name recovery-pgdata --lun 5
 az vm disk attach --resource-group barman-test-rg --vm-name barman-test-recovery --name recovery-tbs1 --lun 6
 ```
@@ -166,12 +166,14 @@ If the lun is omitted then you will need to query the VM metadata to find its va
 
 For more details see the [Azure documentation][add-a-disk-to-a-linux-vm].
 
-### Mount each attached disk at the expected mount point for your PostgreSQL installation.
+### Mount each attached disk at the expected mount point for your PostgreSQL installation
 
 Mounting each attached disk must be carried out on the recovery VM.
 There are [multiple documented ways to find each attached disk][format-and-mount-the-disk] however it is recommended that the symlinks created by the Azure linux agent are used. These symlinks are structured as follows, where `${LUN}` is the lun value used when attaching the disk to the VM:
 
-    /dev/disk/azure/scsi1/lun${LUN}
+```bash
+/dev/disk/azure/scsi1/lun${LUN}
+```
 
 Barman expects the disks to be attached at the same mount point at which the disk used to create the original snapshot was mounted - this information is available in the metadata Barman stores about the backup.
 
@@ -184,14 +186,14 @@ For the example recovery of backup `20230614T130700`, we know the following:
 
 The following commands should therefore be run on the recovery instance:
 
-```
+```bash
 mount -o rw,noatime /dev/disk/azure/scsi1/lun5 /opt/postgres
 mount -o rw,noatime /dev/disk/azure/scsi1/lun6 /opt/postgres/tablespaces/tbs1
 ```
 
 The recovered data is now available on the recovery VM and the recovery is ready to be finalized.
 
-### Finalize the recovery with Barman.
+### Finalize the recovery with Barman
 
 The final step is to run `barman recover` (if the backup was made with `barman backup`) or `barman-backup-restore` (if the backup was made with `barman-cloud-backup`).
 This will copy the backup label into the PGDATA directory on the recovery VM and, in the case of `barman recover`, prepare PostgreSQL for recovery by adding any requested recovery options to `postgresql.auto.conf` and optionally copying any WALs into place.

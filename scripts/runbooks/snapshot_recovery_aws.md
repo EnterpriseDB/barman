@@ -24,12 +24,12 @@ In order to recover the snapshot backup the following steps must be taken:
 4. Mount each attached disk at the expected mount point for your PostgreSQL installation.
 5. Finalize the recovery with Barman.
 
-### Review the necessary metadata for recovering the snapshot backup.
+### Review the necessary metadata for recovering the snapshot backup
 
 The information required to recover the snapshots can be found in the backup metadata managed by Barman.
 For example, for backup `20230719T111532` made with `barman backup`:
 
-```
+```bash
 barman@barman:~ $ barman show-backup primary 20230719T111532
 Backup 20230719T111532:
   Server Name            : primary
@@ -59,7 +59,7 @@ Backup 20230719T111532:
 
 Alternatively, for backup `20230719T091506` made with `barman-cloud-backup`:
 
-```
+```bash
 postgres@primary:~ $ barman-cloud-backup-show s3://barman-test primary 20230719T091506
 Backup 20230719T091506:
   Server Name            : primary
@@ -90,7 +90,7 @@ Backup 20230719T091506:
 The `--format=json` option can be used with either command to view the metadata as a JSON object.
 Snapshot metadata will be available under the `snapshots_info` key and will have the following structure:
 
-```
+```json
 "snapshots_info": {
   "provider": "aws",
   "provider_info": {
@@ -137,7 +137,7 @@ New disks can be created using the [`aws ec2 create-volume` command][aws-create-
 
 For example, for backup `20230719T111532`, the following commands should be run:
 
-```
+```bash
 barman@barman:~ $ aws ec2 create-volume --availability-zone eu-west-1a --snapshot-id snap-00726674e0e859757
 {
     "AvailabilityZone": "eu-west-1a",
@@ -152,6 +152,7 @@ barman@barman:~ $ aws ec2 create-volume --availability-zone eu-west-1a --snapsho
     "VolumeType": "gp2",
     "MultiAttachEnabled": false
 }
+
 barman@barman:~ $ aws ec2 create-volume --availability-zone eu-west-1a --snapshot-id snap-005176dd63fa66ccc
 {
     "AvailabilityZone": "eu-west-1a",
@@ -177,7 +178,7 @@ This can be achieved using the [`aws ec2 attach-volume` command][aws-attach-volu
 
 To recover the backup `20230719T111532` onto a recovery instance named `barman-test-recovery` with an instance ID of `i-0ab99cab451990eeb`, the following commands should be run to attach the disks created in the previous step:
 
-```
+```bash
 barman@barman:~ $ aws ec2 attach-volume --instance-id i-0ab99cab451990eeb --volume-id vol-02f4de6148c1bca91 --device /dev/sdf
 {
     "AttachTime": "2023-07-19T13:16:33.790000+00:00",
@@ -200,7 +201,7 @@ The device name assigned to the attached device is required in the next step whe
 Note that the device name specified here may be remapped to a different name when it is attached to the instance.
 The possible re-mappings and the rules regarding device name are specified in the [AWS documentation][aws-device-naming].
 
-### Mount each attached disk at the expected mount point for your PostgreSQL installation.
+### Mount each attached disk at the expected mount point for your PostgreSQL installation
 
 Mounting each attached disk must be carried out on the recovery VM.
 Barman expects the disks to be attached at the same mount point at which the disk used to create the original snapshot was mounted - this information is available in the metadata Barman stores about the backup.
@@ -220,14 +221,14 @@ In this scenario the recovery instance is using hardware virtualization so the d
 
 The following commands should therefore be run on the recovery instance:
 
-```
+```bash
 mount -o rw,noatime /dev/xvdf /opt/postgres
 mount -o rw,noatime /dev/xvdg /opt/postgres/tablespaces/tbs1
 ```
 
 The recovered data is now available on the recovery VM and the recovery is ready to be finalized.
 
-### Finalize the recovery with Barman.
+### Finalize the recovery with Barman
 
 The final step is to run `barman recover` (if the backup was made with `barman backup`) or `barman-backup-restore` (if the backup was made with `barman-cloud-backup`).
 This will copy the backup label into the PGDATA directory on the recovery VM and, in the case of `barman recover`, prepare PostgreSQL for recovery by adding any requested recovery options to `postgresql.auto.conf` and optionally copying any WALs into place.
