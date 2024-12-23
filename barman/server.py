@@ -1544,6 +1544,10 @@ class Server(RemoteStatusMixin):
             result["last_backup_maximum_age"] = msg
         else:
             result["last_backup_maximum_age"] = "None"
+        # Add active model information
+        result["active_model"] = (
+            self.config.active_model.name if self.config.active_model else None
+        )
         output.result("show_server", self.config.name, result)
 
     def delete_backup(self, backup):
