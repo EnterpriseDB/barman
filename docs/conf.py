@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# © Copyright EnterpriseDB UK Limited 2011-2023
+# © Copyright EnterpriseDB UK Limited 2011-2025
 #
 # This file is part of Barman.
 #
@@ -97,7 +97,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "Barman"
-copyright = "© Copyright EnterpriseDB UK Limited 2011-2024"
+copyright = "© Copyright EnterpriseDB UK Limited 2011-2025"
 author = "EnterpriseDB"
 
 # The version info for the project you"re documenting, acts as replacement for

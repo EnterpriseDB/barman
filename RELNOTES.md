@@ -1,6 +1,6 @@
 # Barman release notes
 
-© Copyright EnterpriseDB UK Limited 2024 - All rights reserved.
+© Copyright EnterpriseDB UK Limited 2025 - All rights reserved.
 
 ## 3.12.1 (2024-12-09)
 

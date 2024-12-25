@@ -43,7 +43,7 @@ Web resources
 Licence
 -------
 
-© Copyright 2011-2024 EnterpriseDB UK Limited
+© Copyright 2011-2025 EnterpriseDB UK Limited
 
 Barman is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free

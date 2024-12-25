@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# © Copyright EnterpriseDB UK Limited 2011-2023
+# © Copyright EnterpriseDB UK Limited 2011-2025
 #
 # This file is part of Barman.
 #

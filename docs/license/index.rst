@@ -15,4 +15,4 @@ requires contributors to complete a copyright assignment and to disclaim any
 work-for-hire claims from their employers. For a Copyright Assignment Form, please
 contact barman@enterprisedb.com.
 
-© Copyright EnterpriseDB UK Limited 2011-2024
+© Copyright EnterpriseDB UK Limited 2011-2025
