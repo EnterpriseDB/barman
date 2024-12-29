@@ -156,12 +156,10 @@ class TestFileWalArchiver(object):
     @patch("os.unlink")
     @patch("barman.wal_archiver.FileWalArchiver.get_next_batch")
     @patch("barman.wal_archiver.FileWalArchiver.archive_wal")
-    @patch("shutil.move")
     @patch("datetime.datetime")
     def test_archive(
         self,
         datetime_mock,
-        move_mock,
         archive_wal_mock,
         get_next_batch_mock,
         unlink_mock,
@@ -236,20 +234,12 @@ class TestFileWalArchiver(object):
             % (archiver.config.name, archiver.name, "testfile_2")
         ) in caplog.text
 
-        move_mock.assert_any_call(
-            "testfile_1",
-            os.path.join(
-                archiver.config.errors_directory,
-                "%s.%s.unknown" % ("testfile_1", "test_time"),
-            ),
+        archiver.server.move_wal_file_to_errors_directory.assert_any_call(
+            "testfile_1", "testfile_1", "unknown"
         )
 
-        move_mock.assert_any_call(
-            "testfile_2",
-            os.path.join(
-                archiver.config.errors_directory,
-                "%s.%s.unknown" % ("testfile_2", "test_time"),
-            ),
+        archiver.server.move_wal_file_to_errors_directory.assert_any_call(
+            "testfile_2", "testfile_2", "unknown"
         )
 
     @patch("os.fsync")

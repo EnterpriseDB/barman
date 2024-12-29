@@ -2783,35 +2783,13 @@ class TestServer(object):
             ("MD5SUMS", "md5", "sum_absent", "Missing checksum for file"),
             ("MD5SUMS", "md5", "sum_mismatch", "Bad file checksum"),
             (
-                "MD5SUMS",
-                "md5",
-                "dest_exists",
-                "Impossible to write already existing",
-            ),
-            (
                 "SHA256SUMS",
                 "sha256",
                 "file_absent",
                 "Checksum without corresponding file",
             ),
-            (
-                "SHA256SUMS",
-                "sha256",
-                "sum_absent",
-                "Missing checksum for file",
-            ),
-            (
-                "SHA256SUMS",
-                "sha256",
-                "sum_mismatch",
-                "Bad file checksum",
-            ),
-            (
-                "SHA256SUMS",
-                "sha256",
-                "dest_exists",
-                "Impossible to write already existing",
-            ),
+            ("SHA256SUMS", "sha256", "sum_absent", "Missing checksum for file"),
+            ("SHA256SUMS", "sha256", "sum_mismatch", "Bad file checksum"),
         ],
     )
     def test_put_wal_fail(
@@ -2855,14 +2833,10 @@ class TestServer(object):
             tar.add(hashsum.strpath, hashsum.basename)
         tar.close()
 
-        # If requested create a colliding file in the incoming directory
-        if mode == "dest_exists":
-            dest_file = incoming.join(wal.basename)
-            dest_file.write("some random content", ensure=True)
-
         # Feed the data to put-wal
         tar_file.seek(0)
         server.put_wal(tar_file)
+
         out, err = capsys.readouterr()
 
         # Output is always empty
@@ -2874,6 +2848,88 @@ class TestServer(object):
             "for server 'main' (SSH host: 192.168.66.99)\n" in err
         )
         assert output.error_occurred
+
+    @pytest.mark.parametrize(
+        "HASHSUMS_FILE, hash_algorithm, message, checksums_match",
+        [
+            (
+                "MD5SUMS",
+                "md5",
+                "Duplicate Files Detected with Mismatched Checksums",
+                False,
+            ),
+            ("MD5SUMS", "md5", "Duplicate Files with Identical Checksums.", True),
+            (
+                "SHA256SUMS",
+                "sha256",
+                "Duplicate Files Detected with Mismatched Checksums",
+                False,
+            ),
+            ("SHA256SUMS", "sha256", "Duplicate Files with Identical Checksums.", True),
+        ],
+    )
+    @patch("barman.server.Server.move_wal_file_to_errors_directory")
+    def test_put_wal_with_duplicate_file(
+        self,
+        mock_move_wal_file_to_errors_dir,
+        HASHSUMS_FILE,
+        hash_algorithm,
+        message,
+        checksums_match,
+        tmpdir,
+        capsys,
+        monkeypatch,
+        caplog,
+    ):
+        # See all logs
+        caplog.set_level(0)
+        lab = tmpdir.mkdir("lab")
+        incoming = tmpdir.mkdir("incoming")
+        server = build_real_server(
+            main_conf={
+                "incoming_wals_directory": incoming.strpath,
+                "backup_options": "concurrent_backup",
+            }
+        )
+        output.error_occurred = False
+
+        # Simulate a connection from a remote host
+        monkeypatch.setenv("SSH_CONNECTION", "192.168.66.99")
+
+        # Generate some test data in an in_memory tar
+        tar_file = BytesIO()
+        tar = tarfile.open(mode="w|", fileobj=tar_file)
+        wal = lab.join("00000001000000EF000000AB")
+        wal.write("some random content", ensure=True)
+        tar.add(wal.strpath, wal.basename)
+        hashsum = lab.join(HASHSUMS_FILE)
+        hashsum.write("%s *%s\n" % (wal.computehash(hash_algorithm), wal.basename))
+        tar.add(hashsum.strpath, hashsum.basename)
+        tar.close()
+
+        dest_file = incoming.join(wal.basename)
+        if checksums_match:
+            dest_file.write("some random content", ensure=True)
+        else:
+            dest_file.write("I might be corrupted!", ensure=True)
+
+        mock_move_wal_file_to_errors_dir.return_value = None
+        # Feed the data to put-wal
+        tar_file.seek(0)
+        server.put_wal(tar_file)
+
+        out, err = capsys.readouterr()
+        # Should not have an error msg
+        assert not err
+        if not checksums_match:
+            mock_move_wal_file_to_errors_dir.assert_called_once()
+            # info message from stdout/stderr
+            assert message in out
+        else:
+            # debug message from logs
+            assert message in caplog.text
+        # Should not have an error occurred
+        assert not output.error_occurred
 
     @pytest.mark.parametrize(
         "obj, HASHSUMS_FILE, hash_algorithm, checksum",
@@ -3438,6 +3494,27 @@ class TestServer(object):
                 self.hash_algorithm = hash_algorithm
 
         return HashableTarfile()
+
+    @pytest.mark.parametrize(
+        "suffix",
+        ["duplicate", "unknown"],
+    )
+    @patch("barman.server.shutil")
+    def test_move_wal_file_to_errors_directory(self, mock_shutil, suffix):
+        errors_dir = "path/to/errors"
+        server = build_real_server(
+            main_conf={
+                "backup_options": "concurrent_backup",
+                "errors_directory": errors_dir,
+            }
+        )
+
+        src = "original_file"
+        filename = "filename"
+        stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        error_dst = "%s/%s.%s.%s" % (errors_dir, filename, stamp, suffix)
+        server.move_wal_file_to_errors_directory(src, filename, suffix)
+        mock_shutil.move.assert_called_once_with(src, error_dst)
 
 
 class TestCheckStrategy(object):
