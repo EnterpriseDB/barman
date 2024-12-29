@@ -2607,19 +2607,41 @@ class Server(RemoteStatusMixin):
                         source_suffix,
                     )
                     return
-                # If a file with the same name exists, returns an error.
-                # PostgreSQL archive command will retry again later and,
-                # at that time, Barman's WAL archiver should have already
-                # managed this file.
+                # If a file with the same name exists, checksums are compared.
+                # If checksums mismatch, an error message is generated, the incoming
+                # file is moved to the errors directory.
+                # If checksums are identical, a debug message is generated and the file
+                # is skipped.
+                # In both cases the archiving process will exit with 0, avoiding
+                # that WALs pile up on Postgres.
                 if os.path.exists(item.path):
-                    output.error(
-                        "Impossible to write already existing file '%s' "
-                        "in put-wal for server '%s'%s",
-                        item.name,
-                        self.config.name,
-                        source_suffix,
+                    incoming_dir_file_checksum = file_hash(
+                        file_path=item.path, hash_algorithm=hash_algorithm
                     )
-                    return
+                    if item.checksum == incoming_dir_file_checksum:
+                        output.debug(
+                            "Duplicate Files with Identical Checksums. File %s already "
+                            "exists on server %s, and the checksums are identical. "
+                            "Skipping the file.",
+                            item.name,
+                            self.config.name,
+                        )
+                        continue
+                    else:
+                        self.move_wal_file_to_errors_directory(
+                            item.tmp_path, item.name, "duplicate"
+                        )
+                        output.info(
+                            "\tError: Duplicate Files Detected with Mismatched "
+                            "Checksums. File %s already exists on server %s with "
+                            "checksum %s, but the checksum of the incoming file is%s. "
+                            "The file has been moved to the errors directory.",
+                            item.name,
+                            self.config.name,
+                            incoming_dir_file_checksum,
+                            item.checksum,
+                        )
+                        continue
                 os.rename(item.tmp_path, item.path)
                 fsync_file(item.path)
             fsync_dir(dest_dir)
@@ -4501,3 +4523,43 @@ class Server(RemoteStatusMixin):
         if self.config.streaming_archiver:
             # Spawn the receive-wal sub-process
             self.background_receive_wal(keep_descriptors=False)
+
+    def move_wal_file_to_errors_directory(self, src, file_name, suffix):
+        """
+        Move an unknown or (mismatching) duplicate WAL file to the ``errors`` directory.
+
+        .. note:
+            The issues can happen when:
+
+            * Unknown WAL file:
+
+                * The asynchronous WAL archiver detects a file in the ``incoming`` or
+                  ``streaming`` directory which is not an WAL file.
+
+            * Duplicate WAL file:
+
+                * ``barman-wal-archive`` attempts to write a file to the ``incoming``
+                  directory which already exists there, but with a different content.
+                * The asynchronous WAL archiver detects a file in the ``incoming`` or
+                  ``streaming`` which already exists in the ``wals`` directory, but with
+                  a different content.
+
+        :param str src: Incoming file to be moved to the ``errors`` directory.
+        :param str file_name: Name of the incoming file.
+        :param str suffix: String which identifies the kind of the issue.
+
+            * ``duplicate``: if *src* is a (mismatching) duplicate WAL file.
+            * ``unknown``: if *src* is not an WAL file.
+        """
+        stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        error_dst = os.path.join(
+            self.config.errors_directory,
+            "%s.%s.%s" % (file_name, stamp, suffix),
+        )
+        # TODO: cover corner case of duplication (unlikely,
+        # but theoretically possible)
+        try:
+            shutil.move(src, error_dst)
+        except IOError as e:
+            if e.errno == errno.ENOENT:
+                _logger.warning("%s not found" % src)

@@ -17,8 +17,6 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>
 
 import collections
-import datetime
-import errno
 import filecmp
 import logging
 import os
@@ -138,7 +136,6 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
         :param boolean verbose: Flag for verbose output
         """
         compressor = self.backup_manager.compression_manager.get_default_compressor()
-        stamp = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
         processed = 0
         header = "Processing xlog segments from %s for %s" % (
             self.name,
@@ -215,19 +212,15 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
                 os.unlink(wal_info.orig_filename)
                 continue
             except DuplicateWalFile:
+                self.server.move_wal_file_to_errors_directory(
+                    wal_info.orig_filename, wal_info.name, "duplicate"
+                )
                 output.info(
                     "\tError: %s is already present in server %s. "
                     "File moved to errors directory.",
                     wal_info.name,
                     self.config.name,
                 )
-                error_dst = os.path.join(
-                    self.config.errors_directory,
-                    "%s.%s.duplicate" % (wal_info.name, stamp),
-                )
-                # TODO: cover corner case of duplication (unlikely,
-                # but theoretically possible)
-                shutil.move(wal_info.orig_filename, error_dst)
                 continue
             except AbortedRetryHookScript as e:
                 _logger.warning(
@@ -274,14 +267,9 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
                     self.name,
                     basename,
                 )
-                error_dst = os.path.join(
-                    self.config.errors_directory, "%s.%s.unknown" % (basename, stamp)
+                self.server.move_wal_file_to_errors_directory(
+                    error, basename, "unknown"
                 )
-                try:
-                    shutil.move(error, error_dst)
-                except IOError as e:
-                    if e.errno == errno.ENOENT:
-                        _logger.warning("%s not found" % error)
 
     def archive_wal(self, compressor, wal_info):
         """
