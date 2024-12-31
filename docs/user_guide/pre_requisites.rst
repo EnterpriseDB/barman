@@ -336,6 +336,16 @@ is fsynced and stored in the correct incoming directory for the respective serve
 only parameter required for the ``archive_command`` is the server's name, reducing the
 likelihood of misplacement.
 
+.. note::
+    The ``barman-wal-archive`` client is designed to minimize failures and prevent WAL
+    files from accumulating on the PostgreSQL server. If a duplicate WAL file is sent to
+    the Barman host, the command will exit with a success code (0) and log a message.
+
+    If the content of the duplicate file matches the one already stored on the Barman
+    host, the file is ignored. However, if the content differs, the file is moved to the
+    errors directory on the Barman server. This will cause future ``barman check``
+    executions to report a failure due to the mismatch.
+
 To verify that ``barman-wal-archive`` can connect to the Barman server and that the
 Postgres server is correctly configured to accept incoming WAL files, execute the
 following command:
