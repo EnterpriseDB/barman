@@ -420,6 +420,10 @@ on different Postgres features, with its own set of requirements, advantages, an
 disadvantages. The desired backup method can be specified using the ``backup_method``
 parameter in the server's configuration file.
 
+.. note::
+  It is highly recommended to use a single backup method when managing your Barman
+  server. If you need to switch backup methods, it's advisable to set up a new Barman
+  server.
 
 .. _concepts-barman-concepts-rsync-backups:
 
