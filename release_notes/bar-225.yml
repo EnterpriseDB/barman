@@ -1,0 +1,17 @@
+- summary: Make barman-wal-archive smarter when dealing with duplicate WAL files
+  description: |
+    Under some corner cases, Postgres could attempt to archive the same WAL twice.
+    For example: if `barman-wal-archive` copies the WAL file over to the Barman host,
+    but the script is interrupted before reporting success to Postgres. New executions
+    of `barman-wal-archive` could fail when trying to archive the same file again
+    because the WAL was already copied from Postgres to Barman, but not yet processed by
+    the asynchronous Barman WAL archiver.
+
+    This minor change deals with this situation by verifying the checksum of the
+    existing and the incoming file. If the checksums match the incoming file is
+    ignored, otherwise an output info message is sent and the incoming file is moved to
+    the errors directory. The code will exit with 0 in both situations, avoiding that
+    WALs pile up in the Postgres host due to a failing archive_command.
+  type: minor_change
+  jira_tickets:
+    - BAR-225
