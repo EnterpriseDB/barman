@@ -915,8 +915,8 @@ def restore(args):
     server = get_server(args)
 
     # Retrieves the backup
-    backup_id = parse_backup_id(server, args)
-    if backup_id.status not in BackupInfo.STATUS_COPY_DONE:
+    backup_info = parse_backup_id(server, args)
+    if backup_info.status not in BackupInfo.STATUS_COPY_DONE:
         output.error(
             "Cannot restore from backup '%s' of server '%s': "
             "backup status is not DONE",
@@ -927,7 +927,7 @@ def restore(args):
 
     # If the backup to be recovered is compressed then there are additional
     # checks to be carried out
-    if backup_id.compression is not None:
+    if backup_info.compression is not None:
         # Set the recovery staging path from the cli if it is set
         if args.recovery_staging_path is not None:
             try:
@@ -948,13 +948,13 @@ def restore(args):
                 "argument.",
                 args.backup_id,
                 server.config.name,
-                backup_id.compression,
+                backup_info.compression,
             )
             output.close_and_exit()
 
     # If the backup to be recovered is incremental then there are additional
     # checks to be carried out
-    if backup_id.is_incremental:
+    if backup_info.is_incremental:
         # Set the local staging path from the cli if it is set
         if args.local_staging_path is not None:
             try:
@@ -995,9 +995,9 @@ def restore(args):
 
     # validate the rules against the tablespace list
     valid_tablespaces = []
-    if backup_id.tablespaces:
+    if backup_info.tablespaces:
         valid_tablespaces = [
-            tablespace_data.name for tablespace_data in backup_id.tablespaces
+            tablespace_data.name for tablespace_data in backup_info.tablespaces
         ]
     for item in tablespaces:
         if item not in valid_tablespaces:
@@ -1072,7 +1072,7 @@ def restore(args):
             output.close_and_exit()
         server.config.network_compression = args.network_compression
 
-    if backup_id.snapshots_info is not None:
+    if backup_info.snapshots_info is not None:
         missing_args = []
         if not args.snapshot_recovery_instance:
             missing_args.append("--snapshot-recovery-instance")
@@ -1080,7 +1080,7 @@ def restore(args):
             output.error(
                 "Backup %s is a snapshot backup and the following required arguments "
                 "have not been provided: %s",
-                backup_id.backup_id,
+                backup_info.backup_id,
                 ", ".join(missing_args),
             )
             output.close_and_exit()
@@ -1088,7 +1088,7 @@ def restore(args):
             output.error(
                 "Backup %s is a snapshot backup therefore tablespace relocation rules "
                 "cannot be used.",
-                backup_id.backup_id,
+                backup_info.backup_id,
             )
             output.close_and_exit()
         # Set the snapshot keyword arguments to be passed to the recovery executor
@@ -1115,7 +1115,7 @@ def restore(args):
             output.error(
                 "Backup %s is not a snapshot backup but the following snapshot "
                 "arguments have been used: %s",
-                backup_id.backup_id,
+                backup_info.backup_id,
                 ", ".join(unexpected_args),
             )
             output.close_and_exit()
@@ -1126,7 +1126,7 @@ def restore(args):
     with closing(server):
         try:
             server.recover(
-                backup_id,
+                backup_info,
                 args.destination_directory,
                 wal_dest=args.staging_wal_directory,
                 tablespaces=tablespaces,
