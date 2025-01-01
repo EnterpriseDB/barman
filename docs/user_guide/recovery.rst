@@ -262,6 +262,26 @@ handle the ``.partial`` file.
 Moreover, ``get-wal`` will check the ``incoming`` directory for any WAL files that have
 been sent to Barman but not yet archived.
 
+.. _recovery-managing-external-configuration-files:
+
+Managing external configuration files
+-------------------------------------
+
+Barman restores external configuration files differently depending on how the backup was
+originally taken. When restoring a ``rsync`` backup, external files are restored into
+the :term:`PGDATA` directory via rsync, and not in the original location. A warning is issued regarding potentially
+risky settings, including the ones related to configuration files. In contrast, when
+restoring a ``postgres`` backup, external files are not restored as they were not backed up. A warning is
+provided to inform the user about the files that were not restored.
+
+Refer to the :ref:`Managing external configuration files <backup-managing-external-configuration-files>`
+section in the backup chapter to understand how external files are handled when
+creating a backup.
+
+.. _recovery-recovering-from-snapshot-backups:
+
+.. _recovery-recovering-from-snapshot-backups:
+
 Recovering from Snapshot Backups
 --------------------------------
 

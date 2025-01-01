@@ -450,6 +450,27 @@ or
     Postgres 10 and earlier may differ at the binary level, leading to false-positive 
     detection issues in Barman.
 
+.. _backup-managing-external-configuration-files:
+
+Managing external configuration files
+-------------------------------------
+
+Barman handles :term:`external configuration files <External Configuration Files>`
+differently depending on the backup method used. With the ``rsync`` method, external
+files are copied into the PGDATA directory. However, with the ``postgres`` method,
+external files are not copied, and a warning is issued to notify the user about those
+files.
+
+Refer to the :ref:`Managing external configuration files <recovery-managing-external-configuration-files>`
+section in the recovery chapter to understand how external files are handled when
+restoring a backup.
+
+.. hint::
+    Since Barman does not establish SSH connections to the PostgreSQL host when
+    ``backup_method = postgres``, you may want to configure a post-backup hook
+    and use the output of ``barman show-server`` command to back up the external
+    configuration files on your own right after the backup is finished.
+
 .. _backup-cloud-snapshot-backups:
 
 Cloud Snapshot Backups
