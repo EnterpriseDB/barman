@@ -280,8 +280,6 @@ creating a backup.
 
 .. _recovery-recovering-from-snapshot-backups:
 
-.. _recovery-recovering-from-snapshot-backups:
-
 Recovering from Snapshot Backups
 --------------------------------
 
