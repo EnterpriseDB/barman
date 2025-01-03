@@ -60,7 +60,7 @@ from barman.exceptions import (
     SnapshotBackupException,
 )
 from barman.infofile import BackupInfo, LocalBackupInfo, SyntheticBackupInfo
-from barman.utils import force_str, mkpath, total_seconds
+from barman.utils import force_str, mkpath, parse_target_tli, total_seconds
 
 # generic logger for this module
 _logger = logging.getLogger(__name__)
@@ -476,15 +476,9 @@ class RecoveryExecutor(object):
         target_datetime = None
 
         # Calculate the integer value of TLI if a keyword is provided
-        calculated_target_tli = target_tli
-        if target_tli and type(target_tli) is str:
-            if target_tli == "current":
-                calculated_target_tli = backup_info.timeline
-            elif target_tli == "latest":
-                valid_timelines = self.backup_manager.get_latest_archived_wals_info()
-                calculated_target_tli = int(max(valid_timelines.keys()), 16)
-            elif not target_tli.isdigit():
-                raise ValueError("%s is not a valid timeline keyword" % target_tli)
+        calculated_target_tli = parse_target_tli(
+            self.backup_manager, target_tli, backup_info
+        )
 
         d_immediate = backup_info.version >= 90400 and target_immediate
         d_lsn = backup_info.version >= 100000 and target_lsn

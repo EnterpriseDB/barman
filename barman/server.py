@@ -98,6 +98,7 @@ from barman.utils import (
     human_readable_timedelta,
     is_power_of_two,
     mkpath,
+    parse_target_tli,
     pretty_size,
     timeout,
 )
@@ -1922,15 +1923,9 @@ class Server(RemoteStatusMixin):
         end = backup.end_wal
 
         # Calculate the integer value of TLI if a keyword is provided
-        calculated_target_tli = target_tli
-        if target_tli and type(target_tli) is str:
-            if target_tli == "current":
-                calculated_target_tli = backup.timeline
-            elif target_tli == "latest":
-                valid_timelines = self.backup_manager.get_latest_archived_wals_info()
-                calculated_target_tli = int(max(valid_timelines.keys()), 16)
-            elif not target_tli.isdigit():
-                raise ValueError("%s is not a valid timeline keyword" % target_tli)
+        calculated_target_tli = parse_target_tli(
+            self.backup_manager, target_tli, backup
+        )
 
         # If timeline isn't specified, assume it is the same timeline
         # of the backup
