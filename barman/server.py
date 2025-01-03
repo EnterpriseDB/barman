@@ -1827,6 +1827,61 @@ class Server(RemoteStatusMixin):
         # Iterate through backups and see if there is one which matches the name
         return self.backup_manager.get_backup_id_from_name(backup_name, status_filter)
 
+    def get_closest_backup_id_from_target_lsn(
+        self,
+        target_lsn,
+        target_tli,
+        status_filter=BackupManager.DEFAULT_STATUS_FILTER,
+    ):
+        """
+        Get the id of a backup according to the *target_lsn* and *target_tli*.
+
+        :param str target_lsn: The target value with lsn format, e.g.,
+            ``3/64000000``.
+        :param int|None target_tli: The target timeline, if a specific one is required.
+        :param tuple[str, ...] status_filter: The status of the backup to return.
+        :return str|None: ID of the backup.
+        """
+        return self.backup_manager.get_closest_backup_id_from_target_lsn(
+            target_lsn, target_tli, status_filter
+        )
+
+    def get_closest_backup_id_from_target_time(
+        self,
+        target_time,
+        target_tli,
+        status_filter=BackupManager.DEFAULT_STATUS_FILTER,
+    ):
+        """
+        Get the id of a backup according to the *target_time* and *target_tli*, if
+        it exists.
+
+        :param str target_time: The target value with timestamp format
+            ``%Y-%m-%d %H:%M:%S`` with or without timezone.
+        :param int|None target_tli: The target timeline, if a specific one is required.
+        :param tuple[str, ...] status_filter: The status of the backup to return.
+        :return str|None: ID of the backup.
+        """
+        return self.backup_manager.get_closest_backup_id_from_target_time(
+            target_time, target_tli, status_filter
+        )
+
+    def get_last_backup_id_from_target_tli(
+        self,
+        target_tli,
+        status_filter=BackupManager.DEFAULT_STATUS_FILTER,
+    ):
+        """
+        Get the id of a backup according to the *target_tli*.
+
+        :param int target_tli: The recovery target timeline.
+        :param tuple[str, ...] status_filter: The status of the backup to return.
+        :return str|None: ID of the backup.
+        """
+        return self.backup_manager.get_last_backup_id_from_target_tli(
+            target_tli, status_filter
+        )
+
     def list_backups(self):
         """
         Lists all the available backups for the server

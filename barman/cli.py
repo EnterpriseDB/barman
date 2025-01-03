@@ -61,6 +61,7 @@ from barman.utils import (
     get_backup_id_using_shortcut,
     get_log_levels,
     parse_log_level,
+    parse_target_tli,
 )
 from barman.xlog import check_archive_usable
 
@@ -750,6 +751,8 @@ def rebuild_xlogdb(args):
             "backup_id",
             completer=backup_completer,
             help="specifies the backup ID to restore",
+            nargs="?",
+            default=None,
         ),
         argument(
             "destination_directory",
@@ -914,8 +917,72 @@ def restore(args):
     """
     server = get_server(args)
 
-    # Retrieves the backup
-    backup_info = parse_backup_id(server, args)
+    # PostgreSQL supports multiple parameters to specify when the recovery
+    # process will end, and in that case the last entry in recovery
+    # configuration files will be used. See [1]
+    #
+    # Since the meaning of the target options is not dependent on the order
+    # of parameters, we decided to make the target options mutually exclusive.
+    #
+    # [1]: https://www.postgresql.org/docs/current/static/
+    #   recovery-target-settings.html
+
+    target_options = [
+        "target_time",
+        "target_xid",
+        "target_lsn",
+        "target_name",
+        "target_immediate",
+    ]
+
+    specified_target_options = [
+        option for option in target_options if getattr(args, option, None)
+    ]
+    if len(specified_target_options) > 1:
+        output.error("You cannot specify multiple targets for the recovery operation")
+        output.close_and_exit()
+
+    target_option = (
+        specified_target_options[0] if len(specified_target_options) == 1 else None
+    )
+    target_tli = None
+    backup_info = None
+    if args.backup_id is not None:
+        backup_info = parse_backup_id(server, args)
+    else:
+        target = getattr(args, target_option) if target_option else None
+        # "Parse" the string value to integer for target_tli if passed as a string
+        # ("current", "latest")
+        target_tli = parse_target_tli(
+            obj=server.backup_manager, target_tli=args.target_tli
+        )
+        #  Error out on recovery targets that are not allowed.
+        if target_option in {"target_immediate", "target_xid", "target_name"}:
+            output.error(
+                "For PITR without a backup_id, the only possible recovery targets "
+                "are target_time and target_lsn. '%s' recovery target is not "
+                "allowed without a backup_id." % target_option
+            )
+            output.close_and_exit()
+        # Search for a candidate backup based on recovery targets if "backup_id" is None
+        elif target_option is None:
+            if target_tli is not None:
+                backup_id = server.get_last_backup_id_from_target_tli(target_tli)
+            else:
+                backup_id = server.get_last_backup_id()
+        elif target_option == "target_time":
+            backup_id = server.get_closest_backup_id_from_target_time(
+                target, target_tli
+            )
+        elif target_option == "target_lsn":
+            backup_id = server.get_closest_backup_id_from_target_lsn(target, target_tli)
+        # If no candidate backup_id is found, error out.
+        if backup_id is None:
+            output.error("Cannot find any candidate backup for recovery.")
+            output.close_and_exit()
+
+        backup_info = server.get_backup(backup_id)
+
     if backup_info.status not in BackupInfo.STATUS_COPY_DONE:
         output.error(
             "Cannot restore from backup '%s' of server '%s': "
@@ -1036,30 +1103,6 @@ def restore(args):
         server.config.parallel_jobs_start_batch_period = args.jobs_start_batch_period
     if hasattr(args, "bwlimit"):
         server.config.bandwidth_limit = args.bwlimit
-
-    # PostgreSQL supports multiple parameters to specify when the recovery
-    # process will end, and in that case the last entry in recovery
-    # configuration files will be used. See [1]
-    #
-    # Since the meaning of the target options is not dependent on the order
-    # of parameters, we decided to make the target options mutually exclusive.
-    #
-    # [1]: https://www.postgresql.org/docs/current/static/
-    #   recovery-target-settings.html
-
-    target_options = [
-        "target_time",
-        "target_xid",
-        "target_lsn",
-        "target_name",
-        "target_immediate",
-    ]
-    specified_target_options = len(
-        [option for option in target_options if getattr(args, option)]
-    )
-    if specified_target_options > 1:
-        output.error("You cannot specify multiple targets for the recovery operation")
-        output.close_and_exit()
 
     if hasattr(args, "network_compression"):
         if args.network_compression and args.remote_ssh_command is None:

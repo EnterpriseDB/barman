@@ -66,7 +66,11 @@ from barman.utils import (
     force_str,
     fsync_dir,
     fsync_file,
+    get_backup_id_from_target_lsn,
+    get_backup_id_from_target_time,
+    get_backup_id_from_target_tli,
     get_backup_info_from_name,
+    get_last_backup_id,
     human_readable_timedelta,
     pretty_size,
 )
@@ -369,12 +373,9 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             default to :attr:`DEFAULT_STATUS_FILTER`.
         :return str|None: ID of the backup
         """
-        available_backups = self.get_available_backups(status_filter)
-        if len(available_backups) == 0:
-            return None
-
-        ids = sorted(available_backups.keys())
-        return ids[-1]
+        available_backups = self.get_available_backups(status_filter).values()
+        backup_id = get_last_backup_id(available_backups)
+        return backup_id
 
     def get_last_full_backup_id(self, status_filter=DEFAULT_STATUS_FILTER):
         """
@@ -427,6 +428,61 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         backup_info = get_backup_info_from_name(available_backups, backup_name)
         if backup_info is not None:
             return backup_info.backup_id
+
+    def get_closest_backup_id_from_target_time(
+        self, target_time, target_tli, status_filter=DEFAULT_STATUS_FILTER
+    ):
+        """
+        Get the id of a backup according to the time passed as the recovery target
+        *target_time*, and in the given *target_tli*, if specified.
+
+        :param str target_time: The target value with timestamp format
+            ``%Y-%m-%d %H:%M:%S`` with or without timezone.
+        :param int|None target_tli: The target timeline, if a specific one is required.
+        :param tuple[str, ...] status_filter: The status of the backup to return.
+        :return str|None: ID of the backup.
+        """
+
+        available_backups = self.get_available_backups(status_filter).values()
+        backup_id = get_backup_id_from_target_time(
+            available_backups, target_time, target_tli
+        )
+        return backup_id
+
+    def get_closest_backup_id_from_target_lsn(
+        self, target_lsn, target_tli, status_filter=DEFAULT_STATUS_FILTER
+    ):
+        """
+        Get the id of a backup according to the lsn passed as the recovery target
+        *target_lsn*, and in the given *target_tli*, if specified.
+
+        :param str target_lsn: The target value with lsn format, e.g.,
+            ``3/64000000``.
+        :param int|None target_tli: The target timeline, if a specific one is required.
+        :param tuple[str, ...] status_filter: The status of the backup to return.
+        :return str|None: ID of the backup.
+        """
+        available_backups = self.get_available_backups(status_filter).values()
+        backup_id = get_backup_id_from_target_lsn(
+            available_backups, target_lsn, target_tli
+        )
+        return backup_id
+
+    def get_last_backup_id_from_target_tli(
+        self, target_tli, status_filter=DEFAULT_STATUS_FILTER
+    ):
+        """
+        Get the id of a backup according to the timeline passed as the recovery target
+        *target_tli*.
+
+        :param int target_tli: The target timeline.
+        :param tuple[str, ...] status_filter: The status of the backup to return.
+        :return str|None: ID of the backup.
+        """
+
+        available_backups = self.get_available_backups(status_filter).values()
+        backup_id = get_backup_id_from_target_tli(available_backups, target_tli)
+        return backup_id
 
     def put_delete_annotation(self, backup_id):
         """
