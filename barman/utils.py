@@ -1044,3 +1044,45 @@ def edit_config(file, section, option, value, lines=None):
         lines.append("[" + section + "]\n")
         lines.append(option + " = " + value + "\n")
     return lines
+
+
+def parse_target_tli(obj, target_tli, backup_info=None):
+    """
+    Parse target timeline shorcut, ``latest`` and ``current``.
+
+    .. note::
+        This method is used in two other methods that are part of the recovery of a
+        a backup (:meth:`_set_pitr_targets` and :meth:`get_required_xlog_files`).
+        When called with a *backup_info*, it means that the recover operation uses a
+        specific backup for recovery and ``current`` is allowed in this case because
+        this backup is considered the ``current`` backup.
+        When called without a *backup_info*, it means that the recover operation is
+        going to fetch the best backup for recovery, so ``current`` is not allowed
+        because there is no ``current`` backup.
+
+    :param BackupManager obj: A backup manager object.
+    :param str|int target_tli: Target timeline value. Accepts both an integer
+        representing the timeline, or keywords accepted by Postgres, such as ``current``
+        and ``latest``.
+    :param None|BackupInfo backup_info: Backup info object.
+    :return int|None: ID of the timeline.
+    :raise ValueError: if *target_tli* is an invalid value.
+    """
+    parsed_target_tli = target_tli
+    if target_tli and type(target_tli) is str:
+        if target_tli == "current":
+            if backup_info is None:
+                raise ValueError(
+                    "'%s' is not a valid timeline keyword when recovering"
+                    " without a backup_id" % target_tli
+                )
+            else:
+                parsed_target_tli = backup_info.timeline
+        elif target_tli == "latest":
+            valid_timelines = obj.get_latest_archived_wals_info()
+            parsed_target_tli = int(max(valid_timelines.keys()), 16)
+        elif target_tli.isdigit():
+            parsed_target_tli = int(target_tli)
+        else:
+            raise ValueError("'%s' is not a valid timeline keyword" % target_tli)
+    return parsed_target_tli
