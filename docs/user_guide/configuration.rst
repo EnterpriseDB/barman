@@ -518,6 +518,8 @@ Specifies the directory where backup data for a server will be stored. Defaults 
 
 Scope: Server.
 
+.. _configuration-options-backups-backup-method:
+
 **backup_method**
 
 Defines the method Barman uses to perform backups. Options include:

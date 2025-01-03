@@ -39,7 +39,7 @@ Synopsis
         [ --target-tli TLI ]
         [ --target-xid XID ]
         [ --staging-wal-directory ]
-        SERVER_NAME BACKUP_ID DESTINATION_DIR
+        SERVER_NAME [ BACKUP_ID ] DESTINATION_DIR
 
 Description
 ^^^^^^^^^^^

@@ -6,7 +6,26 @@ Recovery
 The restore command is used to restore an entire Postgres server from a backup created
 with the backup command. To use it, run:
 
-``barman restore [OPTIONS] SERVER_NAME BACKUP_ID DESTINATION_PATH``
+``barman restore [OPTIONS] SERVER_NAME [BACKUP_ID] DESTINATION_PATH``
+
+It is possible to restore a backup without specifying the ``backup_id``. In this case,
+Barman will automatically choose the most suitable backup from the catalog. If no
+recovery target is provided, it will select the most recent available backup by default.
+If a recovery target is specified, Barman will use it to identify the appropriate backup
+based on the recovery criteria:
+
+* ``target_time``: Barman will retrieve the most recent backup available up to
+  ``target_time``, e.g., ``2025-01-21 10:00:00``.
+
+* ``target_lsn``: Barman will retrieve the most recent backup available up to
+  ``target_lsn``, e.g., ``3/64000000``.
+
+* ``target_tli``: Barman will retrieve the most recent backup available from timeline
+  ``target_tli``, e.g., ``2``.
+
+*  ``target_tli`` combined with one of the other two targets: Barman will retrieve the
+  most recent backup available up to the ``target_lsn`` or ``target_time`` which belongs
+  to the ``target_tli``, e.g., ``2025-01-21 10:00:00`` from timeline ``2``.
 
 .. note::
   * Refer to :ref:`concepts-barman-concepts-restore-and-recover` for a clearer
@@ -19,6 +38,12 @@ with the backup command. To use it, run:
   * Use the ``list-backups`` command to find the specific backup ID you need.
   * Barman does not track symbolic links inside PGDATA (except for tablespaces).
     Ensure you manage symbolic links and include them in your disaster recovery plans.
+  * When restoring without specifying a ``backup_id``, Barman does not consider the
+    :ref:`backup_method <configuration-options-backups-backup-method>`. If the selected
+    backup requires specific arguments or doesn't support certain options, the
+    restoration may fail. In such cases, you will receive an error message that can help
+    adjust the restore command accordingly. For example,
+    ``--snapshot-recovery-instance`` is required when restoring a snapshot backup.
 
 .. _recovery-remote-recovery:
 
@@ -78,6 +103,11 @@ Specify a recovery ``target`` with one of the options:
   * When at least one `--target-*` option is specified, a ``recovery.signal`` file is
     created by Barman when restoring the backup, which signals the server to start a
     targeted recovery.
+  * When restoring without specifying a ``backup_id``, the only recovery targets allowed
+    are: ``--target-time``, ``--target-lsn`` and ``--target-tli``. Note that
+    ``--target-time`` and ``--target-lsn`` are mutually exclusive, while
+    ``--target-tli`` can be used independently or together with ``--target-time`` or
+    ``--target-lsn``.
 
 The previous targets can be used with a ``--target-action`` which can take these values:
 
