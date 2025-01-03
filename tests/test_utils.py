@@ -1029,6 +1029,177 @@ class TestCheckBackupNames(object):
 
 class TestBackupRecoveryTargets(object):
     @pytest.mark.parametrize(
+        ("target_time", "expected_backup_id"),
+        [
+            ("2025-01-08 12:15:00", "20250108T120000"),
+            ("2025-01-07 12:15:00", "20250107T120000"),
+            ("2025-01-06 12:15:00", "20250106T120000"),
+        ],
+    )
+    def test_get_backup_id_from_target_time(self, target_time, expected_backup_id):
+        """
+        Test the get_backup_id_from_target_time from utils will return the correct
+        backup based on recovery target "target_time".
+        """
+        backup_manager = build_backup_manager()
+
+        available_backups = {
+            "20250108T120000": {
+                "end_time": load_datetime_tz("2025-01-08 12:00:00"),
+                "end_xlog": "3/61000000",
+                "status": "DONE",
+            },
+            "20250107T120000": {
+                "end_time": load_datetime_tz("2025-01-07 12:00:00"),
+                "end_xlog": "3/5E000000",
+                "status": "DONE",
+            },
+            "20250106T120000": {
+                "end_time": load_datetime_tz("2025-01-06 12:00:00"),
+                "end_xlog": "3/5B000000",
+                "status": "DONE",
+            },
+        }
+
+        backups = dict(
+            (
+                bkp_id,
+                build_test_backup_info(
+                    server=backup_manager.server, backup_id=bkp_id, **bkp_metadata
+                ),
+            )
+            for bkp_id, bkp_metadata in available_backups.items()
+        )
+
+        backup_id = barman.utils.get_backup_id_from_target_time(
+            backups.values(), target_time
+        )
+
+        assert backup_id == expected_backup_id
+
+    @pytest.mark.parametrize(
+        ("target_lsn", "expected_backup_id"),
+        [
+            ("3/61000000", "20250108T120000"),
+            ("3/62000000", "20250108T120000"),
+            ("3/5E000000", "20250107T120000"),
+            ("3/5F000000", "20250107T120000"),
+            ("3/5B000000", "20250106T120000"),
+            ("3/5C000000", "20250106T120000"),
+        ],
+    )
+    def test_get_backup_id_from_target_lsn(self, target_lsn, expected_backup_id):
+        """
+        Test the get_backup_id_from_target_lsn from utils will return the correct
+        backup based on recovery target "target_lsn".
+        """
+        backup_manager = build_backup_manager()
+
+        available_backups = {
+            "20250108T120000": {
+                "end_time": load_datetime_tz("2025-01-08 12:00:00"),
+                "end_xlog": "3/61000000",
+                "status": "DONE",
+            },
+            "20250107T120000": {
+                "end_time": load_datetime_tz("2025-01-07 12:00:00"),
+                "end_xlog": "3/5E000000",
+                "status": "DONE",
+            },
+            "20250106T120000": {
+                "end_time": load_datetime_tz("2025-01-06 12:00:00"),
+                "end_xlog": "3/5B000000",
+                "status": "DONE",
+            },
+        }
+
+        backups = dict(
+            (
+                bkp_id,
+                build_test_backup_info(
+                    server=backup_manager.server, backup_id=bkp_id, **bkp_metadata
+                ),
+            )
+            for bkp_id, bkp_metadata in available_backups.items()
+        )
+
+        backup_id = barman.utils.get_backup_id_from_target_lsn(
+            backups.values(), target_lsn
+        )
+
+        assert backup_id == expected_backup_id
+
+    @pytest.mark.parametrize(
+        ("target_tli", "expected_backup_id"),
+        [
+            (3, None),
+            (2, "20250111T120000"),
+            (1, "20250108T120000"),
+        ],
+    )
+    def test_get_backup_id_from_target_tli(self, target_tli, expected_backup_id):
+        """
+        Test the get_backup_id_from_target_tli from utils will return the correct
+        backup based on recovery target "target_tli".
+        """
+        backup_manager = build_backup_manager()
+
+        available_backups = {
+            "20250111T120000": {
+                "end_time": load_datetime_tz("2025-01-11 12:00:00"),
+                "end_xlog": "3/FF000000",
+                "status": "DONE",
+                "timeline": 2,
+            },
+            "20250110T120000": {
+                "end_time": load_datetime_tz("2025-01-10 12:00:00"),
+                "end_xlog": "3/74000000",
+                "status": "DONE",
+                "timeline": 2,
+            },
+            "20250109T120000": {
+                "end_time": load_datetime_tz("2025-01-09 12:00:00"),
+                "end_xlog": "3/70000000",
+                "status": "DONE",
+                "timeline": 2,
+            },
+            "20250108T120000": {
+                "end_time": load_datetime_tz("2025-01-08 12:00:00"),
+                "end_xlog": "3/61000000",
+                "status": "DONE",
+                "timeline": 1,
+            },
+            "20250107T120000": {
+                "end_time": load_datetime_tz("2025-01-07 12:00:00"),
+                "end_xlog": "3/5E000000",
+                "status": "DONE",
+                "timeline": 1,
+            },
+            "20250106T120000": {
+                "end_time": load_datetime_tz("2025-01-06 12:00:00"),
+                "end_xlog": "3/5B000000",
+                "status": "DONE",
+                "timeline": 1,
+            },
+        }
+
+        backups = dict(
+            (
+                bkp_id,
+                build_test_backup_info(
+                    server=backup_manager.server, backup_id=bkp_id, **bkp_metadata
+                ),
+            )
+            for bkp_id, bkp_metadata in available_backups.items()
+        )
+
+        backup_id = barman.utils.get_backup_id_from_target_tli(
+            backups.values(), target_tli
+        )
+
+        assert backup_id == expected_backup_id
+
+    @pytest.mark.parametrize(
         ("target_tli", "expected_target_tli"),
         [("current", 1), ("latest", 3), ("1", 1), (None, None)],
     )
