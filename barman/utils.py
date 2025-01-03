@@ -41,7 +41,7 @@ from glob import glob
 
 from dateutil import tz
 
-from barman import lockfile
+from barman import lockfile, xlog
 from barman.exceptions import TimeoutError
 
 _logger = logging.getLogger(__name__)
@@ -1044,6 +1044,90 @@ def edit_config(file, section, option, value, lines=None):
         lines.append("[" + section + "]\n")
         lines.append(option + " = " + value + "\n")
     return lines
+
+
+def get_backup_id_from_target_time(available_backups, target_time, target_tli=None):
+    """
+    Get backup ID from the catalog based on the recovery_target *target_time* and
+    *target_tli*.
+
+    :param list[BackupInfo] available_backups: List of BackupInfo objects.
+    :param str target_time: The target value with timestamp format
+        ``%Y-%m-%d %H:%M:%S`` with or without timezone.
+    :param int|None target_tli: Target timeline value, if a specific one is required.
+    :return str|None: ID of the backup.
+    """
+    from barman.infofile import load_datetime_tz
+
+    try:
+        parsed_target = load_datetime_tz(target_time)
+    except ValueError as e:
+        raise Exception(
+            "Unable to parse the target time parameter %r: %s" % (parsed_target, e)
+        )
+    for candidate_backup in sorted(
+        available_backups, key=lambda backup: backup.backup_id, reverse=True
+    ):
+        if candidate_backup.end_time <= parsed_target:
+            if target_tli is not None and candidate_backup.timeline != target_tli:
+                continue
+            return candidate_backup.backup_id
+    return None
+
+
+def get_backup_id_from_target_lsn(available_backups, target_lsn, target_tli=None):
+    """
+    Get backup ID from the catalog based on the recovery_target *target_lsn* and
+    *target_tli*.
+
+    :param list[BackupInfo] available_backups: List of BackupInfo objects.
+    :param str target_lsn: The target value with lsn format, e.g.,
+        ``3/64000000``.
+    :param int|None target_tli: Target timeline value, if a specific one is required.
+    :return str|None: ID of the backup.
+    """
+    parsed_target = xlog.parse_lsn(target_lsn)
+    for candidate_backup in sorted(
+        available_backups, key=lambda backup: backup.backup_id, reverse=True
+    ):
+        if xlog.parse_lsn(candidate_backup.end_xlog) <= parsed_target:
+            if target_tli is not None and candidate_backup.timeline != target_tli:
+                continue
+            return candidate_backup.backup_id
+    return None
+
+
+def get_last_backup_id(available_backups):
+    """
+    Get last backup ID from the catalog.
+
+    :param list[BackupInfo] available_backups: List of BackupInfo objects.
+    :return str|None: ID of the backup.
+    """
+    if len(available_backups) == 0:
+        return None
+
+    backups = sorted(available_backups, key=lambda backup: backup.backup_id)
+    return backups[-1].backup_id
+
+
+def get_backup_id_from_target_tli(available_backups, target_tli):
+    """
+    Get backup ID from the catalog based on the recovery_target *target_tli*.
+
+    :param list[BackupInfo] available_backups: Dict values of BackupInfo objects.
+    :param int target_tli: Target timeline value.
+    :return str|None: ID of the backup.
+    """
+    if len(available_backups) == 0:
+        return None
+
+    for candidate_backup in sorted(
+        available_backups, key=lambda backup: backup.backup_id, reverse=True
+    ):
+        if candidate_backup.timeline == target_tli:
+            return candidate_backup.backup_id
+    return None
 
 
 def parse_target_tli(obj, target_tli, backup_info=None):
