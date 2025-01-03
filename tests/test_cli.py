@@ -1191,6 +1191,146 @@ class TestCli(object):
             # THEN the config value is updated
             assert getattr(config, arg) == final_value
 
+    @pytest.mark.parametrize(
+        ("target_option", "target", "should_error"),
+        (  # Test allowed target_options
+            ("target_time", "2025-01-07 12:01:00", False),
+            ("target_lsn", "3/5F000000", False),
+            (None, None, False),
+            ("target_immediate", True, True),
+            ("target_xid", "12345", True),
+            ("target_name", "whatever_name", True),
+        ),
+    )
+    @patch("barman.cli.get_server")
+    def test_restore_without_a_backup_id(
+        self,
+        mock_get_server,
+        target_option,
+        target,
+        should_error,
+        mock_restore_args,
+        capsys,
+    ):
+        """
+        Test the function restore will have the correct behaviour when restoring without
+        a backup_id as an argument. The sequence of calls are tested and possible errors
+        and messages.
+        """
+        server = build_mocked_server(name="test_server")
+        mock_get_server.return_value = server
+        # Testing mutual exclusiveness of target options
+        args = mock_restore_args
+        setattr(args, "backup_id", None)
+        setattr(args, target_option, target) if target_option else None
+        with pytest.raises(SystemExit):
+            restore(args)
+
+        if should_error:
+            _, err = capsys.readouterr()
+            error_msg = (
+                "For PITR without a backup_id, the only possible recovery targets "
+                "are target_time and target_lsn. '%s' recovery target is not "
+                "allowed without a backup_id." % target_option
+            )
+            assert error_msg in err
+        else:
+            if target_option is None:
+                mock = mock_get_server.return_value.get_last_backup_id
+                options = []
+            elif target_option == "target_time":
+                mock = (
+                    mock_get_server.return_value.get_closest_backup_id_from_target_time
+                )
+                options = [target, None]
+            elif target_option == "target_lsn":
+                mock = (
+                    mock_get_server.return_value.get_closest_backup_id_from_target_lsn
+                )
+                options = [target, None]
+            mock.assert_called_once_with(*options)
+            backup_id = mock.return_value
+            mock_get_server.return_value.get_backup.assert_called_once_with(backup_id)
+
+    @pytest.mark.parametrize(
+        ("target_option", "target", "target_tli"),
+        (  # Test allowed target_options
+            ("target_time", "2025-01-07 12:01:00", 1),
+            ("target_time", "2025-01-07 12:01:00", None),
+            ("target_lsn", "3/5F000000", 1),
+            ("target_lsn", "3/5F000000", None),
+            (None, None, 1),
+            (None, None, None),
+        ),
+    )
+    @patch("barman.cli.parse_target_tli")
+    @patch("barman.cli.get_server")
+    def test_restore_without_a_backup_id_with_target_tli(
+        self,
+        mock_get_server,
+        mock_parse_target_tli,
+        target_option,
+        target,
+        target_tli,
+        mock_restore_args,
+    ):
+        """
+        Test the function restore will have the correct behaviour when restoring without
+        a backup_id as an argument. The sequence of calls are tested and possible errors
+        and messages.
+        """
+        server = build_mocked_server(name="test_server")
+        mock_get_server.return_value = server
+        # Testing mutual exclusiveness of target options
+        args = mock_restore_args
+        setattr(args, "backup_id", None)
+        setattr(args, "target_tli", target_tli)
+        setattr(args, target_option, target) if target_option else None
+        mock_parse_target_tli.return_value = target_tli
+        with pytest.raises(SystemExit):
+            restore(args)
+
+        if target_option is None:
+            if target_tli is None:
+                mock = mock_get_server.return_value.get_last_backup_id
+                options = []
+            else:
+                mock = mock_get_server.return_value.get_last_backup_id_from_target_tli
+                options = [target_tli]
+        elif target_option == "target_time":
+            mock = mock_get_server.return_value.get_closest_backup_id_from_target_time
+            options = [target, target_tli]
+        elif target_option == "target_lsn":
+            mock = mock_get_server.return_value.get_closest_backup_id_from_target_lsn
+            options = [target, target_tli]
+        mock.assert_called_once_with(*options)
+        backup_id = mock.return_value
+        mock_get_server.return_value.get_backup.assert_called_once_with(backup_id)
+
+    @patch("barman.cli.get_server")
+    def test_restore_no_candidate_backup_found(
+        self, mock_get_server, mock_restore_args, capsys
+    ):
+        """
+        Test the function restore will have the correct behaviour when restoring without
+        a backup_id as an argument and no suitable backup_id is found.
+        """
+        server = build_mocked_server(name="test_server")
+        mock_get_server.return_value = server
+        args = mock_restore_args
+        target_option = "target_lsn"
+        target = "3/5F000000"
+        setattr(args, "backup_id", None)
+        setattr(args, target_option, target) if target_option else None
+        mock_get_server.return_value.get_closest_backup_id_from_target_lsn.return_value = (
+            None
+        )
+        with pytest.raises(SystemExit):
+            restore(args)
+        _, err = capsys.readouterr()
+        error_msg = "Cannot find any candidate backup for recovery."
+        assert error_msg in err
+
     def test_check_target_action(self):
         # The following ones must work
         assert None is check_target_action(None)

@@ -47,7 +47,7 @@ from barman.exceptions import (
     CompressionIncompatibility,
     RecoveryInvalidTargetException,
 )
-from barman.infofile import BackupInfo
+from barman.infofile import BackupInfo, load_datetime_tz
 from barman.lockfile import ServerBackupIdLock
 from barman.retention_policies import RetentionPolicyFactory
 
@@ -1335,6 +1335,136 @@ class TestBackup(object):
             "Backup size: %s. Actual size on disk: %s (-%s deduplication ratio)."
             % ("1000 B", "800 B", "20.00%")
         )
+
+    @pytest.mark.parametrize("backup_id", ["20250107T120000", None])
+    @patch("barman.backup.get_backup_id_from_target_time")
+    @patch("barman.backup.BackupManager.get_available_backups")
+    def test_get_closest_backup_id_from_target_time(
+        self, mock_get_available_backups, mock_get_backup_id_from_target_time, backup_id
+    ):
+        """
+        Test the function get_closest_backup_id_from_target_time will return the correct
+        backup_id from the catalog depending on the recovery target `target_time`.
+        """
+        backup_manager = build_backup_manager()
+
+        available_backups = {
+            "20250107T120000": {
+                "backup_id": "20250107T120000",
+                "end_time": load_datetime_tz("2025-01-07 12:00:00"),
+                "end_xlog": "3/5E000000",
+                "status": "DONE",
+            },
+        }
+
+        backups = dict(
+            (
+                bkp_id,
+                build_test_backup_info(server=backup_manager.server, **bkp_metadata),
+            )
+            for bkp_id, bkp_metadata in available_backups.items()
+        )
+
+        target_time = "2025-01-07 12:15:00"
+        target_tli = None
+        dict_values = mock_get_available_backups.return_value.values.return_value = (
+            backups.values()
+        )
+        mock_get_backup_id_from_target_time.return_value = backup_id
+        backup_id_found = backup_manager.get_closest_backup_id_from_target_time(
+            target_time, target_tli
+        )
+        mock_get_available_backups.assert_called_once()
+        mock_get_backup_id_from_target_time.assert_called_once_with(
+            dict_values, target_time, target_tli
+        )
+        assert backup_id == backup_id_found
+
+    @pytest.mark.parametrize("backup_id", ["20250107T120000", None])
+    @patch("barman.backup.get_backup_id_from_target_lsn")
+    @patch("barman.backup.BackupManager.get_available_backups")
+    def test_get_closest_backup_id_from_target_lsn(
+        self, mock_get_available_backups, mock_get_backup_id_from_target_lsn, backup_id
+    ):
+        """
+        Test the function get_closest_backup_id_from_target_time will return the correct
+        backup_id from the catalog depending on the recovery target `target_time`.
+        """
+        backup_manager = build_backup_manager()
+
+        available_backups = {
+            "20250107T120000": {
+                "backup_id": "20250107T120000",
+                "end_time": load_datetime_tz("2025-01-07 12:00:00"),
+                "end_xlog": "3/5E000000",
+                "status": "DONE",
+            },
+        }
+
+        backups = dict(
+            (
+                bkp_id,
+                build_test_backup_info(server=backup_manager.server, **bkp_metadata),
+            )
+            for bkp_id, bkp_metadata in available_backups.items()
+        )
+
+        target_lsn = "3/5F000000"
+        target_tli = None
+        dict_values = mock_get_available_backups.return_value.values.return_value = (
+            backups.values()
+        )
+        mock_get_backup_id_from_target_lsn.return_value = backup_id
+        backup_id_found = backup_manager.get_closest_backup_id_from_target_lsn(
+            target_lsn, target_tli
+        )
+        mock_get_available_backups.assert_called_once()
+        mock_get_backup_id_from_target_lsn.assert_called_once_with(
+            dict_values, target_lsn, target_tli
+        )
+        assert backup_id == backup_id_found
+
+    @pytest.mark.parametrize("backup_id", ["20250107T120000", None])
+    @patch("barman.backup.get_backup_id_from_target_tli")
+    @patch("barman.backup.BackupManager.get_available_backups")
+    def test_get_last_backup_id_from_target_tli(
+        self, mock_get_available_backups, mock_get_backup_id_from_target_tli, backup_id
+    ):
+        """
+        Test the function get_closest_backup_id_from_target_time will return the correct
+        backup_id from the catalog depending on the recovery target `target_time`.
+        """
+        backup_manager = build_backup_manager()
+
+        available_backups = {
+            "20250107T120000": {
+                "backup_id": "20250107T120000",
+                "end_time": load_datetime_tz("2025-01-07 12:00:00"),
+                "end_xlog": "3/5E000000",
+                "status": "DONE",
+                "timeline": 1,
+            },
+        }
+
+        backups = dict(
+            (
+                bkp_id,
+                build_test_backup_info(server=backup_manager.server, **bkp_metadata),
+            )
+            for bkp_id, bkp_metadata in available_backups.items()
+        )
+
+        target_tli = 1
+        dict_values = mock_get_available_backups.return_value.values.return_value = (
+            backups.values()
+        )
+        mock_get_backup_id_from_target_tli.return_value = backup_id
+        backup_id_found = backup_manager.get_last_backup_id_from_target_tli(target_tli)
+        mock_get_available_backups.assert_called_once()
+        mock_get_backup_id_from_target_tli.assert_called_once_with(
+            dict_values, target_tli
+        )
+        assert backup_id == backup_id_found
 
 
 class TestWalCleanup(object):
