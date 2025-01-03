@@ -30,8 +30,14 @@ from distutils.version import LooseVersion
 import mock
 import pytest
 from dateutil import tz
+from testing_helpers import (
+    build_backup_manager,
+    build_mocked_server,
+    build_test_backup_info,
+)
 
 import barman.utils
+from barman.infofile import WalFileInfo, load_datetime_tz
 from barman.lockfile import LockFile
 
 LOGFILE_NAME = "logfile.log"
@@ -1019,6 +1025,97 @@ class TestCheckBackupNames(object):
         )
         # THEN None is returned
         assert backup_info is None
+
+
+class TestBackupRecoveryTargets(object):
+    @pytest.mark.parametrize(
+        ("target_tli", "expected_target_tli"),
+        [("current", 1), ("latest", 3), ("1", 1), (None, None)],
+    )
+    def test_parse_target_tli_with_backup_id(self, target_tli, expected_target_tli):
+        """
+        Test the parse_target_tli from utils will return the correct
+        timeline based on shortcuts (``latest``, ``current``), string value and None.
+        """
+        server = build_mocked_server()
+
+        current_bkp_metadata = {
+            "backup_id": "20250108T120000",
+            "end_time": load_datetime_tz("2025-01-08 12:00:00"),
+            "end_xlog": "3/61000000",
+            "status": "DONE",
+            "timeline": 1,
+        }
+        backup_info = build_test_backup_info(server=server, **current_bkp_metadata)
+
+        mock_get_latest_archived_wals_info = (
+            server.backup_manager.get_latest_archived_wals_info
+        )
+        mock_get_latest_archived_wals_info.return_value = {
+            "00000001": WalFileInfo(),
+            "00000002": WalFileInfo(),
+            "00000003": WalFileInfo(),
+        }
+        calculated_target_tli = barman.utils.parse_target_tli(
+            server.backup_manager, target_tli, backup_info
+        )
+
+        assert calculated_target_tli == expected_target_tli
+
+    @pytest.mark.parametrize(
+        ("target_tli", "expected_target_tli"),
+        [("current", None), ("latest", 3), ("1", 1), (None, None)],
+    )
+    def test_parse_target_tli_without_backup_id(self, target_tli, expected_target_tli):
+        """
+        Test the parse_target_tli from utils will return the correct
+        timeline or error msg based on shortcuts (``latest``, ``current``), string value
+        and None.
+        """
+        server = build_mocked_server()
+        mock_get_latest_archived_wals_info = (
+            server.backup_manager.get_latest_archived_wals_info
+        )
+        mock_get_latest_archived_wals_info.return_value = {
+            "00000001": WalFileInfo(),
+            "00000002": WalFileInfo(),
+            "00000003": WalFileInfo(),
+        }
+        if target_tli == "current":
+            with pytest.raises(ValueError) as e:
+                _ = barman.utils.parse_target_tli(server, target_tli)
+
+            assert (
+                "'current' is not a valid timeline keyword when recovering without a backup_id"
+                in str(e)
+            )
+        else:
+            calculated_target_tli = barman.utils.parse_target_tli(
+                server.backup_manager, target_tli
+            )
+
+            assert calculated_target_tli == expected_target_tli
+
+    @pytest.mark.parametrize(
+        ("target_tli", "error_msg"),
+        [
+            ("a1", "'a1' is not a valid timeline keyword"),
+            ("1.0", "'1.0' is not a valid timeline keyword"),
+        ],
+    )
+    def test_parse_target_tli_invalid_keyword(self, target_tli, error_msg):
+        """
+        Test the parse_target_tli from utils will raise an error
+        when using incorrect targets.
+        """
+        server = build_mocked_server()
+
+        backup_info = None
+
+        with pytest.raises(ValueError) as e:
+            _ = barman.utils.parse_target_tli(server, target_tli, backup_info)
+
+        assert error_msg in str(e)
 
 
 class TestAWSSnapshotLock(object):
