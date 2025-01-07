@@ -29,6 +29,7 @@ import re
 import shutil
 import sys
 import tarfile
+import tempfile
 import time
 from collections import namedtuple
 from contextlib import closing, contextmanager
@@ -3070,11 +3071,100 @@ class Server(RemoteStatusMixin):
         else:
             return self.config.retention_policy.report()
 
-    def rebuild_xlogdb(self):
+    def rebuild_xlogdb(self, silent=False):
         """
         Rebuild the whole xlog database guessing it from the archive content.
+
+        :param bool silent: Supress output logs if ``True``.
         """
-        return self.backup_manager.rebuild_xlogdb()
+        from os.path import isdir, join
+
+        if not silent:
+            output.info("Rebuilding xlogdb for server %s", self.config.name)
+
+        # create xlogdb directory and xlogdb file if they do not exist yet
+        if not os.path.exists(self.xlogdb_file_path):
+            if not os.path.exists(self.xlogdb_directory):
+                os.makedirs(self.xlogdb_directory)
+            open(self.xlogdb_file_path, mode="a").close()
+
+            # the xlogdb file was renamed in Barman 3.13. In case of a recent
+            # migration, also attempt to delete the old file to clean up leftovers
+            try:
+                os.unlink(os.path.join(self.config.wals_directory, "xlog.db"))
+            except FileNotFoundError:
+                pass
+
+        root = self.config.wals_directory
+        comp_manager = self.backup_manager.compression_manager
+        wal_count = label_count = history_count = 0
+        # lock the xlogdb as we are about replacing it completely
+        with self.xlogdb("w") as fxlogdb:
+            xlogdb_dir = os.path.dirname(fxlogdb.name)
+            with tempfile.TemporaryFile(mode="w+", dir=xlogdb_dir) as fxlogdb_new:
+                for name in sorted(os.listdir(root)):
+                    # ignore the xlogdb and its lockfile
+                    if name.startswith(self.xlogdb_file_name):
+                        continue
+                    fullname = join(root, name)
+                    if isdir(fullname):
+                        # all relevant files are in subdirectories
+                        hash_dir = fullname
+                        for wal_name in sorted(os.listdir(hash_dir)):
+                            fullname = join(hash_dir, wal_name)
+                            if isdir(fullname):
+                                _logger.warning(
+                                    "unexpected directory "
+                                    "rebuilding the wal database: %s",
+                                    fullname,
+                                )
+                            else:
+                                if xlog.is_wal_file(fullname):
+                                    wal_count += 1
+                                elif xlog.is_backup_file(fullname):
+                                    label_count += 1
+                                elif fullname.endswith(".tmp"):
+                                    _logger.warning(
+                                        "temporary file found "
+                                        "rebuilding the wal database: %s",
+                                        fullname,
+                                    )
+                                    continue
+                                else:
+                                    _logger.warning(
+                                        "unexpected file "
+                                        "rebuilding the wal database: %s",
+                                        fullname,
+                                    )
+                                    continue
+                                wal_info = comp_manager.get_wal_file_info(fullname)
+                                fxlogdb_new.write(wal_info.to_xlogdb_line())
+                    else:
+                        # only history files are here
+                        if xlog.is_history_file(fullname):
+                            history_count += 1
+                            wal_info = comp_manager.get_wal_file_info(fullname)
+                            fxlogdb_new.write(wal_info.to_xlogdb_line())
+                        else:
+                            _logger.warning(
+                                "unexpected file rebuilding the wal database: %s",
+                                fullname,
+                            )
+                fxlogdb_new.flush()
+                fxlogdb_new.seek(0)
+                fxlogdb.seek(0)
+                shutil.copyfileobj(fxlogdb_new, fxlogdb)
+                fxlogdb.truncate()
+
+        if not silent:
+            output.info(
+                "Done rebuilding xlogdb for server %s "
+                "(history: %s, backup_labels: %s, wal_file: %s)",
+                self.config.name,
+                history_count,
+                label_count,
+                wal_count,
+            )
 
     def get_backup_ext_info(self, backup_info):
         """
