@@ -240,7 +240,7 @@ class Server(RemoteStatusMixin):
     This class represents the PostgreSQL server to backup.
     """
 
-    XLOG_DB = "xlog.db"
+    XLOGDB_NAME = "{server}-xlog.db"
 
     # the strategy for the management of the results of the various checks
     __default_check_strategy = CheckOutputStrategy()
@@ -662,8 +662,8 @@ class Server(RemoteStatusMixin):
         # XLOG_DB needs to exist and its size must be > 0
         # NOTE: we do not need to acquire a lock in this phase
         xlogdb_empty = True
-        if os.path.exists(self.xlogdb_file_name):
-            with open(self.xlogdb_file_name, "rb") as fxlogdb:
+        if os.path.exists(self.xlogdb_file_path):
+            with open(self.xlogdb_file_path, "rb") as fxlogdb:
                 if os.fstat(fxlogdb.fileno()).st_size > 0:
                     xlogdb_empty = False
 
@@ -3014,12 +3014,31 @@ class Server(RemoteStatusMixin):
         return status.get("streaming_systemid")
 
     @property
+    def xlogdb_directory(self):
+        """
+        The base directory where the xlogdb file lives
+
+        :return str: the directory that contains the xlogdb file
+        """
+        return self.config.xlogdb_directory
+
+    @property
     def xlogdb_file_name(self):
         """
-        The name of the file containing the XLOG_DB
-        :return str: the name of the file that contains the XLOG_DB
+        The name of the xlogdb file.
+
+        :return str: the dynamic name for the xlogdb file
         """
-        return os.path.join(self.config.wals_directory, self.XLOG_DB)
+        return self.XLOGDB_NAME.format(server=self.config.name)
+
+    @property
+    def xlogdb_file_path(self):
+        """
+        The path of the xlogdb file
+
+        :return str: the full path of the xlogdb file
+        """
+        return os.path.join(self.xlogdb_directory, self.xlogdb_file_name)
 
     @contextmanager
     def xlogdb(self, mode="r"):
@@ -3038,19 +3057,12 @@ class Server(RemoteStatusMixin):
         :param str mode: open the file with the required mode
             (default read-only)
         """
-        if not os.path.exists(self.config.wals_directory):
-            os.makedirs(self.config.wals_directory)
-        xlogdb = self.xlogdb_file_name
+        xlogdb = self.xlogdb_file_path
+
+        if not os.path.exists(xlogdb):
+            self.rebuild_xlogdb(silent=True)
 
         with ServerXLOGDBLock(self.config.barman_lock_directory, self.config.name):
-            # If the file doesn't exist and it is required to read it,
-            # we open it in a+ mode, to be sure it will be created
-            if not os.path.exists(xlogdb) and mode.startswith("r"):
-                if "+" not in mode:
-                    mode = "a%s+" % mode[1:]
-                else:
-                    mode = "a%s" % mode[1:]
-
             with open(xlogdb, mode) as f:
                 # execute the block nested in the with statement
                 try:

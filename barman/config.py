@@ -584,6 +584,7 @@ class ServerConfig(BaseConfig):
         "wal_retention_policy",
         "wal_streaming_conninfo",
         "wals_directory",
+        "xlogdb_directory",
     ]
 
     BARMAN_KEYS = [
@@ -667,6 +668,7 @@ class ServerConfig(BaseConfig):
         "streaming_backup_name",
         "tablespace_bandwidth_limit",
         "wal_retention_policy",
+        "xlogdb_directory",
     ]
 
     DEFAULTS = {
@@ -706,6 +708,7 @@ class ServerConfig(BaseConfig):
         "streaming_wals_directory": "%(backup_directory)s/streaming",
         "wal_retention_policy": "main",
         "wals_directory": "%(backup_directory)s/wals",
+        "xlogdb_directory": "%(wals_directory)s",
     }
 
     FIXED = [
@@ -995,6 +998,11 @@ class ModelConfig(BaseConfig):
         "incoming_wals_directory",
         "streaming_wals_directory",
         "wals_directory",
+        # Although xlogdb_directory could be set with the same value for two
+        # servers (the xlog.db is now called SERVER-xlog.db, avoiding conflicts)
+        # we exclude it from models to follow the same pattern defined for all
+        # the path settings.
+        "xlogdb_directory",
         # Hook related options
         "post_archive_retry_script",
         "post_archive_script",
