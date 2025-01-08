@@ -1296,7 +1296,6 @@ class TestRecoveryExecutor(object):
                 dest.join("postgresql.auto.conf").strpath,
             ],
             "results": {
-                "delete_barman_wal": False,
                 "recovery_start_time": rec_info["results"]["recovery_start_time"],
                 "get_wal": False,
                 "changes": [
@@ -1344,7 +1343,6 @@ class TestRecoveryExecutor(object):
                 os.path.join(sys_tempdir, "postgresql.auto.conf"),
             ],
             "results": {
-                "delete_barman_wal": False,
                 "get_wal": False,
                 "recovery_start_time": rec_info["results"]["recovery_start_time"],
                 "changes": [

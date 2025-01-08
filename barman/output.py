@@ -557,14 +557,6 @@ class ConsoleOutputWriter(object):
             for file_name in results["missing_files"]:
                 self.info("    %s" % file_name)
 
-        if results["delete_barman_wal"]:
-            self.info("")
-            self.info(
-                "After the recovery, please remember to remove the "
-                '"barman_wal" directory'
-            )
-            self.info("inside the PostgreSQL data directory.")
-
         if results["get_wal"]:
             self.info("")
             self.info("WARNING: 'get-wal' is in the specified 'recovery_options'.")
@@ -1493,13 +1485,6 @@ class JsonOutputWriter(ConsoleOutputWriter):
                 "WARNING! Some configuration files have not been "
                 "saved during backup, hence they have not been "
                 "restored. See 'missing_files' key."
-            )
-
-        if results["delete_barman_wal"]:
-            self.warning(
-                "After the recovery, please remember to remove the "
-                "'barman_wal' directory inside the PostgreSQL "
-                "data directory."
             )
 
         if results["get_wal"]:

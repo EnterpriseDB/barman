@@ -2446,7 +2446,6 @@ class TestJsonWriter(object):
             "changes": [],
             "warnings": [],
             "missing_files": [],
-            "delete_barman_wal": False,
             "get_wal": False,
             "recovery_start_time": self.begin_time,
         }

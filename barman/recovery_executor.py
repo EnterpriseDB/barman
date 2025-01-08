@@ -374,7 +374,6 @@ class RecoveryExecutor(object):
         results = {
             "changes": [],
             "warnings": [],
-            "delete_barman_wal": False,
             "missing_files": [],
             "get_wal": False,
             "recovery_start_time": datetime.datetime.now(dateutil.tz.tzlocal()),
@@ -552,12 +551,6 @@ class RecoveryExecutor(object):
                 (", ".join(["%s: %r" % (k, v) for k, v in targets.items()])),
             )
             recovery_info["wal_dest"] = os.path.join(dest, "barman_wal")
-
-            # With a PostgreSQL version older than 8.4, it is the user's
-            # responsibility to delete the "barman_wal" directory as the
-            # restore_command option in recovery.conf is not supported
-            if backup_info.version < 80400 and not recovery_info["get_wal"]:
-                recovery_info["results"]["delete_barman_wal"] = True
         else:
             # Raise an error if target_lsn is used with a pgversion < 10
             if backup_info.version < 100000:
