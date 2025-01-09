@@ -20,6 +20,7 @@ import errno
 import itertools
 import os
 import re
+import shutil
 from datetime import datetime, timedelta
 
 import dateutil.parser
@@ -2094,6 +2095,61 @@ class TestWalCleanup(object):
         self._assert_wals_exist(
             wals_directory, "00000001000000000000007C", "00000001000000000000007E"
         )
+
+    @patch("barman.backup.shutil.rmtree", wraps=shutil.rmtree)
+    def test_delete_wal_directory_when_feasible(self, mock_rmtree, backup_manager):
+        """
+        Test that entire WAL directories are removed with ``rmtree`` when all files
+        in that directory are no longer needed by Barman.
+        """
+        # Case 1: All 256 files in a WAL directory are to be deleted
+        # GIVEN a backup
+        backup_info = build_test_backup_info(
+            backup_id="20210723T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000101",
+            end_wal="000000010000000000000105",
+        )
+        # AND 256 files previous to the begin_wal of that backup
+        wals_directory = backup_manager.server.config.wals_directory
+        self._create_wals_on_filesystem(
+            wals_directory, "000000010000000000000001", "000000010000000000000100"
+        )
+        # WHEN the WALs before the backup are requested to be deleted
+        backup_manager.remove_wal_before_backup(backup_info)
+        # THEN rmtree can be used to delete the whole directory containing the WALs
+        mock_rmtree.assert_called_once()
+        assert mock_rmtree.call_args.args[0].endswith("wals/0000000100000000")
+
+        mock_rmtree.reset_mock()
+
+        # Case 2: A few files in the directory but all also to be deleted
+        self._create_wals_on_filesystem(
+            wals_directory, "000000010000000000000050", "000000010000000000000100"
+        )
+        backup_manager.remove_wal_before_backup(backup_info)
+        mock_rmtree.assert_called_once()
+        assert mock_rmtree.call_args.args[0].endswith("wals/0000000100000000")
+
+        mock_rmtree.reset_mock()
+
+        # Case 3: A few files have to be kept so the directory can not be deleted
+        backup_info = build_test_backup_info(
+            backup_id="20210723T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000101",
+            end_wal="000000010000000000000105",
+        )
+        self._create_wals_on_filesystem(
+            wals_directory, "000000010000000000000050", "000000010000000000000100"
+        )
+        backup_manager.remove_wal_before_backup(
+            backup_info,
+            wal_ranges_to_protect=[
+                ("000000010000000000000070", "000000010000000000000080"),
+            ],
+        )
+        mock_rmtree.assert_not_called()
 
 
 class TestVerifyBackup:
