@@ -5,23 +5,24 @@ Barman for the cloud
 
 Barman offers two primary methods for backing up Postgres servers to the cloud:
 
-* *Creating disk volume snapshots as base backups.*
+* **Creating disk volume snapshots as base backups.**
 
-  You have two options to work with snapshots:
+  This can be achieved through 2 different ways:
 
-  1. You will need to setup a barman server to store the barman metadata and WAL files,
-     while your backup will be created as disk volume snapshots in the cloud. This is an
+  1. Setting up a Barman server to store the backup metadata and the WAL files,
+     while your backups are created as disk volume snapshots in the cloud. This is an
      integrated feature of Barman. If you choose this approach, please consult the 
      :ref:`cloud snapshots backups <backup-cloud-snapshot-backups>` section for details.
-  2. Interact and manage backups directly with the command line utility provided by the
-     ``barman-cli-cloud`` package without the need for a barman server. The barman
-     metadata and WAL files will be stored in a cloud object storage, while your backup
-     will be created as disk volume snapshots in the cloud.
+  2. Interacting and managing backups directly with the command line utility provided by
+     the ``barman-cli-cloud`` package without the need of a Barman server. The backup
+     metadata and the WAL files are stored in the cloud object storage, while your base
+     backup is created as disk volume snapshots in the cloud.
 
-* *Creating and transfering base backups to a cloud object storage.*
+* **Creating and transfering base backups to a cloud object storage.**
 
-  This method is similar to the second option of snapshots, but the base backup is stored
-  in an object storage alongside the WAL files and backup metadata.
+  This method also uses the utility provided by the ``barman-cli-cloud`` package and
+  does not require a Barman server. Both the base backup, the WALs and the backup
+  metadata are stored in the cloud object storage.
   
 This section of the documentation is focused in the ``barman-cloud-*`` commands that
 can be used to manage and interact with backups without the need of a dedicated barman
