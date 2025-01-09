@@ -881,8 +881,6 @@ class TestServer(object):
             archiver_remote_status["last_failed_time"].ctime(),
         )
 
-<<<<<<< HEAD
-=======
     @patch("barman.output.result")
     def test_status_active_model(self, mock_output_result, capsys):
         """
@@ -950,7 +948,6 @@ class TestServer(object):
             "TestModel",
         )
 
->>>>>>> 16f5542e (Apply suggestions)
     @patch("barman.server.Server.get_remote_status")
     def test_check_postgres_too_old(self, postgres_mock, capsys):
         postgres_mock.return_value = {
