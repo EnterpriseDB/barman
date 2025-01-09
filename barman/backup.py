@@ -25,6 +25,7 @@ import logging
 import os
 import shutil
 import tempfile
+from collections import defaultdict
 from contextlib import closing
 from glob import glob
 
@@ -1147,22 +1148,56 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             _logger.debug("Deleting PGDATA directory: %s" % pg_data)
             shutil.rmtree(pg_data)
 
+    def _run_pre_delete_wal_scripts(self, wal_info):
+        """
+        Run the pre-delete hook-scripts, if any, on the given WAL.
+
+        :param barman.infofile.WalFileInfo wal_info: WAL to run the script on.
+        """
+        # Run the pre_wal_delete_script if present.
+        script = HookScriptRunner(self, "wal_delete_script", "pre")
+        script.env_from_wal_info(wal_info)
+        script.run()
+        # Run the pre_wal_delete_retry_script if present.
+        retry_script = RetryHookScriptRunner(self, "wal_delete_retry_script", "pre")
+        retry_script.env_from_wal_info(wal_info)
+        retry_script.run()
+
+    def _run_post_delete_wal_scripts(self, wal_info, error=None):
+        """
+        Run the post-delete hook-scripts, if any, on the given WAL.
+
+        :param barman.infofile.WalFileInfo wal_info: WAL to run the script on.
+        :param None|str error: error message in case a failure happened.
+        """
+        # Run the post_wal_delete_retry_script if present.
+        try:
+            retry_script = RetryHookScriptRunner(
+                self, "wal_delete_retry_script", "post"
+            )
+            retry_script.env_from_wal_info(wal_info, None, error)
+            retry_script.run()
+        except AbortedRetryHookScript as e:
+            # Ignore the ABORT_STOP as it is a post-hook operation
+            _logger.warning(
+                "Ignoring stop request after receiving "
+                "abort (exit code %d) from post-wal-delete "
+                "retry hook script: %s",
+                e.hook.exit_status,
+                e.hook.script,
+            )
+        # Run the post_wal_delete_script if present.
+        script = HookScriptRunner(self, "wal_delete_script", "post")
+        script.env_from_wal_info(wal_info, None, error)
+        script.run()
+
     def delete_wal(self, wal_info):
         """
         Delete a WAL segment, with the given WalFileInfo
 
         :param barman.infofile.WalFileInfo wal_info: the WAL to delete
         """
-
-        # Run the pre_wal_delete_script if present.
-        script = HookScriptRunner(self, "wal_delete_script", "pre")
-        script.env_from_wal_info(wal_info)
-        script.run()
-
-        # Run the pre_wal_delete_retry_script if present.
-        retry_script = RetryHookScriptRunner(self, "wal_delete_retry_script", "pre")
-        retry_script.env_from_wal_info(wal_info)
-        retry_script.run()
+        self._run_pre_delete_wal_scripts(wal_info)
 
         error = None
         try:
@@ -1182,27 +1217,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             )
             output.warning(error)
 
-        # Run the post_wal_delete_retry_script if present.
-        try:
-            retry_script = RetryHookScriptRunner(
-                self, "wal_delete_retry_script", "post"
-            )
-            retry_script.env_from_wal_info(wal_info, None, error)
-            retry_script.run()
-        except AbortedRetryHookScript as e:
-            # Ignore the ABORT_STOP as it is a post-hook operation
-            _logger.warning(
-                "Ignoring stop request after receiving "
-                "abort (exit code %d) from post-wal-delete "
-                "retry hook script: %s",
-                e.hook.exit_status,
-                e.hook.script,
-            )
-
-        # Run the post_wal_delete_script if present.
-        script = HookScriptRunner(self, "wal_delete_script", "post")
-        script.env_from_wal_info(wal_info, None, error)
-        script.run()
+        self._run_post_delete_wal_scripts(wal_info, error)
 
     def check(self, check_strategy):
         """
@@ -1390,7 +1405,9 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             tuples which define inclusive ranges of WALs which must not be deleted.
         :return list: a list of removed WAL files
         """
-        removed = []
+        # A dictionary where key is the WAL directory name and value is a list of
+        # wal_info object representing the WALs to be deleted in that directory
+        wals_to_remove = defaultdict(list)
         with self.server.xlogdb("r+") as fxlogdb:
             xlogdb_dir = os.path.dirname(fxlogdb.name)
             with tempfile.TemporaryFile(mode="w+", dir=xlogdb_dir) as fxlogdb_new:
@@ -1431,18 +1448,59 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                         keep |= wal_info.name >= backup_info.begin_wal
 
                     # If the file has to be kept write it in the new xlogdb
-                    # otherwise delete it  and record it in the removed list
+                    # otherwise add it to the removal list
                     if keep:
                         fxlogdb_new.write(wal_info.to_xlogdb_line())
                     else:
-                        self.delete_wal(wal_info)
-                        removed.append(wal_info.name)
+                        wal_dir = os.path.dirname(wal_info.fullpath(self.server))
+                        wals_to_remove[wal_dir].append(wal_info)
+
+                wals_removed = self.delete_wals(wals_to_remove)
+
                 fxlogdb_new.flush()
                 fxlogdb_new.seek(0)
                 fxlogdb.seek(0)
                 shutil.copyfileobj(fxlogdb_new, fxlogdb)
                 fxlogdb.truncate()
-        return removed
+
+        return wals_removed
+
+    def delete_wals(self, wals_to_delete):
+        """
+        Delete the given WAL files. The entire WAL directory is deleted when possible.
+
+        :param dict[str, list[WalFileInfo]] wals_to_delete: A dictionary where key is the WAL directory name and
+            value is a list of wal_info objects representing the WALs to be deleted in
+            that directory.
+        :return list[str]: a list of deleted WAL names.
+        """
+        wals_deleted = []
+        for wal_dir, wal_list in wals_to_delete.items():
+            delete_directory = False
+            # Each directory can contain up to 256 WAL files. If the deletion list
+            # contains 256 entries, the entire directory can be safely deleted
+            # Otherwise, check if all WALs in the directory are in the deletion list
+            if len(wal_list) >= 256:
+                delete_directory = True
+            else:
+                wal_names_to_delete = {wal_info.name for wal_info in wal_list}
+                wal_names_in_dir = os.listdir(wal_dir)
+                if set(wal_names_in_dir).issubset(wal_names_to_delete):
+                    delete_directory = True
+            # If the directory can be deleted, run the hook-scripts on each WAL file
+            # before and after the rmtree. Otherwise, delete each WAL individually
+            if delete_directory:
+                for wal_info in wal_list:
+                    self._run_pre_delete_wal_scripts(wal_info)
+                shutil.rmtree(wal_dir)
+                for wal_info in wal_list:
+                    self._run_post_delete_wal_scripts(wal_info)
+                    wals_deleted.append(wal_info.name)
+            else:
+                for wal_info in wal_list:
+                    self.delete_wal(wal_info)
+                    wals_deleted.append(wal_info.name)
+        return wals_deleted
 
     def validate_last_backup_maximum_age(self, last_backup_maximum_age):
         """
