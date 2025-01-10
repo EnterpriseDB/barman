@@ -948,6 +948,71 @@ class TestServer(object):
             "TestModel",
         )
 
+    @patch("barman.output.result")
+    def test_show_active_model(self, mock_output_result, capsys):
+        """
+        Test the output of the show server command for active configuration model
+
+        :param mock_output_result: mock the output.result method
+        :param capsys: retrieve output from console
+        """
+
+        # Create a mock config without an active model
+        mock_config_no_model = MagicMock()
+        mock_config_no_model.configure_mock(active_model=None)
+        mock_config_no_model.name = "TestConfigNoActive"
+        mock_config_no_model.last_backup_maximum_age = None
+        mock_config_no_model.to_json.return_value = {}
+
+        # Create a Server instance with the mock config
+        server_no_active = build_real_server(
+            global_conf={
+                "archiver": "on",
+                "backup_options": "exclusive_backup",
+            }
+        )
+        server_no_active.config = mock_config_no_model
+        server_no_active.passive_node = False
+
+        # Call the show method
+        server_no_active.show()
+        (out, err) = capsys.readouterr()
+
+        # Verify output.result is called with the correct parameters
+        result_call_args = mock_output_result.call_args[0]
+        result_data = result_call_args[2]
+        assert result_data["active_model"] is None
+
+        # Reset the mock
+        mock_output_result.reset_mock()
+
+        # Create a mock config with an active model
+        mock_config = MagicMock()
+        mock_config.active_model = MagicMock()
+        mock_config.active_model.name = "TestModel"
+        mock_config.name = "TestConfig"
+        mock_config.last_backup_maximum_age = None
+        mock_config.to_json.return_value = {}
+
+        # Create a Server instance with the mock config
+        server = build_real_server(
+            global_conf={
+                "archiver": "on",
+                "backup_options": "exclusive_backup",
+            }
+        )
+        server.config = mock_config
+        server.passive_node = False
+
+        # Call the show method
+        server.show()
+        (out, err) = capsys.readouterr()
+
+        # Verify output.result is called with the correct parameters
+        result_call_args = mock_output_result.call_args[0]
+        result_data = result_call_args[2]
+        assert result_data["active_model"] == "TestModel"
+
     @patch("barman.server.Server.get_remote_status")
     def test_check_postgres_too_old(self, postgres_mock, capsys):
         postgres_mock.return_value = {
