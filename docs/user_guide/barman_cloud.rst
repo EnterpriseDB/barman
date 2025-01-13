@@ -20,9 +20,17 @@ Barman offers two primary methods for backing up Postgres servers to the cloud:
 
 * **Creating and transfering base backups to a cloud object storage.**
 
-  This method also uses the utility provided by the ``barman-cli-cloud`` package and
-  does not require a Barman server. Both the base backup, the WALs and the backup
-  metadata are stored in the cloud object storage.
+  This can also be achieved through 2 different approaches:
+
+  1. Using the utility provided by the ``barman-cli-cloud`` package in the Postgres
+     host, without a Barman server. Both the base backup and the WALs are read from the
+     local host (Postgres host), and they are stored along with the backup metadata
+     in the cloud object storage.
+  2. Setting up a Barman server to take base backups and store the backup metadata and
+     the WAL files, then use the utility provided by the ``barman-cli-cloud`` package as
+     hook scripts to copy them to the cloud object storage. If you choose this approach,
+     please consult the :ref:`hook-scripts-using-barman-cloud-scripts-as-hooks-in-barman`
+     section for details.
   
 This section of the documentation is focused in the ``barman-cloud-*`` commands that
 can be used to manage and interact with backups without the need of a dedicated barman
