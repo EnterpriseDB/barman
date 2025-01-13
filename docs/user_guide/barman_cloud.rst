@@ -7,7 +7,7 @@ Barman offers two primary methods for backing up Postgres servers to the cloud:
 
 * **Creating disk volume snapshots as base backups.**
 
-  This can be achieved through 2 different ways:
+  This can be achieved through 2 different approaches:
 
   1. Setting up a Barman server to store the backup metadata and the WAL files,
      while your backups are created as disk volume snapshots in the cloud. This is an
