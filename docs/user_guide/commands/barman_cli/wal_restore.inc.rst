@@ -9,19 +9,17 @@ Synopsis
 .. code-block:: text
     
     barman-wal-restore
-        [ { -h, --help } ]
-        [ { -V, --version } ]
-        [ { -U, --user } USER ]
+        [ { -h | --help } ]
+        [ { -V | --version } ]
+        [ { -U | --user } USER ]
         [ --port PORT ]
-        [ { -s, --sleep } SECONDS ]
-        [ { -p, --parallel } JOBS ]
+        [ { -s | --sleep } SECONDS ]
+        [ { -p | --parallel } JOBS ]
         [ --spool-dir SPOOL_DIR ]
-        [ { -P, --partial } ]
-        [ { -z, --gzip } ]
-        [ { -j, --bzip2 } ]
-        [ --keep-compression ]
-        [ { -c, --config } CONFIG ]
-        [ { -t --test } ]
+        [ { -P | --partial } ]
+        [ { { -z | --gzip } | { -j | --bzip2 } | --keep-compression } ]
+        [ { -c | --config } CONFIG ]
+        [ { -t | --test } ]
         BARMAN_HOST SERVER_NAME WAL_NAME WAL_DEST
     
 Description

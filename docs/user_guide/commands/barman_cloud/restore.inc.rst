@@ -10,8 +10,7 @@
   barman-cloud-restore
                   [ { -V | --version } ]
                   [ --help ]
-                  [ { -v | --verbose } ]
-                  [ { -q | --quiet } ]
+                  [ { { -v | --verbose } | { -q | --quiet } } ]
                   [ { -t | --test } ]
                   [ --cloud-provider { aws-s3 | azure-blob-storage | google-cloud-storage } ]
                   [ --endpoint-url ENDPOINT_URL ]
@@ -24,7 +23,7 @@
                   [ --aws-region AWS_REGION ]
                   [ --gcp-zone GCP_ZONE ]
                   [ --azure-resource-group AZURE_RESOURCE_GROUP ]
-                  [ --tablespace NAME:LOCATION ]
+                  [ --tablespace NAME:LOCATION [ --tablespace NAME:LOCATION ... ] ]
                   SOURCE_URL SERVER_NAME BACKUP_ID RECOVERY_DESTINATION
 
 **Description**

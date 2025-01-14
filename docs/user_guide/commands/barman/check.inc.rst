@@ -11,7 +11,7 @@ Synopsis
     check
         [ { -h | --help } ]
         [ --nagios ]
-        SERVER_NAME
+        SERVER_NAME [ SERVER_NAME ... ]
 
 Description
 ^^^^^^^^^^^

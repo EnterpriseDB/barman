@@ -13,7 +13,7 @@ Synopsis
         [ --minimal ]
         [ --source { backup-host | wal-host } ]
         [ --target { hot-standby | wal-streamer | all } ]
-    SERVER_NAME
+        SERVER_NAME [ SERVER_NAME ... ]
 
 Description
 ^^^^^^^^^^^

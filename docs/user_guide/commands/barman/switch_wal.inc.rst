@@ -13,7 +13,7 @@ Synopsis
         [ --archive-timeout ]
         [ --force ]
         [ { -h | --help } ]
-        SERVER_NAME
+        SERVER_NAME [ SERVER_NAME ... ]
     
 
 Description

@@ -10,8 +10,7 @@
   barman-cloud-backup-keep
                   [ { -V | --version } ]
                   [ --help ]
-                  [ { -v | --verbose } ]
-                  [ { -q | --quiet } ]
+                  [ { { -v | --verbose } | { -q | --quiet } } ]
                   [ { -t | --test } ]
                   [ --cloud-provider { aws-s3 | azure-blob-storage | google-cloud-storage } ]
                   [ --endpoint-url ENDPOINT_URL ]
@@ -19,9 +18,7 @@
                   [ --profile AWS_PROFILE ]
                   [ --read-timeout READ_TIMEOUT ]
                   [ { --azure-credential | --credential } { azure-cli | managed-identity } ]
-                  [ { -r | --release } ]
-                  [ { -s | --status } ]
-                  [ --target { full | standalone } ]
+                  [ { { -r | --release } | { -s | --status } | --target { full | standalone } } ]
                   SOURCE_URL SERVER_NAME BACKUP_ID
 
 **Description**

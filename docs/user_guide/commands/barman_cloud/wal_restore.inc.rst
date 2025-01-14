@@ -10,8 +10,7 @@
   barman-cloud-wal-restore
                   [ { -V | --version } ]
                   [ --help ]
-                  [ { -v | --verbose } ]
-                  [ { -q | --quiet } ]
+                  [ { { -v | --verbose } | { -q | --quiet } } ]
                   [ { -t | --test } ]
                   [ --cloud-provider { aws-s3 | azure-blob-storage | google-cloud-storage } ]
                   [ --endpoint-url ENDPOINT_URL ]
@@ -20,7 +19,7 @@
                   [ --read-timeout READ_TIMEOUT ]
                   [ { --azure-credential | --credential } { azure-cli | managed-identity } ]
                   [ --no-partial ]
-                  DESTINATION_URL SERVER_NAME WAL_NAME WAL_DEST
+                  SOURCE_URL SERVER_NAME WAL_NAME WAL_DEST
 
 **Description**
 
@@ -47,8 +46,8 @@ calling ``--no-partial`` option.
 ``SERVER_NAME``
   Name of the server that will have WALs restored.
 
-``DESTINATION_URL``
-  URL of the cloud destination, such as a bucket in AWS S3. For example: ``s3://bucket/path/to/folder``.
+``SOURCE_URL``
+  URL of the cloud source, such as a bucket in AWS S3. For example: ``s3://bucket/path/to/folder``.
 
 ``WAL_NAME``
   The value of the '%f' keyword (according to ``restore_command``).

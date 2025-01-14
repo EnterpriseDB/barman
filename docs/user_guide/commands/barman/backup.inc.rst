@@ -13,7 +13,7 @@ Synopsis
         [ { -h | --help } ]
         [ --incremental BACKUP_ID ]
         [ --immediate-checkpoint ]
-        [ { -j, --jobs } PARALLEL_WORKERS ]
+        [ { -j | --jobs } PARALLEL_WORKERS ]
         [ --jobs-start-batch-period PERIOD ]
         [ --jobs-start-batch-size SIZE ]
         [ --keepalive-interval SECONDS ]
@@ -27,7 +27,7 @@ Synopsis
         [ --reuse-backup { off | copy | link } ]
         [ { --wait | -w } ]
         [ --wait-timeout SECONDS ]
-        SERVER_NAME [ ... ]
+        SERVER_NAME [ SERVER_NAME ... ]
 
 Description
 ^^^^^^^^^^^

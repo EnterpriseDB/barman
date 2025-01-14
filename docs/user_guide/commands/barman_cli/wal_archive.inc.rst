@@ -9,12 +9,12 @@ Synopsis
 .. code-block:: text
     
     barman-wal-archive
-        [ { -h, --help } ]
-        [ { -V, --version } ]
-        [ { -U, --user } USER ]
+        [ { -h | --help } ]
+        [ { -V | --version } ]
+        [ { -U | --user } USER ]
         [ --port PORT ]
-        [ { -c, --config } CONFIG ]
-        [ { -t --test } ]
+        [ { -c | --config } CONFIG ]
+        [ { -t | --test } ]
         [ --md5 ]
         BARMAN_HOST SERVER_NAME WAL_PATH
     

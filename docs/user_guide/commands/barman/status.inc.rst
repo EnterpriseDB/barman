@@ -10,7 +10,7 @@ Synopsis
     
     status
         [ { -h | --help } ]
-        SERVER_NAME
+        SERVER_NAME [ SERVER_NAME ... ]
 
 Description
 ^^^^^^^^^^^

@@ -10,7 +10,7 @@ Synopsis
     
     rebuild-xlogdb
         [ { -h | --help } ]
-        SERVER_NAME
+        SERVER_NAME [ SERVER_NAME ... ]
 
 Description
 ^^^^^^^^^^^

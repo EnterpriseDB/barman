@@ -10,7 +10,7 @@ Synopsis
     
     show-servers
         [ { -h | --help } ]
-        SERVER_NAME
+        SERVER_NAME [ SERVER_NAME ... ]
 
 Description
 ^^^^^^^^^^^

@@ -10,7 +10,7 @@ Synopsis
     
     barman
         [ { -c | --config } CONFIG ]
-        [ { -color | --colour } { never | always | auto } ]
+        [ { --color | --colour } { never | always | auto } ]
         [ { -d | --debug } ]
         [ { -f | --format } { json | console } ]
         [ { -h | --help } ]
