@@ -8,7 +8,10 @@ Synopsis
 
 .. code-block:: text
     
-    list-backups SERVER_NAME
+    list-backups
+        [ { -h | --help } ]
+        [ --minimal ]
+        SERVER_NAME
 
 Description
 ^^^^^^^^^^^
@@ -22,6 +25,12 @@ Parameters
 
 ``SERVER_NAME``
     Name of the server in barman node
+
+``-h`` / ``--help``
+    Show a help message and exit. Provides information about command usage.
+
+``--minimal``
+    Machine readable output.
 
 .. only:: man
 

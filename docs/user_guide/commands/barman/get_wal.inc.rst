@@ -9,12 +9,14 @@ Synopsis
 .. code-block:: text
     
     get-wal
-        [ -j ]
-        [ -o  OUTPUT_DIRECTORY ]
-        [ -p  VALUE ]
+        [ { --bzip | -j } ]
+        [ { --gzip | -z | -x } ]
+        [ { -h | --help } ]
+        [ --keep-compression ]
+        [ { --output-directory | -o } OUTPUT_DIRECTORY ]
+        [ { --peek | -p } VALUE ]
         [ { -P | --partial } ]
         [ { -t | --test } ]
-        [ -z ]
         SERVER_NAME WAL_NAME
 
 Description
@@ -32,20 +34,23 @@ Parameters
 ``WAL_NAME``
     Id of the backup in barman catalog.
 
-``-j`` /  ``--bzip2``
+``--bzip2`` / ``-j``
     Output will be compressed using bzip2.
 
-``-z`` / ``--gzip``
+``--gzip`` / ``-z`` / ``-x``
     Output will be compressed using gzip.
+
+``-h`` / ``--help``
+    Show a help message and exit. Provides information about command usage.
 
 ``--keep-compression``
     Do not uncompress the file content. The output will be the original compressed
     file.
 
-``-o``
+``--output-directory`` / ``-o``
     Destination directory where barman will store the WAL file.
 
-``-p`` 
+``--peek`` / ``-p``
     Specify an integer value greater than or equal to 1 to retrieve WAL files from the
     specified WAL file up to the value specified by this parameter. When using this option,
     ``get-wal`` returns a list of zero to the specified WAL segment names, with one name

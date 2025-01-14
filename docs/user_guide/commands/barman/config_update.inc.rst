@@ -8,7 +8,9 @@ Synopsis
 
 .. code-block:: text
     
-    config-update STRING
+    config-update
+        [ { -h | --help } ]
+        STRING
 
 Description
 ^^^^^^^^^^^
@@ -32,6 +34,9 @@ Parameters
 
 ``STRING``
     List of JSON formatted string.
+
+``-h`` / ``--help``
+    Show a help message and exit. Provides information about command usage.
 
 Example
 ^^^^^^^

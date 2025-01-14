@@ -20,8 +20,9 @@
                   [ { -b | --backup-id } BACKUP_ID]
                   [ --dry-run ]
                   [ { -P | --aws-profile } AWS_PROFILE ]
+                  [ --profile AWS_PROFILE ]
                   [ --read-timeout READ_TIMEOUT ]
-                  [ --azure-credential { azure-cli | managed-identity } ]
+                  [ { --azure-credential | --credential } { azure-cli | managed-identity } ]
                   [--batch-size DELETE_BATCH_SIZE]
                   SOURCE_URL SERVER_NAME
 

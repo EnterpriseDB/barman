@@ -9,7 +9,8 @@ Synopsis
 .. code-block:: text
     
     keep
-        { --release | --status | --target { full | standalone } }
+        [ { -h | --help } ]
+        { { -r | --release } | { -s | --status } | --target { full | standalone } }
         SERVER_NAME BACKUP_ID
         
 
@@ -30,11 +31,14 @@ Parameters
 ``BACKUP_ID``
     Id of the backup in barman catalog.
 
-``--release``
+``-h`` / ``--help``
+    Show a help message and exit. Provides information about command usage.
+
+``-r`` / ``--release``
     Release the keep mark from this backup. This will remove its archival status and
     make it available for deletion, either directly or by retention policy.
 
-``--status``
+``-s`` / ``--status``
     Report the archival status of the backup. The status will be either ``full`` or
     ``standalone`` for archival backups, or ``nokeep`` for backups that have not been
     designated as archival.

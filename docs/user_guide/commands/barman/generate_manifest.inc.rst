@@ -8,7 +8,9 @@ Synopsis
 
 .. code-block:: text
     
-    generate-manifest SERVER_NAME BACKUP_ID
+    generate-manifest
+        [ { -h | --help } ]
+        SERVER_NAME BACKUP_ID
 
 Description
 ^^^^^^^^^^^
@@ -24,6 +26,9 @@ Parameters
 
 ``BACKUP_ID``
     Id of the backup in barman catalog.
+
+``-h`` / ``--help``
+    Show a help message and exit. Provides information about command usage.
 
 .. only:: man
 

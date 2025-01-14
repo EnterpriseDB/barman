@@ -23,24 +23,28 @@
                   [ { -d | --dbname } DBNAME ]
                   [ { -n | --name } BACKUP_NAME ]
                   [ { -J | --jobs } JOBS ]
-                  [ -S MAX_ARCHIVE_SIZE ]
+                  [ { -S | --max-archive-size } MAX_ARCHIVE_SIZE ]
                   [ --immediate-checkpoint ]
                   [ --min-chunk-size MIN_CHUNK_SIZE ]
                   [ --max-bandwidth MAX_BANDWIDTH ]
                   [ --snapshot-instance SNAPSHOT_INSTANCE ]
                   [ --snapshot-disk NAME ]
+                  [ --snapshot-zone GCP_ZONE ]
+                  [ -snapshot-gcp-project GCP_PROJECT ]
                   [ --tags [ TAGS ... ] ]
                   [ --endpoint-url ENDPOINT_URL ]
                   [ { -P | --aws-profile } AWS_PROFILE ]
+                  [ --profile AWS_PROFILE ]
                   [ --read-timeout READ_TIMEOUT ]
-                  [ { -e | --encryption } ENCRYPTION ]
+                  [ { -e | --encryption } { AES256 | aws:kms } ]
                   [ --sse-kms-key-id SSE_KMS_KEY_ID ]
                   [ --aws-region AWS_REGION ]
+                  [ --aws-await-snapshots-timeout AWS_AWAIT_SNAPSHOTS_TIMEOUT ]
                   [ --aws-snapshot-lock-mode { compliance | governance } ]
                   [ --aws-snapshot-lock-duration DAYS ]
                   [ --aws-snapshot-lock-cool-off-period HOURS ]
                   [ --aws-snapshot-lock-expiration-date DATETIME ]
-                  [ --azure-credential { azure-cli | managed-identity } ]
+                  [ { --azure-credential | --credential } { azure-cli | managed-identity } ]
                   [ --encryption-scope ENCRYPTION_SCOPE ]
                   [ --azure-subscription-id AZURE_SUBSCRIPTION_ID ]
                   [ --azure-resource-group AZURE_RESOURCE_GROUP ]
@@ -138,6 +142,9 @@ uploaded to the cloud.
 ``-S`` / ``--max-archive-size``
   Maximum size of an archive when uploading to cloud storage (default: ``100GB``).
 
+``--immediate-checkpoint``
+  Forces the initial checkpoint to be done as quickly as possible.
+
 ``--min-chunk-size``
   Minimum size of an individual chunk when uploading to cloud storage (default: ``5MB``
   for ``aws-s3``, ``64KB`` for ``azure-blob-storage``, not applicable for
@@ -189,6 +196,10 @@ uploaded to the cloud.
 ``--aws-region``
   The name of the AWS region containing the EC2 VM and storage volumes defined by the
   ``--snapshot-instance`` and ``--snapshot-disk`` arguments.
+
+``--aws-await-snapshots-timeout``
+  The length of time in seconds to wait for snapshots to be created in AWS before timing
+  out (default: 3600 seconds).
 
 ``--aws-snapshot-lock-mode``
   The lock mode for the snapshot. This is only valid if ``--snapshot-instance`` and

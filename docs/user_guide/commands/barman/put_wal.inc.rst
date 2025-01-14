@@ -8,7 +8,10 @@ Synopsis
 
 .. code-block:: text
     
-    put-wal [ { -t | --test } ] SERVER_NAME
+    put-wal
+        [ { -h | --help } ]
+        [ { -t | --test } ]
+        SERVER_NAME
 
 Description
 ^^^^^^^^^^^
@@ -26,6 +29,9 @@ Parameters
 
 ``SERVER_NAME``
     Name of the server in barman node
+
+``-h`` / ``--help``
+    Show a help message and exit. Provides information about command usage.
 
 ``-t`` / ``--test``
     Test both the connection and configuration of the specified Postgres

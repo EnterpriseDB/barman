@@ -11,6 +11,7 @@ Synopsis
     receive-wal
         [ --create-slot ]
         [ --drop-slot ]
+        [ { -h | --help } ]
         [ --reset ]
         [ --stop ]
         SERVER_NAME
@@ -35,6 +36,9 @@ Parameters
 ``--drop-slot``
     Drop the physical replication slot configured with the ``slot_name`` configuration
     parameter.
+
+``-h`` / ``--help``
+    Show a help message and exit. Provides information about command usage.
 
 ``--reset``
     Reset the status of ``receive-wal``, restarting the streaming from the current WAL file

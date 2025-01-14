@@ -8,7 +8,10 @@ Synopsis
 
 .. code-block:: text
     
-    check [ --nagios ] SERVER_NAME
+    check
+        [ { -h | --help } ]
+        [ --nagios ]
+        SERVER_NAME
 
 Description
 ^^^^^^^^^^^
@@ -23,6 +26,9 @@ Parameters
 
 ``SERVER_NAME``
     Name of the server in barman node.
+
+``-h`` / ``--help``
+    Show a help message and exit. Provides information about command usage.
 
 ``--nagios``
     Nagios plugin compatible output.

@@ -8,7 +8,9 @@ Synopsis
 
 .. code-block:: text
     
-    config-switch SERVER_NAME { --reset | MODEL_NAME }
+    config-switch
+        [ { -h | --help } ]
+        SERVER_NAME { --reset | MODEL_NAME }
 
 Description
 ^^^^^^^^^^^
@@ -29,6 +31,9 @@ Parameters
 
 ``MODEL_NAME``
     Name of the model.
+
+``-h`` / ``--help``
+    Show a help message and exit. Provides information about command usage.
 
 ``--reset``
     Reset the server's configurations.

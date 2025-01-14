@@ -9,6 +9,7 @@ Synopsis
 .. code-block:: text
     
     list-files
+        [ { -h | --help } ]
         [ --target { data | full | standalone | wal } ]
         SERVER_NAME BACKUP_ID
 
@@ -25,6 +26,9 @@ Parameters
 
 ``BACKUP_ID``
     Id of the backup in barman catalog.
+
+``-h`` / ``--help``
+    Show a help message and exit. Provides information about command usage.
 
 ``--target``
     Define specific files to be listed. The possible values are:

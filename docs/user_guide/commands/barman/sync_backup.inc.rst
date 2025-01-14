@@ -8,7 +8,9 @@ Synopsis
 
 .. code-block:: text
     
-    sync-backup SERVER_NAME BACKUP_ID
+    sync-backup
+        [ { -h | --help } ]
+        SERVER_NAME BACKUP_ID
 
 Description
 ^^^^^^^^^^^
@@ -26,6 +28,9 @@ Parameters
 
 ``BACKUP_ID``
     Id of the backup in barman catalog.
+
+``-h`` / ``--help``
+    Show a help message and exit. Provides information about command usage.
 
 .. only:: man
 

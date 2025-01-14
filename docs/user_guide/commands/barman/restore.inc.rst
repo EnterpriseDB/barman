@@ -15,6 +15,7 @@ Synopsis
         [ --exclusive ]
         [ --gcp-zone GCP_ZONE ]
         [ --get-wal | --no-get-wal ]
+        [ { -h | --help } ]
         [ { -j | --jobs } PARALLEL_WORKERS ]
         [ --jobs-start-batch-period SECONDS ]
         [ --jobs-start-batch-size NUMBER ]
@@ -27,6 +28,7 @@ Synopsis
         [ --retry-sleep SECONDS ]
         [ --retry-times NUMBER ]
         [ --snapshot-recovery-instance INSTANCE_NAME ]
+        [ --snapshot-recovery-zone GCP_ZONE ]
         [ --standby-mode ]
         [ --tablespace NAME:LOCATION ]
         [ --target-action { pause | shutdown | promote } ]
@@ -87,6 +89,9 @@ Parameters
 ``--get-wal`` / ``--no-get-wal``
     Enable/disable usage of ``get-wal`` for WAL fetching during recovery. Default is based on
     ``recovery_options`` setting.
+
+``-h`` / ``--help``
+    Show a help message and exit. Provides information about command usage.
 
 ``-j`` / ``--jobs``
     Specify the number of parallel workers to use for copying files during the backup.
@@ -154,6 +159,10 @@ Parameters
     Specify the name of the instance where the disks recovered from the snapshots are
     attached. This option is necessary when recovering backups created with
     ``backup_method=snapshot``.
+
+``--snapshot-recovery-zone`` (deprecated)
+    Zone containing the instance and disks for the snapshot recovery (deprecated:
+    replaced by ``--gcp-zone``)
     
 ``--standby-mode``
     Whether to start the Postgres server as a standby.

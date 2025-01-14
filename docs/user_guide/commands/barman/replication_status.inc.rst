@@ -9,6 +9,7 @@ Synopsis
 .. code-block:: text
     
     replication-status
+        [ { -h | --help } ]
         [ --minimal ]
         [ --source { backup-host | wal-host } ]
         [ --target { hot-standby | wal-streamer | all } ]
@@ -26,6 +27,9 @@ Parameters
 
 ``SERVER_NAME``
     Name of the server in barman node
+
+``-h`` / ``--help``
+    Show a help message and exit. Provides information about command usage.
 
 ``--minimal``
     Machine readable output.

@@ -8,7 +8,9 @@ Synopsis
 
 .. code-block:: text
     
-    rebuild-xlogdb SERVER_NAME
+    rebuild-xlogdb
+        [ { -h | --help } ]
+        SERVER_NAME
 
 Description
 ^^^^^^^^^^^
@@ -22,6 +24,9 @@ Parameters
 
 ``SERVER_NAME``
     Name of the server in barman node.
+
+``-h`` / ``--help``
+    Show a help message and exit. Provides information about command usage.
 
 .. only:: man
 

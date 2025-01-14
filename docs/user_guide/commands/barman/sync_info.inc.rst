@@ -8,7 +8,10 @@ Synopsis
 
 .. code-block:: text
     
-    sync-info [ --primary ] SERVER_NAME [ LAST_WAL [ LAST_POS ] ]
+    sync-info
+        [ { -h | --help } ]
+        [ --primary ]
+        SERVER_NAME [ LAST_WAL [ LAST_POS ] ]
 
 Description
 ^^^^^^^^^^^
@@ -32,3 +35,9 @@ Parameters
 
 ``LAST_POS``
     Hint for quickly positioning in the ``xlog.db`` file (for incremental synchronization).
+
+``-h`` / ``--help``
+    Show a help message and exit. Provides information about command usage.
+
+``--primary``
+    Execute the sync-info on the primary node (if set).

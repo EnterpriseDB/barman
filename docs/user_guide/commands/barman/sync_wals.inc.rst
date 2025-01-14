@@ -8,7 +8,9 @@ Synopsis
 
 .. code-block:: text
     
-    sync-wals SERVER_NAME
+    sync-wals
+        [ { -h | --help } ]
+        SERVER_NAME
     
 Description
 ^^^^^^^^^^^
@@ -22,3 +24,6 @@ Parameters
 
 ``SERVER_NAME``
     Name of the server in barman node
+
+``-h`` / ``--help``
+    Show a help message and exit. Provides information about command usage.

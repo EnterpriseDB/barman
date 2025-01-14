@@ -12,6 +12,7 @@ Synopsis
         [ --archive ]
         [ --archive-timeout ]
         [ --force ]
+        [ { -h | --help } ]
         SERVER_NAME
     
 
@@ -43,3 +44,6 @@ Parameters
     .. note::
         Running a CHECKPOINT may increase I/O load on the Postgres server, so use this
         option cautiously.
+
+``-h`` / ``--help``
+    Show a help message and exit. Provides information about command usage.

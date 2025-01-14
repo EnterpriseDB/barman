@@ -16,10 +16,11 @@
                   [ --cloud-provider { aws-s3 | azure-blob-storage | google-cloud-storage } ]
                   [ --endpoint-url ENDPOINT_URL ]
                   [ { -P | --aws-profile } AWS_PROFILE ]
+                  [ --profile AWS_PROFILE ]
                   [ --read-timeout READ_TIMEOUT ]
-                  [ --azure-credential { azure-cli | managed-identity } ]
+                  [ { --azure-credential | --credential } { azure-cli | managed-identity } ]
                   [ --format ]
-                  SOURCE_URL SERVER_NAME
+                  SOURCE_URL SERVER_NAME BACKUP_ID
 
 **Description**
 
@@ -32,6 +33,9 @@ but it has fewer information.
   For GCP, only authentication with ``GOOGLE_APPLICATION_CREDENTIALS`` env is supported.
 
 **Parameters**
+
+``BACKUP_ID``
+  The ID of the backup.
 
 ``SERVER_NAME``
   Name of the server that holds the backup to be displayed.
