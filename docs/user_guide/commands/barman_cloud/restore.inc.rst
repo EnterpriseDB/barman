@@ -24,7 +24,10 @@
                   [ --gcp-zone GCP_ZONE ]
                   [ --azure-resource-group AZURE_RESOURCE_GROUP ]
                   [ --tablespace NAME:LOCATION [ --tablespace NAME:LOCATION ... ] ]
-                  SOURCE_URL SERVER_NAME BACKUP_ID RECOVERY_DESTINATION
+                  [ --target-lsn LSN ]
+                  [ --target-time TIMESTAMP ]
+                  [ --target-tli TLI ]
+                  SOURCE_URL SERVER_NAME [ BACKUP_ID ] RECOVERY_DESTINATION
 
 **Description**
 
@@ -80,6 +83,15 @@ snapshots and by downloading the backup label from object storage.
   
 ``--tablespace``
   Tablespace relocation rule.
+  
+``--target-lsn``
+  The recovery target lsn, e.g., ``3/64000000``.
+  
+``--target-time``
+  The recovery target timestamp with or without timezone, in the format ``%Y-%m-%d %H:%M:%S``.
+  
+``--target-tli``
+  The recovery target timeline.
 
 **Extra options for the AWS cloud provider**
 
