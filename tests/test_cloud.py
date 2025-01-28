@@ -63,7 +63,7 @@ from barman.cloud_providers.aws_s3 import S3CloudInterface
 from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
 from barman.cloud_providers.google_cloud_storage import GoogleCloudInterface
 from barman.exceptions import BackupPreconditionException
-from barman.infofile import BackupInfo
+from barman.infofile import BackupInfo, WalFileInfo
 
 if sys.version_info.major > 2:
     from unittest.mock import patch as unittest_patch
@@ -3343,6 +3343,54 @@ end_time=2022-11-09 12:05:00
         # THEN the get_prefixes method of the cloud interface is called with the
         # wal_prefix of the catalog
         mock_cloud_interface.get_prefixes.assert_called_once_with(catalog.wal_prefix)
+
+    @pytest.mark.parametrize(
+        ("wal_paths", "expected_result"),
+        (
+            # Backup names should resolve to the ID of the backup which has that name
+            ({}, {}),
+            # The backup ID should resolve to itself
+            (
+                {
+                    "0000000100000003000000BA": "server_name/wals/0000000100000003/0000000100000003000000BA.gz",
+                    "0000000200000003000000BA": "server_name/wals/0000000200000003/0000000200000003000000BA.gz",
+                    "0000000200000003000000FF": "server_name/wals/0000000200000003/0000000200000003000000FF.gz",
+                    "0000000300000003000001AB": "server_name/wals/0000000300000003/0000000300000003000001AB.gz",
+                    "0000000400000003000000CD": "server_name/wals/0000000400000003/0000000400000003000000CD.gz",
+                    "0000000400000003000000FF": "server_name/wals/0000000400000003/0000000400000003000000FF.gz",
+                    "0000000500000003000001DE": "server_name/wals/0000000500000003/0000000500000003000001DE.gz",
+                },
+                {
+                    "00000005": WalFileInfo(
+                        compression=None,
+                        name="0000000500000003000001DE",
+                        size=None,
+                        time=None,
+                    )
+                },
+            ),
+        ),
+    )
+    @mock.patch("barman.cloud.CloudBackupCatalog.get_wal_paths")
+    def test_get_latest_archived_wals_info(
+        self, mock_get_wal_paths, wal_paths, expected_result
+    ):
+        mock_cloud_interface = mock.Mock(path="namespace")
+        catalog = CloudBackupCatalog(mock_cloud_interface, "server_name")
+        mock_get_wal_paths.return_value = wal_paths
+
+        timelines = catalog.get_latest_archived_wals_info()
+
+        assert timelines.keys() == expected_result.keys()
+
+        if timelines:
+            assert timelines["00000005"].name == expected_result["00000005"].name
+            assert timelines["00000005"].size == expected_result["00000005"].size
+            assert timelines["00000005"].time == expected_result["00000005"].time
+            assert (
+                timelines["00000005"].compression
+                == expected_result["00000005"].compression
+            )
 
 
 class TestCloudTarUploader(object):

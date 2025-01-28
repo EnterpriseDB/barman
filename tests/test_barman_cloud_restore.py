@@ -18,6 +18,7 @@
 
 import mock
 import pytest
+from testing_helpers import build_test_backup_info
 
 from barman.clients import cloud_restore
 from barman.clients.cloud_cli import OperationErrorExit
@@ -27,6 +28,7 @@ from barman.clients.cloud_restore import (
 )
 from barman.cloud import BackupFileInfo
 from barman.exceptions import RecoveryPreconditionException
+from barman.infofile import load_datetime_tz
 
 
 class TestCloudRestore(object):
@@ -319,6 +321,256 @@ class TestCloudRestore(object):
             recovery_dir,
             recovery_instance,
         )
+
+    @pytest.mark.parametrize(
+        ("target_option", "target", "expected_backup_id"),
+        (
+            (
+                "target_time",
+                "2025-01-07 15:15:00",
+                "20250107T120000",
+            ),
+            ("target_lsn", "3/5B000000", "20250106T120000"),
+            (None, None, "20250108T120000"),
+        ),
+    )
+    @mock.patch("barman.clients.cloud_restore.CloudBackupDownloaderObjectStore")
+    @mock.patch("barman.clients.cloud_restore.get_last_backup_id")
+    @mock.patch("barman.clients.cloud_restore.get_backup_id_from_target_tli")
+    @mock.patch("barman.clients.cloud_restore.get_backup_id_from_target_lsn")
+    @mock.patch("barman.clients.cloud_restore.get_backup_id_from_target_time")
+    @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_restore.get_cloud_interface")
+    def test_restore_without_backup_id(
+        self,
+        _mock_cloud_interface_factory,
+        mock_catalog,
+        mock_get_bkp_id_from_tgt_time,
+        mock_get_bkp_id_from_tgt_lsn,
+        mock_get_bkp_id_from_tgt_tli,
+        mock_get_last_bkp_id,
+        _mock_backup_downloader,
+        target_option,
+        target,
+        expected_backup_id,
+    ):
+        """
+        Verify that restoring a backup without a backup_id will retrieve the
+        correct backup_id depending on the recovery target used. This tests the
+        `else` statement in the main cloud_restore function when backup_id is
+        None.
+        """
+
+        backups = {
+            "20250108T120000": {
+                "end_time": load_datetime_tz("2025-01-08 12:00:00-03:00"),
+                "end_xlog": "3/61000000",
+                "status": "DONE",
+                "snapshots_info": None,
+            },
+            "20250107T120000": {
+                "end_time": load_datetime_tz("2025-01-07 12:00:00-03:00"),
+                "end_xlog": "3/5E000000",
+                "status": "DONE",
+                "snapshots_info": None,
+            },
+            "20250106T120000": {
+                "end_time": load_datetime_tz("2025-01-06 12:00:00-03:00"),
+                "end_xlog": "3/5B000000",
+                "status": "DONE",
+                "snapshots_info": None,
+            },
+        }
+
+        backups = dict(
+            (
+                bkp_id,
+                build_test_backup_info(backup_id=bkp_id, **bkp_metadata),
+            )
+            for bkp_id, bkp_metadata in backups.items()
+        )
+
+        cloud_backup_catalog = mock_catalog.return_value
+
+        available_backups = (
+            cloud_backup_catalog.get_backup_list.return_value.values.return_value
+        ) = backups.values()
+        recovery_dir = "/path/to/restore_dir"
+
+        target_args = (
+            ["--" + "-".join(target_option.split("_")), target] if target_option else []
+        )
+        target_tli = None
+        if target_option == "target_time":
+            mock_get_bkp_id_from_tgt_time.return_value = expected_backup_id
+        elif target_option == "target_lsn":
+            mock_get_bkp_id_from_tgt_lsn.return_value = expected_backup_id
+        elif target_option is None:
+            mock_get_last_bkp_id.return_value = expected_backup_id
+
+        cloud_backup_catalog.get_backup_info.return_value = backups[expected_backup_id]
+
+        cloud_restore.main(
+            [
+                "cloud_storage_url",
+                "test_server",
+                None,
+                recovery_dir,
+            ]
+            + target_args
+        )
+
+        if target_option == "target_time":
+            mock_get_bkp_id_from_tgt_time.assert_called_once_with(
+                available_backups, target, target_tli
+            )
+        elif target_option == "target_lsn":
+            mock_get_bkp_id_from_tgt_lsn.assert_called_once_with(
+                available_backups, target, target_tli
+            )
+        elif target_option is None:
+            mock_get_last_bkp_id.assert_called_once_with(available_backups)
+
+        cloud_backup_catalog.get_backup_info.assert_called_once_with(expected_backup_id)
+
+    @pytest.mark.parametrize(
+        ("expected_backup_id", "target_tli", "parsed_tli"),
+        (
+            ("20250108T120000", "latest", 2),
+            ("20250108T120000", "current", None),
+            ("20250107T120000", 1, 1),
+            ("20250108T120000", 2, 2),
+        ),
+    )
+    @mock.patch("barman.clients.cloud_restore.parse_target_tli")
+    @mock.patch("barman.clients.cloud_restore.CloudBackupDownloaderObjectStore")
+    @mock.patch("barman.clients.cloud_restore.get_backup_id_from_target_tli")
+    @mock.patch("barman.clients.cloud_restore.get_last_backup_id")
+    @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_restore.get_cloud_interface")
+    def test_restore_without_backup_id_with_target_tli(
+        self,
+        _mock_cloud_interface_factory,
+        mock_catalog,
+        mock_get_last_bkp_id,
+        mock_get_bkp_id_from_tgt_tli,
+        _mock_backup_downloader,
+        mock_parse_target_tli,
+        expected_backup_id,
+        target_tli,
+        parsed_tli,
+    ):
+        """
+        Verify that restoring a backup without a backup_id will retrieve the
+        correct backup_id depending on the recovery target used. This tests the
+        `else` statement in the main cloud_restore function when backup_id is
+        None.
+        """
+
+        backups = {
+            "20250108T120000": {
+                "end_time": load_datetime_tz("2025-01-08 12:00:00-03:00"),
+                "end_xlog": "3/61000000",
+                "status": "DONE",
+                "snapshots_info": None,
+                "timeline": "2",
+            },
+            "20250107T120000": {
+                "end_time": load_datetime_tz("2025-01-07 12:00:00-03:00"),
+                "end_xlog": "3/5E000000",
+                "status": "DONE",
+                "snapshots_info": None,
+                "timeline": "1",
+            },
+            "20250106T120000": {
+                "end_time": load_datetime_tz("2025-01-06 12:00:00-03:00"),
+                "end_xlog": "3/5B000000",
+                "status": "DONE",
+                "snapshots_info": None,
+                "timeline": "1",
+            },
+        }
+
+        backups = dict(
+            (
+                bkp_id,
+                build_test_backup_info(backup_id=bkp_id, **bkp_metadata),
+            )
+            for bkp_id, bkp_metadata in backups.items()
+        )
+
+        cloud_backup_catalog = mock_catalog.return_value
+
+        available_backups = (
+            cloud_backup_catalog.get_backup_list.return_value.values.return_value
+        ) = backups.values()
+        recovery_dir = "/path/to/restore_dir"
+
+        target_args = ["--target-tli", str(target_tli)]
+        if target_tli == "current":
+            mock_get_last_bkp_id.return_value = expected_backup_id
+        else:
+            mock_get_bkp_id_from_tgt_tli.return_value = expected_backup_id
+        mock_parse_target_tli.return_value = parsed_tli
+        cloud_backup_catalog.get_backup_info.return_value = backups[expected_backup_id]
+
+        cloud_restore.main(
+            [
+                "cloud_storage_url",
+                "test_server",
+                None,
+                recovery_dir,
+            ]
+            + target_args
+        )
+
+        if target_tli == "current":
+            mock_get_last_bkp_id.assert_called_once_with(available_backups)
+        else:
+            mock_get_bkp_id_from_tgt_tli.assert_called_once_with(
+                available_backups, parsed_tli
+            )
+
+        cloud_backup_catalog.get_backup_info.assert_called_once_with(expected_backup_id)
+
+    @mock.patch("logging.error")
+    @mock.patch("barman.clients.cloud_restore.get_backup_id_from_target_time")
+    @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_restore.get_cloud_interface")
+    def test_restore_without_backup_id_and_no_backup_id_found_from_targets(
+        self,
+        _mock_cloud_interface_factory,
+        _mock_catalog,
+        mock_get_bkp_id_from_tgt_time,
+        logger,
+    ):
+        """
+        Verify that restoring a backup without a backup_id passing multipl
+        recovery targets will fall into an error with a specific message.
+        """
+
+        recovery_dir = "/path/to/restore_dir"
+
+        target_args = [
+            "--target-time",
+            "2025-01-07 15:15:00",
+            "--target-tli",
+            "1",
+        ]
+        mock_get_bkp_id_from_tgt_time.return_value = None
+        with pytest.raises(OperationErrorExit):
+            cloud_restore.main(
+                [
+                    "cloud_storage_url",
+                    "test_server",
+                    None,
+                    recovery_dir,
+                ]
+                + target_args
+            )
+
+        error_msg = "Cannot find any candidate backup for recovery."
+        logger.assert_called_once_with(error_msg)
 
 
 class TestCloudBackupDownloader(object):
