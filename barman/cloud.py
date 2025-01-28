@@ -46,7 +46,7 @@ from barman.exceptions import (
     ConfigurationException,
 )
 from barman.fs import UnixLocalCommand, path_allowed
-from barman.infofile import BackupInfo
+from barman.infofile import BackupInfo, WalFileInfo
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
 from barman.utils import (
     BarmanEncoder,
@@ -2318,6 +2318,33 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
                     raise SystemExit(1)
 
         return backup_files
+
+    def get_latest_archived_wals_info(self):
+        """
+        Return a dictionary of timelines associated with the
+        WalFileInfo of the last WAL file in the archive,
+        or an empty dict if the archive doesn't contain any WAL file.
+
+        :rtype: dict[str, WalFileInfo]
+        """
+        if not self.get_wal_paths():
+            return dict()
+
+        timelines = {}
+        for name in sorted(self.get_wal_paths(), reverse=True):
+            # Extract the timeline. If it is not valid, skip this directory
+            try:
+                timeline = name[0:8]
+                int(timeline, 16)
+            except ValueError:
+                continue
+                # If this timeline already has a file, skip this directory
+            if timeline in timelines:
+                continue
+            timelines[timeline] = WalFileInfo(name=name)
+            break
+        # Return the timeline map
+        return timelines
 
 
 class CloudSnapshotInterface(with_metaclass(ABCMeta)):

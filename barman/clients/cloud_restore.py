@@ -35,7 +35,16 @@ from barman.cloud_providers import (
 from barman.exceptions import ConfigurationException
 from barman.fs import UnixLocalCommand
 from barman.recovery_executor import SnapshotRecoveryExecutor
-from barman.utils import force_str, with_metaclass
+from barman.utils import (
+    check_tli,
+    force_str,
+    get_backup_id_from_target_lsn,
+    get_backup_id_from_target_time,
+    get_backup_id_from_target_tli,
+    get_last_backup_id,
+    parse_target_tli,
+    with_metaclass,
+)
 
 
 def _validate_config(config, backup_info):
@@ -80,9 +89,46 @@ def main(args=None):
                 raise OperationErrorExit()
 
             catalog = CloudBackupCatalog(cloud_interface, config.server_name)
-            backup_id = catalog.parse_backup_id(config.backup_id)
+            backup_id = None
+            if config.backup_id is not None:
+                backup_id = catalog.parse_backup_id(config.backup_id)
+            else:
+                target_options = ["target_time", "target_lsn"]
+                target_option = None
+                for option in target_options:
+                    target = getattr(config, option, None)
+                    if target is not None:
+                        target_option = option
+                        break
+
+                # "Parse" the string value to integer for `target_tli` if passed as a
+                # string ("current", "latest")
+                target_tli = parse_target_tli(obj=catalog, target_tli=config.target_tli)
+
+                backup_id = None
+                available_backups = catalog.get_backup_list().values()
+                if target_option is None:
+                    if target_tli is not None:
+                        backup_id = get_backup_id_from_target_tli(
+                            available_backups, target_tli
+                        )
+                    else:
+                        backup_id = get_last_backup_id(available_backups)
+                elif target_option == "target_time":
+                    backup_id = get_backup_id_from_target_time(
+                        available_backups, target, target_tli
+                    )
+                elif target_option == "target_lsn":
+                    backup_id = get_backup_id_from_target_lsn(
+                        available_backups, target, target_tli
+                    )
+                # If no candidate backup_id is found, error out.
+                if backup_id is None:
+                    logging.error("Cannot find any candidate backup for recovery.")
+                    raise OperationErrorExit()
 
             backup_info = catalog.get_backup_info(backup_id)
+            logging.info("Restoring from backup_id: %s" % backup_id)
             if not backup_info:
                 logging.error(
                     "Backup %s for server %s does not exists",
@@ -136,7 +182,7 @@ def parse_arguments(args=None):
         "previously made with barman-cloud-backup command."
         "Currently AWS S3, Azure Blob Storage and Google Cloud Storage are supported.",
     )
-    parser.add_argument("backup_id", help="the backup ID")
+    parser.add_argument("backup_id", help="the backup ID", nargs="?", default=None)
     parser.add_argument("recovery_dir", help="the path to a directory for recovery.")
     parser.add_argument(
         "--tablespace",
@@ -175,6 +221,14 @@ def parse_arguments(args=None):
         "--azure-resource-group",
         help="Resource group containing the instance and disks for the snapshot recovery",
     )
+    parser.add_argument(
+        "--target-time",
+        help="target time. You can use any valid unambiguous representation. "
+        'e.g: "YYYY-MM-DD HH:MM:SS.mmm"',
+    )
+    target_args = parser.add_mutually_exclusive_group()
+    target_args.add_argument("--target-lsn", help="target LSN (Log Sequence Number)")
+    target_args.add_argument("--target-tli", help="target timeline", type=check_tli)
     return parser.parse_args(args=args)
 
 

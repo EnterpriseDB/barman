@@ -1144,7 +1144,11 @@ def parse_target_tli(obj, target_tli, backup_info=None):
         going to fetch the best backup for recovery, so ``current`` is not allowed
         because there is no ``current`` backup.
 
-    :param BackupManager obj: A backup manager object.
+        This method can also be used in the cloud script to retrieve the latest WAL
+        from the cloud catalog when shortcut is ``latest``.
+
+    :param BackupManager|CloudBackupCatalog obj: A BackupManager or a CloudBackupCatalog
+        object.
     :param str|int target_tli: Target timeline value. Accepts both an integer
         representing the timeline, or keywords accepted by Postgres, such as ``current``
         and ``latest``.
