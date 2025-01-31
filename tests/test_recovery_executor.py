@@ -663,15 +663,15 @@ class TestRecoveryExecutor(object):
             # WHEN no target_tli we expect no target timeline in the output
             # AND we expect that `is_pitr` is not set
             (None, False, None),
-            # WHEN target_tli is 2 we expect no target timeline in the output
-            # AND we expect that `is_pitr` is not set
-            (2, False, None),
+            # WHEN target_tli is 2 we expect target timeline 2 in the output
+            # AND we expect that `is_pitr` is set
+            (2, True, 2),
             # WHEN target_tli is 3 we expect target timeline 3 in the output
             # AND we expect that `is_pitr` is set
             (3, True, 3),
-            # WHEN target_tli is current we expect no target timeline in the output
-            # AND we expect that `is_pitr` is not set
-            ("current", False, None),
+            # WHEN target_tli is current we expect target timeline 2 in the output
+            # AND we expect that `is_pitr` is set
+            ("current", True, 2),
             # WHEN target_tli is latest we expect target timeline 10 in the output
             # AND we expect that `is_pitr` is set
             ("latest", True, 10),
