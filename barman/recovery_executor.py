@@ -488,10 +488,9 @@ class RecoveryExecutor(object):
 
         d_immediate = backup_info.version >= 90400 and target_immediate
         d_lsn = backup_info.version >= 100000 and target_lsn
-        d_tli = calculated_target_tli != backup_info.timeline and calculated_target_tli
 
         # Detect PITR
-        if target_time or target_xid or d_tli or target_name or d_immediate or d_lsn:
+        if any([target_time, target_xid, target_tli, target_name, d_immediate, d_lsn]):
             recovery_info["is_pitr"] = True
             targets = {}
             if target_time:
@@ -536,8 +535,8 @@ class RecoveryExecutor(object):
                 targets["xid"] = str(target_xid)
             if d_lsn:
                 targets["lsn"] = str(d_lsn)
-            if d_tli:
-                targets["timeline"] = str(d_tli)
+            if target_tli:
+                targets["timeline"] = str(calculated_target_tli)
             if target_name:
                 targets["name"] = str(target_name)
             if d_immediate:
