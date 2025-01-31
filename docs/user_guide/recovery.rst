@@ -61,9 +61,10 @@ Specify a recovery ``target`` with one of the options:
 
 * ``--target-time``: Recover to a specific timestamp.
 * ``--target-xid``: Recover to a specific transaction ID.
-* ``--target-lsn``: Recover to a Log Sequence Number (Postgres 10+).
+* ``--target-lsn``: Recover to a Log Sequence Number.
 * ``--target-name``: Recover to a named restore point.
-* ``--target-immediate``: End recovery when a consistent state is reached (default).
+* ``--target-tli``: Recover to a specific timeline.
+* ``--target-immediate``: End recovery when a consistent state is reached.
 
 .. note::
   * Recovery targets must be a value after the end of the backup. To recover to a
@@ -73,7 +74,10 @@ Specify a recovery ``target`` with one of the options:
   * Use ``--exclusive`` to control whether to stop right before the target or including
     the target.
   * ``--target-tli`` sets the target timeline. Use numeric IDs or shortcut values
-    (latest or current).
+    (``latest`` or ``current``).
+  * When at least one `--target-*` option is specified, a ``recovery.signal`` file is
+    created by Barman when restoring the backup, which signals the server to start a
+    targeted recovery.
 
 The previous targets can be used with a ``--target-action`` which can take these values:
 
@@ -82,8 +86,19 @@ The previous targets can be used with a ``--target-action`` which can take these
 * ``promote``: Promote Postgres to primary when the target is reached.
 
 You can also configure the instance as a standby by calling ``--standby-mode``. After
-recovery, ensure you modify the configuration to connect to the intended upstream node
-server.
+the backup is restored, ensure you modify the configuration to connect to the intended
+upstream node before starting the restored node in recovery mode.
+
+.. note::
+  * When ``--standby-mode`` is specified, a ``standby.signal`` file is created instead
+    of a ``recovery.signal`` file.
+  * When using ``--standby-mode``, although possible, you are not expected to set any of
+    the ``--target-*`` options.
+
+.. seealso::
+  For more information regarding Postgres recovery behavior, refer to
+  `Archive Recovery <https://www.postgresql.org/docs/current/runtime-config-wal.html#RUNTIME-CONFIG-WAL-ARCHIVE-RECOVERY>`_
+  and `Recovery Target <https://www.postgresql.org/docs/current/runtime-config-wal.html#RUNTIME-CONFIG-WAL-RECOVERY-TARGET>`_
 
 .. _recovery-fetching-wals-from-barman:
 
