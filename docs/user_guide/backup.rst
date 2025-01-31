@@ -392,9 +392,9 @@ the Barman backup command. For example, to run a one-off incremental backup, use
     affected. Deduplication in rsync backups uses hard links, meaning that when a reused
     backup is deleted, you don't need to create a new full backup; shared files will
     remain on disk until the last backup that used those files is also deleted.
-    Additionally, using ``reuse_backup = on`` for the initial backup has no effect, as
-    it will still be treated as a full backup due to the absence of existing files to
-    link.
+    Additionally, using ``reuse_backup = link`` or ``reuse_backup = copy`` for the
+    initial backup has no effect, as it will still be treated as a full backup due to
+    the absence of existing files to link or copy.
 
 .. _backup-concurrent-backup-of-a-standby:
 
@@ -470,6 +470,50 @@ restoring a backup.
     ``backup_method = postgres``, you may want to configure a post-backup hook
     and use the output of ``barman show-server`` command to back up the external
     configuration files on your own right after the backup is finished.
+
+
+.. _backup-backups-on-immutable-storage:
+
+Using an immutable storage for backups
+--------------------------------------
+
+Barman can be configured to store backups on immutable storage to protect against
+malicious actors or accidental deletions. Such storage may also be referred to as WORM (Write Once,
+Read Many) storage.
+
+The main use case for these type of storage is to protect the backups from ransomware
+attacks. By using immutable storage, the backups cannot be deleted or modified for a
+specific period of time.
+
+To configure Barman to store backups on immutable storage, you need to follow these
+suggestions:
+
+* Only the following two directories should be configured to be stored on the immutable
+  storage path:
+  
+  * :ref:`basebackups_directory <configuration-options-backups-basebackups-directory>`:
+    The directory where backups are stored.
+  * :ref:`wal_directory <configuration-options-wals-wals-directory>`: The directory
+    where WAL files are stored.
+* All other directories should be stored on a regular storage path because they are used
+  by Barman's internal process and don't hold data crucial for restoring the cluster.
+  This can be accomplished by configuring the :ref:`barman_home <configuration-options-general-barman-home>`
+  option to point to a regular storage in the global configuration, or the
+  :ref:`backup_directory <configuration-options-backups-backup-directory>`
+  option in the server section. This still requires that the options from the previous
+  bullet points are set accordingly.
+* The WAL file catalog should be stored on a regular storage path. This can be
+  accomplished by configuring the :ref:`xlogdb_directory <configuration-options-wals-xlogdb-directory>`
+  option to point to a regular storage.
+* Retention policies should cover at least the full period in which the backed up files
+  are immutable. This can be accomplished by setting the ``retention_policy`` option in
+  the server section to a value that is greater than the immutable storage's period of
+  immutability. This is to ensure that the backups are not deleted before the
+  immutability period expires.
+
+.. note::
+    This option was included in Barman 3.12. Refer to the configuration option
+    ``xlogdb_directory`` for more information.
 
 .. _backup-cloud-snapshot-backups:
 
@@ -711,7 +755,7 @@ Barman will return an error.
     aws_profile = AWS_PROFILE_NAME
     aws_await_snapshots_timeout = TIMEOUT_IN_SECONDS
 
-4. **Ransomware Protection**
+5. **Ransomware Protection**
 
 Ransomware protection is essential to secure data and maintain operational stability.
 With Amazon EBS Snapshot Lock, snapshots are protected from deletion, providing an

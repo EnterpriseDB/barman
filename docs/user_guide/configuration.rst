@@ -133,6 +133,8 @@ operations. A value of ``0`` indicates no limit (default).
 
 Scope: Global / Server / Model.
 
+.. _configuration-options-general-barman-home:
+
 **barman_home**
 
 Designates the main data directory for Barman. Defaults to ``/var/lib/barman``.
@@ -147,26 +149,6 @@ Specifies the directory for lock files. The default is ``barman_home``.
   The ``barman_lock_directory`` should be on a non-network local filesystem.
 
 Scope: Global.
-
-**basebackup_retry_sleep**
-
-Sets the number of seconds to wait after a failed base backup copy before retrying.
-Default is ``30`` seconds. Must be a non-negative integer.
-
-.. note::
-  This applies to both backup and recovery operations.
-
-Scope: Global / Server / Model.
-
-**basebackup_retry_times**
-
-Defines the number of retry attempts for a base backup copy after an error occurs.
-Default is ``0`` (no retries). Must be a non-negative integer.
-
-.. note::
-  This applies to both backup and recovery operations.
-
-Scope: Global / Server / Model.
 
 **check_timeout**
 
@@ -511,6 +493,8 @@ the standard compression behavior.
 
 Scope: Global / Server / Model.
 
+.. _configuration-options-backups-backup-directory:
+
 **backup_directory**
 
 Specifies the directory where backup data for a server will be stored. Defaults to
@@ -553,12 +537,34 @@ list that can include:
 
 Scope: Global / Server / Model.
 
+.. _configuration-options-backups-basebackups-directory:
+
 **basebackups_directory**
 
 Specifies the directory where base backups are stored. Defaults to
 ``<backup_directory>/base``.
 
 Scope: Server.
+
+**basebackup_retry_sleep**
+
+Sets the number of seconds to wait after a failed base backup copy before retrying.
+Default is ``30`` seconds. Must be a non-negative integer.
+
+.. note::
+  This applies to both backup and recovery operations.
+
+Scope: Global / Server / Model.
+
+**basebackup_retry_times**
+
+Defines the number of retry attempts for a base backup copy after an error occurs.
+Default is ``0`` (no retries). Must be a non-negative integer.
+
+.. note::
+  This applies to both backup and recovery operations.
+
+Scope: Global / Server / Model.
 
 **reuse_backup**
 
@@ -1051,11 +1057,15 @@ privileges.
 
 Scope: Server / Model.
 
+.. _configuration-options-wals-wals-directory:
+
 **wals_directory**
 
 Directory containing WAL files. Defaults to ``<backup_directory>/wals``.
 
 Scope: Server.
+
+.. _configuration-options-wals-xlogdb-directory:
 
 **xlogdb_directory**
 
