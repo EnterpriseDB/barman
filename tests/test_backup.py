@@ -1284,7 +1284,6 @@ class TestBackup(object):
                     server=backup_manager.server,
                     backup_id=bkp_id,
                     parent_backup_id=par_bkp_id,
-                    summarize_wal="on",
                 ),
             )
             for bkp_id, par_bkp_id in available_backups.items()
@@ -1294,6 +1293,20 @@ class TestBackup(object):
         last_full_backup = backup_manager.get_last_full_backup_id()
         get_available_backups.assert_called_once()
         assert last_full_backup == "20241011T180000"
+        get_available_backups.reset_mock()
+        # Add an rsync backup
+        backup_manager = build_backup_manager(global_conf={"backup_method": "rsync"})
+        rsync_backup = build_test_backup_info(
+            server=backup_manager.server,
+            backup_id="20241015T180000",
+        )
+
+        backups["20241015T180000"] = rsync_backup
+        get_available_backups.return_value = backups
+
+        last_full_backup = backup_manager.get_last_full_backup_id()
+        get_available_backups.assert_called_once()
+        assert last_full_backup == "20241015T180000"
 
     @patch("barman.backup._logger")
     @patch("barman.backup.output")

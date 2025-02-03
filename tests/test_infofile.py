@@ -1280,16 +1280,23 @@ class TestLocalBackupInfo:
             walk_mock.return_value = (incremental2, incremental1, root_backup)
             assert incremental3.is_checksum_consistent() is expected
 
+    @pytest.mark.parametrize(
+        ("backup_method", "is_incremental"),
+        [
+            ("postgres", False),
+            ("rsync", False),
+        ],
+    )
     @patch("barman.infofile.BackupInfo.is_incremental", new_callable=PropertyMock)
-    def test_true_is_full_and_eligible_for_incremental(self, mock_is_incremental):
+    def test_true_is_full(self, mock_is_incremental, backup_method, is_incremental):
         """
-        Test that the function applies the correct conditions for a full backup
-        that is eligible for incremental mode. The backup_method should be `postgres`,
-        the summarize_wal should be ``on`` and backup should be incremental.
+        Test that the function applies the correct conditions for a full backup. The
+        backup_method should not be ``snapshot`` and the backup should not be
+        incremental.
+
+        It tests if the backup is a full backup.
         """
-        mock_is_incremental.return_value = False
-        backup_method = "postgres"
-        summarize_wal = "on"
+        mock_is_incremental.return_value = is_incremental
 
         pg_backup_manager = build_backup_manager(
             main_conf={"backup_method": backup_method}
@@ -1298,31 +1305,25 @@ class TestLocalBackupInfo:
         backup_info = build_test_backup_info(
             server=pg_backup_manager.server,
             backup_id="12345",
-            summarize_wal=summarize_wal,
         )
 
-        assert backup_info.is_full_and_eligible_for_incremental()
+        assert backup_info.is_full
 
     @pytest.mark.parametrize(
-        ("backup_method", "summarize_wal", "is_incremental"),
+        ("backup_method", "is_incremental"),
         [
-            ("postgres", "on", True),
-            ("postgres", "off", True),
-            ("postgres", "off", False),
-            ("rsync", "on", True),
-            ("rsync", "on", False),
-            ("rsync", "off", True),
-            ("rsync", "off", False),
+            ("postgres", True),
+            ("snapshot", False),
         ],
     )
     @patch("barman.infofile.BackupInfo.is_incremental", new_callable=PropertyMock)
-    def test_false_is_full_and_eligible_for_incremental(
-        self, mock_is_incremental, backup_method, summarize_wal, is_incremental
-    ):
+    def test_false_is_full(self, mock_is_incremental, backup_method, is_incremental):
         """
-        Test that the function applies the correct conditions for a full backup
-        that is eligible for incremental mode. The backup_method should be `postgres`,
-        the summarize_wal should be `on` and backup should be incremental.
+        Test that the function applies the correct conditions for a full backup. The
+        ``backup_method`` should not be ``snapshot`` and the backup should not be
+        incremental.
+
+        It tests if the backup is not a full backup.
         """
         mock_is_incremental.return_value = is_incremental
 
@@ -1333,10 +1334,9 @@ class TestLocalBackupInfo:
         backup_info = build_test_backup_info(
             server=backup_manager.server,
             backup_id="12345",
-            summarize_wal=summarize_wal,
         )
 
-        assert not backup_info.is_full_and_eligible_for_incremental()
+        assert not backup_info.is_full
 
 
 class TestSyntheticBackupInfo:
