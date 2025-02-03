@@ -37,7 +37,7 @@ from testing_helpers import (
 )
 
 import barman.utils
-from barman.infofile import WalFileInfo, load_datetime_tz
+from barman.infofile import BackupInfo, WalFileInfo, load_datetime_tz
 from barman.lockfile import LockFile
 
 LOGFILE_NAME = "logfile.log"
@@ -1025,6 +1025,75 @@ class TestCheckBackupNames(object):
         )
         # THEN None is returned
         assert backup_info is None
+
+    @pytest.mark.parametrize(
+        "shortcut",
+        (
+            "latest",
+            "last",
+            "oldest",
+            "first",
+            "last-failed",
+            "latest-full",
+            "last-full",
+            "12345",
+        ),
+    )
+    @mock.patch("barman.utils.is_backup_id")
+    def test_get_backup_id_using_shortcut(
+        self,
+        mock_is_backup_id,
+        shortcut,
+    ):
+        backup_manager = build_backup_manager()
+        server = backup_manager.server
+        barman.utils.get_backup_id_using_shortcut(server, shortcut, BackupInfo)
+        if shortcut in ("latest", "last"):
+            server.get_last_backup_id.assert_called_once_with()
+        elif shortcut in ("oldest", "first"):
+            server.get_first_backup_id.assert_called_once_with()
+        elif shortcut in ("last-failed"):
+            server.get_last_backup_id.assert_called_once_with([BackupInfo.FAILED])
+        elif shortcut in ("latest-full", "last-full"):
+            server.get_last_full_backup_id.assert_called_once_with()
+        else:
+            mock_is_backup_id.assert_called_once_with(shortcut)
+
+    def test_get_backup_info_from_name(self):
+        """
+        Test the `get_backup_info_from_name` from utils will return the correct
+        backup based on a named backup.
+        """
+        backup_manager = build_backup_manager()
+
+        available_backups = {
+            "20250108T120000": {
+                "status": "DONE",
+            },
+            "20250107T120000": {
+                "status": "DONE",
+            },
+            "20250106T120000": {
+                "status": "DONE",
+                "backup_name": "my_test_backup",
+            },
+        }
+
+        backups = dict(
+            (
+                bkp_id,
+                build_test_backup_info(
+                    server=backup_manager.server, backup_id=bkp_id, **bkp_metadata
+                ),
+            )
+            for bkp_id, bkp_metadata in available_backups.items()
+        )
+
+        backup_info = barman.utils.get_backup_info_from_name(
+            backups.values(), "my_test_backup"
+        )
+
+        assert backup_info == backups["20250106T120000"]
 
 
 class TestBackupRecoveryTargets(object):

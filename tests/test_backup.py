@@ -1517,6 +1517,46 @@ class TestBackup(object):
         )
         assert backup_id == backup_id_found
 
+    @patch("barman.backup.get_backup_info_from_name")
+    @patch("barman.backup.BackupManager.get_available_backups")
+    def test_get_backup_id_from_name(
+        self, mock_get_available_backups, mock_get_backup_info_from_name
+    ):
+        """
+        Test that the method `get_backup_id_from_name` will behave as expected
+        throughout its code path, calling the correct mocked methods and returning the
+        mocked result.
+        """
+        backup_manager = build_backup_manager()
+        available_backups = {
+            "20250107T120000": {
+                "backup_name": "my_test_backup",
+                "backup_id": "20250107T120000",
+                "end_time": load_datetime_tz("2025-01-07 12:00:00"),
+                "end_xlog": "3/5E000000",
+                "status": "DONE",
+                "timeline": 1,
+            },
+        }
+
+        backups = dict(
+            (
+                bkp_id,
+                build_test_backup_info(server=backup_manager.server, **bkp_metadata),
+            )
+            for bkp_id, bkp_metadata in available_backups.items()
+        )
+        dict_values = mock_get_available_backups.return_value.values.return_value = (
+            backups.values()
+        )
+        mock_get_backup_info_from_name.return_value = backups["20250107T120000"]
+        backup_id_found = backup_manager.get_backup_id_from_name("my_test_backup")
+        mock_get_available_backups.assert_called_once()
+        mock_get_backup_info_from_name.assert_called_once_with(
+            dict_values, "my_test_backup"
+        )
+        assert "20250107T120000" == backup_id_found
+
 
 class TestWalCleanup(object):
     """Test cleanup of WALs by BackupManager"""

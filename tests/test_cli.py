@@ -1553,6 +1553,8 @@ class TestCli(object):
             ({}, "oldest"),
             ({}, "first"),
             ({}, "last-failed"),
+            ({}, "last-full"),
+            ({}, "latest-full"),
         ),
     )
     @patch("barman.backup.BackupManager._load_backup_cache")
@@ -1573,6 +1575,35 @@ class TestCli(object):
         # AND the expected error is returned
         _out, err = capsys.readouterr()
         assert "Unknown backup '%s' for server 'main'" % backup_id in err
+
+    @pytest.mark.parametrize(
+        ("backup_id", "expected_backup_id"),
+        (
+            ("latest-full", "20221110T120000"),
+            ("last-full", "20221110T120000"),
+        ),
+    )
+    def test_parse_backup_id_shortcut_full(
+        self,
+        backup_id,
+        expected_backup_id,
+    ):
+        server = build_mocked_server()
+        backup_infos = {
+            "20221110T120000": Mock(backup_id="20221110T120000", status="DONE"),
+            "20221109T120000": Mock(backup_id="20221109T120000", status="DONE"),
+            "20221106T120000": Mock(backup_id="20221106T120000", status="DONE"),
+        }
+        server.backup_manager._backup_cache = backup_infos
+
+        args = Mock(backup_id=backup_id)
+        server.get_backup.return_value = backup_infos[expected_backup_id]
+        backup_info = parse_backup_id(server, args)
+        server.get_last_full_backup_id.assert_called_once_with()
+        server.get_backup.assert_called_once_with(
+            server.get_last_full_backup_id.return_value
+        )
+        assert backup_info is backup_infos[expected_backup_id]
 
     @patch("barman.server.Server.replication_status")
     def test_replication_status(self, replication_status_mock, monkeypatch, capsys):
