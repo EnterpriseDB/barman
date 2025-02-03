@@ -54,7 +54,16 @@ else:
     _text_type = unicode  # noqa
     _string_types = basestring  # noqa
 
-RESERVED_BACKUP_IDS = ("latest", "last", "oldest", "first", "last-failed", "auto")
+RESERVED_BACKUP_IDS = (
+    "latest",
+    "last",
+    "oldest",
+    "first",
+    "last-failed",
+    "latest-full",
+    "last-full",
+    "auto",
+)
 
 
 def drop_privileges(user):

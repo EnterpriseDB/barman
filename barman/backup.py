@@ -387,7 +387,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         """
         available_full_backups = list(
             filter(
-                lambda backup: backup.is_full_and_eligible_for_incremental(),
+                lambda backup: backup.is_full,
                 self.get_available_backups(status_filter).values(),
             )
         )
@@ -792,9 +792,9 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         if parent_backup_info:
             if parent_backup_info.summarize_wal != "on":
                 raise BackupException(
-                    "The specified backup is not eligible as a parent for an "
+                    "Backup ID %s is not eligible as a parent for an "
                     "incremental backup because WAL summaries were not enabled "
-                    "when that backup was taken."
+                    "when that backup was taken." % parent_backup_info.backup_id
                 )
             if parent_backup_info.compression is not None:
                 raise BackupException(

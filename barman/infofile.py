@@ -1056,28 +1056,21 @@ class LocalBackupInfo(BackupInfo):
                 return False
         return True
 
-    def is_full_and_eligible_for_incremental(self):
+    @property
+    def is_full(self):
         """
-        Check if this is a full backup taken with `postgres` method and which is
-        eligible to be a parent for an incremental backup.
+        Check if this is a full backup.
 
         .. note::
-            Only consider backups which are eligible for Postgres core
-            incremental backups:
+            Consider all backups which are not Snapshot backups and are not incremental
+            backups:
 
-            * backup_method = ``postgres``
-            * summarize_wal = ``on``
+            * backup_type != ``snapshot``
             * is_incremental = ``False``
 
-        :return bool: True if it's a full backup or False if not.
+        :return bool: ``True`` if it's a full backup or ``False`` if not.
         """
-        if (
-            self.mode == "postgres"
-            and self.summarize_wal == "on"
-            and not self.is_incremental
-        ):
-            return True
-        return False
+        return self.backup_type not in ("snapshot", "incremental")
 
     @property
     def is_orphan(self):
