@@ -1205,6 +1205,44 @@ class TestBackup(object):
         # no exception is raised when summarize_wal is on
         backup_manager._validate_incremental_backup_configs()
 
+    @pytest.mark.parametrize("summarize_wal", ["on", "off", None])
+    @patch("barman.backup.BackupManager.get_backup")
+    def test_validate_incremental_backup_parent_backup_info_summarize_wal(
+        self, mock_get_backup, summarize_wal
+    ):
+        """
+        Verify how ``_validate_incremental_backup_configs`` behave based on the parent
+        backup info.
+        """
+        backup_manager = build_backup_manager(global_conf={"backup_method": "postgres"})
+
+        # mock the postgres object to set server version
+        mock_postgres = Mock()
+        backup_manager.executor.server.postgres = mock_postgres
+        mock_postgres.configure_mock(server_version=170000)
+
+        # To get to the check of the parent_backup `summarize_wal` status
+        # `summarize_wal` should be 'on' in the postgres node.
+        backup_manager.executor.server.postgres.get_setting.return_value = "on"
+
+        mock_get_backup.return_value = build_test_backup_info(
+            server=backup_manager.server, backup_id="12345", summarize_wal=summarize_wal
+        )
+        incremental_kwargs = {"parent_backup_id": Mock()}
+
+        err_msg = (
+            "Backup ID 12345 is not eligible as a parent for an incremental "
+            "backup because WAL summaries were not enabled when that backup was taken."
+        )
+
+        if summarize_wal != "on":
+            with pytest.raises(BackupException, match=err_msg):
+                backup_manager._validate_incremental_backup_configs(
+                    **incremental_kwargs
+                )
+        else:
+            backup_manager._validate_incremental_backup_configs(**incremental_kwargs)
+
     @pytest.mark.parametrize(
         ("parent_backup_compression", "backup_compression"),
         list(itertools.product(("gzip", None), ("gzip", None))),
