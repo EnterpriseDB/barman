@@ -48,7 +48,6 @@ Parameters
         * - **last/latest**
           - Most recent available backup for the server, in chronological order.
         * - **last-full/latest-full**
-          - Most recent full backup eligible for a block-level incremental backup using the
-            ``--incremental`` option.
+          - Most recent full backup taken with methods ``rsync`` or ``postgres``.
         * - **last-failed**
           - Most recent backup that failed, in chronological order.
