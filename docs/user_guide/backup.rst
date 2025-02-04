@@ -804,7 +804,7 @@ Install it using pip:
 2. **Disk Requirements**
 
 All disks involved in the snapshot backup must be non-root EBS volumes attached to the
-same VM instance and NVMe volumes are not supported.
+same VM instance.
 
 3. **Access Control**
 
