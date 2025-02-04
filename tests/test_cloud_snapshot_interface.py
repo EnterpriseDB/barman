@@ -3672,20 +3672,27 @@ class TestAwsVolumeMetadata(object):
         (
             # Devices mapped with the same name should be found for either type of
             # virtualization
-            ("/dev/sdf", "/dev/sdf", "hvm"),
-            ("/dev/sdf", "/dev/sdf", "paravirtual"),
+            ("/dev/sdf", "sdf", "hvm"),
+            ("/dev/sdf", "sdf", "paravirtual"),
             # Devices mapped to xvdf should be found with hardware virtualization
-            ("/dev/sdf", "/dev/xvdf", "hvm"),
+            ("/dev/sdf", "xvdf", "hvm"),
             # Devices mapped to hdf should be found with paravirtualization
-            ("/dev/sdf", "/dev/hdf", "paravirtual"),
+            ("/dev/sdf", "hdf", "paravirtual"),
         ),
     )
+    @mock.patch("os.listdir")
     def test_resolve_mounted_volume(
-        self, device_name_from_api, device_name_on_instance, virtualization_type
+        self,
+        mock_listdir,
+        device_name_from_api,
+        device_name_on_instance,
+        virtualization_type,
     ):
         # GIVEN AwsVolumeMetadata with the API-reported device name and virtualization
         # type
-        attachment_metadata = {"VolumeId": "vol-0123", "Device": device_name_from_api}
+        attachment_metadata = {
+            "Device": device_name_from_api,
+        }
         volume = AwsVolumeMetadata(attachment_metadata, virtualization_type)
         # AND a findmnt response which returns mount data for the mapped device name
         mock_cmd = mock.Mock()
@@ -3698,6 +3705,7 @@ class TestAwsVolumeMetadata(object):
 
         mock_cmd.findmnt.side_effect = mock_findmnt
 
+        mock_listdir.return_value = [device_name_on_instance]
         # WHEN resolve_mounted_volume is called
         volume.resolve_mounted_volume(mock_cmd)
 
