@@ -3735,6 +3735,18 @@ class TestAwsVolumeMetadata(object):
                 None,
                 "Cannot resolve mounted volume: device name unknown",
             ),
+            (
+                lambda x: (None, None),
+                "/dev/sda1",
+                "'/dev/sda1' is a root volume. EBS volumes envolved in the snapshot "
+                "backup must be non-root.",
+            ),
+            (
+                lambda x: (None, None),
+                "/dev/xvda",
+                "'/dev/xvda' is a root volume. EBS volumes envolved in the snapshot "
+                "backup must be non-root.",
+            ),
         ),
     )
     def test_resolve_mounted_volume_failure(
@@ -3755,3 +3767,43 @@ class TestAwsVolumeMetadata(object):
 
         # AND the exception has the expected error message
         assert str(exc.value) == expected_exception_msg
+
+    @mock.patch("os.listdir")
+    def test_resolve_mounted_volume_nvme(self, mock_listdir):
+        device_name_on_instance = "nvme1n1"
+        device_name_on_api = "/dev/sdf"
+        volume_id_on_instance = "vol0123"
+        volume_id_on_api = "vol-0123"
+        # GIVEN AwsVolumeMetadata with the API-reported device name and virtualization
+        # type
+        attachment_metadata = {
+            "VolumeId": volume_id_on_api,
+            "Device": device_name_on_api,
+        }
+        virtualization_type = "hvm"
+        volume = AwsVolumeMetadata(attachment_metadata, virtualization_type)
+        # AND a findmnt response which returns mount data for the mapped device name
+        mock_cmd = mock.Mock()
+
+        mock_listdir.return_value = [device_name_on_instance]
+
+        def mock_findmnt(device):
+            if device == device_name_on_instance:
+                return "mount_point", "mount_options"
+            else:
+                return None, None
+
+        mock_cmd.findmnt.side_effect = mock_findmnt
+
+        # Mock the file existence (os.path.isfile should return True)
+        with mock.patch("os.path.isfile", return_value=True):
+            # Mock open() to simulate the content of the file
+            with mock.patch(
+                "builtins.open", mock.mock_open(read_data=volume_id_on_instance)
+            ):
+                # WHEN resolve_mounted_volume is called
+                volume.resolve_mounted_volume(mock_cmd)
+
+        # THEN the expected mount data is set on the volume metadata
+        assert volume.mount_point == "mount_point"
+        assert volume.mount_options == "mount_options"
