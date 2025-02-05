@@ -17,7 +17,7 @@
                   [ { -P | --aws-profile } AWS_PROFILE ]
                   [ --profile AWS_PROFILE ]
                   [ --read-timeout READ_TIMEOUT ]
-                  [ { --azure-credential | --credential } { azure-cli | managed-identity } ]
+                  [ { --azure-credential | --credential } { azure-cli | managed-identity | default } ]
                   [ --format FORMAT ]
                   SOURCE_URL SERVER_NAME BACKUP_ID
 
@@ -99,3 +99,4 @@ but it has fewer information.
 
   * ``azure-cli``.
   * ``managed-identity``.
+  * ``default``.

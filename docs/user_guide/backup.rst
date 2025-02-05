@@ -664,8 +664,8 @@ login.
 
 The following environment variables are supported: ``AZURE_STORAGE_CONNECTION_STRING``,
 ``AZURE_STORAGE_KEY`` and ``AZURE_STORAGE_SAS_TOKEN``. You can also use the
-``--credential`` option to specify either ``azure-cli`` or ``managed-identity``
-credentials in order to authenticate via Azure Active Directory.
+``--credential`` option to specify either ``default``, ``azure-cli`` or
+``managed-identity`` credentials in order to authenticate via Azure Active Directory.
 
 .. important::
     Ensure the credential has the permissions listed below:
@@ -677,8 +677,9 @@ credentials in order to authenticate via Azure Active Directory.
     * ``Microsoft.Compute/snapshots/delete``
 
 For provider specific credential configurations, refer to the
-`Azure environment variables configurations <https://learn.microsoft.com/en-us/azure/storage/blobs/authorize-data-operations-cli#set-environment-variables-for-authorization-parameters>`_
-and `Identity Package <https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity?view=azure-python>`_.
+`Azure environment variables configurations <https://learn.microsoft.com/en-us/azure/storage/blobs/authorize-data-operations-cli#set-environment-variables-for-authorization-parameters>`_,
+`Identity Package <https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity?view=azure-python>`_ and 
+`DefaultAzureCredential documentation <https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.defaultazurecredential?view=azure-python>`_.
 
 4. **Specific Configuration**
 

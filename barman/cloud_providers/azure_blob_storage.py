@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# © Copyright EnterpriseDB UK Limited 2018-2023
+# © Copyright EnterpriseDB UK Limited 2018-2025
 #
 # This file is part of Barman.
 #
@@ -563,7 +563,6 @@ class AzureCloudSnapshotInterface(CloudSnapshotInterface):
             azure.identity.DefaultAzureCredential
             The Azure credential to be used when authenticating against the Azure API.
             If omitted then a DefaultAzureCredential will be created and used.
-
         """
         if subscription_id is None:
             raise TypeError("subscription_id cannot be None")

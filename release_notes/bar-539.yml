@@ -1,10 +1,11 @@
 ---
-- summary: Add support for `--azure-credential default` to `barman-cloud-*`
+- summary: Add support for `DefaultAzureCredential` option on Azure authentication
   description: |
-    Users can now specify `--azure-credential default` to explicitly use Azure's
-    `DefaultAzureCredential` for authentication. Previously, that could only be
-    used as a fallback when no credential was provided and no environment
-    variables were set.
+    Users can now explicitly use Azure's `DefaultAzureCredential` for authentication
+    by using the `default` option for `azure_credential` in the server configuration
+    or the `--azure-credential default` option in the case of `barman-cloud-*`.
+    Previously, that could only be set as a fallback when no credential was provided
+    and no environment variables were set.
   type: minor_change
   jira_tickets:
     - BAR-539

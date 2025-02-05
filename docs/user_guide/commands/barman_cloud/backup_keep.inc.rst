@@ -17,7 +17,7 @@
                   [ { -P | --aws-profile } AWS_PROFILE ]
                   [ --profile AWS_PROFILE ]
                   [ --read-timeout READ_TIMEOUT ]
-                  [ { --azure-credential | --credential } { azure-cli | managed-identity } ]
+                  [ { --azure-credential | --credential } { azure-cli | managed-identity | default } ]
                   [ { { -r | --release } | { -s | --status } | --target { full | standalone } } ]
                   SOURCE_URL SERVER_NAME BACKUP_ID
 
@@ -111,3 +111,4 @@ and are not subject to standard retention policies.
 
   * ``azure-cli``.
   * ``managed-identity``.
+  * ``default``.

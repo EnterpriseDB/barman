@@ -17,7 +17,8 @@
                   [ { -P | --aws-profile } AWS_PROFILE ]
                   [ --profile AWS_PROFILE ]
                   [ --read-timeout READ_TIMEOUT ]
-                  [ { --azure-credential | --credential } { azure-cli | managed-identity } ]
+                  [ { --azure-credential | --credential } 
+                    { azure-cli | managed-identity | default } ]
                   [ --timeline TIMELINE ]
                   DESTINATION_URL SERVER_NAME
 
@@ -94,3 +95,4 @@ the target bucket is not found. Any other conditions will result in a failure.
 
   * ``azure-cli``.
   * ``managed-identity``.
+  * ``default``.

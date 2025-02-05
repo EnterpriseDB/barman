@@ -17,7 +17,7 @@
                   [ { -P | --aws-profile } AWS_PROFILE ]
                   [ --profile AWS_PROFILE ]
                   [ --read-timeout READ_TIMEOUT ]
-                  [ { --azure-credential | --credential } { azure-cli | managed-identity } ]
+                  [ { --azure-credential | --credential } { azure-cli | managed-identity | default } ]
                   [ --snapshot-recovery-instance SNAPSHOT_RECOVERY_INSTANCE ]
                   [ --snapshot-recovery-zone GCP_ZONE ]
                   [ --aws-region AWS_REGION ]
@@ -126,6 +126,7 @@ snapshots and by downloading the backup label from object storage.
 
   * ``azure-cli``.
   * ``managed-identity``.
+  * ``default``.
 
 ``--azure-resource-group``
   The name of the Azure resource group to which the compute instance and disks defined by

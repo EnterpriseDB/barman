@@ -22,7 +22,8 @@
                   [ --read-timeout READ_TIMEOUT ]
                   [ { -e | --encryption } ENCRYPTION ]
                   [ --sse-kms-key-id SSE_KMS_KEY_ID ]
-                  [ { --azure-credential | --credential } { azure-cli | managed-identity } ]
+                  [ { --azure-credential | --credential } { azure-cli | managed-identity |
+                    default } ]
                   [ --encryption-scope ENCRYPTION_SCOPE ]
                   [ --max-block-size MAX_BLOCK_SIZE ]
                   [ --max-concurrency MAX_CONCURRENCY ]
@@ -153,6 +154,7 @@ Barman server. Additionally, it can be utilized as a hook script for WAL archivi
 
   * ``azure-cli``.
   * ``managed-identity``.
+  * ``default``.
 
 ``--encryption-scope``
   The name of an encryption scope defined in the Azure Blob Storage service which is to

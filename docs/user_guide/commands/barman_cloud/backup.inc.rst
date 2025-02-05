@@ -41,7 +41,7 @@
                   [ --aws-snapshot-lock-duration DAYS ]
                   [ --aws-snapshot-lock-cool-off-period HOURS ]
                   [ --aws-snapshot-lock-expiration-date DATETIME ]
-                  [ { --azure-credential | --credential } { azure-cli | managed-identity } ]
+                  [ { --azure-credential | --credential } { azure-cli | managed-identity | default } ]
                   [ --encryption-scope ENCRYPTION_SCOPE ]
                   [ --azure-subscription-id AZURE_SUBSCRIPTION_ID ]
                   [ --azure-resource-group AZURE_RESOURCE_GROUP ]
@@ -235,6 +235,7 @@ uploaded to the cloud.
 
   * ``azure-cli``.
   * ``managed-identity``.
+  * ``default``.
 
 ``--encryption-scope``
   The name of an encryption scope defined in the Azure Blob Storage service which is to

@@ -17,7 +17,8 @@
                   [ { -P | --aws-profile } AWS_PROFILE ]
                   [ --profile AWS_PROFILE ]
                   [ --read-timeout READ_TIMEOUT ]
-                  [ { --azure-credential | --credential } { azure-cli | managed-identity } ]
+                  [ { --azure-credential | --credential } { azure-cli | managed-identity
+                    | default } ]
                   [ --no-partial ]
                   SOURCE_URL SERVER_NAME WAL_NAME WAL_DEST
 
@@ -111,3 +112,4 @@ calling ``--no-partial`` option.
 
   * ``azure-cli``.
   * ``managed-identity``.
+  * ``default``.

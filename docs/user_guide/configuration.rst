@@ -670,9 +670,9 @@ Scope: Global / Server / Model.
 
 **azure_credential**
 
-Specifies the type of Azure credential to use for authentication, either ``azure-cli``
-or ``managed-identity``. If not provided, the default Azure authentication method will
-be used.
+Specifies the type of Azure credential to use for authentication, either ``azure-cli``,
+``managed-identity`` or ``default``. If not provided, the default Azure authentication
+method will be used.
 
 .. note::
   Only supported when ``backup_method = snapshot`` and ``snapshot_provider = azure``.
