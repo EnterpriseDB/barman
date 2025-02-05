@@ -72,12 +72,17 @@ def _get_azure_credential(credential_type):
         return None
 
     try:
-        from azure.identity import AzureCliCredential, ManagedIdentityCredential
+        from azure.identity import (
+            AzureCliCredential,
+            DefaultAzureCredential,
+            ManagedIdentityCredential,
+        )
     except ImportError:
         raise SystemExit("Missing required python module: azure-identity")
 
     supported_credentials = {
         "azure-cli": AzureCliCredential,
+        "default": DefaultAzureCredential,
         "managed-identity": ManagedIdentityCredential,
     }
     try:

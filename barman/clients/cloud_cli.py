@@ -199,7 +199,8 @@ def create_argument_parser(description, source_or_destination=UrlArgumentType.so
     azure_arguments.add_argument(
         "--azure-credential",
         "--credential",
-        choices=["azure-cli", "managed-identity"],
+        "--default",
+        choices=["azure-cli", "managed-identity", "default"],
         help="Optionally specify the type of credential to use when authenticating "
         "with Azure. If omitted then Azure Blob Storage credentials will be obtained "
         "from the environment and the default Azure authentication flow will be used "

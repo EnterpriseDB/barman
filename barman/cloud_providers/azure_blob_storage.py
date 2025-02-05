@@ -559,9 +559,11 @@ class AzureCloudSnapshotInterface(CloudSnapshotInterface):
             resources accessed through this interface belong.
         :param str resource_group|None: The resource_group to which the resources
             accessed through this interface belong.
-        :param azure.identity.AzureCliCredential|azure.identity.ManagedIdentityCredential
+        :param azure.identity.AzureCliCredential|azure.identity.ManagedIdentityCredential|
+            azure.identity.DefaultAzureCredential
             The Azure credential to be used when authenticating against the Azure API.
             If omitted then a DefaultAzureCredential will be created and used.
+
         """
         if subscription_id is None:
             raise TypeError("subscription_id cannot be None")
