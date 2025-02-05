@@ -34,7 +34,11 @@ import mock
 import pytest
 import snappy
 from azure.core.exceptions import ResourceNotFoundError, ServiceRequestError
-from azure.identity import AzureCliCredential, ManagedIdentityCredential
+from azure.identity import (
+    AzureCliCredential,
+    DefaultAzureCredential,
+    ManagedIdentityCredential,
+)
 from azure.storage.blob import PartialBatchErrorException
 from boto3.exceptions import Boto3Error
 from botocore.exceptions import ClientError, EndpointConnectionError
@@ -2804,6 +2808,7 @@ class TestGetCloudInterface(object):
         "credential_arg,expected_credential",
         [
             ("azure-cli", AzureCliCredential),
+            ("default", DefaultAzureCredential),
             ("managed-identity", ManagedIdentityCredential),
         ],
     )
