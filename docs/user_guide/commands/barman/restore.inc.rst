@@ -39,7 +39,7 @@ Synopsis
         [ --target-tli TLI ]
         [ --target-xid XID ]
         [ --staging-wal-directory ]
-        SERVER_NAME [ BACKUP_ID ] DESTINATION_DIR
+        SERVER_NAME BACKUP_ID DESTINATION_DIR
 
 Description
 ^^^^^^^^^^^
@@ -58,7 +58,8 @@ Parameters
     Name of the server in barman node
 
 ``BACKUP_ID``
-    Id of the backup in barman catalog.
+    Id of the backup in the barman catalog. Use ``auto`` to have Barman automatically
+    find the most suitable backup for the restore operation.
 
 ``DESTINATION_DIR``
     Destination directory to restore the backup.

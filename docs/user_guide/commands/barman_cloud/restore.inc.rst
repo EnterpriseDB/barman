@@ -27,7 +27,7 @@
                   [ --target-lsn LSN ]
                   [ --target-time TIMESTAMP ]
                   [ --target-tli TLI ]
-                  SOURCE_URL SERVER_NAME [ BACKUP_ID ] RECOVERY_DESTINATION
+                  SOURCE_URL SERVER_NAME BACKUP_ID RECOVERY_DESTINATION
 
 **Description**
 
@@ -49,7 +49,8 @@ snapshots and by downloading the backup label from object storage.
   ``s3://bucket/path/to/folder``.
 
 ``BACKUP_ID``
-  The ID of the backup to be restored.
+  The ID of the backup to be restored. Use ``auto`` to have Barman automatically find
+  the most suitable backup for the restore operation.
 
 ``RECOVERY_DESTINATION``
   The path to a directory for recovery.
