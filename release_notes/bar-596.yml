@@ -1,0 +1,25 @@
+- summary: Fix argument parsing issue in `barman restore` and `barman-cloud-restore`
+  description: |
+    In Barman 3.13.0, a regression was introduced causing errors when using
+    `barman restore` and `barman-cloud-restore` commands. Specifically, the
+    `backup_id` positional argument, which was made optional in that version,
+    conflicted with other arguments, causing unrecognized arguments and errors.
+
+    For example, running `barman-cloud-restore` like this:
+    ```
+    barman-cloud-restore source_url server_name backup_id --cloud-provider aws-s3 recovery_dir
+    ```
+
+    Would trigger an error like this:
+    ```
+    barman-cloud-restore: error: unrecognized arguments: recovery_dir
+    ```
+
+    This fix resolves the issue by making `backup_id` a required argument
+    again. Additionally, a new "auto" value is now accepted as a `backup_id`,
+    allowing Barman to automatically choose the best backup for restoration
+    without needing a specific `backup_id`. This update fixes argument handling
+    and still allows a smooth and flexible restoration process for the user.
+  type: bugfix
+  jira_tickets:
+    - BAR-596
