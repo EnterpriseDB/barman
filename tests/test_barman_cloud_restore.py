@@ -341,7 +341,7 @@ class TestCloudRestore(object):
     @mock.patch("barman.clients.cloud_restore.get_backup_id_from_target_time")
     @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_restore.get_cloud_interface")
-    def test_restore_without_backup_id(
+    def test_restore_with_backup_id_auto(
         self,
         _mock_cloud_interface_factory,
         mock_catalog,
@@ -355,10 +355,9 @@ class TestCloudRestore(object):
         expected_backup_id,
     ):
         """
-        Verify that restoring a backup without a backup_id will retrieve the
+        Verify that restoring a backup when backup_id is set to "auto" will retrieve the
         correct backup_id depending on the recovery target used. This tests the
-        `else` statement in the main cloud_restore function when backup_id is
-        None.
+        `else` statement in the main cloud_restore function.
         """
 
         backups = {
@@ -414,7 +413,7 @@ class TestCloudRestore(object):
             [
                 "cloud_storage_url",
                 "test_server",
-                None,
+                "auto",
                 recovery_dir,
             ]
             + target_args
@@ -448,7 +447,7 @@ class TestCloudRestore(object):
     @mock.patch("barman.clients.cloud_restore.get_last_backup_id")
     @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_restore.get_cloud_interface")
-    def test_restore_without_backup_id_with_target_tli(
+    def test_restore_with_backup_id_auto_with_target_tli(
         self,
         _mock_cloud_interface_factory,
         mock_catalog,
@@ -461,10 +460,9 @@ class TestCloudRestore(object):
         parsed_tli,
     ):
         """
-        Verify that restoring a backup without a backup_id will retrieve the
+        Verify that restoring a backup when backup_id is set to "auto" will retrieve the
         correct backup_id depending on the recovery target used. This tests the
-        `else` statement in the main cloud_restore function when backup_id is
-        None.
+        `else` statement in the main cloud_restore function.
         """
 
         backups = {
@@ -518,7 +516,7 @@ class TestCloudRestore(object):
             [
                 "cloud_storage_url",
                 "test_server",
-                None,
+                "auto",
                 recovery_dir,
             ]
             + target_args
@@ -537,7 +535,7 @@ class TestCloudRestore(object):
     @mock.patch("barman.clients.cloud_restore.get_backup_id_from_target_time")
     @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_restore.get_cloud_interface")
-    def test_restore_without_backup_id_and_no_backup_id_found_from_targets(
+    def test_restore_with_backup_id_auto_and_no_backup_id_found_from_targets(
         self,
         _mock_cloud_interface_factory,
         _mock_catalog,
@@ -545,7 +543,7 @@ class TestCloudRestore(object):
         logger,
     ):
         """
-        Verify that restoring a backup without a backup_id passing multipl
+        Verify that restoring a backup when backup_id is set to "auto" passing multiple
         recovery targets will fall into an error with a specific message.
         """
 
@@ -563,7 +561,7 @@ class TestCloudRestore(object):
                 [
                     "cloud_storage_url",
                     "test_server",
-                    None,
+                    "auto",
                     recovery_dir,
                 ]
                 + target_args

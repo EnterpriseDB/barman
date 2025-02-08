@@ -1203,7 +1203,7 @@ class TestCli(object):
         ),
     )
     @patch("barman.cli.get_server")
-    def test_restore_without_a_backup_id(
+    def test_restore_with_backup_id_auto(
         self,
         mock_get_server,
         target_option,
@@ -1213,15 +1213,15 @@ class TestCli(object):
         capsys,
     ):
         """
-        Test the function restore will have the correct behaviour when restoring without
-        a backup_id as an argument. The sequence of calls are tested and possible errors
+        Test the function restore will have the correct behaviour when restoring with
+        "auto" as the backup_id. The sequence of calls are tested and possible errors
         and messages.
         """
         server = build_mocked_server(name="test_server")
         mock_get_server.return_value = server
         # Testing mutual exclusiveness of target options
         args = mock_restore_args
-        setattr(args, "backup_id", None)
+        setattr(args, "backup_id", "auto")
         setattr(args, target_option, target) if target_option else None
         with pytest.raises(SystemExit):
             restore(args)
@@ -1265,7 +1265,7 @@ class TestCli(object):
     )
     @patch("barman.cli.parse_target_tli")
     @patch("barman.cli.get_server")
-    def test_restore_without_a_backup_id_with_target_tli(
+    def test_restore_with_backup_id_auto_with_target_tli(
         self,
         mock_get_server,
         mock_parse_target_tli,
@@ -1275,15 +1275,15 @@ class TestCli(object):
         mock_restore_args,
     ):
         """
-        Test the function restore will have the correct behaviour when restoring without
-        a backup_id as an argument. The sequence of calls are tested and possible errors
+        Test the function restore will have the correct behaviour when restoring with
+        "auto" as the backup_id. The sequence of calls are tested and possible errors
         and messages.
         """
         server = build_mocked_server(name="test_server")
         mock_get_server.return_value = server
         # Testing mutual exclusiveness of target options
         args = mock_restore_args
-        setattr(args, "backup_id", None)
+        setattr(args, "backup_id", "auto")
         setattr(args, "target_tli", target_tli)
         setattr(args, target_option, target) if target_option else None
         mock_parse_target_tli.return_value = target_tli
@@ -1308,19 +1308,19 @@ class TestCli(object):
         mock_get_server.return_value.get_backup.assert_called_once_with(backup_id)
 
     @patch("barman.cli.get_server")
-    def test_restore_no_candidate_backup_found(
+    def test_restore_with_backup_id_auto_no_candidate_backup_found(
         self, mock_get_server, mock_restore_args, capsys
     ):
         """
-        Test the function restore will have the correct behaviour when restoring without
-        a backup_id as an argument and no suitable backup_id is found.
+        Test the function restore will have the correct behaviour when restoring with
+        "auto" as the backup_id and no suitable backup_id is found.
         """
         server = build_mocked_server(name="test_server")
         mock_get_server.return_value = server
         args = mock_restore_args
         target_option = "target_lsn"
         target = "3/5F000000"
-        setattr(args, "backup_id", None)
+        setattr(args, "backup_id", "auto")
         setattr(args, target_option, target) if target_option else None
         mock_get_server.return_value.get_closest_backup_id_from_target_lsn.return_value = (
             None
