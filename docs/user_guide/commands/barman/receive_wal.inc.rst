@@ -10,6 +10,7 @@ Synopsis
     
     receive-wal
         [ --create-slot ]
+        [ --if-not-exists ]
         [ --drop-slot ]
         [ { -h | --help } ]
         [ --reset ]
@@ -32,6 +33,10 @@ Parameters
 ``--create-slot``
     Create the physical replication slot configured with the ``slot_name`` configuration
     parameter.
+
+``--if-not-exists``
+    Do not error out when ``--create-slot`` is specified and a slot with the specified name
+    already exists.
 
 ``--drop-slot``
     Drop the physical replication slot configured with the ``slot_name`` configuration
