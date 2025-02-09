@@ -2228,6 +2228,14 @@ class TestServer(object):
         out, err = capsys.readouterr()
         assert "Replication slot 'test_repslot' already exists" in err
 
+        # If the replication slot was already created but duplicates are ignored
+        # check that no error is reported
+        create_physical_repslot.side_effect = PostgresDuplicateReplicationSlot
+        server.create_physical_repslot(ignore_duplicate=True)
+        create_physical_repslot.assert_called_with("test_repslot")
+        out, err = capsys.readouterr()
+        assert not err
+
         # Test the method failure if the replication slots
         # on the server are all taken
         create_physical_repslot.side_effect = PostgresReplicationSlotsFull

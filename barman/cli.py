@@ -1734,6 +1734,11 @@ def archive_wal(args):
             action="store_true",
         ),
         argument(
+            "--if-not-exists",
+            help="Do not error out when --create-slot is specified and a slot with the specified name already exists.",
+            action="store_true",
+        ),
+        argument(
             "--drop-slot",
             help="drop the replication slot, if it exists",
             action="store_true",
@@ -1764,7 +1769,7 @@ def receive_wal(args):
         server.kill("receive-wal")
     elif args.create_slot:
         with closing(server):
-            server.create_physical_repslot()
+            server.create_physical_repslot(ignore_duplicate=args.if_not_exists)
     elif args.drop_slot:
         with closing(server):
             server.drop_repslot()
