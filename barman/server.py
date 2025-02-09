@@ -2809,7 +2809,7 @@ class Server(RemoteStatusMixin):
                 "on server %s. Skipping to the next server" % self.config.name
             )
 
-    def create_physical_repslot(self):
+    def create_physical_repslot(self, ignore_duplicate=False):
         """
         Create a physical replication slot using the streaming connection
         """
@@ -2852,7 +2852,11 @@ class Server(RemoteStatusMixin):
             self.streaming.create_physical_repslot(self.config.slot_name)
             output.info("Replication slot '%s' created", self.config.slot_name)
         except PostgresDuplicateReplicationSlot:
-            output.error("Replication slot '%s' already exists", self.config.slot_name)
+            args = "Replication slot '%s' already exists", self.config.slot_name
+            if ignore_duplicate:
+                output.info(*args)
+            else:
+                output.error(*args)
         except PostgresReplicationSlotsFull:
             output.error(
                 "All replication slots for server '%s' are in use\n"
