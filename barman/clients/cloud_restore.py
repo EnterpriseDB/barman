@@ -220,14 +220,14 @@ def parse_arguments(args=None):
         "--azure-resource-group",
         help="Resource group containing the instance and disks for the snapshot recovery",
     )
-    parser.add_argument(
+    parser.add_argument("--target-tli", help="target timeline", type=check_tli)
+    target_args = parser.add_mutually_exclusive_group()
+    target_args.add_argument("--target-lsn", help="target LSN (Log Sequence Number)")
+    target_args.add_argument(
         "--target-time",
         help="target time. You can use any valid unambiguous representation. "
         'e.g: "YYYY-MM-DD HH:MM:SS.mmm"',
     )
-    target_args = parser.add_mutually_exclusive_group()
-    target_args.add_argument("--target-lsn", help="target LSN (Log Sequence Number)")
-    target_args.add_argument("--target-tli", help="target timeline", type=check_tli)
     return parser.parse_args(args=args)
 
 

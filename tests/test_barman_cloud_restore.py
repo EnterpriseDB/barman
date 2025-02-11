@@ -21,7 +21,7 @@ import pytest
 from testing_helpers import build_test_backup_info
 
 from barman.clients import cloud_restore
-from barman.clients.cloud_cli import OperationErrorExit
+from barman.clients.cloud_cli import CLIErrorExit, OperationErrorExit
 from barman.clients.cloud_restore import (
     CloudBackupDownloaderObjectStore,
     CloudBackupDownloaderSnapshot,
@@ -569,6 +569,46 @@ class TestCloudRestore(object):
 
         error_msg = "Cannot find any candidate backup for recovery."
         logger.assert_called_once_with(error_msg)
+
+    @mock.patch("barman.clients.cloud_restore.get_backup_id_from_target_time")
+    @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_restore.get_cloud_interface")
+    def test_restore_mutually_exclusive_targets(
+        self,
+        _mock_cloud_interface_factory,
+        _mock_catalog,
+        mock_get_bkp_id_from_tgt_time,
+        capsys,
+    ):
+        """
+        Verify that restoring a backup with ``target_time`` and ``target_lsn`` recovery
+        targets will fall into an error with a specific message.
+        """
+
+        recovery_dir = "/path/to/restore_dir"
+
+        target_args = [
+            "--target-time",
+            "2025-01-07 15:15:00",
+            "--target-lsn",
+            "3/5E000000",
+        ]
+        mock_get_bkp_id_from_tgt_time.return_value = None
+        with pytest.raises(CLIErrorExit, match="3"):
+            cloud_restore.main(
+                [
+                    "cloud_storage_url",
+                    "test_server",
+                    None,
+                    recovery_dir,
+                ]
+                + target_args
+            )
+        captured = capsys.readouterr()
+        assert (
+            "argument --target-lsn: not allowed with argument --target-time"
+            in captured.err
+        )
 
 
 class TestCloudBackupDownloader(object):
