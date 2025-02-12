@@ -18,6 +18,7 @@
 
 import base64
 import io
+import logging
 import os
 import tarfile
 
@@ -268,6 +269,50 @@ class TestCompressor(object):
         # WHEN validate is called with a string of bytes starting with the MAGIC
         # THEN validate returns True
         assert Compressor.validate(bytes_to_validate) is is_valid
+
+    @pytest.mark.parametrize(
+        "compression_level, expected, issue_log",
+        [
+            # Case 1: a level greater than LEVEL_MAX defaults to LEVEL_MAX
+            (10, GZipCompressor.LEVEL_MAX, True),
+            # Case 2: a level lower than LEVEL_MIN defaults to LEVEL_MIN
+            (0, GZipCompressor.LEVEL_MIN, True),
+            # Case 3: a level in the range is correctly set
+            (7, 7, False),
+            # Case 4: literal value of `low` is set as defined in LEVEL_LOW
+            ("low", GZipCompressor.LEVEL_LOW, False),
+            # Case 5: literal value of `high` is set as defined in LEVEL_HIGH
+            ("high", GZipCompressor.LEVEL_HIGH, False),
+            # Case 6: literal value of `medium` is set as defined in LEVEL_MEDIUM
+            ("medium", GZipCompressor.LEVEL_MEDIUM, False),
+            # Case 7: any value that is not recognized also defaults to LEVEL_MEDIUM
+            ("nonsense", GZipCompressor.LEVEL_MEDIUM, False),
+        ],
+    )
+    def test_compression_level_is_set_correctly(
+        self, compression_level, expected, issue_log, caplog
+    ):
+        """
+        Asserts that the compression level is set correctly when instantiating a
+        compressor.
+
+        .. note::
+            ``GZipCompressor`` is used in this test because we cannot instantiate
+            the abstract ``Compressor`` class. However, the tested logic resides in
+            the ``Compressor`` class and applies to all its subclasses.
+        """
+        caplog.set_level(logging.DEBUG)
+        mock_config = mock.Mock(compression="gzip", compression_level=compression_level)
+        compressor = GZipCompressor(mock_config, "gzip")
+        assert compressor is not None
+        assert compressor.level == expected
+        if issue_log:
+            msg = "Compression level %s out of range for %s, using %s instead" % (
+                compression_level,
+                "gzip",
+                expected,
+            )
+            assert msg in caplog.text
 
 
 # noinspection PyMethodMayBeStatic

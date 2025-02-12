@@ -72,7 +72,7 @@ TEST_CONFIG_BARMAN = """
 barman_home = /some/barman/home
 barman_user = {USER}
 compression = gzip
-compression_level = average
+compression_level = medium
 log_file = /some/barman/home/log/barman.log
 log_level = INFO
 retention_policy = redundancy 2
@@ -352,7 +352,7 @@ class TestConfig(object):
                 "backup_compression_location": None,
                 "backup_compression_workers": None,
                 "compression": "gzip",
-                "compression_level": "average",
+                "compression_level": "medium",
                 "last_backup_maximum_age": timedelta(1),
                 "last_backup_minimum_size": 1048576,
                 "last_wal_maximum_age": timedelta(hours=1),
@@ -392,7 +392,7 @@ class TestConfig(object):
                 "backup_compression_workers": None,
                 "cluster": "web",
                 "compression": None,
-                "compression_level": "average",
+                "compression_level": "medium",
                 "conninfo": "host=web01 user=postgres port=5432",
                 "description": "Web applications database",
                 "incoming_wals_directory": "/some/barman/home/web/incoming",
@@ -780,7 +780,7 @@ class TestConfig(object):
             "barman_home": "/some/barman/home",
             "barman_user": "barman",
             "compression": "gzip",
-            "compression_level": "average",
+            "compression_level": "medium",
             "log_file": "/some/barman/home/log/barman.log",
             "log_level": "INFO",
             "retention_policy": "redundancy 2",
@@ -795,7 +795,7 @@ class TestConfig(object):
             "wal_retention_policy": "base",
             "retention_policy": "redundancy 2",
             "compression": "gzip",
-            "compression_level": "average",
+            "compression_level": "medium",
             "barman_user": "barman",
             "log_file": "/some/barman/home/log/barman.log",
             "archiver": "True",
@@ -1046,7 +1046,7 @@ class TestServerConfig(object):
             "barman_home": "/some/barman/home",
             "barman_user": "barman",
             "compression": "gzip",
-            "compression_level": "average",
+            "compression_level": "medium",
             "log_file": "/some/barman/home/log/barman.log",
             "log_level": "INFO",
             "retention_policy": "redundancy 2",
@@ -1093,7 +1093,7 @@ class TestServerConfig(object):
             "wal_retention_policy": "base",
             "retention_policy": "redundancy 3",
             "compression": "gzip",
-            "compression_level": "average",
+            "compression_level": "medium",
             "backup_compression": "none",
             "wals_directory": "wals",
             "xlogdb_directory": "wals",
