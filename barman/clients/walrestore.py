@@ -507,6 +507,7 @@ class RemoteGetWal(object):
         """
         return SimpleNamespace(
             compression=config.compression,
+            compression_level=None,
             custom_compression_magic=None,
             custom_compression_filter=None,
             custom_decompression_filter=None,

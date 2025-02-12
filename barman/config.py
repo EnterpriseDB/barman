@@ -19,6 +19,9 @@
 """
 This module is responsible for all the things related to
 Barman configuration, such as parsing configuration file.
+
+:data COMPRESSIONS: A list of supported compression algorithms for WAL files.
+:data COMPRESSION_LEVELS: A list of supported compression levels for WAL files.
 """
 
 import collections
@@ -34,6 +37,7 @@ from glob import iglob
 from typing import List
 
 from barman import output, utils
+from barman.compression import compression_registry
 
 try:
     from ConfigParser import ConfigParser, NoOptionError
@@ -76,6 +80,12 @@ CREATE_SLOT_VALUES = ["manual", "auto"]
 
 # Config values relating to pg_basebackup compression
 BASEBACKUP_COMPRESSIONS = ["gzip", "lz4", "zstd", "none"]
+
+# WAL compression options
+COMPRESSIONS = compression_registry.keys()
+
+# WAL compression level options
+COMPRESSION_LEVELS = ["low", "medium", "high"]
 
 
 class CsvOption(set):
@@ -362,6 +372,49 @@ def parse_backup_method(value):
     )
 
 
+def parse_compression(value):
+    """
+    Parse a string to a valid compression option.
+
+    Valid values are the compression algorithms supported by Barman, as defined in
+    :data:`barman.compression.compression_registry`.
+
+    :param str value: compression value
+    :raises ValueError: if the value is invalid
+    """
+    if value:
+        value = value.lower()
+        if value not in COMPRESSIONS:
+            raise ValueError(
+                "Invalid value: '%s' (must be one in: %s)"
+                % (value, ", ".join(COMPRESSIONS))
+            )
+    return value
+
+
+def parse_compression_level(value):
+    """
+    Parse a string to a valid compression level option.
+
+    Valid values are ``low``, ``medium``, ``high`` and any integer number.
+
+    :param str value: compression_level value
+    :raises ValueError: if the value is invalid
+    """
+    if value:
+        value = value.lower()
+        # Handle negative compression levels
+        # Among the supported, only zstd allows negatives for now
+        if value.lstrip("-").isdigit():
+            value = int(value)
+        elif value not in COMPRESSION_LEVELS:
+            raise ValueError(
+                "Invalid value: '%s' (must be one in [%s] or an acceptable integer)"
+                % (value, ", ".join(COMPRESSION_LEVELS))
+            )
+    return value
+
+
 def parse_staging_path(value):
     if value is None or os.path.isabs(value):
         return value
@@ -516,6 +569,7 @@ class ServerConfig(BaseConfig):
         "check_timeout",
         "cluster",
         "compression",
+        "compression_level",
         "conninfo",
         "custom_compression_filter",
         "custom_decompression_filter",
@@ -617,6 +671,7 @@ class ServerConfig(BaseConfig):
         "basebackup_retry_times",
         "check_timeout",
         "compression",
+        "compression_level",
         "configuration_files_directory",
         "create_slot",
         "custom_compression_filter",
@@ -690,6 +745,7 @@ class ServerConfig(BaseConfig):
         "basebackups_directory": "%(backup_directory)s/base",
         "check_timeout": "30",
         "cluster": "%(name)s",
+        "compression_level": "medium",
         "disabled": "false",
         "errors_directory": "%(backup_directory)s/errors",
         "forward_config_path": "false",
@@ -739,6 +795,8 @@ class ServerConfig(BaseConfig):
         "basebackup_retry_sleep": int,
         "basebackup_retry_times": int,
         "check_timeout": int,
+        "compression": parse_compression,
+        "compression_level": parse_compression_level,
         "disabled": parse_boolean,
         "forward_config_path": parse_boolean,
         "keepalive_interval": int,

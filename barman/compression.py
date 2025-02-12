@@ -146,9 +146,21 @@ class CompressionManager(object):
 class Compressor(with_metaclass(ABCMeta, object)):
     """
     Base class for all the compressors
+
+    :cvar MAGIC: Magic bytes used to identify the compression format
+    :cvar LEVEL_MIN: Minimum compression level supported by the compression algorithm
+    :cvar LEVEL_MAX: Maximum compression level supported by the compression algorithm
+    :cvar LEVEL_LOW: Mapped level to ``low``
+    :cvar LEVEL_MEDIUM: Mapped level to ``medium``
+    :cvar LEVEL_HIGH: Mapped level to ``high``
     """
 
     MAGIC = None
+    LEVEL_MAX = None
+    LEVEL_MIN = None
+    LEVEL_LOW = None
+    LEVEL_MEDIUM = None
+    LEVEL_HIGH = None
 
     def __init__(self, config, compression, path=None):
         """
@@ -160,6 +172,27 @@ class Compressor(with_metaclass(ABCMeta, object)):
         self.config = config
         self.compression = compression
         self.path = path
+        if isinstance(config.compression_level, int):
+            if config.compression_level > self.LEVEL_MAX:
+                _logger.debug(
+                    "Compression level %s out of range for %s, using %s instead"
+                    % (config.compression_level, config.compression, self.LEVEL_MAX)
+                )
+                self.level = self.LEVEL_MAX
+            elif config.compression_level < self.LEVEL_MIN:
+                _logger.debug(
+                    "Compression level %s out of range for %s, using %s instead"
+                    % (config.compression_level, config.compression, self.LEVEL_MIN)
+                )
+                self.level = self.LEVEL_MIN
+            else:
+                self.level = config.compression_level
+        elif config.compression_level == "low":
+            self.level = self.LEVEL_LOW
+        elif config.compression_level == "high":
+            self.level = self.LEVEL_HIGH
+        else:
+            self.level = self.LEVEL_MEDIUM
 
     @classmethod
     def validate(cls, file_start):
@@ -302,6 +335,11 @@ class GZipCompressor(CommandCompressor):
     """
 
     MAGIC = b"\x1f\x8b\x08"
+    LEVEL_MIN = 1
+    LEVEL_MAX = 9
+    LEVEL_LOW = 1
+    LEVEL_MEDIUM = 6
+    LEVEL_HIGH = 9
 
     def __init__(self, config, compression, path=None):
         """
@@ -311,7 +349,7 @@ class GZipCompressor(CommandCompressor):
         :param path: str|None
         """
         super(GZipCompressor, self).__init__(config, compression, path)
-        self._compress = self._build_command("gzip -c")
+        self._compress = self._build_command("gzip -c -%s" % self.level)
         self._decompress = self._build_command("gzip -c -d")
 
 
@@ -321,6 +359,11 @@ class PyGZipCompressor(InternalCompressor):
     """
 
     MAGIC = b"\x1f\x8b\x08"
+    LEVEL_MIN = 1
+    LEVEL_MAX = 9
+    LEVEL_LOW = 1
+    LEVEL_MEDIUM = 6
+    LEVEL_HIGH = 9
 
     def __init__(self, config, compression, path=None):
         """
@@ -331,11 +374,8 @@ class PyGZipCompressor(InternalCompressor):
         """
         super(PyGZipCompressor, self).__init__(config, compression, path)
 
-        # Default compression level used in system gzip utility
-        self._level = -1  # Z_DEFAULT_COMPRESSION constant of zlib
-
     def _compressor(self, name):
-        return gzip.GzipFile(name, mode="wb", compresslevel=self._level)
+        return gzip.GzipFile(name, mode="wb", compresslevel=self.level)
 
     def _decompressor(self, name):
         return gzip.GzipFile(name, mode="rb")
@@ -350,6 +390,11 @@ class PigzCompressor(CommandCompressor):
     """
 
     MAGIC = b"\x1f\x8b\x08"
+    LEVEL_MIN = 1
+    LEVEL_MAX = 9
+    LEVEL_LOW = 1
+    LEVEL_MEDIUM = 6
+    LEVEL_HIGH = 9
 
     def __init__(self, config, compression, path=None):
         """
@@ -359,7 +404,7 @@ class PigzCompressor(CommandCompressor):
         :param path: str|None
         """
         super(PigzCompressor, self).__init__(config, compression, path)
-        self._compress = self._build_command("pigz -c")
+        self._compress = self._build_command("pigz -c -%s" % self.level)
         self._decompress = self._build_command("pigz -c -d")
 
 
@@ -369,6 +414,11 @@ class BZip2Compressor(CommandCompressor):
     """
 
     MAGIC = b"\x42\x5a\x68"
+    LEVEL_MIN = 1
+    LEVEL_MAX = 9
+    LEVEL_LOW = 1
+    LEVEL_MEDIUM = 5
+    LEVEL_HIGH = 9
 
     def __init__(self, config, compression, path=None):
         """
@@ -378,7 +428,7 @@ class BZip2Compressor(CommandCompressor):
         :param path: str|None
         """
         super(BZip2Compressor, self).__init__(config, compression, path)
-        self._compress = self._build_command("bzip2 -c")
+        self._compress = self._build_command("bzip2 -c -%s" % self.level)
         self._decompress = self._build_command("bzip2 -c -d")
 
 
@@ -388,21 +438,14 @@ class PyBZip2Compressor(InternalCompressor):
     """
 
     MAGIC = b"\x42\x5a\x68"
-
-    def __init__(self, config, compression, path=None):
-        """
-
-        :param config: barman.config.ServerConfig
-        :param compression: str compression name
-        :param path: str|None
-        """
-        super(PyBZip2Compressor, self).__init__(config, compression, path)
-
-        # Default compression level used in system gzip utility
-        self._level = 9
+    LEVEL_MIN = 1
+    LEVEL_MAX = 9
+    LEVEL_LOW = 1
+    LEVEL_MEDIUM = 5
+    LEVEL_HIGH = 9
 
     def _compressor(self, name):
-        return bz2.BZ2File(name, mode="wb", compresslevel=self._level)
+        return bz2.BZ2File(name, mode="wb", compresslevel=self.level)
 
     def _decompressor(self, name):
         return bz2.BZ2File(name, mode="rb")
@@ -414,9 +457,14 @@ class XZCompressor(InternalCompressor):
     """
 
     MAGIC = b"\xfd7zXZ\x00"
+    LEVEL_MIN = 1
+    LEVEL_MAX = 9
+    LEVEL_LOW = 1
+    LEVEL_MEDIUM = 3
+    LEVEL_HIGH = 5
 
     def _compressor(self, dst):
-        return lzma.open(dst, mode="wb")
+        return lzma.open(dst, mode="wb", preset=self.level)
 
     def _decompressor(self, src):
         return lzma.open(src, mode="rb")
@@ -436,6 +484,11 @@ class ZSTDCompressor(InternalCompressor):
     """
 
     MAGIC = b"(\xb5/\xfd"
+    LEVEL_MIN = -22
+    LEVEL_MAX = 22
+    LEVEL_LOW = 1
+    LEVEL_MEDIUM = 4
+    LEVEL_HIGH = 9
 
     def __init__(self, config, compression, path=None):
         """
@@ -454,7 +507,9 @@ class ZSTDCompressor(InternalCompressor):
         return self._zstd
 
     def _compressor(self, dst):
-        return self.zstd.ZstdCompressor().stream_writer(open(dst, mode="wb"))
+        return self.zstd.ZstdCompressor(level=self.level).stream_writer(
+            open(dst, mode="wb")
+        )
 
     def _decompressor(self, src):
         return self.zstd.ZstdDecompressor().stream_reader(open(src, mode="rb"))
@@ -474,6 +529,11 @@ class LZ4Compressor(InternalCompressor):
     """
 
     MAGIC = b"\x04\x22\x4d\x18"
+    LEVEL_MIN = 0
+    LEVEL_MAX = 16
+    LEVEL_LOW = 0
+    LEVEL_MEDIUM = 6
+    LEVEL_HIGH = 10
 
     def __init__(self, config, compression, path=None):
         """
@@ -492,7 +552,7 @@ class LZ4Compressor(InternalCompressor):
         return self._lz4
 
     def _compressor(self, dst):
-        return self.lz4.frame.open(dst, mode="wb")
+        return self.lz4.frame.open(dst, mode="wb", compression_level=self.level)
 
     def _decompressor(self, src):
         return self.lz4.frame.open(src, mode="rb")
