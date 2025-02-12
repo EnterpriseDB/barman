@@ -1,0 +1,9 @@
+- summary: Allows compression level to be specified for WAL compression in Barman server
+  description: |
+    Adds a new `compression_level` parameter to the Barman configuration.
+    This option accepts a valid integer value or one of the predefined options
+    `low`, `medium` and `high`, each option corresponding to a different
+    level depending on the compression algorithm chosen.
+  type: minor_change
+  jira_tickets:
+    - BAR-540
