@@ -1006,6 +1006,33 @@ compression algorithm used.
 
 Scope: Global / Server / Model.
 
+**compression_level**
+
+Specifies the compression level to be used by the selected compression algorithm. Valid
+values are integers within the supported range of the chosen algorithm or one
+of the predefined values: ``low``, ``medium``, and ``high``, which serve as shortcuts.
+
+* ``low``: uses low level of compression, favoring compression speed over compression ratio.
+* ``medium``: uses a medium level of compression, balancing between compression speed and compression ratio.
+* ``high``: uses a high level of compression, favoring compression ratio over compression speed.
+
+Predefined values map to algorithm-specific levels, as detailed below:
+
+* ``lz4``: 0 to 16, ``low=0``, ``medium=6``, ``high=10``
+* ``xz``: 1 to 9, ``low=1``, ``medium=3``, ``high=5``
+* ``zstd``: -22 to 22, ``low=1``, ``medium=4``, ``high=9``
+* ``gzip``: 1 to 9, ``low=1``, ``medium=6``, ``high=9``
+* ``pygzip``: 1 to 9, ``low=1``, ``medium=6``, ``high=9``
+* ``pigz``: 1 to 9, ``low=1``, ``medium=6``, ``high=9``
+* ``bzip2``: 1 to 9, ``low=1``, ``medium=5``, ``high=9``
+* ``pybzip2``: 1 to 9, ``low=1``, ``medium=5``, ``high=9``
+
+If the specified compression level is greater than the algorithm's max level, the
+max level is used. Similarly, if it is lower than the min level, the min level is used.
+The default value is ``medium``.
+
+Scope: Global / Server / Model.
+
 **incoming_wals_directory**
 
 Specifies the directory where incoming WAL files are archived. Requires ``archiver`` to
