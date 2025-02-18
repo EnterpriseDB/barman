@@ -1,9 +1,0 @@
-- summary: Add current active model to `barman show-server`
-  description: |
-    Previously, after applying a configuration model, the only way to check
-    which model is currently active for a server was via the `barman diagnose`
-    command. With this update, the `barman show-server` command now also displays
-    the current active configuration model for a server, if any.
-  type: minor_change
-  jira_tickets:
-    - BAR-524
