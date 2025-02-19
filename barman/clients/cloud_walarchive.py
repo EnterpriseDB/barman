@@ -169,6 +169,7 @@ def parse_arguments(args=None):
         "(requires optional zstandard library)",
         action="store_const",
         const="zstd",
+        dest="compression",
     )
     compression.add_argument(
         "--lz4",
