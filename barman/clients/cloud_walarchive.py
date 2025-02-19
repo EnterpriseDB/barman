@@ -32,6 +32,7 @@ from barman.clients.cloud_cli import (
 from barman.clients.cloud_compression import compress
 from barman.cloud import configure_logging
 from barman.cloud_providers import get_cloud_interface
+from barman.config import parse_compression_level
 from barman.exceptions import BarmanException
 from barman.utils import check_positive, check_size, force_str
 from barman.xlog import hash_dir, is_any_xlog_file, is_history_file
@@ -86,6 +87,7 @@ def main(args=None):
                 cloud_interface=cloud_interface,
                 server_name=config.server_name,
                 compression=config.compression,
+                compression_level=config.compression_level,
             )
 
             if not cloud_interface.test_connectivity():
@@ -176,6 +178,13 @@ def parse_arguments(args=None):
         const="lz4",
         dest="compression",
     )
+    parser.add_argument(
+        "--compression-level",
+        help="A compression level for the specified compression algorithm",
+        dest="compression_level",
+        type=parse_compression_level,
+        default=None,
+    )
     add_tag_argument(
         parser,
         name="tags",
@@ -243,18 +252,27 @@ class CloudWalUploader(object):
     Cloud storage upload client
     """
 
-    def __init__(self, cloud_interface, server_name, compression=None):
+    def __init__(
+        self,
+        cloud_interface,
+        server_name,
+        compression=None,
+        compression_level=None,
+    ):
         """
         Object responsible for handling interactions with cloud storage
 
         :param CloudInterface cloud_interface: The interface to use to
           upload the backup
         :param str server_name: The name of the server as configured in Barman
-        :param str compression: Compression algorithm to use
+        :param str|None compression: Compression algorithm to use
+        :param str|int|None compression_level: Compression level for the specified
+            algorithm
         """
 
         self.cloud_interface = cloud_interface
         self.compression = compression
+        self.compression_level = compression_level
         self.server_name = server_name
 
     def upload_wal(self, wal_path, override_tags=None):
@@ -309,7 +327,7 @@ class CloudWalUploader(object):
         if not self.compression:
             return wal_file
 
-        return compress(wal_file, self.compression)
+        return compress(wal_file, self.compression, self.compression_level)
 
     def retrieve_wal_name(self, wal_path):
         """

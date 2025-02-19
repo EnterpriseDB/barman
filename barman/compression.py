@@ -174,13 +174,15 @@ class Compressor(with_metaclass(ABCMeta, object)):
         self.compression = compression
         self.path = path
         if isinstance(config.compression_level, int):
-            if config.compression_level > self.LEVEL_MAX:
+            if self.LEVEL_MAX is not None and config.compression_level > self.LEVEL_MAX:
                 _logger.debug(
                     "Compression level %s out of range for %s, using %s instead"
                     % (config.compression_level, config.compression, self.LEVEL_MAX)
                 )
                 self.level = self.LEVEL_MAX
-            elif config.compression_level < self.LEVEL_MIN:
+            elif (
+                self.LEVEL_MIN is not None and config.compression_level < self.LEVEL_MIN
+            ):
                 _logger.debug(
                     "Compression level %s out of range for %s, using %s instead"
                     % (config.compression_level, config.compression, self.LEVEL_MIN)
@@ -415,7 +417,9 @@ class PyGZipCompressor(InternalCompressor):
 
     def compress_in_mem(self, fileobj):
         in_mem_gzip = BytesIO()
-        with gzip.GzipFile(fileobj=in_mem_gzip, mode="wb") as gz:
+        with gzip.GzipFile(
+            fileobj=in_mem_gzip, mode="wb", compresslevel=self.level
+        ) as gz:
             shutil.copyfileobj(fileobj, gz)
         in_mem_gzip.seek(0)
         return in_mem_gzip
@@ -494,7 +498,7 @@ class PyBZip2Compressor(InternalCompressor):
         return bz2.BZ2File(name, mode="rb")
 
     def compress_in_mem(self, fileobj):
-        in_mem_bz2 = BytesIO(bz2.compress(fileobj.read()))
+        in_mem_bz2 = BytesIO(bz2.compress(fileobj.read(), compresslevel=self.level))
         in_mem_bz2.seek(0)
         return in_mem_bz2
 
@@ -521,7 +525,7 @@ class XZCompressor(InternalCompressor):
         return lzma.open(src, mode="rb")
 
     def compress_in_mem(self, fileobj):
-        in_mem_xz = BytesIO(lzma.compress(fileobj.read()))
+        in_mem_xz = BytesIO(lzma.compress(fileobj.read(), preset=self.level))
         in_mem_xz.seek(0)
         return in_mem_xz
 
@@ -575,7 +579,7 @@ class ZSTDCompressor(InternalCompressor):
 
     def compress_in_mem(self, fileobj):
         in_mem_zstd = BytesIO()
-        self.zstd.ZstdCompressor().copy_stream(fileobj, in_mem_zstd)
+        self.zstd.ZstdCompressor(level=self.level).copy_stream(fileobj, in_mem_zstd)
         in_mem_zstd.seek(0)
         return in_mem_zstd
 
@@ -626,7 +630,9 @@ class LZ4Compressor(InternalCompressor):
         return self.lz4.frame.open(src, mode="rb")
 
     def compress_in_mem(self, fileobj):
-        in_mem_lz4 = BytesIO(self.lz4.frame.compress(fileobj.read()))
+        in_mem_lz4 = BytesIO(
+            self.lz4.frame.compress(fileobj.read(), compression_level=self.level)
+        )
         in_mem_lz4.seek(0)
         return in_mem_lz4
 

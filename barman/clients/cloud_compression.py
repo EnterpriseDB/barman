@@ -119,31 +119,33 @@ def get_streaming_tar_mode(mode, compression):
         return "%s|%s" % (mode, compression)
 
 
-def get_server_config_minimal(compression):
+def get_server_config_minimal(compression, compression_level):
     """
     Returns a placeholder for a :class:`~barman.config.ServerConfig` object with all compression
     parameters relevant to :class:`barman.compression.CompressionManager` filled.
 
     :param str compression: a valid compression algorithm option
+    :param str|int|None: a compression level for the specified algorithm
     :return: a fake server config object
     :rtype: SimpleNamespace
     """
     return SimpleNamespace(
         compression=compression,
-        compression_level=None,
+        compression_level=compression_level,
         custom_compression_magic=None,
         custom_compression_filter=None,
         custom_decompression_filter=None,
     )
 
 
-def get_internal_compressor(compression):
+def get_internal_compressor(compression, compression_level=None):
     """
     Get a :class:`barman.compression.InternalCompressor`
     for the specified *compression* algorithm
 
     :param str compression: a valid compression algorithm
-    :return: the respective internal compressor found
+    :param str|int|None: a compression level for the specified algorithm
+    :return: the respective internal compressor
     :rtype: barman.compression.InternalCompressor
     :raises ValueError: if the compression received is unkown to Barman
     """
@@ -154,7 +156,7 @@ def get_internal_compressor(compression):
     elif compression == "bzip2":
         compression = "pybzip2"
     # Use a fake server config so we can reuse the logic of barman.compression module
-    server_config = get_server_config_minimal(compression)
+    server_config = get_server_config_minimal(compression, compression_level)
     comp_manager = CompressionManager(server_config, None)
     compressor = comp_manager.get_compressor(compression)
     if compressor is None:
@@ -162,7 +164,7 @@ def get_internal_compressor(compression):
     return compressor
 
 
-def compress(wal_file, compression):
+def compress(wal_file, compression, compression_level):
     """
     Compresses the supplied *wal_file* and returns a file-like object containing the
     compressed data.
@@ -174,7 +176,7 @@ def compress(wal_file, compression):
     :return: The compressed data
     :rtype: BytesIO
     """
-    compressor = get_internal_compressor(compression)
+    compressor = get_internal_compressor(compression, compression_level)
     return compressor.compress_in_mem(wal_file)
 
 
