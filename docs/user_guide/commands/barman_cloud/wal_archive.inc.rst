@@ -14,6 +14,7 @@
                   [ { -t | --test } ]
                   [ --cloud-provider { aws-s3 | azure-blob-storage | google-cloud-storage } ]
                   [ { { -z | --gzip } | { -j | --bzip2 } | --xz | --snappy | --zstd | --lz4 } ]
+                  [ --compression-level COMPRESSION_LEVEL ]
                   [ --tags TAG [ TAG ... ] ]
                   [ --history-tags HISTORY_TAG [ HISTORY_TAG ... ] ]
                   [ --endpoint-url ENDPOINT_URL ]
@@ -102,6 +103,13 @@ Barman server. Additionally, it can be utilized as a hook script for WAL archivi
 
 ``--lz4``
   lz4-compress the WAL while uploading to the cloud (requires optional ``lz4`` library).
+
+``--compression-level``
+  A compression level to be used by the selected compression algorithm. Valid
+  values are integers within the supported range of the chosen algorithm or one
+  of the predefined values: ``fast``, ``average``, and ``high``. The range of each
+  algorithm as well as what level each predefined value maps to can be found in
+  :ref:`compression_level <configuration-options-compression-level>`.
 
 ``--tags``
   Tags to be added to archived WAL files in cloud storage.
