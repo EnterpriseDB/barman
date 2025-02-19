@@ -29,6 +29,7 @@ import shutil
 from abc import ABCMeta, abstractmethod, abstractproperty
 from contextlib import closing
 from distutils.version import LooseVersion as Version
+from io import BytesIO
 
 import barman.infofile
 from barman.command_wrappers import Command
@@ -328,6 +329,38 @@ class InternalCompressor(Compressor):
         :return: a file-like writable compressor object
         """
 
+    @abstractmethod
+    def compress_in_mem(self, fileobj):
+        """
+        Compresses the given file-object in memory
+
+        :param fileobj: source file-object to be compressed
+        :return: a compressed file-object
+
+        .. note::
+            When implementing this method, the compressed file-object position must be
+            set to ``0`` before returning it, as it is likely to be read again afterwards.
+        """
+
+    @abstractmethod
+    def decompress_in_mem(self, fileobj):
+        """
+        Decompresses the given file-object in memory
+
+        :param fileobj: source file-object to be decompressed
+        :return: a decompressed file-object
+        """
+
+    def decompress_to_fileobj(self, src_fileobj, dest_fileobj):
+        """
+        Decompresses the given file-object on the especified file-object
+
+        :param src_fileobj: source file-object to be decompressed
+        :param dest_fileobj: destination file-object to have the decompressed content
+        """
+        decompressed_fileobj = self.decompress_in_mem(src_fileobj)
+        shutil.copyfileobj(decompressed_fileobj, dest_fileobj)
+
 
 class GZipCompressor(CommandCompressor):
     """
@@ -379,6 +412,16 @@ class PyGZipCompressor(InternalCompressor):
 
     def _decompressor(self, name):
         return gzip.GzipFile(name, mode="rb")
+
+    def compress_in_mem(self, fileobj):
+        in_mem_gzip = BytesIO()
+        with gzip.GzipFile(fileobj=in_mem_gzip, mode="wb") as gz:
+            shutil.copyfileobj(fileobj, gz)
+        in_mem_gzip.seek(0)
+        return in_mem_gzip
+
+    def decompress_in_mem(self, fileobj):
+        return gzip.GzipFile(fileobj=fileobj, mode="rb")
 
 
 class PigzCompressor(CommandCompressor):
@@ -450,6 +493,14 @@ class PyBZip2Compressor(InternalCompressor):
     def _decompressor(self, name):
         return bz2.BZ2File(name, mode="rb")
 
+    def compress_in_mem(self, fileobj):
+        in_mem_bz2 = BytesIO(bz2.compress(fileobj.read()))
+        in_mem_bz2.seek(0)
+        return in_mem_bz2
+
+    def decompress_in_mem(self, fileobj):
+        return bz2.BZ2File(fileobj, "rb")
+
 
 class XZCompressor(InternalCompressor):
     """
@@ -468,6 +519,14 @@ class XZCompressor(InternalCompressor):
 
     def _decompressor(self, src):
         return lzma.open(src, mode="rb")
+
+    def compress_in_mem(self, fileobj):
+        in_mem_xz = BytesIO(lzma.compress(fileobj.read()))
+        in_mem_xz.seek(0)
+        return in_mem_xz
+
+    def decompress_in_mem(self, fileobj):
+        return lzma.open(fileobj, "rb")
 
 
 def _try_import_zstd():
@@ -514,6 +573,15 @@ class ZSTDCompressor(InternalCompressor):
     def _decompressor(self, src):
         return self.zstd.ZstdDecompressor().stream_reader(open(src, mode="rb"))
 
+    def compress_in_mem(self, fileobj):
+        in_mem_zstd = BytesIO()
+        self.zstd.ZstdCompressor().copy_stream(fileobj, in_mem_zstd)
+        in_mem_zstd.seek(0)
+        return in_mem_zstd
+
+    def decompress_in_mem(self, fileobj):
+        return self.zstd.ZstdDecompressor().stream_reader(fileobj)
+
 
 def _try_import_lz4():
     try:
@@ -557,6 +625,109 @@ class LZ4Compressor(InternalCompressor):
     def _decompressor(self, src):
         return self.lz4.frame.open(src, mode="rb")
 
+    def compress_in_mem(self, fileobj):
+        in_mem_lz4 = BytesIO(self.lz4.frame.compress(fileobj.read()))
+        in_mem_lz4.seek(0)
+        return in_mem_lz4
+
+    def decompress_in_mem(self, fileobj):
+        return self.lz4.frame.open(fileobj, mode="rb")
+
+
+def _try_import_snappy():
+    try:
+        import snappy
+    except ImportError:
+        raise SystemExit("Missing required python module: python-snappy")
+    return snappy
+
+
+class SnappyCompressor(InternalCompressor):
+
+    MAGIC = b"\xff\x06\x00\x00sNaPpY"
+
+    def __init__(self, config, compression, path=None):
+        """
+        Constructor.
+        :param config: barman.config.ServerConfig
+        :param compression: str compression name
+        :param path: str|None
+        """
+        super(SnappyCompressor, self).__init__(config, compression, path)
+        self._snappy = None
+
+    @property
+    def snappy(self):
+        if self._snappy is None:
+            self._snappy = _try_import_snappy()
+        return self._snappy
+
+    def _compressor(self, dst):
+        """Snappy library does not provide an interface which returns file-objects"""
+        return None
+
+    def _decompressor(self, src):
+        """Snappy library does not provide an interface which returns file-objects"""
+        return None
+
+    def compress(self, src, dst):
+        """
+        Snappy-compress the source file-object to the destination file-object
+
+        :param src: source file to compress
+        :param dst: destination of the decompression
+        """
+        try:
+            with open(src, "rb") as istream:
+                with open(dst, "wb") as ostream:
+                    compressed_fileobj = self.compress_in_mem(istream)
+                    shutil.copyfileobj(compressed_fileobj, ostream)
+        except Exception as e:
+            raise CommandFailedException(dict(ret=None, err=force_str(e), out=None))
+        return 0
+
+    def decompress(self, src, dst):
+        """
+        Decompress the source file-object to the destination file-object
+
+        :param src: source file to decompress
+        :param dst: destination of the decompression
+        """
+        try:
+            with open(src, "rb") as istream:
+                with open(dst, "wb") as ostream:
+                    decompressed_fileobj = self.decompress_in_mem(istream)
+                    shutil.copyfileobj(decompressed_fileobj, ostream)
+        except Exception as e:
+            raise CommandFailedException(dict(ret=None, err=force_str(e), out=None))
+        return 0
+
+    def compress_in_mem(self, fileobj):
+        in_mem_snappy = BytesIO()
+        self.snappy.stream_compress(fileobj, in_mem_snappy)
+        in_mem_snappy.seek(0)
+        return in_mem_snappy
+
+    def decompress_in_mem(self, fileobj):
+        decompressed_file = BytesIO()
+        self.snappy.stream_decompress(fileobj, decompressed_file)
+        decompressed_file.seek(0)
+        return decompressed_file
+
+    def decompress_to_fileobj(self, src_fileobj, dest_fileobj):
+        """
+        Decompresses the given file-object on the especified file-object
+
+        :param src_fileobj: source file-object to be decompressed
+        :param dest_fileobj: destination file-object to have the decompressed content
+
+        .. note::
+            We override this method to avoid redundant work. As Snappy can stream the
+            result directly to a specified object, there is no need for intermediate
+            objects as used in the parent class implementation.
+        """
+        self.snappy.stream_decompress(src_fileobj, dest_fileobj)
+
 
 class CustomCompressor(CommandCompressor):
     """
@@ -597,6 +768,7 @@ compression_registry = {
     "xz": XZCompressor,
     "zstd": ZSTDCompressor,
     "lz4": LZ4Compressor,
+    "snappy": SnappyCompressor,
     "custom": CustomCompressor,
 }
 

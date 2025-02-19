@@ -137,7 +137,7 @@ class TestCompressionManager(object):
         assert comp_manager.unidentified_compression is None
 
         # AND the value of MAGIC_MAX_LENGTH equals the length of the magic bytes
-        assert comp_manager.MAGIC_MAX_LENGTH == 6
+        assert comp_manager.MAGIC_MAX_LENGTH == 10
 
     def test_get_compressor_custom_nomagic(self, _reset_custom_compressor):
         # GIVEN a Barman config which specifies custom compression
@@ -164,7 +164,7 @@ class TestCompressionManager(object):
 
         # AND the value of MAGIC_MAX_LENGTH equals the max length of the default
         # compressions
-        assert comp_manager.MAGIC_MAX_LENGTH == 6
+        assert comp_manager.MAGIC_MAX_LENGTH == 10
 
     def test_get_compressor_gzip(self):
         # prepare mock obj
