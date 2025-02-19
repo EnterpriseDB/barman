@@ -62,6 +62,7 @@ class TestMain(object):
             cloud_interface=cloud_object_interface_mock,
             server_name="test-server",
             compression=None,
+            compression_level=None,
         )
         cloud_object_interface_mock.setup_bucket.assert_called_once_with()
         uploader_object_mock.upload_wal.assert_called_once_with(
@@ -85,6 +86,7 @@ class TestMain(object):
             cloud_interface=cloud_object_interface_mock,
             server_name="test-server",
             compression=None,
+            compression_level=None,
         )
         cloud_object_interface_mock.setup_bucket.assert_called_once_with()
         uploader_object_mock.upload_wal.assert_called_once_with(
@@ -108,6 +110,7 @@ class TestMain(object):
             cloud_interface=cloud_object_interface_mock,
             server_name="test-server",
             compression=None,
+            compression_level=None,
         )
         cloud_object_interface_mock.setup_bucket.assert_called_once_with()
         uploader_object_mock.upload_wal.assert_called_once_with(
@@ -147,6 +150,7 @@ class TestMain(object):
             cloud_interface=cloud_object_interface_mock,
             server_name="test-server",
             compression=None,
+            compression_level=None,
         )
         cloud_object_interface_mock.test_connectivity.assert_called_once_with()
 
@@ -168,6 +172,7 @@ class TestMain(object):
             cloud_interface=cloud_object_interface_mock,
             server_name="test-server",
             compression=None,
+            compression_level=None,
         )
         cloud_object_interface_mock.test_connectivity.assert_called_once_with()
 
