@@ -19,11 +19,14 @@
 import bz2
 import gzip
 import logging
+import lzma
 import os
 
+import lz4.frame
 import mock
 import pytest
 import snappy
+import zstandard
 
 from barman.clients import cloud_walarchive
 from barman.clients.cloud_walarchive import CloudWalUploader
@@ -535,6 +538,55 @@ class TestWalUploader(object):
         assert snappy.StreamDecompressor().decompress(
             open_file.read()
         ) == "something".encode("utf-8")
+
+    def test_retrieve_zstd_file_obj(self, tmpdir):
+        """
+        Test the retrieve_file_obj method with a zstd file
+        """
+        # Setup the WAL
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something".encode("utf-8"), ensure=True)
+        # Create a simple CloudWalUploader obj
+        uploader = CloudWalUploader(mock.MagicMock(), "test-server", compression="zstd")
+        open_file = uploader.retrieve_file_obj(source.strpath)
+        # Check the in memory file received
+        assert open_file
+        # Decompress on the fly to check content
+        assert zstandard.ZstdDecompressor().stream_reader(
+            open_file
+        ).read() == "something".encode("utf-8")
+
+    def test_retrieve_lz4_file_obj(self, tmpdir):
+        """
+        Test the retrieve_file_obj method with a lz4 file
+        """
+        # Setup the WAL
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something".encode("utf-8"), ensure=True)
+        # Create a simple CloudWalUploader obj
+        uploader = CloudWalUploader(mock.MagicMock(), "test-server", compression="lz4")
+        open_file = uploader.retrieve_file_obj(source.strpath)
+        # Check the in memory file received
+        assert open_file
+        # Decompress on the fly to check content
+        assert lz4.frame.open(open_file, mode="rb").read() == "something".encode(
+            "utf-8"
+        )
+
+    def test_retrieve_xz_file_obj(self, tmpdir):
+        """
+        Test the retrieve_file_obj method with a xz file
+        """
+        # Setup the WAL
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something".encode("utf-8"), ensure=True)
+        # Create a simple CloudWalUploader obj
+        uploader = CloudWalUploader(mock.MagicMock(), "test-server", compression="xz")
+        open_file = uploader.retrieve_file_obj(source.strpath)
+        # Check the in memory file received
+        assert open_file
+        # Decompress on the fly to check content
+        assert lzma.open(open_file, "rb").read() == "something".encode("utf-8")
 
     def test_retrieve_normal_file_name(self):
         """

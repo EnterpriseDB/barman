@@ -17,13 +17,19 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import base64
+import bz2
+import gzip
 import io
 import logging
+import lzma
 import os
 import tarfile
 
+import cramjam
+import lz4.frame
 import mock
 import pytest
+import zstandard
 from testing_helpers import build_mocked_server, get_compression_config
 
 from barman.compression import (
@@ -44,6 +50,7 @@ from barman.compression import (
     PgBaseBackupCompressionOption,
     PyBZip2Compressor,
     PyGZipCompressor,
+    SnappyCompressor,
     XZCompressor,
     ZSTDCompression,
     ZSTDCompressor,
@@ -521,6 +528,93 @@ class TestInternalCompressors(object):
 
         f = open(LZ4_FILE_UNCOMPRESSED % tmpdir.strpath).read()
         assert f == "content"
+
+    @pytest.mark.parametrize(
+        "compression, compression_class",
+        [
+            ("pygzip", PyGZipCompressor),
+            ("pybzip2", PyBZip2Compressor),
+            ("xz", XZCompressor),
+            ("zstd", ZSTDCompressor),
+            ("lz4", LZ4Compressor),
+            ("snappy", SnappyCompressor),
+        ],
+    )
+    def test_compress_in_mem(self, compression, compression_class):
+        """
+        Test the ``compress_in_mem`` method of the compression classes
+        """
+        # GIVEN a compressor instance
+        config_mock = mock.Mock(compression=compression)
+        compressor = compression_class(config=config_mock, compression=compression)
+        # AND some data to compress
+        uncompressed = io.BytesIO(b"I'm a big file. Compress me!")
+        # WHEN compress_in_mem is called
+        compressed = compressor.compress_in_mem(uncompressed)
+        # THEN the compressed data starts with the expected magic bytes, meaning it was
+        # compressed successfully
+        assert compressed.read().startswith(compression_class.MAGIC)
+
+    @pytest.mark.parametrize(
+        "compression, compression_class, compressed_fileobj",
+        [
+            ("pygzip", PyGZipCompressor, io.BytesIO(gzip.compress(b"data"))),
+            ("pybzip2", PyBZip2Compressor, io.BytesIO(bz2.compress(b"data"))),
+            ("xz", XZCompressor, io.BytesIO(lzma.compress(b"data"))),
+            ("lz4", LZ4Compressor, io.BytesIO(lz4.frame.compress(b"data"))),
+            ("snappy", SnappyCompressor, io.BytesIO(cramjam.snappy.compress(b"data"))),
+            (
+                "zstd",
+                ZSTDCompressor,
+                io.BytesIO(zstandard.ZstdCompressor().compress(b"data")),
+            ),
+        ],
+    )
+    def test_decompress_in_mem(
+        self, compression, compression_class, compressed_fileobj
+    ):
+        """
+        Test the ``decompress_in_mem`` method of the compression classes
+        """
+        # GIVEN a compressor instance
+        config_mock = mock.Mock(compression=compression)
+        compressor = compression_class(config=config_mock, compression=compression)
+        # WHEN decompress_in_mem is called
+        compressed_fileobj.seek(0)
+        decompressed_data = compressor.decompress_in_mem(compressed_fileobj)
+        # THEN the decompressed data matches the original data
+        assert decompressed_data.read() == b"data"
+
+    @pytest.mark.parametrize(
+        "compression, compression_class",
+        [
+            ("pygzip", PyGZipCompressor),
+            ("pybzip2", PyBZip2Compressor),
+            ("xz", XZCompressor),
+            ("zstd", ZSTDCompressor),
+            ("lz4", LZ4Compressor),
+        ],
+    )
+    @mock.patch("barman.compression.shutil")
+    def test_decompress_to_fileobj(self, mock_shutil, compression, compression_class):
+        """
+        Test the ``decompress_to_fileobj`` method of the compression classes.
+        """
+        # GIVEN a compressor instance
+        config_mock = mock.Mock(compression=compression)
+        compressor = compression_class(config=config_mock, compression=compression)
+        # AND mock the decompress_in_mem object of the compressor class
+        with mock.patch.object(compressor, "decompress_in_mem") as mock_decompress:
+            mock_decompress.return_value = io.BytesIO(b"decompressed")
+            compressed_fileobj = io.BytesIO(b"compressed")
+            dest_fileobj = io.BytesIO()
+            # THEN calling decompress_to_fileobj is just a matter of calling
+            # decompress_in_mem and then copying its result to the dest file-object
+            compressor.decompress_to_fileobj(compressed_fileobj, dest_fileobj)
+            mock_decompress.assert_called_once_with(compressed_fileobj)
+            mock_shutil.copyfileobj.assert_called_once_with(
+                mock_decompress.return_value, dest_fileobj
+            )
 
 
 # noinspection PyMethodMayBeStatic
