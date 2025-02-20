@@ -28,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN" "1" "Dec 09, 2024" "3.12" "Barman"
+.TH "BARMAN" "1" "Feb 20, 2025" "3.13" "Barman"
 .SH NAME
 barman \- Barman Commands
 .sp
@@ -46,7 +46,7 @@ behavior of the sub\-commands and can be used as follows:
 .EX
 barman
     [ { \-c | \-\-config } CONFIG ]
-    [ { \-color | \-\-colour } { never | always | auto } ]
+    [ { \-\-color | \-\-colour } { never | always | auto } ]
     [ { \-d | \-\-debug } ]
     [ { \-f | \-\-format } { json | console } ]
     [ { \-h | \-\-help } ]
@@ -216,7 +216,9 @@ quickly navigate to it.
 .INDENT 3.5
 .sp
 .EX
-archive\-wal SERVER_NAME
+archive\-wal
+    [ { \-h | \-\-help } ]
+    SERVER_NAME
 .EE
 .UNINDENT
 .UNINDENT
@@ -231,6 +233,9 @@ before they are archived.
 .TP
 .B \fBSERVER_NAME\fP
 Name of the server in barman node.
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .UNINDENT
 .SS \fBbarman backup\fP
 .SS Synopsis
@@ -240,9 +245,10 @@ Name of the server in barman node.
 .EX
 backup
     [ \-\-bwlimit KBPS ]
+    [ { \-h | \-\-help } ]
     [ \-\-incremental BACKUP_ID ]
     [ \-\-immediate\-checkpoint ]
-    [ { \-j, \-\-jobs } PARALLEL_WORKERS ]
+    [ { \-j | \-\-jobs } PARALLEL_WORKERS ]
     [ \-\-jobs\-start\-batch\-period PERIOD ]
     [ \-\-jobs\-start\-batch\-size SIZE ]
     [ \-\-keepalive\-interval SECONDS ]
@@ -256,7 +262,7 @@ backup
     [ \-\-reuse\-backup { off | copy | link } ]
     [ { \-\-wait | \-w } ]
     [ \-\-wait\-timeout SECONDS ]
-    SERVER_NAME [ ... ]
+    SERVER_NAME [ SERVER_NAME ... ]
 .EE
 .UNINDENT
 .UNINDENT
@@ -275,6 +281,9 @@ Name of the server in barman node.
 .B \fB\-\-bwlimit\fP
 Specify the maximum transfer rate in kilobytes per second. A value of 0 indicates no
 limit. This setting overrides the \fBbandwidth_limit\fP configuration option.
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .TP
 .B \fB\-\-incremental\fP
 Execute a block\-level incremental backup. You must provide a \fBBACKUP_ID\fP or a
@@ -397,7 +406,9 @@ T}
 .INDENT 3.5
 .sp
 .EX
-check\-backup SERVER_NAME BACKUP_ID
+check\-backup
+    [ { \-h | \-\-help } ]
+    SERVER_NAME BACKUP_ID
 .EE
 .UNINDENT
 .UNINDENT
@@ -414,6 +425,9 @@ Name of the server in barman node.
 .TP
 .B \fBBACKUP_ID\fP
 Id of the backup in barman catalog.
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .UNINDENT
 .SS Shortcuts
 .sp
@@ -458,7 +472,10 @@ T}
 .INDENT 3.5
 .sp
 .EX
-check [ \-\-nagios ] SERVER_NAME
+check
+    [ { \-h | \-\-help } ]
+    [ \-\-nagios ]
+    SERVER_NAME [ SERVER_NAME ... ]
 .EE
 .UNINDENT
 .UNINDENT
@@ -473,6 +490,9 @@ configured servers.
 .TP
 .B \fBSERVER_NAME\fP
 Name of the server in barman node.
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .TP
 .B \fB\-\-nagios\fP
 Nagios plugin compatible output.
@@ -501,7 +521,9 @@ T}
 .INDENT 3.5
 .sp
 .EX
-config\-switch SERVER_NAME { \-\-reset | MODEL_NAME }
+config\-switch
+    [ { \-h | \-\-help } ]
+    SERVER_NAME { \-\-reset | MODEL_NAME }
 .EE
 .UNINDENT
 .UNINDENT
@@ -527,6 +549,9 @@ Name of the server in barman node.
 .B \fBMODEL_NAME\fP
 Name of the model.
 .TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
+.TP
 .B \fB\-\-reset\fP
 Reset the server\(aqs configurations.
 .UNINDENT
@@ -536,7 +561,9 @@ Reset the server\(aqs configurations.
 .INDENT 3.5
 .sp
 .EX
-config\-update STRING
+config\-update
+    [ { \-h | \-\-help } ]
+    STRING
 .EE
 .UNINDENT
 .UNINDENT
@@ -564,6 +591,9 @@ of this if you decide to manually modify configuration options in those files la
 .TP
 .B \fBSTRING\fP
 List of JSON formatted string.
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .UNINDENT
 .SS Example
 .sp
@@ -575,7 +605,9 @@ List of JSON formatted string.
 .INDENT 3.5
 .sp
 .EX
-cron [ \-\-keep\-descriptors ]
+cron
+    [ { \-h | \-\-help } ]
+    [ \-\-keep\-descriptors ]
 .EE
 .UNINDENT
 .UNINDENT
@@ -584,6 +616,9 @@ cron [ \-\-keep\-descriptors ]
 Carry out maintenance tasks, such as enforcing retention policies or managing WAL files.
 .SS Parameters
 .INDENT 0.0
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .TP
 .B \fB\-\-keep\-descriptors\fP
 Keep the ^stdout^ and ^stderr^ streams of the Barman subprocesses connected to the
@@ -595,7 +630,9 @@ main process. This is especially useful for Docker\-based installations.
 .INDENT 3.5
 .sp
 .EX
-delete SERVER_NAME BACKUP_ID
+delete
+    [ { \-h | \-\-help } ]
+    SERVER_NAME BACKUP_ID
 .EE
 .UNINDENT
 .UNINDENT
@@ -610,6 +647,9 @@ Name of the server in barman node
 .TP
 .B \fBBACKUP_ID\fP
 Id of the backup in barman catalog.
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .UNINDENT
 .SS Shortcuts
 .sp
@@ -655,6 +695,8 @@ T}
 .sp
 .EX
 diagnose
+    [ { \-h | \-\-help } ]
+    [ \-\-show\-config\-source ]
 .EE
 .UNINDENT
 .UNINDENT
@@ -664,13 +706,25 @@ Display diagnostic information about the Barman node, which is the server where 
 is installed, as well as all configured Postgres servers. This includes details such as
 global configuration, SSH version, Python version, rsync version, the current
 configuration and status of all servers, and many more.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
+.TP
+.B \fB\-\-show\-config\-source\fP
+Include the source file which provides the effective value for each configuration
+option.
+.UNINDENT
 .SS \fBbarman generate\-manifest\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
 .EX
-generate\-manifest SERVER_NAME BACKUP_ID
+generate\-manifest
+    [ { \-h | \-\-help } ]
+    SERVER_NAME BACKUP_ID
 .EE
 .UNINDENT
 .UNINDENT
@@ -686,6 +740,9 @@ Name of the server in barman node
 .TP
 .B \fBBACKUP_ID\fP
 Id of the backup in barman catalog.
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .UNINDENT
 .SS Shortcuts
 .sp
@@ -731,12 +788,14 @@ T}
 .sp
 .EX
 get\-wal
-    [ \-j ]
-    [ \-o  OUTPUT_DIRECTORY ]
-    [ \-p  VALUE ]
+    [ { \-\-bzip | \-j } ]
+    [ { \-\-gzip | \-z | \-x } ]
+    [ { \-h | \-\-help } ]
+    [ \-\-keep\-compression ]
+    [ { \-\-output\-directory | \-o } OUTPUT_DIRECTORY ]
+    [ { \-\-peek | \-p } VALUE ]
     [ { \-P | \-\-partial } ]
     [ { \-t | \-\-test } ]
-    [ \-z ]
     SERVER_NAME WAL_NAME
 .EE
 .UNINDENT
@@ -754,20 +813,23 @@ Name of the server in barman node
 .B \fBWAL_NAME\fP
 Id of the backup in barman catalog.
 .TP
-.B \fB\-j\fP /  \fB\-\-bzip2\fP
+.B \fB\-\-bzip2\fP / \fB\-j\fP
 Output will be compressed using bzip2.
 .TP
-.B \fB\-z\fP / \fB\-\-gzip\fP
+.B \fB\-\-gzip\fP / \fB\-z\fP / \fB\-x\fP
 Output will be compressed using gzip.
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .TP
 .B \fB\-\-keep\-compression\fP
 Do not uncompress the file content. The output will be the original compressed
 file.
 .TP
-.B \fB\-o\fP
+.B \fB\-\-output\-directory\fP / \fB\-o\fP
 Destination directory where barman will store the WAL file.
 .TP
-.B \fB\-p\fP
+.B \fB\-\-peek\fP / \fB\-p\fP
 Specify an integer value greater than or equal to 1 to retrieve WAL files from the
 specified WAL file up to the value specified by this parameter. When using this option,
 \fBget\-wal\fP returns a list of zero to the specified WAL segment names, with one name
@@ -797,7 +859,8 @@ on the Barman server via the \fBcompression\fP configuration option.
 .sp
 .EX
 keep
-    { \-\-release | \-\-status | \-\-target { full | standalone } }
+    [ { \-h | \-\-help } ]
+    { { \-r | \-\-release } | { \-s | \-\-status } | \-\-target { full | standalone } }
     SERVER_NAME BACKUP_ID
 .EE
 .UNINDENT
@@ -817,11 +880,14 @@ Name of the server in barman node
 .B \fBBACKUP_ID\fP
 Id of the backup in barman catalog.
 .TP
-.B \fB\-\-release\fP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
+.TP
+.B \fB\-r\fP / \fB\-\-release\fP
 Release the keep mark from this backup. This will remove its archival status and
 make it available for deletion, either directly or by retention policy.
 .TP
-.B \fB\-\-status\fP
+.B \fB\-s\fP / \fB\-\-status\fP
 Report the archival status of the backup. The status will be either \fBfull\fP or
 \fBstandalone\fP for archival backups, or \fBnokeep\fP for backups that have not been
 designated as archival.
@@ -882,7 +948,10 @@ T}
 .INDENT 3.5
 .sp
 .EX
-list\-backups SERVER_NAME
+list\-backups
+    [ { \-h | \-\-help } ]
+    [ \-\-minimal ]
+    SERVER_NAME
 .EE
 .UNINDENT
 .UNINDENT
@@ -896,6 +965,12 @@ the backup ID and the backup type. You can find details about this command in
 .TP
 .B \fBSERVER_NAME\fP
 Name of the server in barman node
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
+.TP
+.B \fB\-\-minimal\fP
+Machine readable output.
 .UNINDENT
 .SS Shortcuts
 .sp
@@ -922,6 +997,7 @@ T}
 .sp
 .EX
 list\-files
+    [ { \-h | \-\-help } ]
     [ \-\-target { data | full | standalone | wal } ]
     SERVER_NAME BACKUP_ID
 .EE
@@ -938,6 +1014,9 @@ Name of the server in barman node
 .TP
 .B \fBBACKUP_ID\fP
 Id of the backup in barman catalog.
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .TP
 .B \fB\-\-target\fP
 Define specific files to be listed. The possible values are:
@@ -997,7 +1076,9 @@ T}
 .INDENT 3.5
 .sp
 .EX
-list\-servers [ \-\-minimal ]
+list\-servers
+    [ { \-h | \-\-help } ]
+    [ \-\-minimal ]
 .EE
 .UNINDENT
 .UNINDENT
@@ -1006,6 +1087,9 @@ list\-servers [ \-\-minimal ]
 Display all configured servers along with their descriptions.
 .SS Parameters
 .INDENT 0.0
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .TP
 .B \fB\-\-minimal\fP
 Machine readable output.
@@ -1017,19 +1101,29 @@ Machine readable output.
 .sp
 .EX
 lock\-directory\-cleanup
+    [ { \-h | \-\-help } ]
 .EE
 .UNINDENT
 .UNINDENT
 .SS Description
 .sp
 Automatically removes unused lock files from the \fBbarman_lock_directory\fP\&.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
+.UNINDENT
 .SS \fBbarman put\-wal\fP
 .SS Synopsis
 .INDENT 0.0
 .INDENT 3.5
 .sp
 .EX
-put\-wal [ { \-t | \-\-test } ] SERVER_NAME
+put\-wal
+    [ { \-h | \-\-help } ]
+    [ { \-t | \-\-test } ]
+    SERVER_NAME
 .EE
 .UNINDENT
 .UNINDENT
@@ -1048,6 +1142,9 @@ command directly unless you fully manage the content of the files.
 .B \fBSERVER_NAME\fP
 Name of the server in barman node
 .TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
+.TP
 .B \fB\-t\fP / \fB\-\-test\fP
 Test both the connection and configuration of the specified Postgres
 server in Barman for WAL retrieval.
@@ -1058,7 +1155,9 @@ server in Barman for WAL retrieval.
 .INDENT 3.5
 .sp
 .EX
-rebuild\-xlogdb SERVER_NAME
+rebuild\-xlogdb
+    [ { \-h | \-\-help } ]
+    SERVER_NAME [ SERVER_NAME ... ]
 .EE
 .UNINDENT
 .UNINDENT
@@ -1072,6 +1171,9 @@ with each Barman server maintaining its own copy.
 .TP
 .B \fBSERVER_NAME\fP
 Name of the server in barman node.
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .UNINDENT
 .SS Shortcuts
 .sp
@@ -1091,6 +1193,14 @@ T}	T{
 All available servers
 T}
 .TE
+.SS \fBbarman recover\fP
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+This command is deprecated. Use the \fI\%barman restore\fP command instead.
+.UNINDENT
+.UNINDENT
 .SS \fBbarman receive\-wal\fP
 .SS Synopsis
 .INDENT 0.0
@@ -1100,6 +1210,7 @@ T}
 receive\-wal
     [ \-\-create\-slot ]
     [ \-\-drop\-slot ]
+    [ { \-h | \-\-help } ]
     [ \-\-reset ]
     [ \-\-stop ]
     SERVER_NAME
@@ -1125,6 +1236,9 @@ parameter.
 Drop the physical replication slot configured with the \fBslot_name\fP configuration
 parameter.
 .TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
+.TP
 .B \fB\-\-reset\fP
 Reset the status of \fBreceive\-wal\fP, restarting the streaming from the current WAL file
 of the server.
@@ -1144,12 +1258,13 @@ restore
     [ \-\-bwlimit KBPS ]
     [ \-\-exclusive ]
     [ \-\-gcp\-zone GCP_ZONE ]
-    [ \-\-get\-wal | \-\-no\-get\-wal ]
+    [ { \-\-get\-wal | \-\-no\-get\-wal } ]
+    [ { \-h | \-\-help } ]
     [ { \-j | \-\-jobs } PARALLEL_WORKERS ]
     [ \-\-jobs\-start\-batch\-period SECONDS ]
     [ \-\-jobs\-start\-batch\-size NUMBER ]
     [ \-\-local\-staging\-path PATH ]
-    [ \-\-network\-compression | \-\-no\-network\-compression ]
+    [ { \-\-network\-compression | \-\-no\-network\-compression } ]
     [ \-\-no\-retry ]
     [ \-\-recovery\-conf\-filename FILENAME ]
     [ \-\-recovery\-staging\-path PATH ]
@@ -1157,8 +1272,9 @@ restore
     [ \-\-retry\-sleep SECONDS ]
     [ \-\-retry\-times NUMBER ]
     [ \-\-snapshot\-recovery\-instance INSTANCE_NAME ]
+    [ \-\-snapshot\-recovery\-zone GCP_ZONE ]
     [ \-\-standby\-mode ]
-    [ \-\-tablespace NAME:LOCATION ]
+    [ \-\-tablespace NAME:LOCATION [ \-\-tablespace NAME:LOCATION ... ] ]
     [ \-\-target\-action { pause | shutdown | promote } ]
     [ \-\-target\-immediate ]
     [ \-\-target\-lsn LSN ]
@@ -1166,7 +1282,8 @@ restore
     [ \-\-target\-time TIMESTAMP ]
     [ \-\-target\-tli TLI ]
     [ \-\-target\-xid XID ]
-    SERVER_NAME BACKUP_ID DESTINATION_DIR
+    [ \-\-staging\-wal\-directory ]
+    SERVER_NAME [ BACKUP_ID ] DESTINATION_DIR
 .EE
 .UNINDENT
 .UNINDENT
@@ -1216,6 +1333,9 @@ configuration.
 .B \fB\-\-get\-wal\fP / \fB\-\-no\-get\-wal\fP
 Enable/disable usage of \fBget\-wal\fP for WAL fetching during recovery. Default is based on
 \fBrecovery_options\fP setting.
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .TP
 .B \fB\-j\fP / \fB\-\-jobs\fP
 Specify the number of parallel workers to use for copying files during the backup.
@@ -1284,6 +1404,10 @@ Specify the name of the instance where the disks recovered from the snapshots ar
 attached. This option is necessary when recovering backups created with
 \fBbackup_method=snapshot\fP\&.
 .TP
+.B \fB\-\-snapshot\-recovery\-zone\fP (deprecated)
+Zone containing the instance and disks for the snapshot recovery (deprecated:
+replaced by \fB\-\-gcp\-zone\fP)
+.TP
 .B \fB\-\-standby\-mode\fP
 Whether to start the Postgres server as a standby.
 .TP
@@ -1327,6 +1451,10 @@ time the backup was taken.
 .TP
 .B \fB\-\-target\-xid\fP
 Recover to the specified transaction ID.
+.TP
+.B \fB\-\-staging\-wal\-directory\fP
+A staging directory on the destination host for WAL files when performing PITR. If
+unspecified, it uses a \fBbarman_wal\fP directory inside the destination directory.
 .UNINDENT
 .SS Shortcuts
 .sp
@@ -1372,10 +1500,11 @@ T}
 .sp
 .EX
 replication\-status
+    [ { \-h | \-\-help } ]
     [ \-\-minimal ]
     [ \-\-source { backup\-host | wal\-host } ]
     [ \-\-target { hot\-standby | wal\-streamer | all } ]
-SERVER_NAME
+    SERVER_NAME [ SERVER_NAME ... ]
 .EE
 .UNINDENT
 .UNINDENT
@@ -1389,6 +1518,9 @@ servers.
 .TP
 .B \fBSERVER_NAME\fP
 Name of the server in barman node
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .TP
 .B \fB\-\-minimal\fP
 Machine readable output.
@@ -1439,7 +1571,9 @@ T}
 .INDENT 3.5
 .sp
 .EX
-show\-backup SERVER_NAME BACKUP_ID
+show\-backup
+    [ { \-h | \-\-help } ]
+    SERVER_NAME BACKUP_ID
 .EE
 .UNINDENT
 .UNINDENT
@@ -1455,6 +1589,9 @@ Name of the server in barman node
 .TP
 .B \fBBACKUP_ID\fP
 Id of the backup in barman catalog.
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .UNINDENT
 .SS Shortcuts
 .sp
@@ -1499,7 +1636,9 @@ T}
 .INDENT 3.5
 .sp
 .EX
-show\-servers SERVER_NAME
+show\-servers
+    [ { \-h | \-\-help } ]
+    SERVER_NAME [ SERVER_NAME ... ]
 .EE
 .UNINDENT
 .UNINDENT
@@ -1513,6 +1652,9 @@ servers, specify the \fBall\fP shortcut instead of the server name.
 .TP
 .B \fBSERVER_NAME\fP
 Name of the server in barman node
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .UNINDENT
 .SS Shortcuts
 .TS
@@ -1536,7 +1678,9 @@ T}
 .INDENT 3.5
 .sp
 .EX
-status SERVER_NAME
+status
+    [ { \-h | \-\-help } ]
+    SERVER_NAME [ SERVER_NAME ... ]
 .EE
 .UNINDENT
 .UNINDENT
@@ -1549,6 +1693,9 @@ Postgres version, WAL information, available backups and more.
 .TP
 .B \fBSERVER_NAME\fP
 Name of the server in barman node
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .UNINDENT
 .SS Shortcuts
 .TS
@@ -1576,7 +1723,8 @@ switch\-wal
     [ \-\-archive ]
     [ \-\-archive\-timeout ]
     [ \-\-force ]
-    SERVER_NAME
+    [ { \-h | \-\-help } ]
+    SERVER_NAME [ SERVER_NAME ... ]
 .EE
 .UNINDENT
 .UNINDENT
@@ -1610,6 +1758,9 @@ Running a CHECKPOINT may increase I/O load on the Postgres server, so use this
 option cautiously.
 .UNINDENT
 .UNINDENT
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .UNINDENT
 .SS \fBbarman switch\-xlog\fP
 .SS Description
@@ -1621,7 +1772,9 @@ Alias for the \fBswitch\-wal\fP command.
 .INDENT 3.5
 .sp
 .EX
-sync\-backup SERVER_NAME BACKUP_ID
+sync\-backup
+    [ { \-h | \-\-help } ]
+    SERVER_NAME BACKUP_ID
 .EE
 .UNINDENT
 .UNINDENT
@@ -1639,6 +1792,9 @@ Name of the server in barman node
 .TP
 .B \fBBACKUP_ID\fP
 Id of the backup in barman catalog.
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .UNINDENT
 .SS Shortcuts
 .sp
@@ -1684,7 +1840,10 @@ T}
 .INDENT 3.5
 .sp
 .EX
-sync\-info [ \-\-primary ] SERVER_NAME [ LAST_WAL [ LAST_POS ] ]
+sync\-info
+    [ { \-h | \-\-help } ]
+    [ \-\-primary ]
+    SERVER_NAME [ LAST_WAL [ LAST_POS ] ]
 .EE
 .UNINDENT
 .UNINDENT
@@ -1708,6 +1867,12 @@ incremental synchronization).
 .TP
 .B \fBLAST_POS\fP
 Hint for quickly positioning in the \fBxlog.db\fP file (for incremental synchronization).
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
+.TP
+.B \fB\-\-primary\fP
+Execute the sync\-info on the primary node (if set).
 .UNINDENT
 .SS \fBbarman sync\-wals\fP
 .SS Synopsis
@@ -1715,7 +1880,9 @@ Hint for quickly positioning in the \fBxlog.db\fP file (for incremental synchron
 .INDENT 3.5
 .sp
 .EX
-sync\-wals SERVER_NAME
+sync\-wals
+    [ { \-h | \-\-help } ]
+    SERVER_NAME
 .EE
 .UNINDENT
 .UNINDENT
@@ -1729,6 +1896,9 @@ files from the server node. It is available only for passive nodes and utilizes 
 .TP
 .B \fBSERVER_NAME\fP
 Name of the server in barman node
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .UNINDENT
 .SS \fBbarman verify\-backup\fP
 .SS Synopsis
@@ -1736,7 +1906,9 @@ Name of the server in barman node
 .INDENT 3.5
 .sp
 .EX
-verify\-backup SERVER_NAME BACKUP_ID
+verify\-backup
+    [ { \-h | \-\-help } ]
+    SERVER_NAME BACKUP_ID
 .EE
 .UNINDENT
 .UNINDENT
@@ -1754,6 +1926,9 @@ Name of the server in barman node
 .TP
 .B \fBBACKUP_ID\fP
 Id of the backup in barman catalog.
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
 .UNINDENT
 .SS Shortcuts
 .sp
@@ -1809,12 +1984,12 @@ both utilities.
 .sp
 .EX
 barman\-wal\-archive
-    [ { \-h, \-\-help } ]
-    [ { \-V, \-\-version } ]
-    [ { \-U, \-\-user } USER ]
+    [ { \-h | \-\-help } ]
+    [ { \-V | \-\-version } ]
+    [ { \-U | \-\-user } USER ]
     [ \-\-port PORT ]
-    [ { \-c, \-\-config } CONFIG ]
-    [ { \-t \-\-test } ]
+    [ { \-c | \-\-config } CONFIG ]
+    [ { \-t | \-\-test } ]
     [ \-\-md5 ]
     BARMAN_HOST SERVER_NAME WAL_PATH
 .EE
@@ -1881,19 +2056,17 @@ support only MD5.
 .sp
 .EX
 barman\-wal\-restore
-    [ { \-h, \-\-help } ]
-    [ { \-V, \-\-version } ]
-    [ { \-U, \-\-user } USER ]
+    [ { \-h | \-\-help } ]
+    [ { \-V | \-\-version } ]
+    [ { \-U | \-\-user } USER ]
     [ \-\-port PORT ]
-    [ { \-s, \-\-sleep } SECONDS ]
-    [ { \-p, \-\-parallel } JOBS ]
+    [ { \-s | \-\-sleep } SECONDS ]
+    [ { \-p | \-\-parallel } JOBS ]
     [ \-\-spool\-dir SPOOL_DIR ]
-    [ { \-P, \-\-partial } ]
-    [ { \-z, \-\-gzip } ]
-    [ { \-j, \-\-bzip2 } ]
-    [ \-\-keep\-compression ]
-    [ { \-c, \-\-config } CONFIG ]
-    [ { \-t \-\-test } ]
+    [ { \-P | \-\-partial } ]
+    [ { { \-z | \-\-gzip } | { \-j | \-\-bzip2 } | \-\-keep\-compression } ]
+    [ { \-c | \-\-config } CONFIG ]
+    [ { \-t | \-\-test } ]
     BARMAN_HOST SERVER_NAME WAL_NAME WAL_DEST
 .EE
 .UNINDENT
@@ -1990,6 +2163,6 @@ on the Barman server via the \fBcompression\fP configuration option.
 .SH AUTHOR
 EnterpriseDB
 .SH COPYRIGHT
-© Copyright EnterpriseDB UK Limited 2011-2024
+© Copyright EnterpriseDB UK Limited 2011-2025
 .\" Generated by docutils manpage writer.
 .
