@@ -1,0 +1,16 @@
+- summary: Add --compression-level parameter to barman-cloud-wal-archive
+  description: |
+    A parameter called `compression-level` was added to `barman-cloud-wal-archive`,
+    which allows a level to be specified for the compression algorithm in use.
+  type: minor_change
+  jira_tickets:
+    - BAR-557
+
+- summary: Add Snappy compression algorithm to Barman server
+  description: |
+    The Snappy compression, previously only available in `barman-cloud-wal-archive`, is
+    now also available for standard Barman server. As with all other algorithms, it can
+    be configured by setting `snappy` in the `compression` configuration parameter.
+  type: minor_change
+  jira_tickets:
+    - BAR-557
