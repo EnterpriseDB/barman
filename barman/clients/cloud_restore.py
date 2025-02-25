@@ -90,7 +90,7 @@ def main(args=None):
 
             catalog = CloudBackupCatalog(cloud_interface, config.server_name)
             backup_id = None
-            if config.backup_id is not None:
+            if config.backup_id != "auto":
                 backup_id = catalog.parse_backup_id(config.backup_id)
             else:
                 target_options = ["target_time", "target_lsn"]
@@ -105,7 +105,6 @@ def main(args=None):
                 # string ("current", "latest")
                 target_tli = parse_target_tli(obj=catalog, target_tli=config.target_tli)
 
-                backup_id = None
                 available_backups = catalog.get_backup_list().values()
                 if target_option is None:
                     if target_tli is not None:
@@ -182,7 +181,7 @@ def parse_arguments(args=None):
         "previously made with barman-cloud-backup command."
         "Currently AWS S3, Azure Blob Storage and Google Cloud Storage are supported.",
     )
-    parser.add_argument("backup_id", help="the backup ID", nargs="?", default=None)
+    parser.add_argument("backup_id", help="the backup ID")
     parser.add_argument("recovery_dir", help="the path to a directory for recovery.")
     parser.add_argument(
         "--tablespace",

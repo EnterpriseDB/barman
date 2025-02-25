@@ -751,8 +751,6 @@ def rebuild_xlogdb(args):
             "backup_id",
             completer=backup_completer,
             help="specifies the backup ID to restore",
-            nargs="?",
-            default=None,
         ),
         argument(
             "destination_directory",
@@ -947,7 +945,7 @@ def restore(args):
     )
     target_tli = None
     backup_info = None
-    if args.backup_id is not None:
+    if args.backup_id != "auto":
         backup_info = parse_backup_id(server, args)
     else:
         target = getattr(args, target_option) if target_option else None
