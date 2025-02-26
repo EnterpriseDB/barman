@@ -1126,7 +1126,7 @@ backups.
 Defines the time frame within which the latest backup must fall. If the latest backup
 is older than this period, the barman check command will report an error. If left
 empty (default), the latest backup is always considered valid. The accepted format is
-``"n {DAYS|WEEKS|MONTHS}"``, where ``n`` is an integer greater than zero.
+``"n {DAYS|WEEKS|MONTHS|HOURS}"``, where ``n`` is an integer greater than zero.
 
 Scope: Global / Server / Model.
 
