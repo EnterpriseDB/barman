@@ -33,8 +33,12 @@ import tarfile
 import time
 from contextlib import closing
 from io import BytesIO
+from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 
 import barman
+from barman.compression import CompressionManager
+from barman.config import parse_compression_level
 
 DEFAULT_USER = "barman"
 BUFSIZE = 16 * 1024
@@ -186,6 +190,60 @@ def parse_arguments(args=None):
         action="store_true",
         help="Use MD5 as the hash algorithm to maintain compatibility between "
         "mismatched client and server versions.",
+    )
+    parser.add_argument(
+        "-z",
+        "--gzip",
+        help="gzip-compress the WAL file before sending it",
+        action="store_const",
+        const="gzip",
+        dest="compression",
+    )
+    parser.add_argument(
+        "-j",
+        "--bzip2",
+        help="bzip2-compress the WAL file before sending it",
+        action="store_const",
+        const="bzip2",
+        dest="compression",
+    )
+    parser.add_argument(
+        "--xz",
+        help="xz-compress the WAL file before sending it",
+        action="store_const",
+        const="xz",
+        dest="compression",
+    )
+    parser.add_argument(
+        "--snappy",
+        help="snappy-compress the WAL file before sending it "
+        "(requires optional python-snappy library)",
+        action="store_const",
+        const="snappy",
+        dest="compression",
+    )
+    parser.add_argument(
+        "--zstd",
+        help="zstd-compress the WAL file before sending it "
+        "(requires optional zstandard library)",
+        action="store_const",
+        const="zstd",
+        dest="compression",
+    )
+    parser.add_argument(
+        "--lz4",
+        help="lz4-compress the WAL file before sending it "
+        "(requires optional lz4 library)",
+        action="store_const",
+        const="lz4",
+        dest="compression",
+    )
+    parser.add_argument(
+        "--compression-level",
+        help="A compression level for the specified compression algorithm",
+        dest="compression_level",
+        type=parse_compression_level,
+        default=None,
     )
     parser.add_argument(
         "barman_host",
@@ -352,9 +410,39 @@ class RemotePutWal(object):
         # Send the data as a tar file (containing checksums)
         with self.ssh_process.stdin as dest_file:
             with closing(ChecksumTarFile.open(mode="w|", fileobj=dest_file)) as tar:
+                filename = os.path.basename(wal_path)
                 tar.hash_algorithm = hash_algorithm
                 tar.HASHSUMS_FILE = HASHSUMS_FILE
-                tar.add(wal_path, os.path.basename(wal_path))
+                if config.compression is not None:
+                    # Use the equivalent internal compressor for gzip and bzip2 options
+                    if config.compression == "gzip":
+                        config.compression = "pygzip"
+                    elif config.compression == "bzip2":
+                        config.compression = "pybzip2"
+                    with TemporaryDirectory(prefix="barman-wal-archive-") as tmpdir:
+                        server_config = self._get_server_config_minimal(config)
+                        comp_manager = CompressionManager(server_config, None)
+                        compressor = comp_manager.get_compressor(config.compression)
+                        compressed_file_path = os.path.join(tmpdir, filename)
+                        compressor.compress(wal_path, compressed_file_path)
+                        tar.add(compressed_file_path, filename)
+                else:
+                    tar.add(wal_path, filename)
+
+    def _get_server_config_minimal(self, config):
+        """
+        Returns a placeholder for a server config object with all compression
+        parameters relevant to ``CompressionManager`` filled.
+
+        :param argparse.Namespace config: the configuration from command line
+        """
+        return SimpleNamespace(
+            compression=config.compression,
+            compression_level=config.compression_level,
+            custom_compression_magic=None,
+            custom_compression_filter=None,
+            custom_decompression_filter=None,
+        )
 
     @classmethod
     def wait_for_all(cls):
