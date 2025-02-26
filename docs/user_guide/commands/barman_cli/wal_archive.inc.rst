@@ -62,8 +62,8 @@ Parameters
 
 ``-t`` / ``--test``
     Test the connection and configuration of the specified Postgres server in Barman to
-    ensure it is ready to receive WAL files. This option ignores the mandatory arguments
-    ``WAL_NAME`` and ``WAL_DEST``.
+    ensure it is ready to receive WAL files. This option ignores the mandatory argument
+    ``WAL_PATH``.
 
 ``--md5``
     Use MD5 instead of SHA256 as the hash algorithm to calculate the checksum of the WAL

@@ -132,8 +132,7 @@ def parse_arguments(args=None):
     compression.add_argument(
         "-z",
         "--gzip",
-        help="gzip-compress the WAL while uploading to the cloud "
-        "(should not be used with python < 3.2)",
+        help="gzip-compress the WAL while uploading to the cloud",
         action="store_const",
         const="gzip",
         dest="compression",
@@ -141,16 +140,14 @@ def parse_arguments(args=None):
     compression.add_argument(
         "-j",
         "--bzip2",
-        help="bzip2-compress the WAL while uploading to the cloud "
-        "(should not be used with python < 3.3)",
+        help="bzip2-compress the WAL while uploading to the cloud",
         action="store_const",
         const="bzip2",
         dest="compression",
     )
     compression.add_argument(
         "--xz",
-        help="xz-compress the WAL while uploading to the cloud "
-        "(should not be used with python < 3.3)",
+        help="xz-compress the WAL while uploading to the cloud",
         action="store_const",
         const="xz",
         dest="compression",

@@ -84,16 +84,13 @@ Barman server. Additionally, it can be utilized as a hook script for WAL archivi
   * ``google-cloud-storage``.
 
 ``-z`` / ``--gzip``
-  gzip-compress the WAL while uploading to the cloud (should not be used with python <
-  3.2).
+  gzip-compress the WAL while uploading to the cloud.
 
 ``-j`` / ``--bzip2``
-  bzip2-compress the WAL while uploading to the cloud (should not be used with python <
-  3.3).
+  bzip2-compress the WAL while uploading to the cloud.
 
 ``--xz``
-  xz-compress the WAL while uploading to the cloud (should not be used with python <
-  3.3).
+  xz-compress the WAL while uploading to the cloud.
 
 ``--snappy``
   snappy-compress the WAL while uploading to the cloud (requires optional

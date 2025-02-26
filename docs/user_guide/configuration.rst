@@ -925,7 +925,7 @@ These configuration options are related to how Barman will manage the Write-Ahea
 **compression**
 
 Specifies the standard compression algorithm for WAL files. Options include: ``lz4``,
-``xz``, ``zstd``, ``gzip``, ``pybzip2``, ``pigz``, ``bzip2``, ``pybzip2`` and ``custom``. 
+``xz``, ``zstd``, ``gzip``, ``pygzip``, ``pigz``, ``bzip2``, ``pybzip2`` and ``custom``. 
   
 .. note::
   All of these options require the module to be installed in the location where the
