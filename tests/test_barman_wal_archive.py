@@ -265,6 +265,8 @@ class TestRemotePutWal(object):
             test=False,
             port=None,
             md5=flag,
+            compression=None,
+            compression_level=None,
         )
         source_file = tmpdir.join("test-source/000000010000000000000001")
         source_file.write("test-content", ensure=True)
@@ -321,6 +323,8 @@ class TestRemotePutWal(object):
             test=False,
             port=None,
             md5=False,
+            compression=None,
+            compression_level=None,
         )
         source_file = tmpdir.join("test-source/000000010000000000000001")
         source_file.write("test-content", ensure=True)
