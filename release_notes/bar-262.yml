@@ -1,0 +1,10 @@
+- summary: Add client-side compression to `barman-wal-archive`
+  description: |
+    Client-side compression options have been added to `barman-wal-archive`,
+    supporting the same algorithms that are available on a Barman server.
+    When enabled, compression is applied on the client side before sending the WAL to
+    the Barman server. The `--compression-level` parameter allows specifying a desired
+    compression level for the chosen algorithm.
+  type: minor_change
+  jira_tickets:
+    - BAR-262
