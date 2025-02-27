@@ -44,6 +44,22 @@ The option can use one of the following values:
     decompress old WALs still archived with the previous compression algorithm when
     restoring.
 
+If archiving via ``archive_command`` with ``barman-wal-archive``, compression
+can also be configured using the ``--compression`` and ``--compression-level`` options
+with an algorithm and level of your choice. In such cases, compression is done on the
+client side, before the WAL is sent to the Barman server.
+See :ref:`commands-barman-cli-barman-wal-archive`.
+
+.. note::
+  When compression is enabled in ``barman-wal-archive``, it takes precedence over the
+  compression settings configured on the Barman server, if they differ.
+
+.. important::
+  When compression is enabled in ``barman-wal-archive``, it is performed on the client
+  side, before the file is sent to Barman. Be mindful of the database server's load and
+  the chosen compression algorithm and level, as higher compression can delay WAL
+  shipping, causing WAL files to accumulate.
+
 
 .. _wal_archiving-synchronous-WAL-streaming:
 
