@@ -310,6 +310,84 @@ class TestRemotePutWal(object):
         )
         assert tar.next() is None
 
+    @pytest.mark.parametrize(
+        ("compression",),
+        [("gzip",), ("bzip2",), ("xz",), ("zstd",), ("lz4",), ("snappy",)],
+    )
+    @mock.patch("barman.clients.walarchive.subprocess.Popen")
+    @mock.patch("barman.clients.walarchive.get_internal_compressor")
+    def test_compression(self, mock_get_compressor, popen_mock, compression, tmpdir):
+        # Mock the popen and config objects to behave accordingly
+        input_mock, output_mock = pipe_helper()
+        popen_mock.return_value.stdin = input_mock
+        popen_mock.return_value.returncode = 0
+        config = mock.Mock(
+            user="barman",
+            barman_host="remote.barman.host",
+            config=None,
+            server_name="this-server",
+            test=False,
+            port=None,
+            md5=False,
+            compression=compression,
+            compression_level=6,
+        )
+        source_file = tmpdir.join("test-source/000000010000000000000001")
+        source_file.write("test-content", ensure=True)
+
+        # Mock the compressor to be used when compressing the file
+        mock_compressor = mock.Mock()
+        mock_compressor.compress.side_effect = lambda src, dst: open(
+            dst, mode="w+"
+        ).write("compressed-content")
+        mock_get_compressor.return_value = mock_compressor
+
+        # Call remote put wal
+        rpw = walarchive.RemotePutWal(config, source_file.strpath)
+
+        # Assert it called popen correctly
+        popen_mock.assert_called_once_with(
+            [
+                "ssh",
+                "-q",
+                "-T",
+                "barman@remote.barman.host",
+                "barman",
+                "put-wal",
+                "this-server",
+            ],
+            stdin=subprocess.PIPE,
+        )
+        assert rpw.returncode == 0
+
+        # Assert it called get_internal_compressor correctly
+        mock_get_compressor.assert_called_once_with(
+            config.compression, config.compression_level
+        )
+        # Assert the compress method of the compress was called correctly
+        # We accept ANY destination path parameter as it is randomly generated due to
+        # it being a temporary file
+        mock_compressor.compress.assert_called_once_with(source_file.strpath, mock.ANY)
+
+        tar = tarfile.open(mode="r|", fileobj=output_mock)
+        first = tar.next()
+        with closing(tar.extractfile(first)) as fp:
+            # Assert that the WAL (first) was compressed with the specified algorithm
+            data = fp.read()
+            data == b"compressed-content"
+
+            # Assert that the checksum file (second) was created correctly
+            second = tar.next()
+            with closing(tar.extractfile(second)) as fp2:
+                second_content = fp2.read().decode()
+                assert second.name == "SHA256SUMS"
+                assert (
+                    second_content
+                    == "%s *000000010000000000000001\n"
+                    % hashlib.sha256(data).hexdigest()
+                )
+        assert tar.next() is None
+
     @mock.patch("barman.clients.walarchive.subprocess.Popen")
     def test_error(self, popen_mock, tmpdir):
         input_mock = BytesIO()
