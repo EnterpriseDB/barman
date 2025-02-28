@@ -445,13 +445,19 @@ class ZSTDCompressor(InternalCompressor):
         :param path: str|None
         """
         super(ZSTDCompressor, self).__init__(config, compression, path)
-        self._zstd = _try_import_zstd()
+        self._zstd = None
+
+    @property
+    def zstd(self):
+        if self._zstd is None:
+            self._zstd = _try_import_zstd()
+        return self._zstd
 
     def _compressor(self, dst):
-        return self._zstd.ZstdCompressor().stream_writer(open(dst, mode="wb"))
+        return self.zstd.ZstdCompressor().stream_writer(open(dst, mode="wb"))
 
     def _decompressor(self, src):
-        return self._zstd.ZstdDecompressor().stream_reader(open(src, mode="rb"))
+        return self.zstd.ZstdDecompressor().stream_reader(open(src, mode="rb"))
 
 
 def _try_import_lz4():
@@ -467,7 +473,7 @@ class LZ4Compressor(InternalCompressor):
     Predefined compressor with lz4
     """
 
-    MAGIC = b"\x04\x22\x4D\x18"
+    MAGIC = b"\x04\x22\x4d\x18"
 
     def __init__(self, config, compression, path=None):
         """
@@ -477,13 +483,19 @@ class LZ4Compressor(InternalCompressor):
         :param path: str|None
         """
         super(LZ4Compressor, self).__init__(config, compression, path)
-        self._lz4 = _try_import_lz4()
+        self._lz4 = None
+
+    @property
+    def lz4(self):
+        if self._lz4 is None:
+            self._lz4 = _try_import_lz4()
+        return self._lz4
 
     def _compressor(self, dst):
-        return self._lz4.frame.open(dst, mode="wb")
+        return self.lz4.frame.open(dst, mode="wb")
 
     def _decompressor(self, src):
-        return self._lz4.frame.open(src, mode="rb")
+        return self.lz4.frame.open(src, mode="rb")
 
 
 class CustomCompressor(CommandCompressor):

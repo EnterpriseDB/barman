@@ -42,6 +42,7 @@ import barman
 from barman import output, xlog
 from barman.backup import BackupManager
 from barman.command_wrappers import BarmanSubProcess, Command, Rsync
+from barman.compression import CustomCompressor
 from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (
     ArchiverFailure,
@@ -2466,12 +2467,34 @@ class Server(RemoteStatusMixin):
                         prefix=".%s." % os.path.basename(wal_file),
                         suffix=".uncompressed",
                     )
-                    # decompress wal file
-                    try:
-                        wal_compressor.decompress(source_file, uncompressed_file.name)
-                    except CommandFailedException as exc:
-                        output.error("Error decompressing WAL: %s", str(exc))
-                        return
+                    # If a custom decompression filter is set, we prioritize using it
+                    # instead of the compression guessed by Barman based on the magic
+                    # number.
+                    is_decompressed = False
+                    if (
+                        self.config.custom_decompression_filter is not None
+                        and not isinstance(wal_compressor, CustomCompressor)
+                    ):
+                        try:
+                            self.backup_manager.compression_manager.get_compressor(
+                                "custom"
+                            ).decompress(source_file, uncompressed_file.name)
+                        except CommandFailedException as exc:
+                            output.debug("Error decompressing WAL: %s", str(exc))
+                        else:
+                            is_decompressed = True
+                    # But if a custom decompression filter is not set, or if using the
+                    # custom decompression filter was not successful, then try using
+                    # the decompressor identified by the magic number
+                    if not is_decompressed:
+                        try:
+                            wal_compressor.decompress(
+                                source_file, uncompressed_file.name
+                            )
+                        except CommandFailedException as exc:
+                            output.error("Error decompressing WAL: %s", str(exc))
+                            return
+
                     source_file = uncompressed_file.name
 
                 # If output compression is required compress the source
