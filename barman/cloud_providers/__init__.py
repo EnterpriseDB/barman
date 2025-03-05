@@ -54,6 +54,8 @@ def _make_s3_cloud_interface(config, cloud_interface_kwargs):
     )
     if "encryption" in config:
         cloud_interface_kwargs["encryption"] = config.encryption
+    if "verify_ssl" in config and config.verify_ssl is False:
+        cloud_interface_kwargs["verify"] = False
     if "sse_kms_key_id" in config:
         if (
             config.sse_kms_key_id is not None
@@ -201,7 +203,9 @@ def get_snapshot_interface(config):
         )
     elif config.cloud_provider == "aws-s3":
         from barman.cloud_providers.aws_s3 import AwsCloudSnapshotInterface
-
+        verify = None
+        if "verify_ssl" in config and config.verify_ssl is False:
+            verify = False
         args = [
             config.aws_profile,
             config.aws_region,
@@ -211,6 +215,7 @@ def get_snapshot_interface(config):
             config.aws_snapshot_lock_cool_off_period,
             config.aws_snapshot_lock_expiration_date,
             config.tags,
+            verify,
         ]
         return AwsCloudSnapshotInterface(*args)
     else:
@@ -259,6 +264,9 @@ def get_snapshot_interface_from_server_config(server_config):
     elif server_config.snapshot_provider == "aws":
         from barman.cloud_providers.aws_s3 import AwsCloudSnapshotInterface
 
+        verify = None
+        if "verify_ssl" in server_config and server_config.verify_ssl is False:
+            verify = False
         return AwsCloudSnapshotInterface(
             server_config.aws_profile,
             server_config.aws_region,
@@ -267,6 +275,7 @@ def get_snapshot_interface_from_server_config(server_config):
             server_config.aws_snapshot_lock_duration,
             server_config.aws_snapshot_lock_cool_off_period,
             server_config.aws_snapshot_lock_expiration_date,
+            verify,
         )
     else:
         raise CloudProviderUnsupported(

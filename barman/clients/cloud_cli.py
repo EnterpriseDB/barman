@@ -178,6 +178,18 @@ def create_argument_parser(description, source_or_destination=UrlArgumentType.so
         help="Override default S3 endpoint URL with the given one",
     )
     s3_arguments.add_argument(
+        "--verify-ssl",
+        help="Explicitly specify whether to use SSL verification. Verification is enabled by default.",
+        default=True,
+        action='store_true',
+    )
+    s3_arguments.add_argument(
+        "--no-verify-ssl",
+        help="Explicitly specify whether to use SSL verification. Verification is enabled by default.",
+        dest='verify-ssl',
+        action='store_false',
+    )
+    s3_arguments.add_argument(
         "-P",
         "--aws-profile",
         help="profile name (e.g. INI section in AWS credentials file)",

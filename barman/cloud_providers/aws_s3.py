@@ -110,6 +110,7 @@ class S3CloudInterface(CloudInterface):
         self,
         url,
         encryption=None,
+        verify=None,
         jobs=2,
         profile_name=None,
         endpoint_url=None,
@@ -124,6 +125,8 @@ class S3CloudInterface(CloudInterface):
 
         :param str url: Full URL of the cloud destination/source
         :param str|None encryption: Encryption type string
+        :param str|bool|None: Path to ca bundle as string. Defaults to None to
+          use standard environment variables. Pass False to disable verification.
         :param int jobs: How many sub-processes to use for asynchronous
           uploading, defaults to 2.
         :param str profile_name: Amazon auth profile identifier
@@ -144,6 +147,7 @@ class S3CloudInterface(CloudInterface):
         )
         self.profile_name = profile_name
         self.encryption = encryption
+        self.verify=verify
         self.endpoint_url = endpoint_url
         self.read_timeout = read_timeout
         self.sse_kms_key_id = sse_kms_key_id
@@ -173,7 +177,7 @@ class S3CloudInterface(CloudInterface):
         config = Config(**config_kwargs)
 
         session = boto3.Session(profile_name=self.profile_name)
-        self.s3 = session.resource("s3", endpoint_url=self.endpoint_url, config=config)
+        self.s3 = session.resource("s3", endpoint_url=self.endpoint_url, verify=self.verify, config=config)
 
     @property
     def _extra_upload_args(self):
@@ -488,6 +492,7 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
         lock_cool_off_period=None,
         lock_expiration_date=None,
         tags=None,
+        verify=None,
     ):
         """
         Creates the client necessary for creating and managing snapshots.
@@ -503,13 +508,18 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
         :param str lock_expiration_date: The expiration date for the snapshot in the format
             ``YYYY-MM-DDThh:mm:ss.sssZ``.
         :param List[Tuple[str, str]] tags: Key value pairs for tags to be applied.
+        :param str|bool|None: Path to ca bundle as string. Defaults to None to use
+            standard environment variable. Pass False to disable verification.
+            Passing True will make it look for cacert.pem in the same folder as
+            your python install of botocore, but boto3 does not document this.
         """
 
         self.session = boto3.Session(profile_name=profile_name)
         # If a specific region was provided then this overrides any region which may be
         # defined in the profile
         self.region = region or self.session.region_name
-        self.ec2_client = self.session.client("ec2", region_name=self.region)
+        self.verify = verify
+        self.ec2_client = self.session.client("ec2", region_name=self.region, verify=verify)
         self.await_snapshots_timeout = await_snapshots_timeout
         self.tags = tags
         self.lock_mode = lock_mode
