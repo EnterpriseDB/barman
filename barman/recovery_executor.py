@@ -2155,6 +2155,143 @@ class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
         )
 
 
+class MainRecoveryExecutor(RemoteConfigRecoveryExecutor):
+
+    def _prepare_tablespaces(self, backup_info, cmd, dest, tablespaces):
+        super()._prepare_tablespaces(backup_info, cmd, dest, tablespaces)
+
+    def _backup_copy(
+        self,
+        backup_info,
+        dest,
+        tablespaces=None,
+        remote_command=None,
+        safe_horizon=None,
+        recovery_info=None,
+    ):
+        is_incremental = backup_info.is_incremental
+        any_compressed = any(
+            [b.compression is not None for b in backup_info.walk_to_root()]
+        )
+
+        if is_incremental and any_compressed:
+            self._handle_incremental_and_compressed_backup(
+                backup_info,
+                dest,
+                tablespaces,
+                remote_command,
+            )
+        elif is_incremental:
+            self._handle_incremental_backup(
+                backup_info,
+                dest,
+                tablespaces,
+                remote_command,
+            )
+        elif any_compressed:
+            self._handle_compressed_backup(
+                backup_info,
+                dest,
+                tablespaces,
+                remote_command,
+            )
+
+    def _handle_compressed_backup(
+        self,
+        backup_info,
+        dest,
+        tablespaces,
+        remote_command,
+    ):
+        if remote_command:
+            if self.config.staging_location == "remote":
+                # copy the compressed backup to the remote staging path
+                self._rsync_backup(backup_info, dest, tablespaces, remote_command)
+                # decompress the backup to the remote destination
+                self._decompress_backup(backup_info, dest, tablespaces, remote_command)
+                # remove the compressed backup from the remote staging path
+                # self.temp_dirs.append(...)
+            elif self.config.staging_location == "local":
+                # decompress the backup in the local staging path
+                self._decompress_backup(backup_info, dest, tablespaces, remote_command)
+                # copy the backup to the to the remote destination
+                self._rsync_backup(backup_info, dest, tablespaces, remote_command)
+                # remove the backup from the local staging path
+                # self.temp_dirs.append(...)
+        else:
+            # decompress the backup in the local destination
+            self._decompress_backup(backup_info, dest, tablespaces, remote_command)
+
+    def _handle_incremental_backup(
+        self,
+        backup_info,
+        dest,
+        tablespaces,
+        remote_command,
+    ):
+        if remote_command:
+            if self.config.staging_location == "remote":
+                # copy the backups to the remote staging path
+                self._rsync_backup(backup_info, dest, tablespaces, remote_command)
+                # combine the backups in the remote destination
+                self._combine_backup(backup_info, dest, tablespaces, remote_command)
+                # remove the backups from the remote staging path
+                # self.temp_dirs.append(...)
+            elif self.config.staging_location == "local":
+                # combine the backups in the local staging path
+                self._combine_backup(backup_info, dest, tablespaces, remote_command)
+                # copy the backup to the to the remote destination
+                self._rsync_backup(backup_info, dest, tablespaces, remote_command)
+                # remove the backup from the local staging path
+                # self.temp_dirs.append(...)
+        else:
+            # combine the backups in the local destination
+            self._combine_backup(backup_info, dest, tablespaces, remote_command)
+
+    def _handle_incremental_and_compressed_backup(
+        self,
+        backup_info,
+        dest,
+        tablespaces,
+        remote_command,
+    ):
+        if remote_command:
+            if self.config.staging_location == "remote":
+                # copy the backups to the remote staging path
+                self._rsync_backup(backup_info, dest, tablespaces, remote_command)
+                # decompress the backups in the remote staging path
+                self._decompress_backup(backup_info, dest, tablespaces, remote_command)
+                # combine the backups in the remote destination
+                self._decompress_backup(backup_info, dest, tablespaces, remote_command)
+                # remove the backups from the remote staging path
+                # self.temp_dirs.append(...)
+            elif self.config.staging_location == "local":
+                # decompress the backups in the local staging path
+                self._decompress_backup(backup_info, dest, tablespaces, remote_command)
+                # combine the backups in the local staging path
+                self._combine_backup(backup_info, dest, tablespaces, remote_command)
+                # copy the backup to the to the remote destination
+                self._rsync_backup(backup_info, dest, tablespaces, remote_command)
+                # remove the backup from the local staging path
+                # self.temp_dirs.append(...)
+        else:
+            # decompress the backups in the local staging path
+            self._decompress_backup(backup_info, dest, tablespaces, remote_command)
+            # combine the backups in the local destination
+            self._combine_backup(backup_info, dest, tablespaces, remote_command)
+            # remote the backups from the local staging path
+            # self.temp_dirs.append(...)
+
+    def _rsync_backup(self, backup_info, dest, tablespaces, remote_command):
+        pass
+
+    def _decompress_backup(self, backup_info, dest, tablespaces, remote_command):
+        pass
+
+    def _combine_backup(self, backup_info, dest, tablespaces, remote_command):
+        pass
+
+
 def recovery_executor_factory(backup_manager, command, backup_info):
     """
     Method in charge of building adequate RecoveryExecutor depending on the context
