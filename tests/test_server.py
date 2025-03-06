@@ -2593,6 +2593,75 @@ class TestServer(object):
         # THEN decompression should not occur
         mock_compressor.decompress.assert_not_called()
 
+    @patch("barman.server.open")
+    @patch("barman.server.shutil")
+    @patch("barman.server.NamedTemporaryFile")
+    @patch("barman.backup.CompressionManager")
+    def test_get_wal_honoring_custom_decompression(
+        self,
+        mock_compression_manager,
+        _mock_named_temporary_file,
+        _mock_shutil,
+        _mock_open,
+    ):
+        """
+        Assert that it always prioritize using the custom decompression filter set.
+
+        .. note::
+            This handle cases where e.g., the user is using a custom compression filter
+            which implements, let's say, the LZ4 algorithm. LZ4 is an algorithm
+            supported natively by Barman so it has its own ways of handling it.
+            However, we always have to honor the custom parameters set by the user,
+            even if having a native handler for it. This is what this test is for.
+        """
+        # GIVEN a server with custom compression set to, let's say, compression A
+        server = build_real_server(
+            main_conf={
+                "compression": "custom",
+                "custom_compression_filter": "compression-A -c",
+                "custom_decompression_filter": "compression-A -c -d",
+            }
+        )
+        mock_custom_compressor = Mock()
+        mock_custom_compressor.compression = "custom"
+        mock_compression_manager.custom_compression_filter = "compression-A -c"
+        mock_compression_manager.custom_decompression_filter = "compression-A -c -d"
+        # AND the compression identified by the magic number is also compression A, to
+        # which Barman also has its own internal implementation i.e. a compressor class
+        mock_compressor = Mock()
+        mock_compressor.compression = "compression-A"
+        mock_compression_manager.return_value.get_compressor.side_effect = [
+            mock_compressor,  # compressor found based on the magic number
+            None,  # compressor based on the `compression` param of get_wal_sendfile
+            mock_custom_compressor,  # compressor to prioritize if a custom comp is set
+        ]
+        # WHEN get_wal_sendfile is called
+        server.get_wal_sendfile("test_wal_file", None, False, "/path/to/dest")
+        # THEN decompression should occur using the custom compressor, not the one
+        # found by the magic number
+        mock_custom_compressor.decompress.assert_called_once()
+        mock_compressor.decompress.assert_not_called()
+
+        # reset mocks and side effect
+        mock_compressor.reset_mock()
+        mock_custom_compressor.reset_mock()
+        mock_compression_manager.return_value.get_compressor.side_effect = [
+            mock_compressor,
+            None,
+            mock_custom_compressor,
+        ]
+
+        # HOWEVER, if the custom decompression filter fails
+        mock_custom_compressor.decompress.side_effect = CommandFailedException(
+            "oh no! custom decompression failed!!!"
+        )
+
+        server.get_wal_sendfile("test_wal_file", None, False, "/path/to/dest")
+
+        # THEN it should fallback to the native internal Barman implementation
+        mock_custom_compressor.decompress.assert_called_once()
+        mock_compressor.decompress.assert_called_once()
+
     @pytest.mark.parametrize(
         "obj, HASHSUMS_FILE, hash_algorithm, checksum, mode, success, error_msg",
         [
