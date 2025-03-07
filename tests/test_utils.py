@@ -1077,6 +1077,25 @@ class TestBackupRecoveryTargets(object):
 
         assert backup_id == expected_backup_id
 
+    def test_get_backup_id_from_target_time_raise_error(self):
+        """
+        Test the get_backup_id_from_target_time from utils will raise the correct error
+        and output the correct error.
+        """
+        available_backups = mock.Mock()
+
+        target_time = "2025-10-1020:00:00"
+
+        error_msg = (
+            "Unable to parse the target time parameter '2025-10-1020:00:00': "
+            "Unknown string format: 2025-10-1020:00:00"
+        )
+
+        with pytest.raises(ValueError, match=error_msg):
+            _ = barman.utils.get_backup_id_from_target_time(
+                available_backups.values(), target_time
+            )
+
     @pytest.mark.parametrize(
         ("target_lsn", "expected_backup_id"),
         [
