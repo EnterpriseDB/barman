@@ -206,6 +206,13 @@ When ``backup_compression_location`` is set to ``server``, you can also configur
 * ``plain``: ``pg_basebackup`` decompresses data before writing to disk.
 * ``tar``: Backups are written as compressed tarballs (default).
 
+.. note::
+  If setting ``backup_compression_location = server`` and
+  ``backup_compression_format = plain``, you can reduce network usage given the files
+  are compressed on the server side and decompressed on the client side. This can be
+  useful when the network bandwidth is limited but CPU is not, and backups need to be
+  stored uncompressed.
+
 Depending on the chosen ``backup_compression`` and ``backup_compression_format``, you
 may need to install additional tools on both the Postgres and Barman servers.
 
