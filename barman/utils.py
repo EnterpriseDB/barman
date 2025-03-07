@@ -1065,14 +1065,16 @@ def get_backup_id_from_target_time(available_backups, target_time, target_tli=No
         ``%Y-%m-%d %H:%M:%S`` with or without timezone.
     :param int|None target_tli: Target timeline value, if a specific one is required.
     :return str|None: ID of the backup.
+    :raises:
+        :exc:`ValueError`: If *target_time* is an invalid value.
     """
     from barman.infofile import load_datetime_tz
 
     try:
         parsed_target = load_datetime_tz(target_time)
-    except ValueError as e:
-        raise Exception(
-            "Unable to parse the target time parameter %r: %s" % (parsed_target, e)
+    except Exception as e:
+        raise ValueError(
+            "Unable to parse the target time parameter %r: %s" % (target_time, e)
         )
     for candidate_backup in sorted(
         available_backups, key=lambda backup: backup.backup_id, reverse=True
