@@ -1,0 +1,13 @@
+- summary: Fix error message when parsing invalid `--target-time` in `barman restore`
+  description: |
+    When using the `barman restore` command, the error message when parsing invalid
+    `--target-time` string was:
+
+    ```
+    EXCEPTION: local variable 'parsed_target' referenced before assignment
+    ````
+
+    That exception was replaced with an understandable error message.
+  type: bugfix
+  jira_tickets:
+    - BAR-627
