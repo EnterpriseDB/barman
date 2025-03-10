@@ -1,4 +1,4 @@
-- summary: Fix behavior of the backup shortcuts `last-full` / `latest-full`
+- summary: Improve behavior of the backup shortcuts `last-full` / `latest-full`
   description: |
     The shortcuts `last-full` / `latest-full` were retrieving not the last full backup of
     the server, but the last full backup of the server which was eligible as the parent
@@ -8,8 +8,8 @@
     it was confusing for the users.
 
     From now on, the shortcuts `last-full` / `latest-full` will retrieve the last full
-    backup of the Barman server, independently
-    if that backup is eligible as the parent for an incremental backup or not.
+    backup of the Barman server, independently if that backup is eligible as the parent
+    for an incremental backup or not.
 
     The eligibility of the full backup as the parent of an incremental backup will still
     be validated by Barman in a later step, and a proper message will be displayed in
