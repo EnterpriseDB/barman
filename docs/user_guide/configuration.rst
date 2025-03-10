@@ -974,7 +974,10 @@ apply custom compression to all WAL files, even those pre-compressed.
 
   As Barman expects the value of ``custom_compression_magic`` to be prefixed with
   ``0x``, you would need to set that config option like this:
-    ``custom_compression_magic = 0xfd377a585a00``
+
+  .. code-block:: ini
+
+    custom_compression_magic = 0xfd377a585a00
 
   Reference: `xz-file-format <https://tukaani.org/xz/xz-file-format-1.0.4.txt>`_
 

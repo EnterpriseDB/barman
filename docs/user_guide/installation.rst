@@ -32,6 +32,26 @@ There are three packages that make up the suite of Barman features: ``barman``,
     configuration as each source repository provides different packages, which use
     different configuration layouts.
 
+.. _installation-system-requirements:
+
+System requirements
+-------------------
+
+The minimal system requirements needed to run a Barman server are the following:
+
+* Linux operating system (Debian, Ubuntu, RHEL, Rocky, Fedora, etc.) or UNIX-like
+  operating system (FreeBSD, OpenBSD, etc.)
+* Python 3.6 or higher
+* Python modules:
+
+  * ``psycopg2`` >= 2.4.2: Required to connect to the Postgres server
+  * ``python-dateutil``
+  * ``setuptools``
+  * ``argcomplete`` (optional)
+* PostgreSQL client tools: Required to interact with the Postgres server
+* PostgreSQL server >= 13
+* ``rsync`` >= 3.1.0: Required for recovery and Rsync backups
+
 .. _installation-rhel-based-distributions:
 
 RHEL-based distributions
