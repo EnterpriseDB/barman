@@ -34,6 +34,16 @@ The option can use one of the following values:
     When using options such as ``bzip2``, ``gzip`` and ``pigz`` Barman will fork a new
     process for compression.
 
+.. important::
+    Barman does not store metadata on how each WAL file was compressed, nor on how to
+    decompress them. It relies mainly on the server's current configuration. Therefore,
+    when using ``compression = custom``, you must ensure that
+    ``custom_decompression_filter`` remains compatible with the WALs currently
+    available in archive. If, for instance, ``custom_decompression_filter`` is changed
+    to a different compression algorithm midway through, Barman will be unable to
+    decompress old WALs still archived with the previous compression algorithm when
+    restoring.
+
 
 .. _wal_archiving-synchronous-WAL-streaming:
 
