@@ -1061,13 +1061,6 @@ class LocalBackupInfo(BackupInfo):
         """
         Check if this is a full backup.
 
-        .. note::
-            Consider all backups which are not Snapshot backups and are not incremental
-            backups:
-
-            * backup_type != ``snapshot``
-            * is_incremental = ``False``
-
         :return bool: ``True`` if it's a full backup or ``False`` if not.
         """
         return self.backup_type not in ("snapshot", "incremental")
