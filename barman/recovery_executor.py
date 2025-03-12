@@ -1061,9 +1061,14 @@ class RecoveryExecutor(object):
                     % (self.config.config.user, partial_option, self.config.name)
                 )
             recovery_info["results"]["get_wal"] = True
-        else:
+        elif not standby_mode:
+            # We copy all the needed WAL files to the wal_dest directory when get-wal
+            # is not requested, except when we are in standby mode. In the case of
+            # standby mode, the server will not exit recovery, so the
+            # recovery_end_command would never be executed.
+            # For this reason, with standby_mode, we need to copy the WAL files
+            # directly in the pg_wal directory.
             recovery_conf_lines.append(f"restore_command = 'cp {wal_dest}/%f %p'")
-        if backup_info.version >= 80400 and not recovery_info["get_wal"]:
             recovery_conf_lines.append(f"recovery_end_command = 'rm -fr {wal_dest}'")
 
         # Writes recovery target
