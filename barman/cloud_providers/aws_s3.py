@@ -157,6 +157,14 @@ class S3CloudInterface(CloudInterface):
         self.bucket_exists = None
         self.path = parsed_url.path.lstrip("/")
 
+        # if the endpoint url starts with bucket name, we use virtual addressing
+        parsed_endpoint_url = urlparse(endpoint_url)
+        first_domain_part = parsed_endpoint_url.netloc.split(".")[0]
+        if first_domain_part == self.bucket_name:
+            self.addressing_style = "virtual"
+        else:
+            self.addressing_style = "path"
+
         # initialize the config object to be used in uploads
         self.config = TransferConfig(multipart_threshold=self.MULTIPART_THRESHOLD)
 
@@ -167,9 +175,11 @@ class S3CloudInterface(CloudInterface):
         """
         Create a new session
         """
-        config_kwargs = {}
+        config_kwargs = {"s3": {"addressing_style": self.addressing_style}}
+
         if self.read_timeout is not None:
             config_kwargs["read_timeout"] = self.read_timeout
+
         config = Config(**config_kwargs)
 
         session = boto3.Session(profile_name=self.profile_name)
