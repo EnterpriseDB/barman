@@ -914,6 +914,25 @@ def rebuild_xlogdb(args):
             ),
         ),
         argument(
+            "--staging-path",
+            help=(
+                "A path where intermediate files are staged during restore. When "
+                "restoring a compressed backup, it serves as a temporary location for "
+                "decompression before copying to the final destination. When restoring "
+                "an incremental backup, it is where backups are combined before "
+                "copying to the final destination. This location must have enough "
+                "space to store the decompressed/combined backup."
+            ),
+        ),
+        argument(
+            "--staging-location",
+            choices=["local", "remote"],
+            help=(
+                "Specifies whether `--staging-path` is a local or remote path. Valid"
+                "values are `local` and `remote`."
+            ),
+        ),
+        argument(
             "--recovery-conf-filename",
             dest="recovery_conf_filename",
             help=(
@@ -1020,6 +1039,24 @@ def restore(args):
             output.close_and_exit()
 
         backup_info = server.get_backup(backup_id)
+
+    # Parse and overrides the staging path if set
+    if args.staging_path is not None:
+        try:
+            staging_path = parse_staging_path(args.staging_path)
+        except ValueError as exc:
+            output.error("Cannot parse staging path: %s", str(exc))
+            output.close_and_exit()
+        server.config.staging_path = staging_path
+
+    # Parse and overrides the staging location if set
+    if args.staging_location is not None:
+        if args.staging_location == "remote" and not args.remote_ssh_command:
+            output.error(
+                "--staging-location as remote requires --remote-ssh-command to be set"
+            )
+            output.close_and_exit()
+        server.config.staging_location = args.staging_location
 
     if backup_info.status not in BackupInfo.STATUS_COPY_DONE:
         output.error(

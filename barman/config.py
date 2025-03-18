@@ -90,6 +90,9 @@ COMPRESSION_LEVELS = ["low", "medium", "high"]
 # Encryption options
 ENCRYPTION_VALUES = ["none", "gpg"]
 
+# Staging location options. Indicates whether staging_path is a local or remote path
+STAGING_LOCATIONS = ["local", "remote"]
+
 
 class CsvOption(set):
     """
@@ -440,9 +443,36 @@ def parse_compression_level(value):
 
 
 def parse_staging_path(value):
+    """
+    Parse a valid ``staging_path`` value.
+
+    It must be an absolute path.
+
+    :param str|None value: value to be parsed
+    :raises:
+        :exc:`ValueError`: if the value is invalid
+    """
     if value is None or os.path.isabs(value):
         return value
     raise ValueError("Invalid value : '%s' (must be an absolute path)" % value)
+
+
+def parse_staging_location(value):
+    """
+    Parse a valid ``staging_location`` value.
+
+    It must one of the options in :data:`STAGING_LOCATIONS`.
+
+    :param str|None value: value to be parsed
+    :raises:
+        :exc:`ValueError`: if the value is invalid
+    """
+    if value is not None and value not in STAGING_LOCATIONS:
+        raise ValueError(
+            "Invalid value: %s (options are: %s)"
+            % (value, ", ".join(STAGING_LOCATIONS))
+        )
+    return value
 
 
 def parse_slot_name(value):
@@ -657,6 +687,8 @@ class ServerConfig(BaseConfig):
         "snapshot_provider",
         "snapshot_zone",  # Deprecated, replaced by gcp_zone
         "ssh_command",
+        "staging_path",
+        "staging_location",
         "streaming_archiver",
         "streaming_archiver_batch_size",
         "streaming_archiver_name",
@@ -751,6 +783,8 @@ class ServerConfig(BaseConfig):
         "slot_name",
         "snapshot_gcp_project",  # Deprecated, replaced by gcp_project
         "snapshot_provider",
+        "staging_path",
+        "staging_location",
         "streaming_archiver",
         "streaming_archiver_batch_size",
         "streaming_archiver_name",
@@ -848,6 +882,8 @@ class ServerConfig(BaseConfig):
         "create_slot": parse_create_slot,
         "reuse_backup": parse_reuse_backup,
         "snapshot_disks": parse_snapshot_disks,
+        "staging_path": parse_staging_path,
+        "staging_location": parse_staging_location,
         "streaming_archiver": parse_boolean,
         "streaming_archiver_batch_size": int,
         "slot_name": parse_slot_name,
