@@ -1211,6 +1211,23 @@ location must have sufficient space to temporarily store the compressed backup.
 
 Scope: Global / Server / Model.
 
+**staging_path**
+
+A path where intermediate files are staged during restore. When restoring a compressed
+backup, it serves as a temporary location for decompression before copying to the final
+destination. When restoring an incremental backup, it is where backups are combined
+before copying to the final destination. This location must have enough space to store
+the decompressed/combined backup.
+
+Scope: Global / Server / Model.
+
+**staging_location**
+
+Specifies whether ``staging_path`` is a local or remote path. Valid values are
+``local`` and ``remote``.
+
+Scope: Global / Server / Model.
+
 .. _configuration-options-retention-policies:
 
 Retention Policies

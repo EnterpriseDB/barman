@@ -24,6 +24,8 @@ Synopsis
         [ --no-retry ]
         [ --recovery-conf-filename FILENAME ]
         [ --recovery-staging-path PATH ]
+        [ --staging-path STAGING_PATH ]
+        [ --staging-location STAGING_LOCATION ]
         [ --remote-ssh-command STRING ]
         [ --retry-sleep SECONDS ]
         [ --retry-times NUMBER ]
@@ -140,6 +142,17 @@ Parameters
     convention: ``barman-staging-SERVER_NAME-BACKUP_ID``. This staging directory will be
     removed after the restore process is complete. This option is mandatory for
     restoring from compressed backups and has no effect otherwise.
+
+``--staging-path``
+    A path where intermediate files are staged during restore. When restoring a
+    compressed backup, it serves as a temporary location for decompression before
+    copying to the final destination. When restoring an incremental backup, it is where
+    backups are combined before copying to the final destination. This location must
+    have enough space to store the decompressed/combined backup.
+
+``--staging-location``
+    Specifies whether ``--staging-path`` is a local or remote path. Valid values are
+    ``local`` and ``remote``.
 
 ``--remote-ssh-command``
     This option enables remote restore by specifying the secure shell command to
