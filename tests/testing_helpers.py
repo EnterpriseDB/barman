@@ -378,6 +378,8 @@ def build_config_dictionary(config_keys=None):
         "disabled": False,
         "msg_list": [],
         "path_prefix": None,
+        "staging_path": None,
+        "staging_location": None,
         "streaming_archiver": False,
         "streaming_wals_directory": "/some/barman/home/main/streaming",
         "errors_directory": "/some/barman/home/main/errors",
