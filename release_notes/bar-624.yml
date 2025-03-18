@@ -1,8 +1,0 @@
-- summary: Fix mutual exclusive arguments in the cloud restore command
-  description: |
-    In the `barman-cloud-restore` command, the mutually exclusive arguments were
-    incorrectly defined. The correct pair should be `target_time` and `target_lsn`,
-    not `target_tli` and `target_lsn`.
-  type: bugfix
-  jira_tickets:
-    - BAR-624

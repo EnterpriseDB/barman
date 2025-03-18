@@ -1,9 +1,0 @@
-- summary: Fix Barman not honoring `custom_decompression_filter`
-  description: |
-    Fixed an issue where Barman was not honoring the configured
-    `custom_decompression_filter` if the compression algorithm specified
-    was natively supported by Barman. Custom filters now take priority
-    over native handlers when decompressing WAL files.
-  type: bugfix
-  jira_tickets:
-    - BAR-584
