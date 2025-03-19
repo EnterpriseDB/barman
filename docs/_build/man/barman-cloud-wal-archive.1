@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CLOUD-WAL-ARCHIVE" "1" "Feb 20, 2025" "3.13" "Barman"
+.TH "BARMAN-CLOUD-WAL-ARCHIVE" "1" "Mar 20, 2025" "3.13" "Barman"
 .SH NAME
 barman-cloud-wal-archive \- Barman-cloud Commands
 .sp
@@ -129,16 +129,13 @@ Allowed options are:
 .UNINDENT
 .TP
 .B \fB\-z\fP / \fB\-\-gzip\fP
-gzip\-compress the WAL while uploading to the cloud (should not be used with python <
-3.2).
+gzip\-compress the WAL while uploading to the cloud.
 .TP
 .B \fB\-j\fP / \fB\-\-bzip2\fP
-bzip2\-compress the WAL while uploading to the cloud (should not be used with python <
-3.3).
+bzip2\-compress the WAL while uploading to the cloud.
 .TP
 .B \fB\-\-xz\fP
-xz\-compress the WAL while uploading to the cloud (should not be used with python <
-3.3).
+xz\-compress the WAL while uploading to the cloud.
 .TP
 .B \fB\-\-snappy\fP
 snappy\-compress the WAL while uploading to the cloud (requires optional

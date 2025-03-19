@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN" "5" "Feb 20, 2025" "3.13" "Barman"
+.TH "BARMAN" "5" "Mar 20, 2025" "3.13" "Barman"
 .SH NAME
 barman \- Barman Configurations
 .sp
@@ -1083,7 +1083,7 @@ These configuration options are related to how Barman will manage the Write\-Ahe
 \fBcompression\fP
 .sp
 Specifies the standard compression algorithm for WAL files. Options include: \fBlz4\fP,
-\fBxz\fP, \fBzstd\fP, \fBgzip\fP, \fBpybzip2\fP, \fBpigz\fP, \fBbzip2\fP, \fBpybzip2\fP and \fBcustom\fP\&.
+\fBxz\fP, \fBzstd\fP, \fBgzip\fP, \fBpygzip\fP, \fBpigz\fP, \fBbzip2\fP, \fBpybzip2\fP and \fBcustom\fP\&.
 .sp
 \fBNOTE:\fP
 .INDENT 0.0
@@ -1144,6 +1144,17 @@ Magic Number: \fBFD 37 7A 58 5A 00\fP
 .TP
 .B In hexadecimal representation, this can be expressed as:
 Hex String: \fBfd377a585a00\fP
+.UNINDENT
+.sp
+As Barman expects the value of \fBcustom_compression_magic\fP to be prefixed with
+\fB0x\fP, you would need to set that config option like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+custom_compression_magic = 0xfd377a585a00
+.EE
+.UNINDENT
 .UNINDENT
 .sp
 Reference: \X'tty: link https://tukaani.org/xz/xz-file-format-1.0.4.txt'\fI\%xz\-file\-format\fP\X'tty: link'
@@ -1306,7 +1317,7 @@ backups.
 Defines the time frame within which the latest backup must fall. If the latest backup
 is older than this period, the barman check command will report an error. If left
 empty (default), the latest backup is always considered valid. The accepted format is
-\fB\(dqn {DAYS|WEEKS|MONTHS}\(dq\fP, where \fBn\fP is an integer greater than zero.
+\fB\(dqn {DAYS|WEEKS|MONTHS|HOURS}\(dq\fP, where \fBn\fP is an integer greater than zero.
 .sp
 Scope: Global / Server / Model.
 .sp

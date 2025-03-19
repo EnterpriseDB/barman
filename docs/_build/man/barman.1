@@ -28,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN" "1" "Feb 20, 2025" "3.13" "Barman"
+.TH "BARMAN" "1" "Mar 20, 2025" "3.13" "Barman"
 .SH NAME
 barman \- Barman Commands
 .sp
@@ -188,8 +188,7 @@ _
 T{
 \fBlast\-full/latest\-full\fP
 T}	T{
-Most recent full backup eligible for a block\-level incremental backup using the
-\fB\-\-incremental\fP option.
+Most recent full backup taken with methods \fBrsync\fP or \fBpostgres\fP\&.
 T}
 _
 T{
@@ -456,8 +455,7 @@ _
 T{
 \fBlast\-full/latest\-full\fP
 T}	T{
-Most recent full backup eligible for a block\-level incremental backup using the
-\fB\-\-incremental\fP option.
+Most recent full backup taken with methods \fBrsync\fP or \fBpostgres\fP\&.
 T}
 _
 T{
@@ -678,8 +676,7 @@ _
 T{
 \fBlast\-full/latest\-full\fP
 T}	T{
-Most recent full backup eligible for a block\-level incremental backup using the
-\fB\-\-incremental\fP option.
+Most recent full backup taken with methods \fBrsync\fP or \fBpostgres\fP\&.
 T}
 _
 T{
@@ -771,8 +768,7 @@ _
 T{
 \fBlast\-full/latest\-full\fP
 T}	T{
-Most recent full backup eligible for a block\-level incremental backup using the
-\fB\-\-incremental\fP option.
+Most recent full backup taken with methods \fBrsync\fP or \fBpostgres\fP\&.
 T}
 _
 T{
@@ -932,8 +928,7 @@ _
 T{
 \fBlast\-full/latest\-full\fP
 T}	T{
-Most recent full backup eligible for a block\-level incremental backup using the
-\fB\-\-incremental\fP option.
+Most recent full backup taken with methods \fBrsync\fP or \fBpostgres\fP\&.
 T}
 _
 T{
@@ -1060,8 +1055,7 @@ _
 T{
 \fBlast\-full/latest\-full\fP
 T}	T{
-Most recent full backup eligible for a block\-level incremental backup using the
-\fB\-\-incremental\fP option.
+Most recent full backup taken with methods \fBrsync\fP or \fBpostgres\fP\&.
 T}
 _
 T{
@@ -1283,7 +1277,7 @@ restore
     [ \-\-target\-tli TLI ]
     [ \-\-target\-xid XID ]
     [ \-\-staging\-wal\-directory ]
-    SERVER_NAME [ BACKUP_ID ] DESTINATION_DIR
+    SERVER_NAME BACKUP_ID DESTINATION_DIR
 .EE
 .UNINDENT
 .UNINDENT
@@ -1302,7 +1296,8 @@ shortcut instead of \fBBACKUP_ID\fP\&.
 Name of the server in barman node
 .TP
 .B \fBBACKUP_ID\fP
-Id of the backup in barman catalog.
+Id of the backup in the barman catalog. Use \fBauto\fP to have Barman automatically
+find the most suitable backup for the restore operation.
 .TP
 .B \fBDESTINATION_DIR\fP
 Destination directory to restore the backup.
@@ -1483,8 +1478,7 @@ _
 T{
 \fBlast\-full/latest\-full\fP
 T}	T{
-Most recent full backup eligible for a block\-level incremental backup using the
-\fB\-\-incremental\fP option.
+Most recent full backup taken with methods \fBrsync\fP or \fBpostgres\fP\&.
 T}
 _
 T{
@@ -1620,8 +1614,7 @@ _
 T{
 \fBlast\-full/latest\-full\fP
 T}	T{
-Most recent full backup eligible for a block\-level incremental backup using the
-\fB\-\-incremental\fP option.
+Most recent full backup taken with methods \fBrsync\fP or \fBpostgres\fP\&.
 T}
 _
 T{
@@ -1824,8 +1817,7 @@ _
 T{
 \fBlast\-full/latest\-full\fP
 T}	T{
-Most recent full backup eligible for a block\-level incremental backup using the
-\fB\-\-incremental\fP option.
+Most recent full backup taken with methods \fBrsync\fP or \fBpostgres\fP\&.
 T}
 _
 T{
@@ -1958,8 +1950,7 @@ _
 T{
 \fBlast\-full/latest\-full\fP
 T}	T{
-Most recent full backup eligible for a block\-level incremental backup using the
-\fB\-\-incremental\fP option.
+Most recent full backup taken with methods \fBrsync\fP or \fBpostgres\fP\&.
 T}
 _
 T{
@@ -2040,8 +2031,8 @@ Specify the configuration file on the Barman server.
 .TP
 .B \fB\-t\fP / \fB\-\-test\fP
 Test the connection and configuration of the specified Postgres server in Barman to
-ensure it is ready to receive WAL files. This option ignores the mandatory arguments
-\fBWAL_NAME\fP and \fBWAL_DEST\fP\&.
+ensure it is ready to receive WAL files. This option ignores the mandatory argument
+\fBWAL_PATH\fP\&.
 .TP
 .B \fB\-\-md5\fP
 Use MD5 instead of SHA256 as the hash algorithm to calculate the checksum of the WAL

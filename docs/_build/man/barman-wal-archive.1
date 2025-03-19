@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-WAL-ARCHIVE" "1" "Feb 20, 2025" "3.13" "Barman"
+.TH "BARMAN-WAL-ARCHIVE" "1" "Mar 20, 2025" "3.13" "Barman"
 .SH NAME
 barman-wal-archive \- Barman-cli Commands
 .SH SYNOPSIS
@@ -92,8 +92,8 @@ Specify the configuration file on the Barman server.
 .TP
 .B \fB\-t\fP / \fB\-\-test\fP
 Test the connection and configuration of the specified Postgres server in Barman to
-ensure it is ready to receive WAL files. This option ignores the mandatory arguments
-\fBWAL_NAME\fP and \fBWAL_DEST\fP\&.
+ensure it is ready to receive WAL files. This option ignores the mandatory argument
+\fBWAL_PATH\fP\&.
 .TP
 .B \fB\-\-md5\fP
 Use MD5 instead of SHA256 as the hash algorithm to calculate the checksum of the WAL
