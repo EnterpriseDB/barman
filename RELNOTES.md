@@ -32,7 +32,7 @@
   When using the `barman restore` command, the error message when parsing invalid
   `--target-time` string was:
 
-  ```
+  ```text
   EXCEPTION: local variable 'parsed_target' referenced before assignment
   ```
 
@@ -76,12 +76,14 @@
   conflicted with other arguments, causing unrecognized arguments and errors.
 
   For example, running `barman-cloud-restore` like this:
-  ```
+
+  ```text
   barman-cloud-restore source_url server_name backup_id --cloud-provider aws-s3 recovery_dir
   ```
 
   Would trigger an error like this:
-  ```
+
+  ```text
   barman-cloud-restore: error: unrecognized arguments: recovery_dir
   ```
 
@@ -235,8 +237,8 @@
   Barman was not creating the `recovery.signal` nor filling `recovery_target_timeline`
   in `postgresql.auto.conf` in these cases:
 
-  * The only recovery target passed to `barman restore` was `--target-tli`; or
-  * `--target-tli` was specified with some other `--target-*` option, but the
+  - The only recovery target passed to `barman restore` was `--target-tli`; or
+  - `--target-tli` was specified with some other `--target-*` option, but the
     specified target timeline was the same as the timeline of the chosen backup.
 
   Now, if any `--target-*` option is passed to `barman restore`, that will be
