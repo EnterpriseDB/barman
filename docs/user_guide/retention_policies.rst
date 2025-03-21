@@ -238,8 +238,8 @@ We can have two scenarios for Cloud Backups:
 
 1. Using :ref:`snapshots backups <backup-cloud-snapshot-backups>` with a Barman Server
    as the centralized Backup and Recovery manager.
-2. Using :ref:`cloud backups <barman-cloud-barman-cli-cloud>` with cloud object storages
-   to manage backups without a Barman Server.
+2. Using :ref:`cloud backups <barman-cloud-barman-client-package>` with cloud object
+   storages to manage backups without a Barman Server.
 
 In the first scenario, Barman uses ``cron`` for maintenance operations and enforcing the
 retention policy, as outlined in

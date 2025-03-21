@@ -570,8 +570,8 @@ ones created with ``rsync`` or ``postgres`` backup methods.
 .. note::
     Additionally, snapshot backups can be created without a Barman server by using the
     ``barman-cloud-backup`` command directly on the Postgres server. Refer to the
-    :ref:`barman-cli-cloud <barman-cloud-barman-cli-cloud>` section for more information
-    on how to properly work with this option.
+    :ref:`barman cloud client package <barman-cloud-barman-client-package>` section for
+    more information on how to properly work with this option.
 
 .. important::
     The following configuration options and equivalent command arguments (if applicable)

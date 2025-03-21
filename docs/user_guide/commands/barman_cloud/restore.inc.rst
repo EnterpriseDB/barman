@@ -36,6 +36,10 @@ the ``barman-cloud-backup`` command. Additionally, this script can prepare for r
 from a snapshot backup by verifying that attached disks were cloned from the correct
 snapshots and by downloading the backup label from object storage.
 
+This command does not automatically prepare Postgres for recovery. You must manually
+manage any :term:`PITR` options, custom ``restore_command`` values, signal files, or
+required WAL files to ensure Postgres starts, either manually or using external tools.
+
 .. note::
   For GCP, only authentication with ``GOOGLE_APPLICATION_CREDENTIALS`` env is supported.
 
