@@ -1740,9 +1740,11 @@ class Server(RemoteStatusMixin):
                 self.check_backup(backup_info)
 
             # At this point is safe to remove any remaining WAL file before the
-            # first backup
+            # first backup. The only exception is when worm_mode is enabled, in
+            # which case the storage is expected to be immutable and out of the
+            # grace period, so we skip that.
             previous_backup = self.get_previous_backup(backup_info.backup_id)
-            if not previous_backup:
+            if not previous_backup and self.config.worm_mode is False:
                 self.backup_manager.remove_wal_before_backup(backup_info)
 
             # check if the backup chain (in case it is a Postgres incremental) is consistent

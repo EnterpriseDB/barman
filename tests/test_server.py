@@ -38,6 +38,7 @@ from testing_helpers import (
 )
 
 from barman import output
+from barman.config import BackupOptions
 from barman.exceptions import (
     CommandFailedException,
     LockFileBusy,
@@ -1560,6 +1561,53 @@ class TestServer(object):
         server.backup()
         out, err = capsys.readouterr()
         assert "Permission denied, unable to access" in err
+
+    @patch("barman.server.BackupManager.remove_wal_before_backup")
+    @patch("barman.server.BackupManager.get_previous_backup")
+    @patch("barman.server.Server.check")
+    @patch("barman.server.Server._make_directories")
+    @patch("barman.backup.BackupManager.backup")
+    @patch("barman.server.Server.archive_wal")
+    @patch("barman.server.ServerBackupLock")
+    def test_backup_worm_mode_skip(
+        self,
+        backup_lock_mock,
+        archive_wal_mock,
+        backup_mock,
+        dir_mock,
+        check_mock,
+        gpm_mock,
+        rwbb_mock,
+        capsys,
+    ):
+        """
+        Test creating the first backup in the catalog and skipping the removal of
+        unused WAL files when :attr:`worm_mode` is enabled
+
+        :param backup_lock_mock: mock ServerBackupLock
+        :param archive_wal_mock: mock archive_wal server method
+        :param backup_mock: mock BackupManager.backup
+        :param dir_mock: mock _make_directories
+        :param check_mock: mock check
+        :param gpm_mock: mock BackupManager.get_previous_backup
+        :param rwbb_mock: mock BackupManager.remove_wal_before_backup
+        :param capsys: mock standard output and error
+        """
+        # This is the first backup
+        gpm_mock.return_value = None
+
+        server = build_real_server(
+            main_conf={
+                "backup_options": BackupOptions.EXCLUSIVE_BACKUP,
+                "worm_mode": "on",
+            }
+        )
+        dir_mock.side_effect = None
+        server.backup()
+        backup_mock.assert_called_once_with(wait=False, wait_timeout=None, name=None)
+        archive_wal_mock.assert_called_once_with(verbose=False)
+        # Assert that BackupManager.remove_wal_before_backup is not called
+        rwbb_mock.assert_not_called()
 
     @patch("barman.backup.BackupManager.should_keep_backup")
     def test_cannot_delete_keep_backup(self, mock_should_keep_backup, caplog, tmpdir):

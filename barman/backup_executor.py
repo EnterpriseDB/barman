@@ -160,20 +160,26 @@ class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
 
     def _purge_unused_wal_files(self, backup_info):
         """
-        It the provided backup is the first, purge all WAL files before the
-        backup start.
+        If the provided backup is the first, purge unused WAL files before the backup
+        start.
 
-        :param barman.infofile.LocalBackupInfo backup_info: the backup to check
+
+        .. note::
+            If ``worm_mode`` is enabled, then we don't remove those WAL files
+            because they are (should be) stored in an immutable storage, and at
+            this point the grace period might already have been expired.
+
+        :param barman.infofile.LocalBackupInfo backup_info: The backup to check.
         """
-
-        # Do nothing if the begin_wal is not defined yet
         if backup_info.begin_wal is None:
             return
 
-        # If this is the first backup, purge unused WAL files
         previous_backup = self.backup_manager.get_previous_backup(backup_info.backup_id)
         if not previous_backup:
             output.info("This is the first backup for server %s", self.config.name)
+            if self.config.worm_mode is True:
+                output.info("'worm_mode' is enabled, skip purging of unused WAL files.")
+                return
             removed = self.backup_manager.remove_wal_before_backup(backup_info)
             if removed:
                 # report the list of the removed WAL files

@@ -2050,3 +2050,84 @@ class TestSnapshotBackupExecutor(object):
         # AND the exepcted hint was written to the output
         out, _err = capsys.readouterr()
         assert expected_error_msg.format(**core_snapshot_options) in out
+
+
+class TestBackupExecutor(object):
+    """
+    This class tests the methods of the executor base object
+    """
+
+    def test__purge_unused_wal_files_begin_wal_skip(self):
+        """
+        Test skip purging wals when :attr:`begin_wal` is not defined yet.
+        """
+        backup_manager = build_backup_manager(main_conf={"backup_method": "postgres"})
+
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            backup_name="test_backup",
+            server_name="main",
+            begin_wal=None,
+        )
+
+        result = backup_manager.executor._purge_unused_wal_files(backup_info)
+        assert result is None
+
+    def test__purge_unused_wal_files_worm_mode_skip(self, capsys):
+        """
+        Test skip purging wals when :attr:`worm_mode` is enabled.
+        """
+        server = build_mocked_server(
+            main_conf={
+                "backup_options": BackupOptions.EXCLUSIVE_BACKUP,
+                "worm_mode": "on",
+            }
+        )
+        backup_manager = server.backup_manager
+        backup_info = build_test_backup_info(
+            server=server,
+            backup_name="test_backup",
+            server_name="main",
+            begin_wal="0/00000F0",
+        )
+        executor = RsyncBackupExecutor(backup_manager)
+        backup_manager.get_previous_backup.return_value = None
+        result = executor._purge_unused_wal_files(backup_info)
+        assert result is None
+        out, _ = capsys.readouterr()
+        assert "This is the first backup for server main" in out
+        assert "'worm_mode' is enabled, skip purging of unused WAL files." in out
+
+    def test__purge_unused_wal_files(self, capsys):
+        """
+        Test :meth:`_purge_unused_wal_files`.
+        """
+        server = build_mocked_server(
+            main_conf={
+                "backup_options": BackupOptions.EXCLUSIVE_BACKUP,
+                "worm_mode": "off",
+            }
+        )
+        backup_manager = server.backup_manager
+        backup_info = build_test_backup_info(
+            server=server,
+            backup_name="test_backup",
+            server_name="main",
+            begin_wal="0/00000F0",
+        )
+        # We have to pick a subclass executor of the BackupExecutor because the base
+        # class is abstract and we cannot create an instance of an abstract class.
+        executor = RsyncBackupExecutor(backup_manager)
+        backup_manager.get_previous_backup.return_value = None
+        backup_manager.remove_wal_before_backup.return_value = [
+            "0/0000040",
+            "0/00000B0",
+        ]
+        executor._purge_unused_wal_files(backup_info)
+        backup_manager.get_previous_backup.assert_called_with(backup_info.backup_id)
+        backup_manager.remove_wal_before_backup.assert_called_with(backup_info)
+        out, _ = capsys.readouterr()
+        assert "This is the first backup for server main" in out
+        assert "WAL segments preceding the current backup have been found:" in out
+        assert "0/0000040 from server main has been removed" in out
+        assert "0/00000B0 from server main has been removed" in out
