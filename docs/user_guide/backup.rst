@@ -519,8 +519,27 @@ suggestions:
   immutability period expires.
 
 .. note::
-    This option was included in Barman 3.12. Refer to the configuration option
-    ``xlogdb_directory`` for more information.
+    ``xlogdb_directory`` was included in Barman 3.12. Refer to its
+    :ref:`configuration section <configuration-options-wals-xlogdb-directory>`
+    for more information.
+
+Current limitations
+"""""""""""""""""""
+
+The current implementation of immutable backup support in Barman has the following 
+limitation:
+
+* The WORM environment must have a grace period. A grace period provides a predefined
+  window during which data can be modified or deleted before WORM restrictions take
+  effect. This requirement exists because Barman makes use of renaming to safely copy
+  WALs to external partitions, which would fail if the file has already entered a WORM
+  state.
+
+In general, a grace period of at least 15 minutes is recommended, as this provides
+enough time for Barman to complete any necessary operations.
+
+Given these constraints, users should evaluate whether the current implementation meets
+their requirements before enabling immutable backup support.
 
 .. _backup-cloud-snapshot-backups:
 
