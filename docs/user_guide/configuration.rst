@@ -582,6 +582,13 @@ last available backup. The options are:
 
 Scope: Global / Server / Model.
 
+**worm_mode**
+
+If set to ``on``, enables support for WORM (Write Once Read Many) storage, allowing
+Barman to handle backups on immutable storage correctly. Default is ``off``.
+
+Scope: Global / Server / Model.
+
 .. _configuration-options-cloud-backups:
 
 Cloud Backups
