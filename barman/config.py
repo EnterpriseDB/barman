@@ -195,7 +195,10 @@ def parse_boolean(value):
         return True
     if _FALSE_RE.match(value):
         return False
-    raise ValueError("Invalid boolean representation (use 'true' or 'false')")
+    raise ValueError(
+        "Invalid boolean representation (must be one in: "
+        "true|t|yes|1|on | false|f|no|0|off)"
+    )
 
 
 def parse_time_interval(value):
@@ -584,6 +587,7 @@ class ServerConfig(BaseConfig):
         "wal_retention_policy",
         "wal_streaming_conninfo",
         "wals_directory",
+        "worm_mode",
         "xlogdb_directory",
     ]
 
@@ -668,6 +672,7 @@ class ServerConfig(BaseConfig):
         "streaming_backup_name",
         "tablespace_bandwidth_limit",
         "wal_retention_policy",
+        "worm_mode",
         "xlogdb_directory",
     ]
 
@@ -708,6 +713,7 @@ class ServerConfig(BaseConfig):
         "streaming_wals_directory": "%(backup_directory)s/streaming",
         "wal_retention_policy": "main",
         "wals_directory": "%(backup_directory)s/wals",
+        "worm_mode": "off",
         "xlogdb_directory": "%(wals_directory)s",
     }
 
@@ -755,6 +761,7 @@ class ServerConfig(BaseConfig):
         "streaming_archiver": parse_boolean,
         "streaming_archiver_batch_size": int,
         "slot_name": parse_slot_name,
+        "worm_mode": parse_boolean,
     }
 
     def __init__(self, config, name):
