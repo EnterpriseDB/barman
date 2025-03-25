@@ -342,6 +342,7 @@ class TestConfig(object):
         expected = testing_helpers.build_config_dictionary(
             {
                 "config": main.config,
+                "worm_mode": False,
                 "autogenerate_manifest": False,
                 "backup_compression": "none",
                 "backup_compression_format": None,
@@ -377,6 +378,7 @@ class TestConfig(object):
             {
                 "_active_model_file": "/some/barman/home/web/.active-model.auto",
                 "config": web.config,
+                "worm_mode": False,
                 "autogenerate_manifest": False,
                 "backup_directory": "/some/barman/home/web",
                 "basebackups_directory": "/some/barman/home/web/base",
@@ -1337,6 +1339,7 @@ class TestModelConfig:
         expected = {
             "active": None,
             "archiver": None,
+            "worm_mode": None,
             "archiver_batch_size": None,
             "autogenerate_manifest": None,
             "aws_await_snapshots_timeout": None,
@@ -1430,6 +1433,7 @@ class TestModelConfig:
         expected = {
             "active": {"source": "SOME_SOURCE", "value": None},
             "archiver": {"source": "SOME_SOURCE", "value": None},
+            "worm_mode": {"source": "SOME_SOURCE", "value": None},
             "archiver_batch_size": {"source": "SOME_SOURCE", "value": None},
             "autogenerate_manifest": {"source": "SOME_SOURCE", "value": None},
             "aws_await_snapshots_timeout": {"source": "SOME_SOURCE", "value": None},

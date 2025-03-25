@@ -280,6 +280,7 @@ def build_config_dictionary(config_keys=None):
         "active": True,
         "active_model": None,
         "archiver": True,
+        "worm_mode": False,
         "archiver_batch_size": 0,
         "autogenerate_manifest": False,
         "aws_await_snapshots_timeout": 3600,
