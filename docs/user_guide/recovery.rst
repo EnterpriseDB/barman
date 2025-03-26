@@ -31,9 +31,6 @@ based on the recovery criteria:
 .. note::
   * Refer to :ref:`concepts-barman-concepts-restore-and-recover` for a clearer
     understanding of the recovery concept in Barman.
-  * Do not run the restore command on a directory where a Postgres instance is currently
-    running. Ensure Postgres is stopped before initiating recovery, including recovery
-    of tablespace directories.
   * The backup is restored to the specified directory, which will be ready to start a
     Postgres instance.
   * Use the ``list-backups`` command to find the specific backup ID you need.
@@ -45,6 +42,12 @@ based on the recovery criteria:
     restoration may fail. In such cases, you will receive an error message that can help
     adjust the restore command accordingly. For example,
     ``--snapshot-recovery-instance`` is required when restoring a snapshot backup.
+
+.. danger::
+  Do not run the restore command with the destination directory set to a location where
+  a Postgres instance is actively running. If you intend to reuse that directory, ensure
+  that Postgres is fully stopped before initiating recovery, including recovery of
+  tablespace directories.
 
 .. _recovery-remote-recovery:
 
@@ -71,7 +74,7 @@ Tablespace Remapping
 Use ``--tablespace NAME:DIRECTORY`` to remap tablespaces to a new location. Barman will
 attempt to create the destination directory if it doesn't exist.
 
-.. important::
+.. danger::
   By default, tablespaces are restored to the same path they had on the source server.
   Be cautious when restoring a backup without any remapping to a destination where a
   Postgres instance already exists, as it can end up overriding existing tablespace
