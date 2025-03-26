@@ -3115,6 +3115,13 @@ class Server(RemoteStatusMixin):
                 )
 
     @property
+    def meta_directory(self):
+        """
+        Directory used to store server metadata files.
+        """
+        return os.path.join(self.config.backup_directory, "meta")
+
+    @property
     def systemid(self):
         """
         Get the system identifier, as returned by the PostgreSQL server

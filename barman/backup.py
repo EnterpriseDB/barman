@@ -149,8 +149,21 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         from disk.
         """
         self._backup_cache = {}
-        # Load all the backups from disk reading the backup.info files
+        # Previous to version 3.13.2, Barman used to store the backup.info file
+        # alongside with the base backup. While that, in general, is not a problem,
+        # when dealing with WORM environments that could cause issues as the
+        # base backups are expected to be stored in an immutable storage. This
+        # code is only maintained as a fallback mechanism during a transient state
+        # in the backup catalog, where we will find backup.info files in both
+        # locations because of backups taken with < 3.13.2
         for filename in glob("%s/*/backup.info" % self.config.basebackups_directory):
+            backup = LocalBackupInfo(self.server, filename)
+            self._backup_cache[backup.backup_id] = backup
+        # In version 3.13.2, Barman changed the location of backup.info files.
+        # That was done so we have common location for the metadata, which
+        # should always be in a mutable storage, independently if worm_mode
+        # is enabled or not. So, this new approach takes precedence.
+        for filename in glob("%s/*-backup.info" % self.server.meta_directory):
             backup = LocalBackupInfo(self.server, filename)
             self._backup_cache[backup.backup_id] = backup
 
@@ -630,8 +643,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         # Remove the delete annotation
         self.release_delete_annotation(backup.backup_id)
 
-        # As last action, remove the backup directory,
-        # ending the delete operation
+        # Remove the base backup directory,
         try:
             self.delete_basebackup(backup)
         except OSError as e:
@@ -642,6 +654,19 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 self.config.name,
                 e,
                 backup.get_basebackup_directory(),
+            )
+            return False
+
+        # As a last action remove, remove the backup.info, ending the delete operation
+        try:
+            self.delete_backupinfo_file(backup)
+        except OSError as e:
+            output.error(
+                "Failure deleting file %s for server %s.\n%s\n"
+                "Please manually remove the file",
+                backup.get_filename(),
+                self.config.name,
+                e,
             )
             return False
 
@@ -1161,6 +1186,17 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         _logger.debug("Deleting base backup directory: %s" % backup_dir)
 
         shutil.rmtree(backup_dir)
+
+    def delete_backupinfo_file(self, backup):
+        """
+        Delete the ``backup.info`` file of a given backup.
+
+        :param barman.infofile.LocalBackupInfo backup: the backup to delete
+        """
+        backup_info_path = backup.get_filename()
+        if os.path.exists(backup_info_path):
+            _logger.debug("Deleting backup.info file: %s" % backup_info_path)
+            os.unlink(backup_info_path)
 
     def delete_backup_data(self, backup):
         """

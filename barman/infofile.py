@@ -21,6 +21,7 @@ import collections
 import inspect
 import logging
 import os
+import re
 
 import dateutil.parser
 import dateutil.tz
@@ -858,12 +859,19 @@ class LocalBackupInfo(BackupInfo):
 
     def detect_backup_id(self):
         """
-        Detect the backup ID from the name of the parent dir of the info file
+        Detect the backup ID from the file name or parent directory name.
+
+        .. note::
+            The ``backup.info`` file was relocated and renamed in version 3.13.2 to
+            also contain the backup id as a prefix. In previous versions, the parent
+            directory of the file was named with the backup id. This method handles
+            both cases.
         """
         if self.filename:
+            match = re.match(r"^(.+?)-backup\.info$", os.path.basename(self.filename))
+            if match:
+                return match.group(1)
             return os.path.basename(os.path.dirname(self.filename))
-        else:
-            return None
 
     def get_basebackup_directory(self):
         """
@@ -914,14 +922,35 @@ class LocalBackupInfo(BackupInfo):
         # Return the built path
         return os.path.join(*path)
 
-    def get_filename(self):
+    def get_filename(self, write=False):
         """
-        Get the default filename for the backup.info file based on
-        backup ID and server directory for base backups
+        Get the default file path for the backup.info file.
+
+        :param bool write: if the file is to be written or not.
+
+        .. note::
+            The ``backup.info`` file was relocated and renamed in version 3.13.2 to
+            also contain the backup id as a prefix. In previous versions, it lived
+            inside the backup directory alongside the data directory. This method
+            handles both paths.
+
+            When writing, always write to the new path. When reading, it could be that
+            a user just migrated to the new version, so we also handle reading from the
+            old path.
         """
-        return os.path.join(self.get_basebackup_directory(), "backup.info")
+        path = os.path.join(self.server.meta_directory, f"{self.backup_id}-backup.info")
+        old_path = os.path.join(self.get_basebackup_directory(), "backup.info")
+        if write or os.path.exists(path) or not os.path.exists(old_path):
+            return path
+        return old_path
 
     def save(self, filename=None, file_object=None):
+        # Update the filename before saving to ensure we're using the correct value
+        # It could be that a user just migrated to version 3.13.2, which relocated the
+        # backup.info path. In this case, the file was read from the old path but has
+        # to be written to the new path
+        if not filename:
+            self.filename = self.get_filename(write=True)
         if not file_object:
             # Make sure the containing directory exists
             filename = filename or self.filename
@@ -1074,11 +1103,26 @@ class LocalBackupInfo(BackupInfo):
         a non-empty backup.info file. This may indicate an incomplete delete operation.
 
         :return bool: ``True`` if the backup is an orphan, ``False`` otherwise.
+
+        .. note::
+            The ``backup.info`` file was relocated and renamed in version 3.13.2 to
+            also contain the backup id as a prefix. In previous versions, the parent
+            directory of the file was named with the backup id. This method handles
+            both cases.
         """
+        if self.status == BackupInfo.EMPTY:
+            return False
         backup_dir = self.get_basebackup_directory()
-        backup_info_path = os.path.join(backup_dir, "backup.info")
-        if os.path.exists(backup_dir) and os.path.exists(backup_info_path):
-            if len(os.listdir(backup_dir)) == 1 and self.status != BackupInfo.EMPTY:
+        # In the >= 3.13.2 structure, it is considered orphan if the backup.info exists
+        # in the server meta directory while no directory related to the backup exists
+        backup_info_path = self.get_filename()
+        if os.path.exists(backup_info_path) and not os.path.exists(backup_dir):
+            return True
+        # In the < 3.13.2 structure, the backup.info lived inside the backup directory.
+        # In this case, it is considered orphan if the backup.info exists alone in there
+        old_backup_info_path = os.path.join(backup_dir, "backup.info")
+        if os.path.exists(backup_dir) and os.path.exists(old_backup_info_path):
+            if len(os.listdir(backup_dir)) == 1:
                 return True
         return False
 
