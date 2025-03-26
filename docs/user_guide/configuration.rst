@@ -582,6 +582,8 @@ last available backup. The options are:
 
 Scope: Global / Server / Model.
 
+.. _configuration-options-backups-worm-mode:
+
 **worm_mode**
 
 If set to ``on``, enables support for WORM (Write Once Read Many) storage, allowing

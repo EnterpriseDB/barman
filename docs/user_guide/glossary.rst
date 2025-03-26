@@ -67,3 +67,6 @@ Glossary
 
     VLDB
         Very Large DataBase
+
+    WORM
+        Write Once, Read Many

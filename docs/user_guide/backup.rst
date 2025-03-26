@@ -485,15 +485,20 @@ Using an immutable storage for backups
 --------------------------------------
 
 Barman can be configured to store backups on immutable storage to protect against
-malicious actors or accidental deletions. Such storage may also be referred to as WORM (Write Once,
-Read Many) storage.
+malicious actors or accidental deletions. Such storage may also be referred to as
+:term:`WORM` (Write Once, Read Many) storage.
 
-The main use case for these type of storage is to protect the backups from ransomware
+The main use case for this type of storage is to protect the backups from ransomware
 attacks. By using immutable storage, the backups cannot be deleted or modified for a
 specific period of time.
 
-To configure Barman to store backups on immutable storage, you need to follow these
-suggestions:
+In order for Barman to provide immutable backups, only the backups and WAL files
+should be located in the immutable storage, leaving non-restorable data in regular
+storage. This way Barman will be able to maintain transient information about metadata
+of backups and WAL files as that information needs regular updates.
+
+Given the above, to configure Barman to store backups on an immutable storage, you need
+to follow these suggestions:
 
 * Only the following two directories should be configured to be stored on the immutable
   storage path:
@@ -512,28 +517,37 @@ suggestions:
 * The WAL file catalog should be stored on a regular storage path. This can be
   accomplished by configuring the :ref:`xlogdb_directory <configuration-options-wals-xlogdb-directory>`
   option to point to a regular storage.
+* Paths used for restoring incremental or compressed backups, like
+  ``recovery_staging_path`` and ``local_staging_path`` (see :ref:`restore configuration <configuration-options-restore>`
+  for details), should also live in regular storage.
 * Retention policies should cover at least the full period in which the backed up files
   are immutable. This can be accomplished by setting the ``retention_policy`` option in
   the server section to a value that is greater than the immutable storage's period of
   immutability. This is to ensure that the backups are not deleted before the
   immutability period expires.
 
+To configure immutability of backups there's a :ref:`worm_mode <configuration-options-backups-worm-mode>`
+option that needs to be enabled. This will let Barman skip processes which are
+problematic when backups and WAL files are stored in a :term:`WORM` environment.
+
 .. note::
-    ``xlogdb_directory`` was included in Barman 3.12. Refer to its
-    :ref:`configuration section <configuration-options-wals-xlogdb-directory>`
+    The option for relocating the ``xlogdb`` file was included in Barman 3.12. Refer
+    to its :ref:`configuration section <configuration-options-wals-xlogdb-directory>`
     for more information.
 
 Current limitations
 """""""""""""""""""
 
 The current implementation of immutable backup support in Barman has the following 
-limitation:
+limitations:
 
 * The WORM environment must have a grace period. A grace period provides a predefined
   window during which data can be modified or deleted before WORM restrictions take
   effect. This requirement exists because Barman makes use of renaming to safely copy
   WALs to external partitions, which would fail if the file has already entered a WORM
   state.
+* Keeping backups by using `barman keep` command is not supported. This may be lifted
+  in a future version.
 
 In general, a grace period of at least 15 minutes is recommended, as this provides
 enough time for Barman to complete any necessary operations.
