@@ -380,8 +380,6 @@ class TestSync(object):
 
         # Prepare paths
         backup_dir = tmpdir.mkdir(server_name)
-        basebackup_dir = backup_dir.mkdir("base")
-        full_backup_path = basebackup_dir.mkdir(backup_name)
 
         self._create_primary_info_file(tmpdir, backup_dir)
 
@@ -428,7 +426,6 @@ class TestSync(object):
         rsync_mock.reset_mock()
         server.backup_manager._backup_cache = {}
         rsync_mock.side_effect = CommandFailedException("TestFailure")
-        full_backup_path.remove(rec=1)
         server.sync_backup(backup_name)
         backup_info = server.get_backup(backup_name)
         assert backup_info.status == BackupInfo.FAILED
@@ -441,7 +438,6 @@ class TestSync(object):
         # Check the error message for the KeyboardInterrupt event
         rsync_mock.reset_mock()
         rsync_mock.side_effect = CommandFailedException("TestFailure")
-        full_backup_path.remove(rec=1)
         rsync_mock.side_effect = KeyboardInterrupt()
         server.sync_backup(backup_name)
         backup_info = server.get_backup(backup_name)
@@ -455,7 +451,6 @@ class TestSync(object):
         # Expect a error message on stderr
         rsync_mock.reset_mock()
         rsync_mock.side_effect = CommandFailedException("TestFailure")
-        full_backup_path.remove(rec=1)
         server.sync_backup("wrong_backup_name")
 
         (out, err) = capsys.readouterr()

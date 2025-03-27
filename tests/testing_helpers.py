@@ -131,6 +131,7 @@ def build_test_backup_info(
         server.config = build_config_from_dicts().get_server("main")
         server.passive_node = False
         server.backup_manager.name = "default"
+        server.meta_directory = "%s/meta" % server.config.backup_directory
 
     backup_info = LocalBackupInfo(**locals())
     return backup_info
@@ -466,6 +467,7 @@ def build_mocked_server(
     server.path = "/test/bin"
     server.systemid = "6721602258895701769"
     server.postgres.server_version = pg_version
+    server.meta_directory = "%s/meta" % server.config.backup_directory
     return server
 
 

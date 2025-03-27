@@ -473,7 +473,7 @@ class TestBackupInfo(object):
         # we want to test the loading of BackupInfo data from local file.
         # So we create a file into the tmpdir containing a
         # valid BackupInfo dump
-        infofile = tmpdir.join("backup.info")
+        infofile = tmpdir.join("fake_name-backup.info")
         infofile.write("")
         # Mock the server, we don't need it at the moment
         server = build_mocked_server(name="test_server")
@@ -505,9 +505,14 @@ class TestBackupInfo(object):
         # we instruct the configuration on the position of the
         # testing backup.info file
         server = build_mocked_server(
-            main_conf={"basebackups_directory": tmpdir.strpath},
+            main_conf={
+                "basebackups_directory": tmpdir.strpath,
+                "backup_directory": tmpdir.join("main"),
+            },
         )
-        infofile = tmpdir.mkdir("fake_name").join("backup.info")
+        server_dir = tmpdir.mkdir("main")
+        meta_dir = server_dir.mkdir("meta")
+        infofile = meta_dir.join("fake_name-backup.info")
         infofile.write(BASE_BACKUP_INFO)
         # Load the backup.info file using the backup_id
         b_info = LocalBackupInfo(server, backup_id="fake_name")
@@ -543,13 +548,24 @@ class TestBackupInfo(object):
         Ensure :meth:`LocalBackupInfo.is_orphan` returns the correct value.
         """
         server = build_mocked_server(
-            main_conf={"basebackups_directory": tmpdir.strpath},
+            main_conf={
+                "basebackups_directory": tmpdir.strpath,
+                "backup_directory": tmpdir.join("main"),
+            },
         )
 
         # Case 1: Orphan backup (only backup.info file, status not empty)
         backup_dir = tmpdir.mkdir("orphan_backup")
         backup_info_path = backup_dir.join("backup.info")
         backup_info_path.write("status = DONE\n")
+        b_info = LocalBackupInfo(server, backup_id="orphan_backup")
+        b_info.status = BackupInfo.DONE
+        assert b_info.is_orphan is True
+
+        # Case 1-B: Same case but for the new location of backup.info introduced in 3.13.2
+        server_dir = tmpdir.mkdir("main")
+        meta_dir = server_dir.mkdir("meta")
+        backup_info_path = meta_dir.join("fake_backup_id-backup.info")
         b_info = LocalBackupInfo(server, backup_id="orphan_backup")
         b_info.status = BackupInfo.DONE
         assert b_info.is_orphan is True
@@ -563,11 +579,32 @@ class TestBackupInfo(object):
         b_info.status = BackupInfo.DONE
         assert b_info.is_orphan is False
 
+        # Case 2-B: Same case but for the new location of backup.info introduced in 3.13.2
+        server_dir = tmpdir.join("main")
+        meta_dir = server_dir.join("meta")
+        backup_info_path = meta_dir.join("not_orphan_backup2-backup.info")
+        backup_info_path.write("status = DONE\n")
+        backup_dir = tmpdir.mkdir("not_orphan_backup2")
+        backup_dir.join("other_file").write("some content")
+        b_info = LocalBackupInfo(server, backup_id="not_orphan_backup2")
+        b_info.status = BackupInfo.DONE
+        assert b_info.is_orphan is False
+
         # Case 3: Not orphan (status is empty)
         backup_dir = tmpdir.mkdir("empty_status_backup")
         backup_info_path = backup_dir.join("backup.info")
         backup_info_path.write("status = EMPTY\n")
         b_info = LocalBackupInfo(server, backup_id="empty_status_backup")
+        b_info.status = BackupInfo.EMPTY
+        assert b_info.is_orphan is False
+
+        # Case 3-B: Same case but for the new location of backup.info introduced in 3.13.2
+        server_dir = tmpdir.join("main")
+        meta_dir = server_dir.join("meta")
+        backup_info_path = meta_dir.join("empty_status_backup2-backup.info")
+        backup_info_path.write("status = EMPTY\n")
+        backup_dir = tmpdir.mkdir("empty_status_backup2")
+        b_info = LocalBackupInfo(server, backup_id="empty_status_backup2")
         b_info.status = BackupInfo.EMPTY
         assert b_info.is_orphan is False
 
@@ -584,10 +621,14 @@ class TestBackupInfo(object):
         # Load a backup.info file, modify the BackupInfo object
         # then save it.
         server = build_mocked_server(
-            main_conf={"basebackups_directory": tmpdir.strpath},
+            main_conf={
+                "basebackups_directory": tmpdir.strpath,
+                "backup_directory": tmpdir.join("main"),
+            },
         )
-        backup_dir = tmpdir.mkdir("fake_name")
-        infofile = backup_dir.join("backup.info")
+        server_dir = tmpdir.join("main")
+        meta_dir = server_dir.join("meta")
+        infofile = meta_dir.join("fake_name-backup.info")
         b_info = LocalBackupInfo(server, backup_id="fake_name")
         b_info.status = BackupInfo.FAILED
         b_info.save()
@@ -625,13 +666,18 @@ class TestBackupInfo(object):
         with backup_version
         """
         server = build_mocked_server(
-            main_conf={"basebackups_directory": tmpdir.strpath},
+            main_conf={
+                "basebackups_directory": tmpdir.strpath,
+                "backup_directory": tmpdir.join("main"),
+            },
         )
 
         # Build a fake v2 backup
+        server_dir = tmpdir.mkdir("main")
+        meta_dir = server_dir.mkdir("meta")
+        info_file = meta_dir.join("fake_backup_id-backup.info")
         backup_dir = tmpdir.mkdir("fake_backup_id")
         data_dir = backup_dir.mkdir("data")
-        info_file = backup_dir.join("backup.info")
         info_file.write(BASE_BACKUP_INFO)
         b_info = LocalBackupInfo(server, backup_id="fake_backup_id")
 
@@ -643,7 +689,7 @@ class TestBackupInfo(object):
         # Build a fake v1 backup
         backup_dir = tmpdir.mkdir("another_fake_backup_id")
         pgdata_dir = backup_dir.mkdir("pgdata")
-        info_file = backup_dir.join("backup.info")
+        info_file = meta_dir.join("another_fake_backup_id-backup.info")
         info_file.write(BASE_BACKUP_INFO)
         b_info = LocalBackupInfo(server, backup_id="another_fake_backup_id")
 
@@ -669,12 +715,16 @@ class TestBackupInfo(object):
 
     def test_to_json(self, tmpdir):
         server = build_mocked_server(
-            main_conf={"basebackups_directory": tmpdir.strpath},
+            main_conf={
+                "basebackups_directory": tmpdir.strpath,
+                "backup_directory": tmpdir.join("main"),
+            },
         )
 
         # Build a fake backup
-        backup_dir = tmpdir.mkdir("fake_backup_id")
-        info_file = backup_dir.join("backup.info")
+        server_dir = tmpdir.mkdir("main")
+        meta_dir = server_dir.mkdir("meta")
+        info_file = meta_dir.join("fake_backup_id-backup.info")
         info_file.write(BASE_BACKUP_INFO)
         b_info = LocalBackupInfo(server, backup_id="fake_backup_id")
 
@@ -683,12 +733,16 @@ class TestBackupInfo(object):
 
     def test_from_json(self, tmpdir):
         server = build_mocked_server(
-            main_conf={"basebackups_directory": tmpdir.strpath},
+            main_conf={
+                "basebackups_directory": tmpdir.strpath,
+                "backup_directory": tmpdir.join("main"),
+            },
         )
 
         # Build a fake backup
-        backup_dir = tmpdir.mkdir("fake_backup_id")
-        info_file = backup_dir.join("backup.info")
+        server_dir = tmpdir.mkdir("main")
+        meta_dir = server_dir.mkdir("meta")
+        info_file = meta_dir.join("fake_backup_id-backup.info")
         info_file.write(BASE_BACKUP_INFO)
         b_info = LocalBackupInfo(server, backup_id="fake_backup_id")
 
@@ -707,7 +761,7 @@ class TestBackupInfo(object):
         # also for retrocompatibility with backup info which
         # doesn't contain the xlog_segment_size field.
 
-        infofile = tmpdir.join("backup.info")
+        infofile = tmpdir.join("fake_backup_info-backup.info")
         infofile.write("")
 
         # Mock the server, we don't need it at the moment
@@ -721,13 +775,17 @@ class TestBackupInfo(object):
     @mock.patch("barman.postgres.PostgreSQLConnection.connect")
     def test_backupinfo_load(self, connect_mock, tmpdir):
         server = build_real_server(
-            main_conf={"basebackups_directory": tmpdir.strpath},
+            main_conf={
+                "basebackups_directory": tmpdir.strpath,
+                "backup_directory": tmpdir.join("main"),
+            },
         )
 
         # Build a fake backup info and try to load id, to ensure that we won't
         # need a PostgreSQL connection to do that
-        backup_dir = tmpdir.mkdir("fake_backup_id")
-        info_file = backup_dir.join("backup.info")
+        server_dir = tmpdir.mkdir("main")
+        meta_dir = server_dir.mkdir("meta")
+        info_file = meta_dir.join("backup.info")
         info_file.write(BASE_BACKUP_INFO)
 
         # Monkey patch the PostgreSQL connection function to raise a
@@ -742,7 +800,7 @@ class TestBackupInfo(object):
         """
         Test handling of postgres version in BackupInfo object
         """
-        infofile = tmpdir.join("backup.info")
+        infofile = tmpdir.join("fake_name-backup.info")
         infofile.write(BASE_BACKUP_INFO)
         server = build_mocked_server()
         b_info = LocalBackupInfo(server, info_file=infofile.strpath)
@@ -760,10 +818,14 @@ class TestBackupInfo(object):
         """
         # GIVEN a backup.info file for a server
         server = build_mocked_server(
-            main_conf={"basebackups_directory": tmpdir.strpath},
+            main_conf={
+                "basebackups_directory": tmpdir.strpath,
+                "backup_directory": tmpdir.join("main"),
+            },
         )
-        backup_dir = tmpdir.mkdir("fake_name")
-        infofile = backup_dir.join("backup.info")
+        server_dir = tmpdir.join("main")
+        meta_dir = server_dir.join("meta")
+        infofile = meta_dir.join("fake_name-backup.info")
         b_info = LocalBackupInfo(server, backup_id="fake_name")
         b_info.status = BackupInfo.DONE
 
@@ -782,10 +844,14 @@ class TestBackupInfo(object):
         """
         # GIVEN a backup.info file for a server
         server = build_mocked_server(
-            main_conf={"basebackups_directory": tmpdir.strpath},
+            main_conf={
+                "basebackups_directory": tmpdir.strpath,
+                "backup_directory": tmpdir.join("main"),
+            },
         )
-        backup_dir = tmpdir.mkdir("fake_name")
-        infofile = backup_dir.join("backup.info")
+        server_dir = tmpdir.join("main")
+        meta_dir = server_dir.join("meta")
+        infofile = meta_dir.join("fake_name-backup.info")
         b_info = LocalBackupInfo(server, backup_id="fake_name")
         b_info.status = BackupInfo.DONE
 
@@ -803,10 +869,14 @@ class TestBackupInfo(object):
         """
         # GIVEN a backup.info file for a server
         server = build_mocked_server(
-            main_conf={"basebackups_directory": tmpdir.strpath},
+            main_conf={
+                "basebackups_directory": tmpdir.strpath,
+                "backup_directory": tmpdir.join("main"),
+            },
         )
-        backup_dir = tmpdir.mkdir("fake_name")
-        infofile = backup_dir.join("backup.info")
+        server_dir = tmpdir.join("main")
+        meta_dir = server_dir.join("meta")
+        infofile = meta_dir.join("fake_name-backup.info")
         b_info = LocalBackupInfo(server, backup_id="fake_name")
         b_info.status = BackupInfo.DONE
 
@@ -854,10 +924,14 @@ class TestBackupInfo(object):
         """
         # GIVEN a backup.info file for a server
         server = build_mocked_server(
-            main_conf={"basebackups_directory": tmpdir.strpath},
+            main_conf={
+                "basebackups_directory": tmpdir.strpath,
+                "backup_directory": tmpdir.join("main"),
+            },
         )
-        backup_dir = tmpdir.mkdir("fake_name")
-        infofile = backup_dir.join("backup.info")
+        server_dir = tmpdir.mkdir("main")
+        meta_dir = server_dir.join("meta")
+        infofile = meta_dir.join("fake_name-backup.info")
         b_info = LocalBackupInfo(server, backup_id="fake_name")
         b_info.status = BackupInfo.DONE
 
@@ -906,10 +980,14 @@ class TestBackupInfo(object):
         """
         # GIVEN a backup.info file for a server
         server = build_mocked_server(
-            main_conf={"basebackups_directory": tmpdir.strpath},
+            main_conf={
+                "basebackups_directory": tmpdir.strpath,
+                "backup_directory": tmpdir.join("main"),
+            },
         )
-        backup_dir = tmpdir.mkdir("fake_name")
-        infofile = backup_dir.join("backup.info")
+        server_dir = tmpdir.join("main")
+        meta_dir = server_dir.join("meta")
+        infofile = meta_dir.join("fake_name-backup.info")
         b_info = LocalBackupInfo(server, backup_id="fake_name")
         b_info.status = BackupInfo.DONE
 
@@ -961,10 +1039,14 @@ class TestBackupInfo(object):
         """
         # GIVEN a backup.info file for a server
         server = build_mocked_server(
-            main_conf={"basebackups_directory": tmpdir.strpath},
+            main_conf={
+                "basebackups_directory": tmpdir.strpath,
+                "backup_directory": tmpdir.join("main"),
+            },
         )
-        backup_dir = tmpdir.mkdir("fake_name")
-        infofile = backup_dir.join("backup.info")
+        server_dir = tmpdir.join("main")
+        meta_dir = server_dir.join("meta")
+        infofile = meta_dir.join("fake_name-backup.info")
         b_info = LocalBackupInfo(server, backup_id="fake_name")
         b_info.status = BackupInfo.DONE
 
