@@ -1,0 +1,11 @@
+version: 3.13.2
+date: 2025-03-27
+relnotes:
+-   summary: Added WORM mode for immutable backups support
+    description: |-
+        Added a new `worm_mode` configuration to enable WORM (Write Once Read Many)
+        handling in Barman, allowing it to support backups on immutable storage.
+    jira_tickets:
+    - BAR-649
+    support_tickets: []
+    type: minor_change
