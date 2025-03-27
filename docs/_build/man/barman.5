@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN" "5" "Mar 20, 2025" "3.13" "Barman"
+.TH "BARMAN" "5" "Mar 27, 2024" "3.13" "Barman"
 .SH NAME
 barman \- Barman Configurations
 .sp
@@ -686,6 +686,13 @@ creating a hard link of the unchanged files (for backup space and time reduction
 This option will be ignored when \fBbackup_method=postgres\fP\&.
 .UNINDENT
 .UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBworm_mode\fP
+.sp
+If set to \fBon\fP, enables support for WORM (Write Once Read Many) storage, allowing
+Barman to handle backups on immutable storage correctly. Default is \fBoff\fP\&.
 .sp
 Scope: Global / Server / Model.
 .SS Cloud Backups
