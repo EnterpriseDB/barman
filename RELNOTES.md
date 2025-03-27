@@ -2,6 +2,32 @@
 
 © Copyright EnterpriseDB UK Limited 2025 - All rights reserved.
 
+## 3.13.2 (2025-03-27)
+
+### Minor changes
+
+- Fix errors when using an immutable storage
+
+  Added a new `worm_mode` configuration to enable WORM (Write Once Read Many)
+  handling in Barman, allowing it to support backups on immutable storage.
+
+  This fix also provides automatic relocation of the backup.info file in a new
+  directory `meta` inside `backup_directory`. This will let Barman update it
+  in future when needed.
+
+  Barman will also _not_ purge the wals directory for WAL files that are not
+  needed when running the first backup. This will add some extra space
+  which will be reclaimed when this first backup is obsolete and removed
+  (by that time, the backups and the WALs will be outside the retention
+  policy window).
+
+  Added additional notes to the documentation explaining limitations when
+  running with an immutable storage for backups. In particular the need
+  for a grace period in the immutability of files and the fact that
+  `barman keep` is not supported in these environments.
+
+  References: BAR-649, BAR-645, BAR-650, BAR-651, BAR-652.
+
 ## 3.13.1 (2025-03-20)
 
 ### Minor changes
