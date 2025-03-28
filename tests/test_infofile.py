@@ -48,6 +48,7 @@ from barman.infofile import (
     FieldListFile,
     LocalBackupInfo,
     SyntheticBackupInfo,
+    VolatileBackupInfo,
     WalFileInfo,
     dump_backup_ids,
     load_backup_ids,
@@ -1491,3 +1492,69 @@ class TestSyntheticBackupInfo:
         )
         directory = backup_info.get_basebackup_directory()
         assert directory == "/fake/path/fake_name"
+
+
+class TestVolatileBackupInfo:
+    """
+    Unit tests for the :class:`VolatileBackupInfo` class.
+    """
+
+    @mock.patch("barman.infofile.LocalBackupInfo.__init__", return_value=None)
+    def test_volatile_backup_info_init_calls_super(self, mock_local_backup_info_init):
+        """
+        Test that :class:`VolatileBackupInfo` correctly calls the superclass
+        :class:`LocalBackupInfo` during initialization.
+        """
+        server = build_mocked_server()
+        base_directory = "/fake/path/"
+        backup_id = "fake_backup_id"
+
+        # Initialize VolatileBackupInfo
+        volatile_backup_info = VolatileBackupInfo(
+            server=server,
+            base_directory=base_directory,
+            backup_id=backup_id,
+        )
+
+        # Assert that the superclass __init__ was called with the correct arguments
+        mock_local_backup_info_init.assert_called_once_with(
+            server,
+            None,
+            backup_id,
+        )
+
+        # Ensure the object is an instance of VolatileBackupInfo
+        assert isinstance(volatile_backup_info, VolatileBackupInfo)
+
+    def test_get_basebackup_directory(self):
+        """
+        Test the :meth:`get_basebackup_directory` method.
+        """
+        server = build_mocked_server()
+        base_directory = "/fake/path/"
+        backup_id = "fake_backup_id"
+        volatile_backup_info = VolatileBackupInfo(
+            server=server,
+            base_directory=base_directory,
+            backup_id=backup_id,
+        )
+        expected_directory = os.path.join(base_directory, backup_id)
+        assert volatile_backup_info.get_basebackup_directory() == expected_directory
+
+    def test_volatile_backup_info_save_not_implemented(self):
+        """
+        Test that the :meth:`save` method of :class:`VolatileBackupInfo` raises a
+        :exc:`NotImplementedError`.
+        """
+        server = build_mocked_server()
+        base_directory = "/fake/path/"
+        backup_id = "fake_backup_id"
+        volatile_backup_info = VolatileBackupInfo(
+            server=server,
+            base_directory=base_directory,
+            backup_id=backup_id,
+        )
+        with pytest.raises(
+            NotImplementedError, match="The save method is not implemented."
+        ):
+            volatile_backup_info.save()

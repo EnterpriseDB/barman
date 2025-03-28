@@ -1163,3 +1163,57 @@ class SyntheticBackupInfo(LocalBackupInfo):
     def get_basebackup_directory(self):
         """Get the backup directory based on its base directory"""
         return os.path.join(self.base_directory, self.backup_id)
+
+
+class VolatileBackupInfo(LocalBackupInfo):
+    def __init__(
+        self, server, base_directory, backup_id=None, info_file=None, **kwargs
+    ):
+        """
+        A class to hold temporary, in-memory updates on top of a
+        :class:`LocalBackupInfo` object.
+
+        This class allows modification of certain fields of a :class:`LocalBackupInfo`
+        object without affecting the actual backup file on disk. It is designed to
+        support methods like :meth:`RecoveryExecutor._decrypt_backup`, where custom,
+        situational updates to backup information are necessary for processing, such as
+        custom tablespace mappings during backup decompression or combination.
+
+        The :class:`VolatileBackupInfo` does not persist changes to the disk, ensuring
+        that only in-memory instances are updated, while the original
+        :class:`BackupInfo` remains unaltered.
+
+        :param barman.server.Server server: The server of the
+            :class:`LocalBackupInfo`.
+        :param str base_directory: The directory where this backup is stored,
+            essentially an override to the
+            :attr:`barman.config.ServerConfig.basebackups_directory` configuration
+            option.
+        :param str|None backup_id: The backup id of the backup.
+        :param None|str|TextIO info_file: The path to an existing ``backup.info`` file,
+        or
+            a file-like object from which to read the backup information.
+        """
+        self.base_directory = base_directory
+        super(VolatileBackupInfo, self).__init__(server, info_file, backup_id, **kwargs)
+
+    def get_basebackup_directory(self):
+        """
+        Retrieve the full path to the base backup directory for this backup.
+
+        This method constructs the path to the directory where the backup is stored
+        based on the provided :attr:`base_directory` and :attr:`backup_id`. It is
+        particularly useful for scenarios where the backup directory is customized or
+        overridden.
+
+        :return str: The full path to the base backup directory.
+        """
+        return os.path.join(self.base_directory, self.backup_id)
+
+    def save(self, *args, **kwargs):
+        """
+        Override the save method to prevent its usage.
+
+        :raises NotImplementedError: This method is not implemented.
+        """
+        raise NotImplementedError("The save method is not implemented.")
