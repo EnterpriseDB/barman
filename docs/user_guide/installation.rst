@@ -159,7 +159,7 @@ To begin installation, you will need to add the appropriate repository by follow
 detailed instructions available on the
 `PGDG SLES Repository Configuration <https://zypp.postgresql.org/howtozypp/>`_.
 
-**The current supported version for installation is SLES 15 SP5.**
+**The current supported version for installation is SLES 15 SP6.**
 
 .. important::
    The ``barman-cli-cloud`` utilities are part of the ``barman-cli`` package for
