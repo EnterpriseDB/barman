@@ -188,20 +188,6 @@ class RecoveryExecutor(object):
             output.error("unable to initialise destination directory '%s': %s", dest, e)
             output.close_and_exit()
 
-        # check WALs destination directory. If doesn't exist create it
-        # we use the value from recovery_info as it contains the final path
-        try:
-            recovery_info["cmd"].create_dir_if_not_exists(
-                recovery_info["wal_dest"], mode="700"
-            )
-        except FsOperationFailed as e:
-            output.error(
-                "unable to initialise WAL destination directory '%s': %s",
-                wal_dest,
-                e,
-            )
-            output.close_and_exit()
-
         # Initialize tablespace directories
         if backup_info.tablespaces:
             self._prepare_tablespaces(
@@ -264,6 +250,20 @@ class RecoveryExecutor(object):
                         "working correctly or evaluate using the 'get-wal' "
                         "option for recovery"
                     )
+
+            # check WALs destination directory. If doesn't exist create it
+            # we use the value from recovery_info as it contains the final path
+            try:
+                recovery_info["cmd"].create_dir_if_not_exists(
+                    recovery_info["wal_dest"], mode="700"
+                )
+            except FsOperationFailed as e:
+                output.error(
+                    "unable to initialise WAL destination directory '%s': %s",
+                    wal_dest,
+                    e,
+                )
+                output.close_and_exit()
 
             output.info("Copying required WAL segments.")
 
@@ -2029,9 +2029,21 @@ class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
         # Then procede to move the content of the data directory
         # We don't move the pg_tblspc as the _prepare_tablespaces method called earlier
         # in the process already created this directory and required symlinks in the destination
+        # We also ignore any of the log directories and files not useful for the recovery
         data_source = backup_info.get_data_directory()
         self._move_to_destination(
-            source=data_source, destination=dest, exclude_path_names={"pg_tblspc"}
+            source=data_source,
+            destination=dest,
+            exclude_path_names={
+                "pg_tblspc",
+                "pg_log",
+                "log",
+                "pg_xlog",
+                "pg_wal",
+                "postmaster.pid",
+                "recovery.conf",
+                "tablespace_map",
+            },
         )
 
     def _move_to_destination(self, source, destination, exclude_path_names=set()):
