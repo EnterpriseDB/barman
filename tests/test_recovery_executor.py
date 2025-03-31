@@ -2566,7 +2566,16 @@ class TestIncrementalRecoveryExecutor(object):
         mock_move_to_dest.assert_called_once_with(
             source=mock_get_data_dir.return_value,
             destination="destination/recover/path",
-            exclude_path_names={"pg_tblspc"},
+            exclude_path_names={
+                "pg_tblspc",
+                "pg_log",
+                "log",
+                "pg_xlog",
+                "pg_wal",
+                "postmaster.pid",
+                "recovery.conf",
+                "tablespace_map",
+            },
         )
 
     @mock.patch(
@@ -2645,7 +2654,16 @@ class TestIncrementalRecoveryExecutor(object):
                 mock.call(
                     source=mock_get_data_dir(),
                     destination="destination/recover/path",
-                    exclude_path_names={"pg_tblspc"},
+                    exclude_path_names={
+                        "pg_tblspc",
+                        "pg_log",
+                        "log",
+                        "pg_xlog",
+                        "pg_wal",
+                        "postmaster.pid",
+                        "recovery.conf",
+                        "tablespace_map",
+                    },
                 ),
             ],
             "with_mapping": [
@@ -2660,7 +2678,16 @@ class TestIncrementalRecoveryExecutor(object):
                 mock.call(
                     source=mock_get_data_dir(),
                     destination="destination/recover/path",
-                    exclude_path_names={"pg_tblspc"},
+                    exclude_path_names={
+                        "pg_tblspc",
+                        "pg_log",
+                        "log",
+                        "pg_xlog",
+                        "pg_wal",
+                        "postmaster.pid",
+                        "recovery.conf",
+                        "tablespace_map",
+                    },
                 ),
             ],
         }
