@@ -223,6 +223,17 @@ replace the duplicate file archived before, etc.)
 
 Scope: Server.
 
+**encryption**
+
+Specifies the encryption method used for encrypting backups and WAL files. Supported
+values are:
+
+* ``none`` (default): No encryption is applied.
+* ``gpg``: Uses :term:`GPG` for encryption. Requires :term:`GPG` to be installed
+  and properly configured on the system.
+
+Scope: Global / Server / Model.
+
 **forward_config_path**
 
 Determines whether a passive node should forward its configuration file path to its

@@ -28,6 +28,9 @@ Glossary
     GCP
         Google Cloud Platform
 
+    GPG
+        GNU Privacy Guard
+
     IAC
         Infrastructure As Code
 
