@@ -87,6 +87,9 @@ COMPRESSIONS = compression_registry.keys()
 # WAL compression level options
 COMPRESSION_LEVELS = ["low", "medium", "high"]
 
+# Encryption options
+ENCRYPTION_VALUES = ["none", "gpg"]
+
 
 class CsvOption(set):
     """
@@ -354,6 +357,27 @@ def parse_backup_compression_location(value):
     raise ValueError("Invalid value (must be either `client` or `server`)")
 
 
+def parse_encryption(value):
+    """
+    Parse a string to valid encryption value.
+
+    Valid values are defined in :data:`ENCRYPTION_VALUES`.
+
+    :param str value: string value to be parsed
+    :raises ValueError: if the *value* is invalid
+    """
+    if value is not None:
+        value = value.lower()
+        if value == "none":
+            return None
+        if value not in ENCRYPTION_VALUES:
+            raise ValueError(
+                "Invalid encryption value '%s'. Allowed values are: %s."
+                % (value, ", ".join(ENCRYPTION_VALUES))
+            )
+    return value
+
+
 def parse_backup_method(value):
     """
     Parse a string to a valid backup_method value.
@@ -576,6 +600,7 @@ class ServerConfig(BaseConfig):
         "custom_compression_magic",
         "description",
         "disabled",
+        "encryption",
         "errors_directory",
         "forward_config_path",
         "gcp_project",
@@ -677,6 +702,7 @@ class ServerConfig(BaseConfig):
         "custom_compression_filter",
         "custom_decompression_filter",
         "custom_compression_magic",
+        "encryption",
         "forward_config_path",
         "gcp_project",
         "immediate_checkpoint",
@@ -747,6 +773,7 @@ class ServerConfig(BaseConfig):
         "cluster": "%(name)s",
         "compression_level": "medium",
         "disabled": "false",
+        "encryption": "none",
         "errors_directory": "%(backup_directory)s/errors",
         "forward_config_path": "false",
         "immediate_checkpoint": "false",
@@ -798,6 +825,7 @@ class ServerConfig(BaseConfig):
         "compression": parse_compression,
         "compression_level": parse_compression_level,
         "disabled": parse_boolean,
+        "encryption": parse_encryption,
         "forward_config_path": parse_boolean,
         "keepalive_interval": int,
         "immediate_checkpoint": parse_boolean,
