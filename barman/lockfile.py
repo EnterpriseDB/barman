@@ -230,6 +230,8 @@ class ServerBackupLock(LockFile):
     for the named SERVER.
     """
 
+    LOCK_PATTERN = re.compile(r"\.(?P<server_name>.+)-backup\.lock")
+
     def __init__(self, lock_directory, server_name):
         super(ServerBackupLock, self).__init__(
             os.path.join(lock_directory, ".%s-backup.lock" % server_name),
@@ -244,6 +246,8 @@ class ServerCronLock(LockFile):
     Creates a '.<SERVER>-cron.lock' lock file under the given lock_directory
     for the named SERVER.
     """
+
+    LOCK_PATTERN = re.compile(r"\.(?P<server_name>.+)-cron\.lock")
 
     def __init__(self, lock_directory, server_name):
         super(ServerCronLock, self).__init__(
@@ -276,6 +280,8 @@ class ServerWalArchiveLock(LockFile):
     Creates a '.<SERVER>-archive-wal.lock' lock file under
     the given lock_directory for the named SERVER.
     """
+
+    LOCK_PATTERN = re.compile(r"\.(?P<server_name>.+)-archive-wal\.lock")
 
     def __init__(self, lock_directory, server_name):
         super(ServerWalArchiveLock, self).__init__(
@@ -329,6 +335,10 @@ class ServerBackupSyncLock(LockFile):
     lock_directory for a BACKUP of a SERVER.
     """
 
+    LOCK_PATTERN = re.compile(
+        r"\.(?P<server_name>.+?)-(?P<backup_id>.+?)-sync-backup\.lock"
+    )
+
     def __init__(self, lock_directory, server_name, backup_id):
         super(ServerBackupSyncLock, self).__init__(
             os.path.join(
@@ -346,6 +356,8 @@ class ServerWalSyncLock(LockFile):
     Creates a '.<SERVER>-sync-wal.lock' lock file under the given
     lock_directory for the named SERVER.
     """
+
+    LOCK_PATTERN = re.compile(r"\.(?P<server_name>.+)-sync-wal\.lock")
 
     def __init__(self, lock_directory, server_name):
         super(ServerWalSyncLock, self).__init__(

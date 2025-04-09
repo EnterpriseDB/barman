@@ -1372,6 +1372,25 @@ class ConsoleOutputWriter(object):
         """
         self.info(" - WAL archive check for server %s passed" % server_name)
 
+    def result_list_processes(self, process_list, server_name):
+        """
+        Output the list of subprocesses for the specified server.
+
+        If the process list is empty, outputs a message indicating that there
+        are no active subprocesses for the given server. Otherwise, it outputs
+        the PID and task of each active process.
+
+        :param list process_list: List of :class:`ProcessInfo` objects representing the
+            active subprocesses for the server.
+        :param str server_name: Name of the server.
+        """
+        if not process_list:
+            self.info("No active subprocesses found for server %s." % server_name)
+        else:
+            self.info("Active subprocesses for server %s:" % server_name)
+            for proc in process_list:
+                self.info("%s %s", proc.pid, proc.task)
+
 
 class JsonOutputWriter(ConsoleOutputWriter):
     def __init__(self, *args, **kwargs):
@@ -2072,6 +2091,23 @@ class JsonOutputWriter(ConsoleOutputWriter):
         self.json_output[server_name] = (
             "WAL archive check for server %s passed" % server_name
         )
+
+    def result_list_processes(self, process_list, server_name):
+        """
+        Output the list of subprocesses for the specified server in JSON format,
+        with keys ``pid`` and ``name``. If no subprocesses are provided, an empty
+        list is returned.
+
+        :param list process_list: List of :class:`ProcessInfo` objects
+            representing the active subprocesses for the server.
+        :param str server_name: Name of the server.
+        """
+        self.json_output[server_name] = []
+        if process_list:
+            for proc in process_list:
+                self.json_output[server_name].append(
+                    {"pid": proc.pid, "name": proc.task}
+                )
 
 
 class NagiosOutputWriter(ConsoleOutputWriter):

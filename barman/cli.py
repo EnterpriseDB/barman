@@ -45,6 +45,7 @@ from barman.exceptions import (
 )
 from barman.infofile import BackupInfo, WalFileInfo
 from barman.lockfile import ConfigUpdateLock
+from barman.process import ProcessManager
 from barman.server import Server
 from barman.storage.local_file_manager import LocalFileManager
 from barman.utils import (
@@ -276,6 +277,21 @@ def list_servers(args):
         if server.passive_node:
             description += " (Passive)"
         output.result("list_server", name, description)
+    output.close_and_exit()
+
+
+@command(
+    [argument("server_name", help="specifies the server name")],
+    cmd_aliases=["list-process"],
+)
+def list_processes(args=None):
+    """
+    List all the active subprocesses started by the specified server.
+    """
+    server = get_server(args)
+    proc_manager = ProcessManager(server.config)
+    processes = proc_manager.list()
+    output.result("list_processes", processes, server.config.name)
     output.close_and_exit()
 
 

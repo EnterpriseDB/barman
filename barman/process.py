@@ -25,7 +25,14 @@ from glob import glob
 
 from barman import output
 from barman.exceptions import LockFileParsingError
-from barman.lockfile import ServerWalReceiveLock
+from barman.lockfile import (
+    ServerBackupLock,
+    ServerBackupSyncLock,
+    ServerCronLock,
+    ServerWalArchiveLock,
+    ServerWalReceiveLock,
+    ServerWalSyncLock,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -56,7 +63,20 @@ class ProcessManager(object):
     """
 
     # Map containing the tasks we want to retrieve (and eventually manage)
-    TASKS = {"receive-wal": ServerWalReceiveLock}
+    # The order of the key/values in the TASKS attribute is important. Its items
+    # are iterated in the order they are defined. The first match is the one
+    # that is used to create the lock object. For example: both ServerBackupLock
+    # and ServerBackupSyncLock have the same suffix ("-backup.lock"), so having
+    # ServerBackupSyncLock first guarantees that its processes are not wrongly
+    # identified as ServerBackupLock processes.
+    TASKS = {
+        "receive-wal": ServerWalReceiveLock,
+        "sync-backup": ServerBackupSyncLock,
+        "backup": ServerBackupLock,
+        "cron": ServerCronLock,
+        "archive-wal": ServerWalArchiveLock,
+        "sync-wal": ServerWalSyncLock,
+    }
 
     def __init__(self, config):
         """
