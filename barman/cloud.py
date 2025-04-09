@@ -985,22 +985,13 @@ class CloudInterface(with_metaclass(ABCMeta)):
         stats = self.upload_stats[key]
         stats.set_part_start_time(part_number, datetime.datetime.now())
 
-        # If the body is a named temporary file use it directly
-        # WARNING: this imply that the file will be deleted after the upload
-        if hasattr(body, "name") and hasattr(body, "delete") and not body.delete:
-            fp = body
-        else:
-            # Write a temporary file with the part contents
-            with NamedTemporaryFile(delete=False) as fp:
-                shutil.copyfileobj(body, fp, BUFSIZE)
-
         # Pass the job to the uploader process
         self.queue.put(
             {
                 "job_type": "upload_part",
                 "upload_metadata": upload_metadata,
                 "key": key,
-                "body": fp.name,
+                "body": body.name,
                 "part_number": part_number,
             }
         )
