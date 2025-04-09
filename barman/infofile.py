@@ -534,6 +534,8 @@ class BackupInfo(FieldListFile):
 
     cluster_size = Field("cluster_size", load=int)
 
+    encryption = Field("encryption")
+
     __slots__ = "backup_id", "backup_version"
 
     _hide_if_null = ("backup_name", "snapshots_info")

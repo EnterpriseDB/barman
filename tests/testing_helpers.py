@@ -75,6 +75,7 @@ def build_test_backup_info(
     parent_backup_id=None,
     children_backup_ids=None,
     cluster_size=2048,
+    encryption=None,
 ):
     """
     Create an 'Ad Hoc' BackupInfo object for testing purposes.

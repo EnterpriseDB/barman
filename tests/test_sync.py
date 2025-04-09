@@ -82,6 +82,7 @@ EXPECTED_MINIMAL = {
             "parent_backup_id": None,
             "children_backup_ids": None,
             "cluster_size": 2048,
+            "encryption": None,
         }
     },
     "config": {},

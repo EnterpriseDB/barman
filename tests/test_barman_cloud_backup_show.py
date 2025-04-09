@@ -187,6 +187,7 @@ class TestCloudBackupShow(object):
             "end_time_iso": "2038-01-19T04:14:08+00:00",
             "end_wal": "000000010000000000000004",
             "end_xlog": "0/20000B8",
+            "encryption": None,
             "error": None,
             "hba_file": "/pgdata/location/pg_hba.conf",
             "ident_file": "/pgdata/location/pg_ident.conf",
