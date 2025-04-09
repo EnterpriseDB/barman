@@ -28,6 +28,7 @@ from functools import partial
 from io import BytesIO
 from tarfile import TarFile, TarInfo
 from tarfile import open as open_tar
+from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
 import mock
@@ -402,21 +403,15 @@ class TestCloudInterface(object):
         with pytest.raises(CloudUploadingError):
             interface._handle_async_errors()
 
-    @mock.patch("barman.cloud.NamedTemporaryFile")
     @mock.patch("barman.cloud.CloudInterface._handle_async_errors")
     @mock.patch("barman.cloud.CloudInterface._ensure_async")
-    def test_async_upload_part(
-        self, ensure_async_mock, handle_async_errors_mock, temp_file_mock
-    ):
-        temp_name = "tmp_file"
-        temp_stream = temp_file_mock.return_value.__enter__.return_value
-        temp_stream.name = temp_name
-
+    def test_async_upload_part(self, ensure_async_mock, handle_async_errors_mock):
+        tmp_file = NamedTemporaryFile(
+            delete=False, prefix="barman-upload-", suffix=".part"
+        )
         interface = S3CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.queue = Queue()
-        interface.async_upload_part(
-            {"UploadId": "upload_id"}, "test/key", BytesIO(b"test"), 1
-        )
+        interface.async_upload_part({"UploadId": "upload_id"}, "test/key", tmp_file, 1)
         ensure_async_mock.assert_called_once_with()
         handle_async_errors_mock.assert_called_once_with()
         assert not interface.queue.empty()
@@ -424,7 +419,7 @@ class TestCloudInterface(object):
             "job_type": "upload_part",
             "upload_metadata": {"UploadId": "upload_id"},
             "key": "test/key",
-            "body": temp_name,
+            "body": tmp_file.name,
             "part_number": 1,
         }
 
