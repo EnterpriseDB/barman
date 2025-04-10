@@ -29,12 +29,17 @@ from testing_helpers import u
 
 from barman import command_wrappers
 from barman.command_wrappers import (
+    GPG,
     PgReceiveXlog,
     StreamLineProcessor,
     full_command_quote,
     shell_quote,
 )
-from barman.exceptions import CommandFailedException, CommandMaxRetryExceeded
+from barman.exceptions import (
+    CommandException,
+    CommandFailedException,
+    CommandMaxRetryExceeded,
+)
 
 
 def _mock_pipe(popen, pipe_processor_loop, ret=0, out="", err=""):
@@ -2029,3 +2034,161 @@ def test_full_command_quote():
     assert "a command 'with' 'unsafe '\\''argument'\\'''" == full_command_quote(
         "a command", ["with", "unsafe 'argument'"]
     )
+
+
+class TestGPG:
+    def test_init_encrypt_with_recipient(self):
+        """
+        Test GPG initialization for encryption with a recipient.
+        """
+        gpg = GPG(
+            action="encrypt", recipient="test-recipient", input_filepath="testfile"
+        )
+        assert gpg.cmd == "gpg"
+        assert gpg.args == [
+            "--yes",
+            "--batch",
+            "--pinentry-mode",
+            "loopback",
+            "--compress-level",
+            "0",
+            "--recipient",
+            "test-recipient",
+            "--encrypt",
+            "testfile",
+        ]
+
+    def test_init_encrypt_without_recipient(self):
+        """
+        Test GPG initialization for encryption without a recipient.
+        """
+        with pytest.raises(
+            CommandException,
+            match="A recipient must be specified to encrypt the backup",
+        ):
+            GPG(action="encrypt", input_filepath="testfile")
+
+    def test_init_encrypt_invalid_action(self):
+        """
+        Test GPG initialization for encryption with invalid action
+        """
+        with pytest.raises(
+            ValueError,
+            match="Invalid action: 'invalid_action'. Expected 'encrypt' or 'decrypt'.",
+        ):
+            GPG(action="invalid_action", input_filepath="testfile")
+
+    def test_init_decrypt(self):
+        """
+        Test GPG initialization for decryption.
+        """
+        gpg = GPG(
+            action="decrypt", input_filepath="testfile", output_filepath="testfile"
+        )
+        assert gpg.cmd == "gpg"
+        assert gpg.args == [
+            "--yes",
+            "--batch",
+            "--pinentry-mode",
+            "loopback",
+            "--passphrase-fd",
+            "0",
+            "--decrypt",
+            "--output",
+            "testfile",
+            "testfile",
+        ]
+
+    @mock.patch("barman.command_wrappers.Command.pipe_processor_loop")
+    @mock.patch("barman.command_wrappers.subprocess.Popen")
+    def test_simple_invocation_with_stdin(self, popen, pipe_processor_loop, caplog):
+        """
+        Test GPG command execution with input from stdin.
+        """
+        # See all logs
+        caplog.set_level(0)
+
+        ret = 0
+        out = "out"
+        err = "err"
+        fake_passphrase = "fake-passphrase"
+
+        pipe = _mock_pipe(popen, pipe_processor_loop, ret, out, err)
+
+        command = GPG(
+            action="decrypt", input_filepath="testfile", output_filepath="testfile"
+        )
+        result = command.execute(stdin=fake_passphrase)
+
+        popen.assert_called_with(
+            [
+                "gpg",
+                "--yes",
+                "--batch",
+                "--pinentry-mode",
+                "loopback",
+                "--passphrase-fd",
+                "0",
+                "--decrypt",
+                "--output",
+                "testfile",
+                "testfile",
+            ],
+            shell=False,
+            env=None,
+            stdin=PIPE,
+            stdout=PIPE,
+            stderr=PIPE,
+            preexec_fn=mock.ANY,
+            close_fds=True,
+        )
+
+        pipe.stdin.write.assert_called_with(fake_passphrase)
+        pipe.stdin.close.assert_called_once_with()
+        assert result == ret
+        assert command.ret == ret
+        assert command.out is None
+        assert command.err is None
+        assert ("GPG", 10, out) in caplog.record_tuples
+        assert ("GPG", 30, err) in caplog.record_tuples
+
+        # Reset mocks to ensure fresh usage
+        popen.reset_mock()
+        pipe_processor_loop.reset_mock()
+
+        command = GPG(
+            action="encrypt", recipient="FAKE_KEYID", input_filepath="testfile"
+        )
+        result = command.execute(stdin=fake_passphrase)
+
+        popen.assert_called_with(
+            [
+                "gpg",
+                "--yes",
+                "--batch",
+                "--pinentry-mode",
+                "loopback",
+                "--compress-level",
+                "0",
+                "--recipient",
+                "FAKE_KEYID",
+                "--encrypt",
+                "testfile",
+            ],
+            shell=False,
+            env=None,
+            stdin=PIPE,
+            stdout=PIPE,
+            stderr=PIPE,
+            preexec_fn=mock.ANY,
+            close_fds=True,
+        )
+
+        pipe.stdin.write.assert_called_with(fake_passphrase)
+        pipe.stdin.close.assert_called_once_with()
+        assert result == ret
+        assert command.ret == ret
+        assert command.out is None
+        assert command.err is None
+        assert ("GPG", 10, out) in caplog.record_tuples
+        assert ("GPG", 30, err) in caplog.record_tuples

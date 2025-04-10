@@ -35,7 +35,11 @@ import time
 from distutils.version import LooseVersion as Version
 
 import barman.utils
-from barman.exceptions import CommandFailedException, CommandMaxRetryExceeded
+from barman.exceptions import (
+    CommandException,
+    CommandFailedException,
+    CommandMaxRetryExceeded,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -1272,6 +1276,114 @@ class BarmanSubProcess(object):
             **additional_arguments
         )
         _logger.debug("BarmanSubProcess: subprocess started. pid: %s", proc.pid)
+
+
+class GPG(Command):
+    """
+    Wrapper class for the Gnu Privacy Guard (GPG) command-line tool.
+
+    This class provides an interface to encrypt and decrypt data using GPG.
+
+    .. note::
+        GPG is a complete and free implementation of the OpenPGP standard as
+        defined by RFC4880.
+
+        It supports encryption, signing, and key management, and is designed for
+        easy integration with other applications.
+
+        In this class, we are only interested in encryption/decryption.
+
+    .. important::
+        `--pinentry-mode loopback` requires GPG version >= 2.1.
+
+    .. security::
+        This class expects sensitive data such as a GPG passphrase to be passed
+        as a ``bytearray``, not as a ``str``. Python strings are immutable and may
+        linger in memory, potentially exposing sensitive data. Using a ``bytearray``
+        allows the caller to explicitly zero out the passphrase after use, similar
+        to ``memset`` in C.
+
+        Example:
+            passphrase = bytearray(b"your-secret-passphrase")
+            gpg(stdin=passphrase)
+            passphrase[:] = b"\\x00" * len(passphrase)
+
+    .. example::
+        Decryption:
+            >>> gpg = GPG(
+            ...     action="decrypt",
+            ...     input_filepath="file.gpg",
+            ...     output_filepath="file.decrypted"
+            ... )
+            >>> passphrase = bytearray(b"secret")
+            >>> gpg(stdin=passphrase)
+            >>> passphrase[:] = b"\\x00" * len(passphrase)
+
+        Encryption:
+            >>> gpg = GPG(
+            ...     action="encrypt",
+            ...     input_filepath="file.txt",
+            ...     output_filepath="file.txt.gpg",
+            ...     recipient="user@example.com"
+            ... )
+            >>> gpg()
+    """
+
+    def __init__(
+        self,
+        gpg="gpg",
+        action=None,
+        recipient=None,
+        input_filepath=None,
+        output_filepath=None,
+        **kwargs
+    ):
+        """
+        Initialize the GPG command wrapper.
+
+        :param str gpg: Path or name of the GPG executable. Defaults to ``gpg``.
+        :param str action: Action to perform: ``encrypt`` or ``decrypt``.
+        :param str recipient: Key identifier for encryption (required if *action* is
+            ``encrypt``).
+        :param str input_filepath: File to encrypt or decrypt.
+        :param str output_filepath: Output file path for encrypted/decrypted data.
+        :param kwargs: Additional keyword arguments passed to the base class:`Command`
+            class.
+
+        :raises CommandException: If ``encrypt`` is specified without a recipient.
+        :raises ValueError: If *action* is invalid.
+        """
+        # Automatically answer "yes" to most prompts.
+        # Use batch mode to suppress interactive prompts.
+        # Set the pinentry mode to loopback for non-interactive passphrase entry.
+        options = ["--yes", "--batch", "--pinentry-mode", "loopback"]
+
+        if action == "decrypt":
+            # Provide the passphrase via standard input (file descriptor 0) for
+            # decryption.
+            options += ["--passphrase-fd", "0", "--decrypt"]
+        elif action == "encrypt":
+            if not recipient:
+                raise CommandException(
+                    "A recipient must be specified to encrypt the backup. Please "
+                    "provide a valid recipient."
+                )
+            # Set compression level to 0 (no compression) and specify recipient for
+            # encryption.
+            options += ["--compress-level", "0", "--recipient", recipient, "--encrypt"]
+        else:
+            raise ValueError(
+                "Invalid action: '%s'. Expected 'encrypt' or 'decrypt'." % action
+            )
+        if output_filepath:
+            # Specify output file path for the encrypted/decrypted file.
+            options += ["--output", output_filepath]
+        # Specify the file to encrypt/decrypt.
+        if input_filepath:
+            options += [input_filepath]
+        # Ensure that the "check" argument is set to True by default.
+        kwargs.setdefault("check", True)
+        Command.__init__(self, gpg, args=options, **kwargs)
 
 
 def shell_quote(arg):
