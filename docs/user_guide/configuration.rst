@@ -234,6 +234,14 @@ values are:
 
 Scope: Global / Server / Model.
 
+**encryption_key_id**
+
+Specifies the encryption key ID used for encrypting backups and WAL files. This option
+is required when ``encryption = gpg`` and must correspond to a valid :term:`GPG` key ID
+available on the system.
+
+Scope: Global / Server / Model.
+
 **forward_config_path**
 
 Determines whether a passive node should forward its configuration file path to its
