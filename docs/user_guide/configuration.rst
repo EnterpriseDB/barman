@@ -242,6 +242,13 @@ available on the system.
 
 Scope: Global / Server / Model.
 
+**encryption_passphrase_command**
+
+Specifies a command used to retrieve the encryption passphrase for decrypting
+backups and WAL files. The command must write the passphrase to standard output.
+
+Scope: Global / Server / Model.
+
 **forward_config_path**
 
 Determines whether a passive node should forward its configuration file path to its
