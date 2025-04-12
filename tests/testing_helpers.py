@@ -320,6 +320,7 @@ def build_config_dictionary(config_keys=None):
         "description": " Text with quotes ",
         "encryption": None,
         "encryption_key_id": None,
+        "encryption_passphrase_command": None,
         "gcp_project": None,
         "gcp_zone": None,
         "immediate_checkpoint": False,
