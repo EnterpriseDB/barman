@@ -319,6 +319,7 @@ def build_config_dictionary(config_keys=None):
         "custom_compression_magic": None,
         "description": " Text with quotes ",
         "encryption": None,
+        "encryption_key_id": None,
         "gcp_project": None,
         "gcp_zone": None,
         "immediate_checkpoint": False,
