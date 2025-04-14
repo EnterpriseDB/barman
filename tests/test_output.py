@@ -1474,6 +1474,28 @@ class TestConsoleWriter(object):
         out, _err = capsys.readouterr()
         assert "  Backup Name            : %s" % ext_info["backup_name"] in out
 
+    def test_result_show_backup_with_encryption(self, capsys):
+        """
+        Test that encryption is displayed in the output of the show-backup command whe
+        the backup is encrypted.
+        """
+        ext_info = mock_backup_ext_info(
+            status=BackupInfo.DONE,
+            wals_per_second=0.1,
+            est_dedup_size=1024,
+            deduplication_ratio=0.5,
+            encryption="gpg",
+        )
+
+        console_writer = output.ConsoleOutputWriter()
+
+        console_writer.init_list_backup(ext_info["server_name"], False)
+        console_writer.result_show_backup(ext_info)
+        console_writer.close()
+
+        out, _err = capsys.readouterr()
+        assert "    Encryption           : %s" % ext_info["encryption"] in out
+
     def test_result_show_backup_with_snapshots_info_gcp(self, capsys):
         # GIVEN a backup info with snapshots_info
         snapshots_info = GcpSnapshotsInfo(
@@ -2334,6 +2356,7 @@ class TestJsonWriter(object):
         assert ext_info["end_offset"] == base_information["end_offset"]
         assert ext_info["begin_xlog"] == base_information["begin_lsn"]
         assert ext_info["end_xlog"] == base_information["end_lsn"]
+        assert ext_info["encryption"] == base_information["encryption"]
 
         for name, _, location in ext_info["tablespaces"]:
             tablespace = find_by_attr(
