@@ -823,6 +823,9 @@ class ConsoleOutputWriter(object):
         if backup_method:
             output_fun(nested_row.format("Backup Method", backup_method))
 
+        encryption = backup_info.get("encryption")
+        if encryption:
+            output_fun(nested_row.format("Encryption", encryption))
         # The "show-backup" for the cloud takes the input of a backup_info,
         # not the result of  a get_backup_ext_info() call, Instead, it
         # takes a backup_info.to_dict(). So in those cases, the following
@@ -1671,6 +1674,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
             # Base Backup information
             output["base_backup_information"] = dict(
                 backup_method=data["mode"],
+                encryption=data["encryption"],
                 backup_size=pretty_size(data["deduplicated_size"]),
                 backup_size_bytes=data["deduplicated_size"],
                 backup_size_with_wals=pretty_size(
