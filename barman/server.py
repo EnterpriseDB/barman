@@ -2454,8 +2454,12 @@ class Server(RemoteStatusMixin):
         source_file = wal_file
         uncompressed_file = None
         compressed_file = None
-
-        if not keep_compression:
+        # Ignore compression/decompression when:
+        # * The user wants to decompress on the client side; or
+        # * It's a partial WAL file. In this case, the WAL file is still being written
+        #   by pg_receivewal, and surely has not yet been compressed by the Barman
+        #   archiver.
+        if not keep_compression and not xlog.is_partial_file(wal_info.fullpath(self)):
             # If the required compression is different from the source we
             # decompress/compress it into the required format (getattr is
             # used here to gracefully handle None objects)
