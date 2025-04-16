@@ -41,6 +41,11 @@ jobs:
       - name: Step 3.5 - Install system deps for extras
         run: |
           sudo apt update && sudo apt-get install libsnappy-dev
+
+          # azure-identity imports ctype, and the ctype version available in the
+          # Ubuntu 22.04 runner is referencing libffi.so.7, which is not
+          # available. This is a workaround to install the libffi7 package.
+          sudo apt-get install libffi7
       - name: Step 4 - Install dependencies to run tox
         if: steps.cache-python-packages.outputs.cache-hit != 'true'
         run: |
