@@ -10,11 +10,18 @@ on:
 jobs:
   unit-tests:
     name: "Python ${{ matrix.python-version }} ${{ matrix.tox-env }}"
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         python-version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
         tox-env: [""]
+        exclude:
+          # We need to support Python 3.6 in the unit tests as that's the default Python
+          # version in RHEL 8 and SLES 15 and we need to support those platforms.
+          # However, GitHub dropped the Ubuntu 20.04 runner on April 15th, 2025, and
+          # newer Ubuntu runners don't have Python 3.6 available. As a workaround, we
+          # are using Ubuntu 22.04 and excluding Python 3.6 from the matrix for now.
+          - python-version: "3.6"
 
     steps:
       - name: Step 1 - Checkout repository
