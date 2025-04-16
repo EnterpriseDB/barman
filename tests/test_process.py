@@ -22,7 +22,14 @@ import os
 import mock
 from testing_helpers import build_config_from_dicts
 
-from barman.lockfile import ServerWalReceiveLock
+from barman.lockfile import (
+    ServerBackupLock,
+    ServerBackupSyncLock,
+    ServerCronLock,
+    ServerWalArchiveLock,
+    ServerWalReceiveLock,
+    ServerWalSyncLock,
+)
 from barman.process import ProcessInfo, ProcessManager
 
 
@@ -105,6 +112,52 @@ class TestProcessManager(object):
         assert "receive-wal" == process.task
         assert os.getpid() == process.pid
         assert str(os.getpid()) == lockfile.read().strip()
+
+    def test_list_all_tasks(self, tmpdir):
+        """
+        Test that ProcessManager correctly retrieves locks for all supported tasks.
+        For each task in the :data:`TASKS` mapping, a valid lock should result in a
+        corresponding :class:`ProcessInfo` with the correct server name, task and PID.
+        """
+        config = build_config_from_dicts({"barman_lock_directory": tmpdir.strpath})
+        config.name = "test"
+        # Mapping tasks to their respective lock classes
+        tasks = {
+            "receive-wal": ServerWalReceiveLock,
+            "backup": ServerBackupLock,
+            "cron": ServerCronLock,
+            "archive-wal": ServerWalArchiveLock,
+            "sync-wal": ServerWalSyncLock,
+        }
+        for task, lock_class in tasks.items():
+            with lock_class(tmpdir.strpath, config.name):
+                pm = ProcessManager(config)
+                procs = pm.list(task)
+                # Only one valid process lock should be registered.
+                assert len(procs) == 1, f"Failed for task: {task}"
+                proc = procs[0]
+                assert proc.server_name == config.name
+                assert proc.task == task
+                assert proc.pid == os.getpid()
+                lockfile = tmpdir.join(".%s-%s.lock" % (config.name, task))
+                assert lockfile.read().strip() == str(os.getpid())
+
+        # Test for the backup-sync process
+        fake_backup_id = "fake_backup"
+        with ServerBackupSyncLock(tmpdir.strpath, config.name, fake_backup_id):
+            pm = ProcessManager(config)
+            procs = pm.list("sync-backup")
+            assert len(procs) == 1, "Failed to retrieve sync-backup process"
+            proc = procs[0]
+            assert proc.server_name == config.name
+            assert proc.task == "sync-backup"
+            assert proc.pid == os.getpid()
+            lockfile_path = os.path.join(
+                tmpdir.strpath,
+                ".%s-%s-sync-backup.lock" % (config.name, fake_backup_id),
+            )
+            with open(lockfile_path, "r") as lf:
+                assert lf.read().strip() == str(os.getpid())
 
     @mock.patch("os.kill")
     def test_kill(self, kill_mock, tmpdir):

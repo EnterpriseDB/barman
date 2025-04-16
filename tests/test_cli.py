@@ -48,6 +48,7 @@ from barman.cli import (
     get_server,
     get_server_list,
     keep,
+    list_processes,
     manage_model_command,
     manage_server_command,
     parse_backup_id,
@@ -1667,6 +1668,68 @@ class TestCli(object):
             skip_passive=True,
             wal_streaming=wal_streaming_arg,
         )
+
+    @patch("barman.cli.get_server")
+    @patch("barman.cli.ProcessManager")
+    @patch("barman.cli.output")
+    def test_list_processes_empty(
+        self, mock_output, mock_process_manager, mock_get_server
+    ):
+        """
+        Verify that the `list-processes` command correctly handles the case
+        where there are no active subprocesses.
+        """
+        # Prepare a dummy server with a config that has a name attribute.
+        dummy_server = Mock()
+        dummy_server.config.name = "test_server"
+        mock_get_server.return_value = dummy_server
+
+        # Simulate an empty processes list
+        instance_proc_mgr = mock_process_manager.return_value
+        instance_proc_mgr.list.return_value = []
+
+        # Call the command with args
+        args = Mock()
+        args.server_name = "test_server"
+        list_processes(args)
+
+        # Verify that the output.result was called correctly and closed
+        mock_output.result.assert_called_once_with("list_processes", [], "test_server")
+        mock_output.close_and_exit.assert_called_once()
+
+    @patch("barman.cli.get_server")
+    @patch("barman.cli.ProcessManager")
+    @patch("barman.cli.output")
+    def test_list_processes_non_empty(
+        self, mock_output, mock_process_manager, mock_get_server
+    ):
+        """
+        Verify that the `list-processes` command correctly handles a non-empty
+        list of active subprocesses.
+        """
+        # Prepare a dummy server with name attribute in config
+        dummy_server = Mock()
+        dummy_server.config.name = "test_server"
+        mock_get_server.return_value = dummy_server
+
+        # Simulate a non-empty processes list
+        processes_list = [
+            {"PID": "1234", "Process": "backup"},
+            {"PID": "5678", "Process": "restore"},
+        ]
+        instance_proc_mgr = mock_process_manager.return_value
+        instance_proc_mgr.list.return_value = processes_list
+
+        # Call the command with args
+        args = Mock()
+        args.server_name = "test_server"
+        list_processes(args)
+
+        # Verify that the output.result was called correctly and closed
+        mock_output.result.assert_called_once_with(
+            "list_processes", processes_list, "test_server"
+        )
+        mock_output.close_and_exit.assert_called_once()
 
 
 class TestKeepCli(object):

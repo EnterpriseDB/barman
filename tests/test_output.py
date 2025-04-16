@@ -36,6 +36,7 @@ from barman.cloud_providers.google_cloud_storage import (
     GcpSnapshotsInfo,
 )
 from barman.infofile import BackupInfo
+from barman.process import ProcessInfo
 from barman.utils import BarmanEncoder, human_readable_timedelta, pretty_size
 
 # Color output constants
@@ -1610,6 +1611,43 @@ class TestConsoleWriter(object):
         assert out == json_out
         assert err == ""
 
+    def test_result_list_processes_console_empty(self, capsys):
+        """
+        Verify that when no subprocesses are provided, the
+        console correctly displays a message on the standard output.
+
+        :param capsys: mock fixture for stdout/stderr
+        """
+        writer = output.ConsoleOutputWriter()
+        writer.result_list_processes([], "test_server")
+        writer.close()
+        out, err = capsys.readouterr()
+        expected = "No active subprocesses found for server test_server.\n"
+        assert out == expected
+        assert err == ""
+
+    def test_result_list_processes_console_non_empty(self, capsys):
+        """
+        Verify that when a non-empty list of subprocesses is provided, the
+        console correctly lists each subprocess with its PID and
+        the corresponding process name on the standard output.
+
+        :param capsys: mock fixture for stdout/stderr
+        """
+        writer = output.ConsoleOutputWriter()
+        proc1 = ProcessInfo("1111", "test_server", "backup")
+        proc2 = ProcessInfo("2222", "test_server", "restore")
+        writer.result_list_processes([proc1, proc2], "test_server")
+        writer.close()
+        out, err = capsys.readouterr()
+        expected = (
+            "Active subprocesses for server test_server:\n"
+            "1111 backup\n"
+            "2222 restore\n"
+        )
+        assert out == expected
+        assert err == ""
+
 
 # noinspection PyMethodMayBeStatic
 class TestJsonWriter(object):
@@ -2511,6 +2549,44 @@ class TestJsonWriter(object):
             dict(description=description, message=str(message))
             == json_output[server][name]
         )
+        assert err == ""
+
+    def test_result_list_processes_json_empty(self, capsys):
+        """
+        Verify that when no subprocesses are provided,
+        the JSON output for the server returns an empty list.
+
+        :param capsys: mock fixture for stdout/stderr
+        """
+        writer = output.JsonOutputWriter()
+        writer.result_list_processes([], "test_server")
+        writer.close()
+        out, err = capsys.readouterr()
+        json_output = json.loads(out)
+        expected = []
+        assert json_output["test_server"] == expected
+        assert err == ""
+
+    def test_result_list_processes_json_non_empty(self, capsys):
+        """
+        Verify that when a list of subprocesses is provided,
+        the JSON output for the server is a list of dictionaries containing
+        the keys "pid" and "name" with the respective values.
+
+        :param capsys: mock fixture for stdout/stderr
+        """
+        writer = output.JsonOutputWriter()
+        proc1 = ProcessInfo("1111", "test_server", "backup")
+        proc2 = ProcessInfo("2222", "test_server", "restore")
+        writer.result_list_processes([proc1, proc2], "test_server")
+        writer.close()
+        out, err = capsys.readouterr()
+        json_output = json.loads(out)
+        expected = [
+            {"pid": "1111", "name": "backup"},
+            {"pid": "2222", "name": "restore"},
+        ]
+        assert json_output["test_server"] == expected
         assert err == ""
 
 
