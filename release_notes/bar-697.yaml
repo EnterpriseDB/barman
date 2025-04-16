@@ -1,0 +1,9 @@
+- summary: Avoid decompressing partial WAL files when custom compression is configured
+  description: |
+    Fixed an issue where Barman attempted to decompress partial WAL files when
+    custom compression was configured. Partial WAL files are never compressed,
+    so any attempt to decompress them is incorrect and caused errors when using
+    the `--partial` flag with `barman-wal-restore` or `barman get-wal`.
+  type: bugfix
+  jira_tickets:
+    - BAR-697
