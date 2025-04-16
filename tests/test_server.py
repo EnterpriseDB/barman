@@ -2559,10 +2559,15 @@ class TestServer(object):
         # error
         server.wait_for_wal(wal_file="00000001000000EF000000AB", archive_timeout=0.1)
 
+    @patch("barman.xlog.is_partial_file", return_value=False)
     @patch("barman.server.NamedTemporaryFile")
     @patch("barman.backup.CompressionManager")
     def test_get_wal_sendfile_uncompress_fail(
-        self, mock_compression_manager, _mock_named_temporary_file, capsys
+        self,
+        mock_compression_manager,
+        _mock_named_temporary_file,
+        _mock_is_partial,
+        capsys,
     ):
         """Verify CommandFailedException uncompressing WAL is handled"""
         # GIVEN a server
@@ -2595,6 +2600,55 @@ class TestServer(object):
         # AND the expected message is in the output
         _out, err = capsys.readouterr()
         assert "ERROR: Error decompressing WAL: an error happened" in err
+
+    @patch("barman.server.open")
+    @patch("barman.server.shutil")
+    @patch("barman.server.NamedTemporaryFile")
+    @patch("barman.xlog.is_partial_file")
+    @patch("barman.backup.CompressionManager")
+    def test_get_wal_sendfile_ignores_partial(
+        self,
+        mock_compression_manager,
+        mock_is_partial,
+        _mock_named_temporary_file,
+        _mock_shutil,
+        _mock_open,
+    ):
+        """
+        Assert partial WAL files are ignored for compression/decompression.
+
+        .. note::
+            This addresses a previous issue, where partial WAL files were attempted to
+            be decompressed when requested if a custom compression was set on the
+            server. Partial WAL files are never compressed/decompressed.
+        """
+        # GIVEN a server
+        server = build_real_server()
+        # AND a mock compressor
+        mock_compressor = Mock()
+        mock_compressor.compression = "custom compression"
+        mock_compression_manager.return_value.get_compressor.side_effect = [
+            Mock(),
+            Mock(),
+        ]
+        # WHEN get_wal_sendfile is called and the WAL file is partial
+        mock_is_partial.return_value = True
+        server.get_wal_sendfile("test_wal_file.partial", None, False, "/path/to/dest")
+        # THEN decompression should not occur
+        mock_compressor.decompress.assert_not_called()
+
+        # Reset mock and side effect
+        mock_compressor.reset_mock()
+        mock_compression_manager.return_value.get_compressor.side_effect = [
+            mock_compressor,
+            Mock(),
+        ]
+
+        # WHEN get_wal_sendfile is called and the WAL file is not partial
+        mock_is_partial.return_value = False
+        server.get_wal_sendfile("test_wal_file", None, False, "/path/to/dest")
+        # THEN decompression should occur
+        mock_compressor.decompress.assert_called_once()
 
     @patch("barman.server.open")
     @patch("barman.server.shutil")
