@@ -55,6 +55,7 @@ Or, in case you opt for a user with only the required priviledges, follow these 
     GRANT EXECUTE ON FUNCTION pg_backup_stop(boolean) to barman;
     GRANT EXECUTE ON FUNCTION pg_switch_wal() to barman;
     GRANT EXECUTE ON FUNCTION pg_create_restore_point(text) to barman;
+    GRANT pg_checkpoint TO barman;
     GRANT pg_read_all_settings TO barman;
     GRANT pg_read_all_stats TO barman;
 
