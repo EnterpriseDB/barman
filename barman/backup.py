@@ -95,7 +95,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         self._backup_cache = None
         self.compression_manager = CompressionManager(self.config, server.path)
         self.annotation_manager = AnnotationManagerFile(
-            self.server.config.basebackups_directory
+            self.server.meta_directory, self.server.config.basebackups_directory
         )
         self.executor = None
         try:

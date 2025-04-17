@@ -45,24 +45,70 @@ class AnnotationManager(with_metaclass(ABCMeta)):
 
 
 class AnnotationManagerFile(AnnotationManager):
-    def __init__(self, path):
+    def __init__(self, path, old_path=None):
         """
         Constructor for the file-based annotation manager.
         Should be initialised with the path to the barman base backup directory.
+
+        :param str path: The path where the annotation file should be placed.
+        :param str|None old_path: Optional path used to read annotations written
+            before Barman 3.13.3.
+
+        .. note:
+            Starting from Barman 3.13.3, annotation files were moved out of the base
+            backup directory and into a dedicated metadata directory. While this class
+            is agnostic about what kind of annotation it stores, backwards compatibility
+            is needed for users upgrading from previous versions who may have annotations
+            stored in the legacy location. For that reason, the *old_path* parameter
+            allows this class to read and migrate existing annotations from the old
+            directory as to maintain backwards compatibility.
         """
         self.path = path
+        self.old_path = old_path
+
+    def _get_old_annotation_path(self, backup_id, key):
+        """
+        Builds the annotation path for the specified *backup_id* and annotation *key* for
+        annotations created before Barman 3.13.3. Check the note on this class'
+        constructor for more context.
+
+        :param str backup_id: The backup ID.
+        :param str key: The annotation file name.
+        :returns str: The path to the annotation.
+        """
+        return "%s/%s/annotations/%s" % (self.old_path, backup_id, key)
 
     def _get_annotation_path(self, backup_id, key):
         """
         Builds the annotation path for the specified backup_id and annotation key.
+
+        :param str backup_id: The backup ID.
+        :param str key: The annotation file name.
+        :returns str: The path to the annotation.
         """
-        return "%s/%s/annotations/%s" % (self.path, backup_id, key)
+        return "%s/%s-%s" % (self.path, backup_id, key)
+
+    def _check_and_relocate_old_annotation(self, backup_id, key):
+        """
+        Check if the annotation exists in the old path, used before Barman 3.13.3,
+        and relocate it to the new path as to maintain backwards compatibility.
+
+        :param str backup_id: The backup ID.
+        :param str key: The annotation file name.
+        """
+        if not self.old_path:
+            return
+        old_path = self._get_old_annotation_path(backup_id, key)
+        new_path = self._get_annotation_path(backup_id, key)
+        if os.path.exists(old_path):
+            os.rename(old_path, new_path)
 
     def delete_annotation(self, backup_id, key):
         """
         Deletes an annotation from the filesystem for the specified backup_id and
         annotation key.
         """
+        self._check_and_relocate_old_annotation(backup_id, key)
         annotation_path = self._get_annotation_path(backup_id, key)
         try:
             os.remove(annotation_path)
@@ -89,6 +135,7 @@ class AnnotationManagerFile(AnnotationManager):
         Reads the annotation `key` for the specified backup_id from the filesystem
         and returns the value.
         """
+        self._check_and_relocate_old_annotation(backup_id, key)
         annotation_path = self._get_annotation_path(backup_id, key)
         try:
             with open(annotation_path, "r") as annotation_file:
@@ -279,7 +326,7 @@ class KeepManagerMixin(KeepManager):
         if "server" in kwargs:
             server = kwargs.pop("server")
             self.annotation_manager = AnnotationManagerFile(
-                server.config.basebackups_directory
+                server.meta_directory, server.config.basebackups_directory
             )
         elif "cloud_interface" in kwargs:
             self.annotation_manager = AnnotationManagerCloud(
