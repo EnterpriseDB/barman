@@ -46,7 +46,7 @@ class TestAnnotationManagerFile(object):
         Helper which creates an annotation in the correct place on the filesystem.
         """
         with open(
-            "%s/%s/annotations/%s" % (base_dir, backup_id, key),
+            "%s/%s-%s" % (base_dir, backup_id, key),
             "w",
         ) as annotation:
             annotation.write(value)
@@ -55,36 +55,32 @@ class TestAnnotationManagerFile(object):
         """
         Helper which retrieves the value of an annotation from the filesystem.
         """
-        with open(
-            "%s/%s/annotations/%s" % (base_dir, backup_id, key), "r"
-        ) as annotation:
+        with open("%s/%s-%s" % (base_dir, backup_id, key), "r") as annotation:
             return annotation.read()
 
     def test_get_annotation_missing_backup(self, tmpdir):
         """Getting an annotation for a backup which doesn't exist returns None"""
-        base_backup_dir = tmpdir.mkdir("base")
-        annotation_manager = AnnotationManagerFile(base_backup_dir)
+        meta_dir = tmpdir.mkdir("meta_dir")
+        annotation_manager = AnnotationManagerFile(meta_dir)
         assert (
             annotation_manager.get_annotation(test_backup_id, "test_annotation") is None
         )
 
     def test_get_annotation_missing_annotation(self, tmpdir):
         """Getting an annotation which doesn't exist returns None"""
-        base_backup_dir = tmpdir.mkdir("base")
-        os.makedirs("%s/%s/annotations" % (base_backup_dir, test_backup_id))
-        annotation_manager = AnnotationManagerFile(base_backup_dir)
+        meta_dir = tmpdir.mkdir("meta_dir")
+        annotation_manager = AnnotationManagerFile(meta_dir)
         assert (
             annotation_manager.get_annotation(test_backup_id, "test_annotation") is None
         )
 
     def test_get_annotation(self, tmpdir):
         """Tests getting the value of a single annotation"""
-        base_backup_dir = tmpdir.mkdir("base")
-        os.makedirs("%s/%s/annotations" % (base_backup_dir, test_backup_id))
+        meta_dir = tmpdir.mkdir("meta_dir")
         self._create_annotation_on_filesystem(
-            base_backup_dir, test_backup_id, "test_annotation", "annotation_value"
+            meta_dir, test_backup_id, "test_annotation", "annotation_value"
         )
-        annotation_manager = AnnotationManagerFile(base_backup_dir)
+        annotation_manager = AnnotationManagerFile(meta_dir)
         assert (
             annotation_manager.get_annotation(test_backup_id, "test_annotation")
             == "annotation_value"
@@ -92,15 +88,14 @@ class TestAnnotationManagerFile(object):
 
     def test_get_one_of_many_annotation(self, tmpdir):
         """Tests getting the value of one of multiple annotations"""
-        base_backup_dir = tmpdir.mkdir("base")
-        os.makedirs("%s/%s/annotations" % (base_backup_dir, test_backup_id))
+        meta_dir = tmpdir.mkdir("meta_dir")
         self._create_annotation_on_filesystem(
-            base_backup_dir, test_backup_id, "test_annotation", "annotation_value"
+            meta_dir, test_backup_id, "test_annotation", "annotation_value"
         )
         self._create_annotation_on_filesystem(
-            base_backup_dir, test_backup_id, "test_annotation_2", "annotation_value_2"
+            meta_dir, test_backup_id, "test_annotation_2", "annotation_value_2"
         )
-        annotation_manager = AnnotationManagerFile(base_backup_dir)
+        annotation_manager = AnnotationManagerFile(meta_dir)
         assert (
             annotation_manager.get_annotation(test_backup_id, "test_annotation")
             == "annotation_value"
@@ -108,24 +103,23 @@ class TestAnnotationManagerFile(object):
 
     def test_put_annotation(self, tmpdir):
         """Tests a single annotation is stored"""
-        base_backup_dir = tmpdir.mkdir("base")
-        os.makedirs("%s/%s" % (base_backup_dir, test_backup_id))
-        annotation_manager = AnnotationManagerFile(base_backup_dir)
+        meta_dir = tmpdir.mkdir("meta_dir")
+        annotation_manager = AnnotationManagerFile(meta_dir)
         annotation_manager.put_annotation(
             test_backup_id, "test_annotation", "annotation_value"
         )
         assert (
             self._get_annotation_from_filesystem(
-                base_backup_dir, test_backup_id, "test_annotation"
+                meta_dir, test_backup_id, "test_annotation"
             )
             == "annotation_value"
         )
 
     def test_put_annotation_is_idempotent(self, tmpdir):
         """Tests a single annotation can be added multiple times with the same result"""
-        base_backup_dir = tmpdir.mkdir("base")
-        os.makedirs("%s/%s" % (base_backup_dir, test_backup_id))
-        annotation_manager = AnnotationManagerFile(base_backup_dir)
+        meta_dir = tmpdir.mkdir("meta_dir")
+        os.makedirs("%s/%s" % (meta_dir, test_backup_id))
+        annotation_manager = AnnotationManagerFile(meta_dir)
         annotation_manager.put_annotation(
             test_backup_id, "test_annotation", "annotation_value"
         )
@@ -134,16 +128,15 @@ class TestAnnotationManagerFile(object):
         )
         assert (
             self._get_annotation_from_filesystem(
-                base_backup_dir, test_backup_id, "test_annotation"
+                meta_dir, test_backup_id, "test_annotation"
             )
             == "annotation_value"
         )
 
     def test_put_annotation_overwrite(self, tmpdir):
         """Tests a single annotation can be overwritten"""
-        base_backup_dir = tmpdir.mkdir("base")
-        os.makedirs("%s/%s" % (base_backup_dir, test_backup_id))
-        annotation_manager = AnnotationManagerFile(base_backup_dir)
+        meta_dir = tmpdir.mkdir("meta_dir")
+        annotation_manager = AnnotationManagerFile(meta_dir)
         annotation_manager.put_annotation(
             test_backup_id, "test_annotation", "annotation_value"
         )
@@ -152,16 +145,15 @@ class TestAnnotationManagerFile(object):
         )
         assert (
             self._get_annotation_from_filesystem(
-                base_backup_dir, test_backup_id, "test_annotation"
+                meta_dir, test_backup_id, "test_annotation"
             )
             == "annotation_value_2"
         )
 
     def test_put_multiple_annotations(self, tmpdir):
         """Tests multiple annotations can be written"""
-        base_backup_dir = tmpdir.mkdir("base")
-        os.makedirs("%s/%s" % (base_backup_dir, test_backup_id))
-        annotation_manager = AnnotationManagerFile(base_backup_dir)
+        meta_dir = tmpdir.mkdir("meta_dir")
+        annotation_manager = AnnotationManagerFile(meta_dir)
         annotation_manager.put_annotation(
             test_backup_id, "test_annotation", "annotation_value"
         )
@@ -170,78 +162,69 @@ class TestAnnotationManagerFile(object):
         )
         assert (
             self._get_annotation_from_filesystem(
-                base_backup_dir, test_backup_id, "test_annotation"
+                meta_dir, test_backup_id, "test_annotation"
             )
             == "annotation_value"
         )
         assert (
             self._get_annotation_from_filesystem(
-                base_backup_dir, test_backup_id, "test_annotation_2"
+                meta_dir, test_backup_id, "test_annotation_2"
             )
             == "annotation_value_2"
         )
 
     def test_put_annotation_for_missing_backup(self, tmpdir):
         """Tests we can annotate a backup which doesn't exist"""
-        base_backup_dir = tmpdir.mkdir("base")
-        annotation_manager = AnnotationManagerFile(base_backup_dir)
+        meta_dir = tmpdir.mkdir("meta_dir")
+        annotation_manager = AnnotationManagerFile(meta_dir)
         annotation_manager.put_annotation(
             test_backup_id, "test_annotation", "annotation_value"
         )
         assert (
             self._get_annotation_from_filesystem(
-                base_backup_dir, test_backup_id, "test_annotation"
+                meta_dir, test_backup_id, "test_annotation"
             )
             == "annotation_value"
         )
 
     def test_delete_annotation(self, tmpdir):
         """Tests we delete an annotation successfully"""
-        base_backup_dir = tmpdir.mkdir("base")
-        os.makedirs("%s/%s/annotations" % (base_backup_dir, test_backup_id))
+        meta_dir = tmpdir.mkdir("meta_dir")
         self._create_annotation_on_filesystem(
-            base_backup_dir, test_backup_id, "test_annotation", "annotation_value"
+            meta_dir, test_backup_id, "test_annotation", "annotation_value"
         )
-        annotation_manager = AnnotationManagerFile(base_backup_dir)
+        annotation_manager = AnnotationManagerFile(meta_dir)
         annotation_manager.delete_annotation(test_backup_id, "test_annotation")
-        assert not os.path.isfile(
-            "%s/%s/annotations/test_annotation" % (base_backup_dir, test_backup_id)
-        )
-        assert not os.path.isfile(
-            "%s/%s/annotations" % (base_backup_dir, test_backup_id)
-        )
-        assert os.path.isdir("%s/%s" % (base_backup_dir, test_backup_id))
+        assert not os.path.isfile("%s/%s-test_annotation" % (meta_dir, test_backup_id))
 
     def test_delete_one_of_many_annotations(self, tmpdir):
         """Tests we delete the correct annotation successfully"""
-        base_backup_dir = tmpdir.mkdir("base")
-        os.makedirs("%s/%s/annotations" % (base_backup_dir, test_backup_id))
+        meta_dir = tmpdir.mkdir("meta_dir")
         self._create_annotation_on_filesystem(
-            base_backup_dir, test_backup_id, "test_annotation", "annotation_value"
+            meta_dir, test_backup_id, "test_annotation", "annotation_value"
         )
         self._create_annotation_on_filesystem(
-            base_backup_dir, test_backup_id, "test_annotation_2", "annotation_value_2"
+            meta_dir, test_backup_id, "test_annotation_2", "annotation_value_2"
         )
-        annotation_manager = AnnotationManagerFile(base_backup_dir)
+        annotation_manager = AnnotationManagerFile(meta_dir)
         annotation_manager.delete_annotation(test_backup_id, "test_annotation")
         assert not os.path.isfile(
-            "%s/%s/annotations/test_annotation" % (base_backup_dir, test_backup_id)
+            "%s/%s/annotations/test_annotation" % (meta_dir, test_backup_id)
         )
         assert (
             self._get_annotation_from_filesystem(
-                base_backup_dir, test_backup_id, "test_annotation_2"
+                meta_dir, test_backup_id, "test_annotation_2"
             )
             == "annotation_value_2"
         )
 
     def test_delete_is_idempotent(self, tmpdir):
         """Tests a single annotation can be deleted multiple times with the same result"""
-        base_backup_dir = tmpdir.mkdir("base")
-        os.makedirs("%s/%s/annotations" % (base_backup_dir, test_backup_id))
+        meta_dir = tmpdir.mkdir("meta_dir")
         self._create_annotation_on_filesystem(
-            base_backup_dir, test_backup_id, "test_annotation", "annotation_value"
+            meta_dir, test_backup_id, "test_annotation", "annotation_value"
         )
-        annotation_manager = AnnotationManagerFile(base_backup_dir)
+        annotation_manager = AnnotationManagerFile(meta_dir)
         annotation_manager.delete_annotation(test_backup_id, "test_annotation")
         annotation_manager.delete_annotation(test_backup_id, "test_annotation")
 
@@ -407,8 +390,11 @@ class TestKeepManagerMixin(object):
         """
         mock_server = mock.MagicMock()
         mock_server.config.basebackups_directory = "/path/to/basebackups"
+        mock_server.meta_directory = "path/to/meta"
         KeepManagerMixin(server=mock_server)
-        mock_annotation_manager.assert_called_once_with("/path/to/basebackups")
+        mock_annotation_manager.assert_called_once_with(
+            "path/to/meta", "/path/to/basebackups"
+        )
 
     @mock.patch("barman.annotations.AnnotationManagerCloud")
     def test_cloud_backend(self, mock_annotation_manager):
@@ -429,6 +415,7 @@ class TestKeepManagerMixin(object):
         """Create a mock keep_manager with a tmpdir backend"""
         mock_server = mock.MagicMock()
         mock_server.config.basebackups_directory = tmpdir.mkdir("base")
+        mock_server.meta_directory = tmpdir.mkdir("meta")
         yield KeepManagerMixin(server=mock_server)
 
     def test_should_keep_backup_false(self, keep_manager):
