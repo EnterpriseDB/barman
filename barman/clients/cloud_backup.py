@@ -198,7 +198,8 @@ def main(args=None):
                 uploader = CloudBackupUploaderBarman(
                     backup_dir=os.getenv("BARMAN_BACKUP_DIR"),
                     backup_id=os.getenv("BARMAN_BACKUP_ID"),
-                    **uploader_kwargs
+                    backup_info_path=os.getenv("BARMAN_BACKUP_INFO_PATH"),
+                    **uploader_kwargs,
                 )
                 uploader.backup()
             else:
@@ -235,7 +236,7 @@ def main(args=None):
                         uploader = CloudBackupUploader(
                             postgres=postgres,
                             backup_name=config.backup_name,
-                            **uploader_kwargs
+                            **uploader_kwargs,
                         )
                         uploader.backup()
 
