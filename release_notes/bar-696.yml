@@ -1,0 +1,15 @@
+- summary: Fix regression when running `barman-cloud-backup` as a hook
+  description: |
+    Barman 3.13.2 changed the location of the `backup.info` metadata file as part
+    of the work delivered to fix issues in WORM environments.
+
+    However, those changes introduced a regression when using `barman-cloud-backup`
+    as a backup hook in the Barman server: the hook was not aware of the new location
+    of the metadata file.
+
+    This update fixes that issue, so `barman-cloud-backup` becomes aware of the new
+    folder structure, and properly locates the `backup.info` file, avoiding runtime
+    failures.
+  type: bugfix
+  jira_tickets:
+    - BAR-696
