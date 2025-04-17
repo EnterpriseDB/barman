@@ -25,6 +25,7 @@ from barman.clients import cloud_backup
 
 EXAMPLE_BACKUP_DIR = "/path/to/backup"
 EXAMPLE_BACKUP_ID = "20210707T132804"
+EXAMPLE_BACKUP_INFO_PATH = "/path/to/backup_info"
 
 
 @mock.patch("barman.clients.cloud_backup.tempfile")
@@ -485,6 +486,7 @@ class TestCloudBackupHookScript(object):
             "BARMAN_PHASE": "post",
             "BARMAN_BACKUP_DIR": EXAMPLE_BACKUP_DIR,
             "BARMAN_BACKUP_ID": EXAMPLE_BACKUP_ID,
+            "BARMAN_BACKUP_INFO_PATH": EXAMPLE_BACKUP_INFO_PATH,
             "BARMAN_STATUS": "DONE",
         },
     )
@@ -513,6 +515,7 @@ class TestCloudBackupHookScript(object):
             cloud_interface=cloud_interface_mock.return_value,
             backup_dir=EXAMPLE_BACKUP_DIR,
             backup_id=EXAMPLE_BACKUP_ID,
+            backup_info_path=EXAMPLE_BACKUP_INFO_PATH,
         )
         uploader.backup.assert_called_once()
 
@@ -524,6 +527,7 @@ class TestCloudBackupHookScript(object):
             "BARMAN_PHASE": "post",
             "BARMAN_BACKUP_DIR": EXAMPLE_BACKUP_DIR,
             "BARMAN_BACKUP_ID": EXAMPLE_BACKUP_ID,
+            "BARMAN_BACKUP_INFO_PATH": EXAMPLE_BACKUP_INFO_PATH,
             "BARMAN_STATUS": "DONE",
         },
     )
@@ -548,6 +552,7 @@ class TestCloudBackupHookScript(object):
             cloud_interface=cloud_interface_mock.return_value,
             backup_dir=EXAMPLE_BACKUP_DIR,
             backup_id=EXAMPLE_BACKUP_ID,
+            backup_info_path=EXAMPLE_BACKUP_INFO_PATH,
         )
         uploader.backup.assert_called_once()
 

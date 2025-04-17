@@ -3920,6 +3920,7 @@ class TestCloudBackupUploaderBarman(object):
         )
         backup_id = "backup_id"
         backup_dir = "/path/to/{}/{}".format(self.server_name, backup_id)
+        backup_info_path = "/path/to/backup_info"
         expected_max_archive_size = 99999
         expected_min_chunk_size = 111
         expected_max_bandwidth = 222
@@ -3929,6 +3930,7 @@ class TestCloudBackupUploaderBarman(object):
             expected_max_archive_size,
             backup_dir,
             backup_id,
+            backup_info_path,
             min_chunk_size=expected_min_chunk_size,
             max_bandwidth=expected_max_bandwidth,
         )

@@ -147,6 +147,7 @@ class TestHooks(object):
         # BackupInfo mock
         backup_info = MagicMock(name="backup_info")
         backup_info.get_basebackup_directory.return_value = "backup_directory"
+        backup_info.get_filename.return_value = "backup_info_directory/backup.info"
         backup_info.backup_id = "123456789XYZ"
         backup_info.error = None
         backup_info.status = "OK"
@@ -162,6 +163,7 @@ class TestHooks(object):
             "BARMAN_HOOK": "test_hook",
             "BARMAN_BACKUP_DIR": "backup_directory",
             "BARMAN_BACKUP_ID": "123456789XYZ",
+            "BARMAN_BACKUP_INFO_PATH": "backup_info_directory/backup.info",
             "BARMAN_ERROR": "",
             "BARMAN_STATUS": "OK",
             "BARMAN_PREVIOUS_ID": "987654321",
@@ -185,6 +187,7 @@ class TestHooks(object):
         # BackupInfo mock
         backup_info = MagicMock(name="backup_info")
         backup_info.get_basebackup_directory.return_value = "backup_directory"
+        backup_info.get_filename.return_value = "backup_info_directory/backup.info"
         backup_info.backup_id = "123456789XYZ"
         backup_info.error = "Test error"
         backup_info.status = "FAILED"
@@ -200,6 +203,7 @@ class TestHooks(object):
             "BARMAN_HOOK": "test_hook",
             "BARMAN_BACKUP_DIR": "backup_directory",
             "BARMAN_BACKUP_ID": "123456789XYZ",
+            "BARMAN_BACKUP_INFO_PATH": "backup_info_directory/backup.info",
             "BARMAN_ERROR": "Test error",
             "BARMAN_STATUS": "FAILED",
             "BARMAN_PREVIOUS_ID": "",
@@ -223,6 +227,7 @@ class TestHooks(object):
         # BackupInfo mock
         backup_info = MagicMock(name="backup_info")
         backup_info.get_basebackup_directory.return_value = "backup_directory"
+        backup_info.get_filename.return_value = "backup_info_directory/backup.info"
         backup_info.backup_id = "123456789XYZ"
         backup_info.error = None
         backup_info.status = "OK"
@@ -238,6 +243,7 @@ class TestHooks(object):
             "BARMAN_HOOK": "test_hook",
             "BARMAN_BACKUP_DIR": "backup_directory",
             "BARMAN_BACKUP_ID": "123456789XYZ",
+            "BARMAN_BACKUP_INFO_PATH": "backup_info_directory/backup.info",
             "BARMAN_ERROR": "",
             "BARMAN_STATUS": "OK",
             "BARMAN_PREVIOUS_ID": "",
@@ -446,6 +452,7 @@ class TestHooks(object):
         # BackupInfo mock
         backup_info = MagicMock(name="backup_info")
         backup_info.get_basebackup_directory.return_value = "backup_directory"
+        backup_info.get_filename.return_value = "backup_info_directory/backup.info"
         backup_info.backup_id = "123456789XYZ"
         backup_info.error = None
         backup_info.status = "OK"
@@ -464,6 +471,7 @@ class TestHooks(object):
             "BARMAN_HOOK": "delete_script",
             "BARMAN_BACKUP_DIR": "backup_directory",
             "BARMAN_BACKUP_ID": "123456789XYZ",
+            "BARMAN_BACKUP_INFO_PATH": "backup_info_directory/backup.info",
             "BARMAN_ERROR": "",
             "BARMAN_STATUS": "OK",
             "BARMAN_PREVIOUS_ID": "",
@@ -500,6 +508,7 @@ class TestHooks(object):
         # BackupInfo mock
         backup_info = MagicMock(name="backup_info")
         backup_info.get_basebackup_directory.return_value = "backup_directory"
+        backup_info.get_filename.return_value = "backup_info_directory/backup.info"
         backup_info.backup_id = "123456789XYZ"
         backup_info.error = None
         backup_info.status = "OK"
@@ -524,6 +533,7 @@ class TestHooks(object):
             "BARMAN_HOOK": "delete_script",
             "BARMAN_BACKUP_DIR": "backup_directory",
             "BARMAN_BACKUP_ID": "123456789XYZ",
+            "BARMAN_BACKUP_INFO_PATH": "backup_info_directory/backup.info",
             "BARMAN_ERROR": "",
             "BARMAN_STATUS": "OK",
             "BARMAN_PREVIOUS_ID": "",
@@ -655,6 +665,7 @@ class TestHooks(object):
         # BackupInfo mock
         backup_info = MagicMock(name="backup_info")
         backup_info.get_basebackup_directory.return_value = "backup_directory"
+        backup_info.get_filename.return_value = "backup_info_directory/backup.info"
         backup_info.backup_id = "123456789XYZ"
         backup_info.error = None
         backup_info.status = "OK"
@@ -683,6 +694,7 @@ class TestHooks(object):
             "BARMAN_HOOK": "recovery_script",
             "BARMAN_BACKUP_DIR": "backup_directory",
             "BARMAN_BACKUP_ID": "123456789XYZ",
+            "BARMAN_BACKUP_INFO_PATH": "backup_info_directory/backup.info",
             "BARMAN_ERROR": "",
             "BARMAN_STATUS": "OK",
             "BARMAN_PREVIOUS_ID": "",
@@ -721,6 +733,7 @@ class TestHooks(object):
         # BackupInfo mock
         backup_info = MagicMock(name="backup_info")
         backup_info.get_basebackup_directory.return_value = "backup_directory"
+        backup_info.get_filename.return_value = "backup_info_directory/backup.info"
         backup_info.backup_id = "123456789XYZ"
         backup_info.error = None
         backup_info.status = "OK"
@@ -741,6 +754,7 @@ class TestHooks(object):
             "BARMAN_HOOK": "recovery_script",
             "BARMAN_BACKUP_DIR": "backup_directory",
             "BARMAN_BACKUP_ID": "123456789XYZ",
+            "BARMAN_BACKUP_INFO_PATH": "backup_info_directory/backup.info",
             "BARMAN_ERROR": "",
             "BARMAN_STATUS": "OK",
             "BARMAN_PREVIOUS_ID": "",
