@@ -1793,6 +1793,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
         max_archive_size,
         backup_dir,
         backup_id,
+        backup_info_path,
         compression=None,
         min_chunk_size=None,
         max_bandwidth=None,
@@ -1808,6 +1809,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
         :param str backup_dir: Path to the directory containing the backup to
           be uploaded
         :param str backup_id: The id of the backup to upload
+        :param str backup_info_path: Path of the ``backup.info`` file.
         :param str compression: Compression algorithm to use
         :param int min_chunk_size: the minimum size of a single upload part
         :param int max_bandwidth: the maximum amount of data per second that
@@ -1824,6 +1826,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
         )
         self.backup_dir = backup_dir
         self.backup_id = backup_id
+        self.backup_info_path = backup_info_path
 
     def handle_backup_errors(self, action, exc):
         """
@@ -1888,7 +1891,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
         """
         # Read the backup_info file from disk as the backup has already been created
         self.backup_info = BackupInfo(self.backup_id)
-        self.backup_info.load(filename=os.path.join(self.backup_dir, "backup.info"))
+        self.backup_info.load(filename=self.backup_info_path)
         self.controller = self._create_upload_controller(self.backup_id)
         try:
             self.copy_start_time = datetime.datetime.now()
@@ -1901,9 +1904,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
             self.copy_end_time = datetime.datetime.now()
 
             # Manually add backup.info
-            with open(
-                os.path.join(self.backup_dir, "backup.info"), "rb"
-            ) as backup_info_file:
+            with open(self.backup_info_path, "rb") as backup_info_file:
                 self.cloud_interface.upload_fileobj(
                     backup_info_file,
                     key=os.path.join(self.controller.key_prefix, "backup.info"),
