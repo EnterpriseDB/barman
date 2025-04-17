@@ -74,6 +74,7 @@ The shell environment will include the following variables for **backup scripts*
 
 * ``BARMAN_BACKUP_DIR``: The destination directory for the backup.
 * ``BARMAN_BACKUP_ID``: The ID of the backup.
+* ``BARMAN_BACKUP_INFO_PATH``: The path of the `backup.info` file.
 * ``BARMAN_CONFIGURATION``: The configuration file used by Barman.
 * ``BARMAN_ERROR``: Any error message (only applicable in the ``post`` phase).
 * ``BARMAN_PHASE``: Indicates the phase of the script, either ``pre`` or ``post``.
