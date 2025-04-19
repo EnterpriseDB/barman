@@ -1306,7 +1306,7 @@ class GPG(Command):
         Example:
             passphrase = bytearray(b"your-secret-passphrase")
             gpg(stdin=passphrase)
-            passphrase[:] = b"\\x00" * len(passphrase)
+            passphrase[:] = b"\x00" * len(passphrase)
 
     .. example::
         Decryption:
@@ -1317,7 +1317,7 @@ class GPG(Command):
             ... )
             >>> passphrase = bytearray(b"secret")
             >>> gpg(stdin=passphrase)
-            >>> passphrase[:] = b"\\x00" * len(passphrase)
+            >>> passphrase[:] = b"\x00" * len(passphrase)
 
         Encryption:
             >>> gpg = GPG(

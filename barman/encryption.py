@@ -106,13 +106,15 @@ class Encryption(ABC):
         pass
 
     @abstractmethod
-    def decrypt(self, file, dest):
+    def decrypt(self, file, dest, **kwargs):
         """
         Decrypts a given *file*.
 
-        :param str file: The full path to the file to be decrypted
-        :param str dest: The destination directory for the decrypted file
+        :param str file: The full path to the file to be decrypted.
+        :param str dest: The destination directory for the decrypted file.
+        :returns str: The path to the decrypted file.
         """
+        pass
 
 
 class GPGEncryption(Encryption):
@@ -155,8 +157,46 @@ class GPGEncryption(Encryption):
         gpg()
         return output
 
-    def decrypt(self, file, dest):
-        """"""
+    def decrypt(self, file, dest, **kwargs):
+        """
+        Decrypts a *file* using GPG and a provided passphrase.
+
+        This method uses GPG to decrypt a given *file* and output the decrypted file
+        under the *dest* directory. The decryption process requires a valid passphrase,
+        which is given through the *passphrase* keyworded argument. If the decryption
+        fails due to an incorrect or missing passphrase, appropriate exceptions are
+        raised.
+
+        :param str file: The full path to the file to be decrypted.
+        :param str dest: The destination directory for the decrypted file.
+        :kwparam bytearray passphrase: The passphrase used to decrypt the file.
+        :returns str: The path to the decrypted file.
+        :raises ValueError: If no passphrase is provided or if the passphrase is
+            incorrect.
+        """
+        filename = os.path.basename(file)
+        # The file may or may not have a .gpg extension -- see GPGEncryption.encrypt().
+        # The decrypted file should not contain the extension, so we remove it, if
+        # present.
+        if filename.lower().endswith(".gpg"):
+            filename, _ = os.path.splitext(filename)
+        output = os.path.join(dest, filename)
+        gpg_decrypt = GPG(
+            action="decrypt",
+            input_filepath=file,
+            output_filepath=output,
+            path=self.path,
+        )
+        try:
+            passphrase = kwargs.get("passphrase")
+            gpg_decrypt(stdin=passphrase)
+        except CommandFailedException as e:
+            if "No passphrase given" in str(e):
+                raise ValueError("Error: No passphrase provided for decryption.")
+            if "Bad passphrase" in str(e):
+                raise ValueError("Error: Bad passphrase provided for decryption.")
+            raise e
+        return output
 
 
 class EncryptionManager:

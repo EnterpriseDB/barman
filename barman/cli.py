@@ -1033,9 +1033,11 @@ def restore(args):
             )
             output.close_and_exit()
 
-    # If the backup to be recovered is incremental then there are additional
-    # checks to be carried out
-    if backup_info.is_incremental:
+    # If the backup to be recovered is incremental or encrypted then there are
+    # additional checks to be carried out. Note that currently Barman does not
+    # support neither taking nor restoring backups that are both incremental
+    # AND encrypted -- you can have only one or the other feature.
+    if backup_info.is_incremental or backup_info.encryption:
         # Set the local staging path from the cli if it is set
         if args.local_staging_path is not None:
             try:
@@ -1044,21 +1046,34 @@ def restore(args):
                 output.error("Cannot parse local staging path: %s", str(exc))
                 output.close_and_exit()
             server.config.local_staging_path = local_staging_path
-        # If the backup is incremental but there is no local_staging_path
-        # then this is an error - the user *must* tell barman where recovery
-        # data can be staged.
+        # If the backup is incremental or encrypted, but no ``local_staging_path`` is
+        # provided, this is considered an error — the user must specify a staging path
+        # to combine or decrypt.
         if server.config.local_staging_path is None:
-            output.error(
-                "Cannot restore from backup '%s' of server '%s': "
-                "backup will be combined with pg_combinebackup in the "
-                "barman host but no local staging path is provided. "
-                "Either set local_staging_path in the Barman config "
-                "or use the --local-staging-path argument.",
-                args.backup_id,
-                server.config.name,
-            )
-            output.close_and_exit()
-
+            if backup_info.is_incremental:
+                output.error(
+                    "Cannot restore from backup '%s' of server '%s': "
+                    "backup will be combined with pg_combinebackup in the "
+                    "barman host but no local staging path is provided. "
+                    "Either set local_staging_path in the Barman config "
+                    "or use the --local-staging-path argument.",
+                    args.backup_id,
+                    server.config.name,
+                )
+                output.close_and_exit()
+            # If backup_info is not incremental, it is encrypted.
+            else:
+                output.error(
+                    "Cannot restore from backup '%s' of server '%s': "
+                    "backup is encrypted with '%s' and it will be decrypted in the "
+                    "barman host but no local staging path is provided. "
+                    "Either set local_staging_path in the Barman config "
+                    "or use the --local-staging-path argument.",
+                    args.backup_id,
+                    server.config.name,
+                    backup_info.encryption,
+                )
+                output.close_and_exit()
     # decode the tablespace relocation rules
     tablespaces = {}
     if args.tablespace:

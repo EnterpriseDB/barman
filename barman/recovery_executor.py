@@ -48,6 +48,7 @@ from barman.compression import (
 )
 from barman.config import RecoveryOptions
 from barman.copy_controller import RsyncCopyController
+from barman.encryption import get_passphrase_from_command
 from barman.exceptions import (
     BadXlogSegmentName,
     CommandFailedException,
@@ -143,6 +144,43 @@ class RecoveryExecutor(object):
         recovery_info = self._setup(
             backup_info, remote_command, dest, recovery_conf_filename
         )
+
+        # If the backup is encrypted, it consists of tarballs (Barman only supports
+        # encryption of tarball based backups for now).
+        # Decrypt as the first step to prepare the backup, then begin the recovery
+        # process.
+        passphrase = None
+        if backup_info.encryption:
+            if not self.config.encryption_passphrase_command:
+                output.error(
+                    "The backup '%s' is encrypted, but no "
+                    "'encryption_passphrase_command' was configured. "
+                    "Please set 'encryption_passphrase_command' in the configuration "
+                    "so the private key can be used for decryption.",
+                    backup_info.backup_id,
+                )
+                output.close_and_exit()
+
+            output.debug("Encrypted backup '%s' detected.", backup_info.backup_id)
+            passphrase = get_passphrase_from_command(
+                self.config.encryption_passphrase_command
+            )
+
+            output.info(
+                "Decrypting files from backup '%s' for server '%s'.",
+                backup_info.backup_id,
+                self.server.config.name,
+            )
+
+            # Create local staging path if not exist. Ignore if it does exist.
+            os.makedirs(self.config.local_staging_path, mode=0o700, exist_ok=True)
+
+            self._decrypt_backup(
+                backup_info=backup_info,
+                passphrase=passphrase,
+                recovery_info=recovery_info,
+            )
+
         output.info(
             "Starting %s restore for server %s using backup %s",
             recovery_info["recovery_dest"],
@@ -207,6 +245,13 @@ class RecoveryExecutor(object):
         except DataTransferFailure as e:
             self._backup_copy_failure_message(e)
             output.close_and_exit()
+
+        # We are not using the default interface for deletion of temporary
+        # files (AKA self.tmp_dirs) because we want to perform an early
+        # cleanup of the decryped backups, thus do not hold it using disk
+        # space for longer than necessary.
+        if recovery_info.get("decryption_dest") is not None:
+            fs.LocalLibPathDeletionCommand(recovery_info["decryption_dest"]).delete()
 
         # Copy the backup.info file in the destination as
         # ".barman-recover.info"
@@ -307,6 +352,12 @@ class RecoveryExecutor(object):
                     recovery_info, remote_command, required_xlog_files
                 )
 
+        # At this point, the encryption passphrase is not needed anymore, so we dispose
+        # it from memory to avoid lingering. See the security note in the GPG command
+        # class.
+        if passphrase:
+            passphrase[:] = b"\x00" * len(passphrase)
+
         # Generate recovery.conf file (only if needed by PITR or get_wal)
         is_pitr = recovery_info["is_pitr"]
         get_wal = recovery_info["get_wal"]
@@ -387,6 +438,7 @@ class RecoveryExecutor(object):
             "is_pitr": False,
             "wal_dest": wal_dest,
             "get_wal": RecoveryOptions.GET_WAL in self.config.recovery_options,
+            "decryption_dest": None,
         }
         # A map that will keep track of the results of the recovery.
         # Used for output generation
@@ -1325,6 +1377,35 @@ class RecoveryExecutor(object):
             temp_dir.delete()
         self.temp_dirs = []
 
+    def _decrypt_backup(self, backup_info, passphrase, recovery_info):
+        """
+        Decrypt the given backup into the local staging path.
+
+        :param barman.infofile.LocalBackupInfo backup_info: the backup to be decrypted.
+        :param bytearray passphrase: the passphrase for decrypting the backup.
+        :param dict recovery_info: Dictionary of recovery information.
+        """
+        tempdir = tempfile.mkdtemp(
+            prefix="barman-decryption-", dir=self.config.local_staging_path
+        )
+        encryption_manager = self.backup_manager.encryption_manager
+        encryption_handler = encryption_manager.get_encryption(backup_info.encryption)
+
+        for backup_file in backup_info.get_list_of_files("data"):
+            # We "reconstruct" the "original backup" in the staging path. Encrypted
+            # files are decrypted, while unencrypted files are copied as-is.
+            if backup_file.endswith(".gpg"):
+                output.debug("Decrypting file %s at %s" % (backup_file, tempdir))
+                _ = encryption_handler.decrypt(
+                    file=backup_file, dest=tempdir, passphrase=passphrase
+                )
+            else:
+                shutil.copy2(backup_file, tempdir)
+        # Store `tempdir` in the recovery_info dict so that the `_backup_copy`
+        # method knows the backup was encrypted and where to copy the decrypted backup
+        # from.
+        recovery_info["decryption_dest"] = tempdir
+
 
 class RemoteConfigRecoveryExecutor(RecoveryExecutor):
     """
@@ -1445,6 +1526,16 @@ class TarballRecoveryExecutor(RemoteConfigRecoveryExecutor):
             fs.UnixCommandPathDeletionCommand(staging_dir, recovery_info["cmd"])
         )
 
+        # If the backup is encrypted in the Barman catalog, at this point it's already
+        # decrypted in `decryption_dest` and we can use it as the source for the copy.
+        # If the backup is not encrypted in the Barman catalog, we can simply use its
+        # path in the catalog as the source.
+        backup_data_dir = (
+            recovery_info["decryption_dest"]
+            if recovery_info.get("decryption_dest") is not None
+            else backup_info.get_data_directory()
+        )
+
         # Create the copy controller object, specific for rsync.
         # Network compression is always disabled because we are copying
         # data which has already been compressed.
@@ -1467,7 +1558,7 @@ class TarballRecoveryExecutor(RemoteConfigRecoveryExecutor):
                     self.compression.file_extension,
                 )
                 tablespace_path = "%s/%s" % (
-                    backup_info.get_data_directory(),
+                    backup_data_dir,
                     tablespace_file,
                 )
                 controller.add_file(
@@ -1479,7 +1570,7 @@ class TarballRecoveryExecutor(RemoteConfigRecoveryExecutor):
                 )
         base_file = "%s.%s" % (self.BASE_TARBALL_NAME, self.compression.file_extension)
         base_path = "%s/%s" % (
-            backup_info.get_data_directory(),
+            backup_data_dir,
             base_file,
         )
         controller.add_file(
@@ -1491,7 +1582,7 @@ class TarballRecoveryExecutor(RemoteConfigRecoveryExecutor):
         )
         controller.add_file(
             label="pgdata",
-            src=os.path.join(backup_info.get_data_directory(), "backup_manifest"),
+            src=os.path.join(backup_data_dir, "backup_manifest"),
             dst=os.path.join(dest_prefix + dest, "backup_manifest"),
             item_class=controller.PGDATA_CLASS,
             bwlimit=self.config.get_bwlimit(),
@@ -2096,8 +2187,8 @@ class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
         shutil.rmtree(dest_dir, ignore_errors=True)
         # create the dir
         mkpath(dest_dir)
-        # Ensure the right permissions to the destination directory
-        # chmod 0700 octal
+        # Ensure the right permissions for the destination directory
+        # (0700 ocatl == 448 in decimal)
         os.chmod(dest_dir, 448)
 
     def _retry_handler(self, dest_dirs, attempt):
