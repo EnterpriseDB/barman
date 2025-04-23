@@ -2,6 +2,73 @@
 
 © Copyright EnterpriseDB UK Limited 2025 - All rights reserved.
 
+## 3.13.3 (2025-04-24)
+
+### Bugfixes
+
+- Fix local restore of block-level incremental backups
+
+  When performing a local restore of block-level incremental backups, Barman was
+  facing errors like the following:
+
+  ```text
+  ERROR: Destination directory '/home/vagrant/restore/internal_no_get_wal' must be empty
+  ```
+
+  That error was caused by a regression when the option `--staging-wals-directory`
+  was introduced in version 3.13.0. Along with it came a new check to ensure the WAL
+  destination directory was empty before proceeding. However, when restoring
+  block-level incremental backups locally, Barman was setting up the WAL destination
+  directory before performing this check, triggering the error above.
+
+  References: BAR-655.
+
+- Fix regression when running `barman-cloud-backup` as a hook
+
+  Barman 3.13.2 changed the location of the `backup.info` metadata file as part
+  of the work delivered to fix issues in WORM environments.
+
+  However, those changes introduced a regression when using `barman-cloud-backup`
+  as a backup hook in the Barman server: the hook was not aware of the new location
+  of the metadata file.
+
+  This update fixes that issue, so `barman-cloud-backup` becomes aware of the new
+  folder structure, and properly locates the `backup.info` file, avoiding runtime
+  failures.
+
+  References: BAR-696.
+
+- Avoid decompressing partial WAL files when custom compression is configured
+
+  Fixed an issue where Barman attempted to decompress partial WAL files when
+  custom compression was configured. Partial WAL files are never compressed,
+  so any attempt to decompress them is incorrect and caused errors when using
+  the `--partial` flag with `barman-wal-restore` or `barman get-wal`.
+
+  References: BAR-697.
+
+- Fixed `barman-cloud-backup` not recycling temporary part files
+
+  This fixes a `barman-cloud-backup` problem where temporary part files were not
+  deleted after being uploaded to the cloud, leading to disk space exhaustion.
+  The issue happened only when using Python >= 3.12 and it was due to a change
+  in Python that removed the `delete` attribute of named-temporary file
+  objects, which Barman used to rely on when performing internal checks.
+
+  References: BAR-674.
+
+- Fixed backup annotations usage in WORM environments
+
+  Barman previously stored backup annotation files, used to track operations like
+  `barman keep` and `barman delete`, inside the backup directory itself. These
+  annotations help determine whether a backup should be kept or marked for deletion.
+  However, in WORM environments, files in the backup directory cannot be modified or
+  deleted after a certain period, which caused issues with managing backup states.
+  This fix relocates annotation files to a dedicated metadata directory, as to
+  ensure that such operations function correctly in WORM environments.
+
+  References: BAR-663.
+
 ## 3.13.2 (2025-03-27)
 
 ### Minor changes
