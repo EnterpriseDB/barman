@@ -21,8 +21,10 @@ This module is responsible to manage the encryption features of Barman
 """
 
 import logging
+import os
+from abc import ABC, abstractmethod
 
-from barman.command_wrappers import Command, Handler
+from barman.command_wrappers import GPG, Command, Handler
 from barman.exceptions import CommandFailedException, EncryptionCommandException
 
 
@@ -70,3 +72,170 @@ def get_passphrase_from_command(command):
     if not out:
         raise ValueError("The command returned an empty passphrase")
     return bytearray(out.encode())
+
+
+class Encryption(ABC):
+    """
+    Abstract class for handling encryption.
+
+    :cvar NAME: The name of the encryption
+    """
+
+    NAME = None
+
+    def __init__(self, path=None):
+        """
+        Constructor.
+
+        :param None|str path: An optional path to prepend to the system ``PATH`` when
+            locating binaries.
+        """
+        self.path = path
+
+    @abstractmethod
+    def encrypt(self, file, dest, preserve_filename=False):
+        """
+        Encrypts a given *file*.
+
+        :param str file: The full path to the file to be encrypted
+        :param str dest: The destination directory for the encrypted file
+        :param bool preserve_filename: Do not add an extension to the encrypted file,
+            if ``True``
+        :returns str: The path to the encrypted file
+        """
+        pass
+
+    @abstractmethod
+    def decrypt(self, file, dest):
+        """
+        Decrypts a given *file*.
+
+        :param str file: The full path to the file to be decrypted
+        :param str dest: The destination directory for the decrypted file
+        """
+
+
+class GPGEncryption(Encryption):
+    """
+    Implements the GPG encryption and decryption logic.
+
+    :cvar NAME: The name of the encryption
+    """
+
+    NAME = "gpg"
+
+    def __init__(self, key_id=None, path=None):
+        """
+        Initialize a :class:`GPGEncryption` instance.
+
+        .. note::
+            If encrypting, a GPG key ID is required and is used throughout
+            the instance's lifetime.
+
+        :param None|str key_id: A valid key ID of an existing GPG key available in the
+            system. Only used for encryption.
+        :param None|str path: An optional path to prepend to the system ``PATH`` when
+            locating GPG binaries
+        """
+        super(GPGEncryption, self).__init__(path)
+        self.key_id = key_id
+
+    def encrypt(self, file, dest, preserve_filename=False):
+        dest_filename = os.path.basename(file)
+        if not preserve_filename:
+            dest_filename += ".gpg"
+        output = os.path.join(dest, dest_filename)
+        gpg = GPG(
+            action="encrypt",
+            recipient=self.key_id,
+            input_filepath=file,
+            output_filepath=output,
+            path=self.path,
+        )
+        gpg()
+        return output
+
+    def decrypt(self, file, dest):
+        """"""
+
+
+class EncryptionManager:
+    """
+    Manager class to validate encryption configuration and initialize instances of
+    :class:`barman.encryption.Encryption`.
+
+    :cvar REGISTRY: The registry of available encryption classes. Each key is a
+        supported ``config.encryption`` algorithm. The corresponding value is a tuple
+        of 3 items: the respective class of the encryption algorithm, a method used
+        to validate the ``config`` object for its respective encryption, and
+        a method used to instantiate the class used by the algorithm.
+    """
+
+    REGISTRY = {"gpg": (GPGEncryption, "_validate_gpg", "_initialize_gpg")}
+
+    def __init__(self, config, path=None):
+        """
+        Initialize an encryption manager instance.
+
+        :param barman.config.ServerConfig config: A server configuration object
+        :param None|str path: An optional path to prepend to the system ``PATH`` when
+            locating binaries
+        """
+        self.config = config
+        self.path = path
+
+    def get_encryption(self, encryption=None):
+        """
+        Get an encryption instance for the requested encryption type.
+
+        :param None|str encryption: The encryption requested. If not passed, falls back
+            to ``config.encryption``. This flexibility is useful for cases where
+            encryption is disabled midway, i.e. no longer present in ``config``, but an
+            encryption instance is still needed, e.g. for decrypting an old backup.
+        :returns None|:class:`barman.encryption.Encryption`: A respective encryption
+            instance, if *encryption* is set, otherwise ``None``.
+        :raises ValueError: If the encryption handler is unknown
+        """
+        encryption = encryption or self.config.encryption
+        entry = self.REGISTRY.get(encryption)
+        if entry:
+            return getattr(self, entry[2])()
+        return None
+
+    def validate_config(self):
+        """
+        Validate the configuration parameters against the present encryption.
+
+        :raises ValueError: If the configuration is invalid for the present encryption
+        """
+        entry = self.REGISTRY.get(self.config.encryption)
+        if not entry:
+            raise ValueError("Invalid encryption option: %s" % self.config.encryption)
+        getattr(self, entry[1])()
+
+    def _validate_gpg(self):
+        """
+        Validate required configuration for GPG encryption.
+
+        :raises ValueError: If the configuration is invalid
+        """
+        if not self.config.encryption_key_id:
+            raise ValueError("Encryption is set as gpg, but encryption_key_id is unset")
+        elif self.config.backup_method != "postgres":
+            raise ValueError("Encryption is set as gpg, but backup_method != postgres")
+        elif not self.config.backup_compression:
+            raise ValueError(
+                "Encryption is set as gpg, but backup_compression is unset"
+            )
+        elif self.config.backup_compression_format != "tar":
+            raise ValueError(
+                "Encryption is set as gpg, but backup_compression_format != tar"
+            )
+
+    def _initialize_gpg(self):
+        """
+        Initialize a GPG encryption instance.
+
+        :returns: barman.encryption.GPGEncryption instance
+        """
+        return GPGEncryption(self.config.encryption_key_id, path=self.path)

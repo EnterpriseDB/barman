@@ -23,6 +23,7 @@ This module represents a backup.
 import datetime
 import logging
 import os
+import re
 import shutil
 import tempfile
 from collections import defaultdict
@@ -45,6 +46,7 @@ from barman.cloud_providers import get_snapshot_interface_from_backup_info
 from barman.command_wrappers import PgVerifyBackup
 from barman.compression import CompressionManager
 from barman.config import BackupOptions
+from barman.encryption import EncryptionManager
 from barman.exceptions import (
     AbortedRetryHookScript,
     BackupException,
@@ -94,6 +96,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         self.config = server.config
         self._backup_cache = None
         self.compression_manager = CompressionManager(self.config, server.path)
+        self.encryption_manager = EncryptionManager(self.config, server.path)
         self.annotation_manager = AnnotationManagerFile(
             self.server.meta_directory, self.server.config.basebackups_directory
         )
@@ -828,6 +831,46 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                     "Compressed backups are not eligible as parents of incremental backups."
                 )
 
+    def _encrypt_backup(self, backup_info):
+        """
+        Perform encryption of the base backup and tablespaces
+
+        :param barman.infofile.LocalBackupInfo backup_info: backup information
+        :raises BackupException: If the encryption validation fails
+        """
+        try:
+            self.encryption_manager.validate_config()
+            encryption = self.encryption_manager.get_encryption()
+        except ValueError as ex:
+            raise BackupException(force_str(ex))
+
+        output.info("Encrypting backup using %s encryption" % encryption.NAME)
+
+        # At this point, all the encryption configuration has already been
+        # validated. We only need to check the format of the backup, so
+        # we know how to encrypt the underlying files.
+        if self.config.backup_compression_format == "tar":
+            self._encrypt_tar_backup(backup_info, encryption)
+
+        backup_info.set_attribute("encryption", encryption.NAME)
+
+    def _encrypt_tar_backup(self, backup_info, encryption):
+        """
+        Perform encryption of base backup and tablespaces in tar format.
+
+        All ``.tar`` and ``.tar.*`` files under the backup data directory are encrypted.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information
+        :param barman.encryption.Encryption encryption: The encryption handler class
+        """
+        for tar_file in backup_info.get_list_of_files("data"):
+            filename = os.path.basename(tar_file)
+            if re.search(r"\.tar(\.[^.]+)?$", filename):
+                output.debug("Encrypting file %s" % tar_file)
+                encryption.encrypt(tar_file, os.path.dirname(tar_file))
+                output.debug("File encrypted. Deleting unencrypted file %s" % tar_file)
+                os.unlink(tar_file)
+
     def backup(self, wait=False, wait_timeout=None, name=None, **kwargs):
         """
         Performs a backup for the server
@@ -884,6 +927,10 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
             # Free the Postgres connection
             self.server.postgres.close()
+
+            # Encrypt the backup if requested
+            if self.config.encryption is not None:
+                self._encrypt_backup(backup_info)
 
             # Compute backup size and fsync it on disk
             self.backup_fsync_and_set_sizes(backup_info)
