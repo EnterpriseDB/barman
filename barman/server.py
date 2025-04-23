@@ -621,6 +621,8 @@ class Server(RemoteStatusMixin):
                 self.check_retention_policy_settings(check_strategy)
                 # Check for backup validity
                 self.check_backup_validity(check_strategy)
+                # Check if encryption works
+                self.check_encryption(check_strategy)
                 # Check WAL archiving is happening
                 self.check_wal_validity(check_strategy)
                 # Executes the backup manager set of checks
@@ -1220,6 +1222,45 @@ class Server(RemoteStatusMixin):
         else:
             wal_size = wal_info["wal_until_next_size"]
         return wal_age_isok, wal_message, wal_size
+
+    def check_encryption(self, check_strategy):
+        """
+        Check if the configured encryption works.
+
+        It attempts to encrypt a simple text file to assert that encryption works.
+
+        :param CheckStrategy check_strategy: The strategy for the management
+            of the results.
+        """
+        if not self.config.encryption:
+            return
+
+        check_strategy.init_check("encryption")
+        try:
+            self.backup_manager.encryption_manager.validate_config()
+        except ValueError as ex:
+            check_strategy.result(self.config.name, False, hint=force_str(ex))
+            return
+
+        encryption = self.backup_manager.encryption_manager.get_encryption()
+
+        with tempfile.NamedTemporaryFile("w+", prefix="barman-encrypt-test-") as file:
+            file.write("I am a secret message. Encrypt me!")
+            try:
+                dest_dir = os.path.dirname(file.name)
+                encrypted_file = encryption.encrypt(file.name, dest_dir)
+            except CommandFailedException as ex:
+                output.debug("encryption test failed: %s" % force_str(ex))
+                check_strategy.result(
+                    self.config.name,
+                    False,
+                    hint="encryption test failed. Check the log file for more details",
+                )
+                return
+            else:
+                os.unlink(encrypted_file)
+
+        check_strategy.result(self.config.name, True, hint="encryption test succeeded")
 
     def check_wal_validity(self, check_strategy):
         """
