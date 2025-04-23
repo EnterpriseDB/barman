@@ -1558,6 +1558,87 @@ class TestBackup(object):
         )
         assert "20250107T120000" == backup_id_found
 
+    @patch("barman.backup.EncryptionManager.get_encryption")
+    @patch("barman.backup.EncryptionManager.validate_config")
+    @patch("barman.backup.BackupManager._encrypt_tar_backup")
+    def test_encrypt_backup(
+        self, mock_encrypt_tar_backup, mock_validate_config, mock_get_encryption
+    ):
+        """Test that the `_encrypt_backup` works correctly"""
+
+        # GIVEN a backup manager with some tar encryption enabled
+        backup_manager = build_backup_manager()
+        backup_manager.config.encryption = "gpg"
+        backup_manager.config.backup_compression_format = "tar"
+
+        # WHEN `_encrypt_backup` is called on a backup
+        mock_backup_info = Mock(spec=build_test_backup_info(backup_manager.server))
+        backup_manager._encrypt_backup(mock_backup_info)
+
+        # THEN a valid encryptor is fetched using the encryption manager
+        mock_validate_config.assert_called_once()
+        mock_get_encryption.assert_called_once_with()
+        mock_encryptor = mock_get_encryption.return_value
+
+        # AND `_encrypt_tar_backup` is called with the correct arguments
+        mock_encrypt_tar_backup.assert_called_once_with(
+            mock_backup_info, mock_encryptor
+        )
+
+        # AND the encryption attribute is set in the backup info
+        mock_backup_info.set_attribute.assert_called_once_with(
+            "encryption", mock_encryptor.NAME
+        )
+
+    @patch("os.unlink")
+    def test_encrypt_tar_backup(self, mock_os_unlink):
+        """
+        Test that `_encrypt_tar_backup` encrypts all `.tar` and `.tar.*`
+        files in the backup directory.
+        """
+        # GIVEN a backup manager and a mock backup info
+        backup_manager = build_backup_manager()
+        mock_backup_info = Mock(spec=build_test_backup_info(backup_manager.server))
+
+        # AND a backup directory with the following files
+        mock_backup_info.get_list_of_files.return_value = [
+            "path/to/backup/base.tar",
+            "path/to/backup/25137.tar.gz",
+            "path/to/backup/25138.tar.zstd",
+            "path/to/backup/backup_manifest",
+            "path/to/backup/annotations/keep",
+            "path/to/backup/annotations/delete",
+            "path/to/backup/text_file.txt",
+            "path/to/backup/random_file",
+        ]
+
+        mock_encryptor = Mock()
+
+        # WHEN `_encrypt_tar_backup` is called
+        backup_manager._encrypt_tar_backup(mock_backup_info, mock_encryptor)
+
+        # THEN `encrypt_file` is called only for `.tar` and `.tar.*` files
+        dest_directory = "path/to/backup"
+        mock_encryptor.encrypt.assert_has_calls(
+            [
+                call("path/to/backup/base.tar", dest_directory),
+                call("path/to/backup/25137.tar.gz", dest_directory),
+                call("path/to/backup/25138.tar.zstd", dest_directory),
+            ],
+            any_order=True,
+        )
+        assert mock_encryptor.encrypt.call_count == 3
+
+        # AND the unencrypted files are deleted
+        mock_os_unlink.assert_has_calls(
+            [
+                call("path/to/backup/base.tar"),
+                call("path/to/backup/25137.tar.gz"),
+                call("path/to/backup/25138.tar.zstd"),
+            ],
+            any_order=True,
+        )
+
 
 class TestWalCleanup(object):
     """Test cleanup of WALs by BackupManager"""
