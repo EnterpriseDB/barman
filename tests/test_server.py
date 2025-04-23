@@ -3524,6 +3524,93 @@ class TestServer(object):
             in out
         )
 
+    @patch("barman.server.tempfile.NamedTemporaryFile")
+    @patch("os.unlink")
+    def test_check_encryption(self, mock_unlink, mock_tmp_file):
+        """
+        Test the check_encryption method of the Server class.
+        """
+        # Case 1: no encryption configured so the check is ignored
+        mock_strategy = Mock()
+        server = build_real_server(main_conf={"encryption": "none"})
+        server.check_encryption(mock_strategy)
+        mock_strategy.init_check.assert_not_called()
+
+        # Case 2: encryption configuration is invalid
+        # Mock the strategy and make the validate_config raise an exception
+        mock_strategy = Mock()
+        server = build_real_server(main_conf={"encryption": "gpg"})
+        server.backup_manager.encryption_manager = Mock()
+        server.backup_manager.encryption_manager.validate_config.side_effect = (
+            ValueError("A terrible error!!!")
+        )
+        # Run the check
+        server.check_encryption(mock_strategy)
+        # Assert that the check was initialized, the validate_config was called
+        # and that the strategy result was as expected
+        mock_strategy.init_check.assert_called_once_with("encryption")
+        server.backup_manager.encryption_manager.validate_config.assert_called_once()
+        mock_strategy.result.assert_called_once_with(
+            server.config.name, False, hint="A terrible error!!!"
+        )
+
+        # Case 3: encryption configuration is valid, but encrypting fails
+        # Mock the strategy, named-temporary file and make the encrypt method
+        # raise an exception
+        mock_strategy = Mock()
+        mock_tmp_file.return_value.__enter__.return_value = Mock()
+        mock_tmp_file.return_value.__enter__.return_value.name = "path/to/tmp/file"
+        server = build_real_server(main_conf={"encryption": "gpg"})
+        server.backup_manager.encryption_manager = Mock()
+        encryption = (
+            server.backup_manager.encryption_manager.get_encryption.return_value
+        )
+        encryption.encrypt.side_effect = CommandFailedException("terrible exception!!!")
+        # Run the check
+        server.check_encryption(mock_strategy)
+        # Assert the check was initialized and that the get_encryption was called correctly
+        mock_strategy.init_check.assert_called_once_with("encryption")
+        server.backup_manager.encryption_manager.get_encryption.assert_called_once()
+        # Assert that a message was written to the temp file
+        mock_tmp_file.return_value.__enter__.return_value.write.assert_called_once_with(
+            "I am a secret message. Encrypt me!"
+        )
+        # Assert that the encrypt method was called correctly and that the result was
+        # was expected
+        encryption.encrypt.assert_called_once_with("path/to/tmp/file", "path/to/tmp")
+        mock_strategy.result.assert_called_once_with(
+            server.config.name,
+            False,
+            hint="encryption test failed. Check the log file for more details",
+        )
+
+        # Case 3: encryption configuration is valid and encrypting also succeeds
+        # Mock the strategy, named-temporary file and make the encrypt method succeeds
+        mock_strategy = Mock()
+        mock_tmp_file.return_value.__enter__.return_value = Mock()
+        mock_tmp_file.return_value.__enter__.return_value.name = "path/to/tmp/file"
+        server = build_real_server(main_conf={"encryption": "gpg"})
+        server.backup_manager.encryption_manager = Mock()
+        encryption = (
+            server.backup_manager.encryption_manager.get_encryption.return_value
+        )
+        encryption.encrypt.return_value = "path/to/tmp/file.gpg"
+        # Run the check
+        server.check_encryption(mock_strategy)
+        # Assert the check was initialized and that the get_encryption was called
+        mock_strategy.init_check.assert_called_once_with("encryption")
+        server.backup_manager.encryption_manager.get_encryption.assert_called_once()
+        # Assert that the encrypt method was called correctly and that the encrypted
+        # file generated was deleted
+        encryption.encrypt.assert_called_once_with("path/to/tmp/file", "path/to/tmp")
+        mock_unlink.assert_called_once_with("path/to/tmp/file.gpg")
+        # Assert that the result was as expected
+        mock_strategy.result.assert_called_once_with(
+            server.config.name,
+            True,
+            hint="encryption test succeeded",
+        )
+
     def test_check_backup_validity_exceeds_minimum_size(self, server, capsys):
         backup = build_test_backup_info(
             server=server,
