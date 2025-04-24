@@ -1351,6 +1351,7 @@ class TestRecoveryExecutor(object):
             "safe_horizon": None,
             "is_pitr": False,
             "get_wal": False,
+            "decryption_dest": None,
         }
         # test remote recovery
         with closing(executor):
@@ -1398,6 +1399,7 @@ class TestRecoveryExecutor(object):
             "safe_horizon": None,
             "is_pitr": False,
             "get_wal": False,
+            "decryption_dest": None,
         }
         # test failed rsync
         rsync_pg_mock.side_effect = CommandFailedException()
@@ -1452,7 +1454,6 @@ class TestRecoveryExecutor(object):
         # Avoid triggering warning for missing config files
         datadir.ensure("pg_hba.conf")
         datadir.ensure("pg_ident.conf")
-        # '/tmp/pytest-of-barman/pytest-0/test_recovery_encrypted_backup0/destination'
         mock_makedirs.return_value = None
 
         encryption_passphrase_command = "echo 'passphrase'"
@@ -1520,7 +1521,8 @@ class TestRecoveryExecutor(object):
 
     def test_recovery_encrypted_backup_no_passphrase_from_command(self, tmpdir, caplog):
         """
-        Test the execution of a recovery
+        Test the execution of a recovery when no passphrase is set in the server's
+        configuration.
         """
         # Prepare basic directory/files structure
         dest = tmpdir.mkdir("destination")
@@ -1878,10 +1880,11 @@ class TestRemoteConfigRecoveryExecutor(object):
 
 
 class TestTarballRecoveryExecutor(object):
+    @pytest.mark.parametrize("decryption_dest", [None, "/staging/dir"])
     @mock.patch("barman.recovery_executor.fs.unix_command_factory")
     @mock.patch("barman.recovery_executor.RsyncCopyController")
     def test_recover_backup_copy(
-        self, copy_controller_mock, command_factory_mock, tmpdir
+        self, copy_controller_mock, command_factory_mock, decryption_dest, tmpdir
     ):
         # GIVEN a basic folder/files structure
         dest = tmpdir.mkdir("destination")
@@ -1904,7 +1907,12 @@ class TestTarballRecoveryExecutor(object):
         executor = TarballRecoveryExecutor(server.backup_manager, compression)
         # AND a mock command which always completes successfully
         command = command_factory_mock.return_value
-        recovery_info = {"cmd": command}
+        src_filepath = "%s/main/base/%s/data" % (barman_home, backup_id)
+        recovery_info = {}
+        if decryption_dest:
+            recovery_info["decryption_dest"] = decryption_dest
+            src_filepath = decryption_dest
+        recovery_info["cmd"] = command
         # AND bandwidth limits
         executor.config.tablespace_bandwidth_limit = {"tbs1": ""}
         executor.config.bandwidth_limit = 10
@@ -1928,22 +1936,21 @@ class TestTarballRecoveryExecutor(object):
             ),
             mock.call().add_file(
                 bwlimit="",
-                src="%s/main/base/%s/data/%s.tar.gz"
-                % (barman_home, backup_id, tablespace_oid),
+                src="%s/%s.tar.gz" % (src_filepath, tablespace_oid),
                 dst="%s/%s.tar.gz" % (staging_dir, tablespace_oid),
                 item_class=copy_controller_mock.return_value.TABLESPACE_CLASS,
                 label=tablespace_name,
             ),
             mock.call().add_file(
                 bwlimit=10,
-                src="%s/main/base/%s/data/base.tar.gz" % (barman_home, backup_id),
+                src="%s/base.tar.gz" % src_filepath,
                 dst="%s/base.tar.gz" % staging_dir,
                 item_class=copy_controller_mock.return_value.PGDATA_CLASS,
                 label="pgdata",
             ),
             mock.call().add_file(
                 bwlimit=10,
-                src="%s/main/base/%s/data/backup_manifest" % (barman_home, backup_id),
+                src="%s/backup_manifest" % src_filepath,
                 dst="%s/backup_manifest" % dest,
                 item_class=copy_controller_mock.return_value.PGDATA_CLASS,
                 label="pgdata",
@@ -3030,29 +3037,6 @@ class TestIncrementalRecoveryExecutor(object):
         assert remote["pg_combinebackup_path"] == "/fake/path"
         assert remote["pg_combinebackup_version"] == "17.0.0"
 
-    @mock.patch("os.chmod")
-    @mock.patch("os.makedirs")
-    @mock.patch("shutil.rmtree")
-    def test__prepare_destination(self, mock_rmtree, mock_mkdir, mock_chmod, executor):
-        """
-        Unit test for the _prepare_destination method.
-
-        Create mock patch for shutil.rmtree, os.makedirs and os.chmod.
-
-        This unit tests checks if all methods are called once with the correct
-        args and the number of calls.
-
-        :param mock_rmtree: shutil.rmtree mock object
-        :param mock_mkdir: os.makedirs mock object
-        :param mock_chmod: os.chmod mock object
-        :param executor: executor mock fixture
-        """
-        dest_dir = "/destination/directory"
-        executor._prepare_destination(dest_dir)
-        mock_rmtree.assert_called_once_with(dest_dir, ignore_errors=True)
-        mock_mkdir.assert_called_once_with(dest_dir)
-        mock_chmod.assert_called_once_with(dest_dir, 448)
-
     @mock.patch("shutil.move")
     @mock.patch("os.path.join")
     @mock.patch("os.listdir")
@@ -3294,3 +3278,28 @@ class TestIncrementalRecoveryExecutor(object):
             "End combining backup via pg_combinebackup for backup %s",
             synthetic_backup_info.backup_id,
         )
+
+    @mock.patch("os.chmod")
+    @mock.patch("os.makedirs")
+    @mock.patch("shutil.rmtree")
+    def test__prepare_destination(self, mock_rmtree, mock_mkdir, mock_chmod):
+        """
+        Unit test for the _prepare_destination method.
+
+        Create mock patch for shutil.rmtree, os.makedirs and os.chmod.
+
+        This unit tests checks if all methods are called once with the correct
+        args and the number of calls.
+
+        :param mock_rmtree: shutil.rmtree mock object
+        :param mock_mkdir: os.makedirs mock object
+        :param mock_chmod: os.chmod mock object
+        :param executor: executor mock fixture
+        """
+        backup_manager = testing_helpers.build_backup_manager()
+        executor = IncrementalRecoveryExecutor(backup_manager=backup_manager)
+        dest_dir = "/destination/directory"
+        executor._prepare_destination(dest_dir)
+        mock_rmtree.assert_called_once_with(dest_dir, ignore_errors=True)
+        mock_mkdir.assert_called_once_with(dest_dir)
+        mock_chmod.assert_called_once_with(dest_dir, 448)

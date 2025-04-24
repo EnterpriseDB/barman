@@ -21,7 +21,7 @@ from unittest.mock import patch
 
 import mock
 import pytest
-from mock import Mock
+from mock import MagicMock, Mock
 
 from barman.encryption import (
     EncryptionManager,
@@ -176,6 +176,136 @@ class TestGPGEncryption:
             path=encryptor.path,
         )
         mock_gpg.return_value.assert_called_once()
+
+    @patch("barman.encryption.GPG")
+    def test_decrypt(self, mock_gpg):
+        """
+        Test the :meth:`decrypt` method of the :class:`GPGEncryption` class.
+        This test verifies that:
+        - The `decrypt` method correctly initializes the GPG decryption process
+            with the provided source file, destination file, and passphrase.
+        - The GPG instance's :meth:`execute` method is called with the correct
+            passphrase.
+        Mocks:
+        - `mock_gpg`: Mock object for the GPG instance to simulate GPG behavior.
+        Assertions:
+        - The GPG decryption process is invoked with the expected parameters.
+        - The :meth:`execute` method of the GPG instance is called with the correct
+          passphrase.
+        """
+        src = "/path/to/SOMEFILE.gpg"
+        dst = "/path/to/decrypted_files"
+        passphrase = b"dummy_passphrase"
+
+        # Mock GPG behavior
+        mock_gpg_instance = MagicMock()
+        mock_gpg.return_value = mock_gpg_instance
+
+        # Initialize GPGEncryption and call decrypt
+        encryption = GPGEncryption()
+        output = encryption.decrypt(src, dst, passphrase=passphrase)
+
+        # Assert GPG was called with the correct parameters
+        mock_gpg.assert_called_once_with(
+            action="decrypt",
+            input_filepath=src,
+            output_filepath=dst + "/SOMEFILE",
+            path=encryption.path,
+        )
+        mock_gpg_instance.assert_called_once_with(stdin=passphrase)
+        assert output == dst + "/SOMEFILE"
+
+        mock_gpg.reset_mock()
+        mock_gpg_instance.reset_mock()
+        mock_gpg.return_value = mock_gpg_instance
+
+        src = "/path/to/SOMEFILE_NO_EXTENSION"
+        dst = "/path/to/decrypted_files"
+        passphrase = b"dummy_passphrase"
+        output = encryption.decrypt(src, dst, passphrase=passphrase)
+
+        mock_gpg.assert_called_once_with(
+            action="decrypt",
+            input_filepath=src,
+            output_filepath=dst + "/SOMEFILE_NO_EXTENSION",
+            path=encryption.path,
+        )
+        mock_gpg_instance.assert_called_once_with(stdin=passphrase)
+        assert output == dst + "/SOMEFILE_NO_EXTENSION"
+
+    @patch("barman.encryption.GPG")
+    def test_decrypt_raise_exceptions(self, mock_gpg):
+        """
+        Test the :meth:`decrypt` method of the :class:`GPGEncryption` class.
+        This test verifies that:
+        - The `decrypt` method correctly initializes the GPG decryption process
+            with the provided source file, destination file, and passphrase.
+        - The GPG instance's :meth:`execute` method is called with the correct
+            passphrase.
+        Mocks:
+        - `mock_gpg`: Mock object for the GPG instance to simulate GPG behavior.
+        Assertions:
+        - The GPG decryption process is invoked with the expected parameters.
+        - The :meth:`execute` method of the GPG instance is called with the correct
+          passphrase.
+        """
+        src = "/path/to/SOMEFILE.gpg"
+        dst = "/path/to/decrypted_files"
+        passphrase = b""
+
+        # Mock GPG behavior
+        mock_gpg_instance = MagicMock()
+        mock_gpg.return_value = mock_gpg_instance
+        mock_gpg_instance.side_effect = CommandFailedException("No passphrase given")
+        # Initialize GPGEncryption and call decrypt
+        encryption = GPGEncryption()
+        with pytest.raises(
+            ValueError, match="Error: No passphrase provided for decryption."
+        ):
+            _ = encryption.decrypt(src, dst, passphrase=passphrase)
+
+        # Assert GPG was called with the correct parameters
+        mock_gpg.assert_called_once_with(
+            action="decrypt",
+            input_filepath=src,
+            output_filepath=dst + "/SOMEFILE",
+            path=encryption.path,
+        )
+        mock_gpg_instance.assert_called_once_with(stdin=passphrase)
+
+        mock_gpg.reset_mock()
+        mock_gpg_instance.reset_mock()
+        mock_gpg_instance.side_effect = CommandFailedException("Bad passphrase")
+        with pytest.raises(
+            ValueError, match="Error: Bad passphrase provided for decryption."
+        ):
+            _ = encryption.decrypt(src, dst, passphrase=passphrase)
+
+        # Assert GPG was called with the correct parameters
+        mock_gpg.assert_called_once_with(
+            action="decrypt",
+            input_filepath=src,
+            output_filepath=dst + "/SOMEFILE",
+            path=encryption.path,
+        )
+        mock_gpg_instance.assert_called_once_with(stdin=passphrase)
+
+        mock_gpg.reset_mock()
+        mock_gpg_instance.reset_mock()
+        mock_gpg_instance.side_effect = CommandFailedException(
+            "ANY OTHER ERROR MESSAGE"
+        )
+        with pytest.raises(CommandFailedException, match="ANY OTHER ERROR MESSAGE"):
+            _ = encryption.decrypt(src, dst, passphrase=passphrase)
+
+        # Assert GPG was called with the correct parameters
+        mock_gpg.assert_called_once_with(
+            action="decrypt",
+            input_filepath=src,
+            output_filepath=dst + "/SOMEFILE",
+            path=encryption.path,
+        )
+        mock_gpg_instance.assert_called_once_with(stdin=passphrase)
 
 
 class TestEncryptionManager:
