@@ -297,6 +297,21 @@ def list_processes(args=None):
 
 @command(
     [
+        argument("server_name", help="specifies the server name"),
+        argument("task", help="the task name to terminate (e.g. backup, receive-wal)"),
+    ],
+)
+def terminate_process(args):
+    """
+    Terminate a Barman server subprocess specified by task name.
+    """
+    server = get_server(args)
+    server.kill(args.task)
+    output.close_and_exit()
+
+
+@command(
+    [
         argument(
             "--keep-descriptors",
             help="Keep the stdout and the stderr streams attached to Barman subprocesses",
