@@ -446,3 +446,9 @@ class BackupManifestException(BarmanException):
     """
     Exception raised when there is a problem with the backup manifest.
     """
+
+
+class EncryptionCommandException(CommandFailedException):
+    """
+    Exception representing a failed encryption command.
+    """
