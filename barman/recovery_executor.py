@@ -145,27 +145,35 @@ class RecoveryExecutor(object):
             backup_info, remote_command, dest, recovery_conf_filename
         )
 
-        # If the backup is encrypted, it consists of tarballs (Barman only supports
-        # encryption of tarball based backups for now).
-        # Decrypt as the first step to prepare the backup, then begin the recovery
-        # process.
         passphrase = None
-        if backup_info.encryption:
-            if not self.config.encryption_passphrase_command:
-                output.error(
-                    "The backup '%s' is encrypted, but no "
-                    "'encryption_passphrase_command' was configured. "
-                    "Please set 'encryption_passphrase_command' in the configuration "
-                    "so the private key can be used for decryption.",
-                    backup_info.backup_id,
-                )
-                output.close_and_exit()
+        if self.config.encryption_passphrase_command:
+            output.info(
+                "The 'encryption_passphrase_command' setting is present in your "
+                "configuration. This implies that the catalog contains encrypted "
+                "backup or WAL files. The private key will be retrieved to perform "
+                "decryption as needed."
+            )
 
-            output.debug("Encrypted backup '%s' detected.", backup_info.backup_id)
             passphrase = get_passphrase_from_command(
                 self.config.encryption_passphrase_command
             )
 
+        # If the backup is encrypted, it consists of tarballs (Barman only supports
+        # encryption of tarball based backups for now).
+        # Decrypt as the first step to prepare the backup, then begin the recovery
+        # process.
+        if backup_info.encryption:
+            if passphrase is None:
+                output.error(
+                    "Encrypted backup '%s' was found for server '%s', but "
+                    "'encryption_passphrase_command' is not configured. Please "
+                    "configure it before attempting a restore.",
+                    backup_info.backup_id,
+                    self.server.config.name,
+                )
+                output.close_and_exit()
+
+            output.debug("Encrypted backup '%s' detected.", backup_info.backup_id)
             output.info(
                 "Decrypting files from backup '%s' for server '%s'.",
                 backup_info.backup_id,
@@ -329,7 +337,10 @@ class RecoveryExecutor(object):
 
                 # Restore WAL segments into the wal_dest directory
                 self._xlog_copy(
-                    required_xlog_files, recovery_info["wal_dest"], remote_command
+                    required_xlog_files,
+                    recovery_info["wal_dest"],
+                    remote_command,
+                    passphrase,
                 )
             except DataTransferFailure as e:
                 output.error("Failure copying WAL files: %s", e)
@@ -881,7 +892,7 @@ class RecoveryExecutor(object):
             msg = "data transfer failure"
             raise DataTransferFailure.from_command_error("rsync", e, msg)
 
-    def _xlog_copy(self, required_xlog_files, wal_dest, remote_command):
+    def _xlog_copy(self, required_xlog_files, wal_dest, remote_command, passphrase):
         """
         Restore WAL segments
 
@@ -889,6 +900,7 @@ class RecoveryExecutor(object):
         :param wal_dest: the destination directory for xlog recover
         :param remote_command: default None. The remote command to recover
                the xlog, in case of remote backup.
+        :param bytearray passphrase: UTF-8 encoded version of passphrase.
         """
         # List of required WAL files partitioned by containing directory
         xlogs = collections.defaultdict(list)
@@ -898,10 +910,24 @@ class RecoveryExecutor(object):
         # to be used during this recovery
         compressors = {}
         compression_manager = self.backup_manager.compression_manager
-        # Fill xlogs and compressors maps from required_xlog_files
+        # Map of every encryption used with any WAL file in the archive,
+        # to be used during this recovery.
+        encryptions = {}
+        encryption_manager = self.backup_manager.encryption_manager
+        # Fill xlogs and compressors and encryptions maps from
+        # required_xlog_files
         for wal_info in required_xlog_files:
             hashdir = xlog.hash_dir(wal_info.name)
             xlogs[hashdir].append(wal_info)
+            # If an encryption is required, make sure it exists in the cache
+            if (
+                wal_info.encryption is not None
+                and wal_info.encryption not in encryptions
+            ):
+                # e.g. GPGEncryption
+                encryptions[wal_info.encryption] = encryption_manager.get_encryption(
+                    encryption=wal_info.encryption
+                )
             # If a compressor is required, make sure it exists in the cache
             if (
                 wal_info.compression is not None
@@ -910,6 +936,14 @@ class RecoveryExecutor(object):
                 compressors[wal_info.compression] = compression_manager.get_compressor(
                     compression=wal_info.compression
                 )
+        if passphrase is None and encryptions:
+            output.error(
+                "Encrypted WALs were found for server '%s', but "
+                "'encryption_passphrase_command' is not configured. Please configure "
+                "it before attempting a restore.",
+                self.server.config.name,
+            )
+            output.close_and_exit()
 
         rsync = RsyncPgData(
             path=self.server.path,
@@ -917,22 +951,23 @@ class RecoveryExecutor(object):
             bwlimit=self.config.bandwidth_limit,
             network_compression=self.config.network_compression,
         )
-        # If compression is used and this is a remote recovery, we need a
-        # temporary directory where to spool uncompressed files,
-        # otherwise we either decompress every WAL file in the local
-        # destination, or we ship the uncompressed file remotely
-        if compressors:
+        # If encryption or compression is used during a remote recovery, we
+        # need a temporary directory to spool the decrypted and/or decompressed
+        # WAL files. Otherwise, we either decompress/decrypt directly in the
+        # local destination or ship unprocessed files remotely.
+        requires_decryption_or_decompression = bool(encryptions or compressors)
+        if requires_decryption_or_decompression:
             if remote_command:
-                # Decompress to a temporary spool directory
-                wal_decompression_dest = tempfile.mkdtemp(prefix="barman_wal-")
+                # Decompress/decrypt to a temporary spool directory
+                wal_staging_dest = tempfile.mkdtemp(prefix="barman_wal-")
             else:
-                # Decompress directly to the destination directory
-                wal_decompression_dest = wal_dest
-            # Make sure wal_decompression_dest exists
-            mkpath(wal_decompression_dest)
+                # Decompress/decrypt directly to the destination directory
+                wal_staging_dest = wal_dest
+            # Make sure wal_staging_dest exists
+            mkpath(wal_staging_dest)
         else:
-            # If no compression
-            wal_decompression_dest = None
+            # If no compression nor encryption
+            wal_staging_dest = None
         if remote_command:
             # If remote recovery tell rsync to copy them remotely
             # add ':' prefix to mark it as remote
@@ -951,23 +986,92 @@ class RecoveryExecutor(object):
                 xlogs[prefix][0],
                 xlogs[prefix][-1],
             )
-            # If at least one compressed file has been found, activate
-            # compression check and decompression for each WAL files
-            if compressors:
+            # If WAL is encrypted and compressed: decrypt to 'wal_staging_dest',
+            # then decompress the decrypted file to same location.
+            #
+            # If encrypted only: decrypt directly from source to 'wal_staging_dest'.
+            #
+            # If compressed only: decompress directly from source to 'wal_staging_dest'.
+            #
+            # If neither: simply copy from source to 'wal_staging_dest'.
+            if requires_decryption_or_decompression:
                 for segment in xlogs[prefix]:
-                    dst_file = os.path.join(wal_decompression_dest, segment.name)
-                    if segment.compression is not None:
-                        compressors[segment.compression].decompress(
-                            os.path.join(source_dir, segment.name), dst_file
+                    segment_compression = segment.compression
+                    src_file = os.path.join(source_dir, segment.name)
+                    dst_file = os.path.join(wal_staging_dest, segment.name)
+                    if segment.encryption is not None:
+                        filename = encryptions[segment.encryption].decrypt(
+                            file=src_file,
+                            dest=wal_staging_dest,
+                            passphrase=passphrase,
                         )
+                        # If for some reason xlog.db had no informatiom about, then
+                        # after decrypting, check if the file is compressed. This is a
+                        # corner case which may occur if the user ran `rebuild-xlogdb`,
+                        # for example, and the WALs were both encrypted and compressed.
+                        # In that case, the rebuild would fill only the encryption info.
+                        # Edge case consideration: If the compression is a custom
+                        # implementation of a known algorithm (e.g., lz4), Barman may
+                        # recognize it and default to its own decompression classes
+                        # (which rely on external libraries), instead of using the
+                        # custom decompression filter. If the compression is entirely
+                        # custom and unidentifiable, we fallback to the 'custom'
+                        # compression.
+                        if segment_compression is None:
+                            segment_compression = (
+                                compression_manager.identify_compression(filename)
+                                or compression_manager.unidentified_compression
+                            )
+                        if segment_compression is not None:
+                            # If by chance the compressor is not available in the cache,
+                            # then create an instance and add to the cache. Similar to
+                            # the previous comment, this is only expected to occur when
+                            # the user runs `rebuild-xlogdb` and the WALs were both
+                            # encrypted and compressed, and the compression info is thus
+                            # missing in xlog.db.
+                            if segment_compression not in compressors:
+                                compressor = compression_manager.get_compressor(
+                                    segment_compression
+                                )
+                                compressors[segment_compression] = compressor
+
+                            # At this point we are sure the cache contains the required
+                            # compressor.
+                            compressor = compressors.get(segment_compression)
+                            # We have no control over the name of the file generated by
+                            # the decrypt() method -- it writes a file with the name
+                            # that we are expecting by the end of the process. So, we
+                            # perform these steps:
+                            # 1. Decrypt the file with the final file name.
+                            # 2. Decompress the decrypted file as a temporary filel with
+                            #    suffix ".decompressed".
+                            # 3. Rename the decompressed file to the final file name,
+                            #    effectively replacing the decrypted file with the
+                            #    decompressed file.
+                            decompressed_file = filename + ".decompressed"
+                            compressor.decompress(filename, decompressed_file)
+
+                            try:
+                                shutil.move(decompressed_file, filename)
+                            except OSError as e:
+                                output.warning(
+                                    "Error renaming decompressed file '%s' to '%s': %s (%s)",
+                                    decompressed_file,
+                                    filename,
+                                    e,
+                                    type(e).__name__,
+                                )
+                    elif segment_compression is not None:
+                        compressors[segment_compression].decompress(src_file, dst_file)
                     else:
-                        shutil.copy2(os.path.join(source_dir, segment.name), dst_file)
+                        shutil.copy2(src_file, dst_file)
+
                 if remote_command:
                     try:
                         # Transfer the WAL files
                         rsync.from_file_list(
                             list(segment.name for segment in xlogs[prefix]),
-                            wal_decompression_dest,
+                            wal_staging_dest,
                             wal_dest,
                         )
                     except CommandFailedException as e:
@@ -979,7 +1083,7 @@ class RecoveryExecutor(object):
 
                     # Cleanup files after the transfer
                     for segment in xlogs[prefix]:
-                        file_name = os.path.join(wal_decompression_dest, segment.name)
+                        file_name = os.path.join(wal_staging_dest, segment.name)
                         try:
                             os.unlink(file_name)
                         except OSError as e:
@@ -1005,8 +1109,8 @@ class RecoveryExecutor(object):
         # Remove local decompression target directory if different from the
         # destination directory (it happens when compression is in use during a
         # remote recovery
-        if wal_decompression_dest and wal_decompression_dest != wal_dest:
-            shutil.rmtree(wal_decompression_dest)
+        if wal_staging_dest and wal_staging_dest != wal_dest:
+            shutil.rmtree(wal_staging_dest)
 
     def _generate_archive_status(
         self, recovery_info, remote_command, required_xlog_files

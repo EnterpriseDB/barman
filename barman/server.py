@@ -39,11 +39,12 @@ from tempfile import NamedTemporaryFile
 import dateutil.tz
 
 import barman
-from barman import output, xlog
+from barman import fs, output, xlog
 from barman.backup import BackupManager
 from barman.command_wrappers import BarmanSubProcess, Command, Rsync
 from barman.compression import CustomCompressor
 from barman.copy_controller import RsyncCopyController
+from barman.encryption import get_passphrase_from_command
 from barman.exceptions import (
     ArchiverFailure,
     BackupException,
@@ -2490,88 +2491,136 @@ class Server(RemoteStatusMixin):
         :param bool keep_compression: if True, do not uncompress compressed WAL files
         :param destination: file stream to use to write the data
         """
+        backup_manager = self.backup_manager
         # Identify the wal file
-        wal_info = self.backup_manager.get_wal_file_info(wal_file)
-
-        # Get a decompressor for the file (None if not compressed)
-        wal_compressor = self.backup_manager.compression_manager.get_compressor(
-            wal_info.compression
-        )
-
-        # Get a compressor for the output (None if not compressed)
-        out_compressor = self.backup_manager.compression_manager.get_compressor(
-            compression
-        )
+        wal_info = backup_manager.get_wal_file_info(wal_file)
 
         # Initially our source is the stored WAL file and we do not have
-        # any temporary file
+        # any temporary file.
         source_file = wal_file
         uncompressed_file = None
         compressed_file = None
-        # Ignore compression/decompression when:
-        # * The user wants to decompress on the client side; or
-        # * It's a partial WAL file. In this case, the WAL file is still being written
-        #   by pg_receivewal, and surely has not yet been compressed by the Barman
-        #   archiver.
-        if not keep_compression and not xlog.is_partial_file(wal_info.fullpath(self)):
-            # If the required compression is different from the source we
-            # decompress/compress it into the required format (getattr is
-            # used here to gracefully handle None objects)
-            if getattr(wal_compressor, "compression", None) != getattr(
-                out_compressor, "compression", None
-            ):
-                # If source is compressed, decompress it into a temporary file
-                if wal_compressor is not None:
-                    uncompressed_file = NamedTemporaryFile(
-                        dir=self.config.wals_directory,
-                        prefix=".%s." % os.path.basename(wal_file),
-                        suffix=".uncompressed",
-                    )
-                    # If a custom decompression filter is set, we prioritize using it
-                    # instead of the compression guessed by Barman based on the magic
-                    # number.
-                    is_decompressed = False
-                    if (
-                        self.config.custom_decompression_filter is not None
-                        and not isinstance(wal_compressor, CustomCompressor)
-                    ):
-                        try:
-                            self.backup_manager.compression_manager.get_compressor(
-                                "custom"
-                            ).decompress(source_file, uncompressed_file.name)
-                        except CommandFailedException as exc:
-                            output.debug("Error decompressing WAL: %s", str(exc))
-                        else:
-                            is_decompressed = True
-                    # But if a custom decompression filter is not set, or if using the
-                    # custom decompression filter was not successful, then try using
-                    # the decompressor identified by the magic number
-                    if not is_decompressed:
-                        try:
-                            wal_compressor.decompress(
-                                source_file, uncompressed_file.name
-                            )
-                        except CommandFailedException as exc:
-                            output.error("Error decompressing WAL: %s", str(exc))
-                            return
+        tempdir = None
 
-                    source_file = uncompressed_file.name
-
-                # If output compression is required compress the source
-                # into a temporary file
-                if out_compressor is not None:
-                    compressed_file = NamedTemporaryFile(
-                        dir=self.config.wals_directory,
-                        prefix=".%s." % os.path.basename(wal_file),
-                        suffix=".compressed",
+        # Check if it is not a partial file. In this case, the WAL file is still being
+        # written by pg_receivewal, and surely has not yet been compressed nor encrypted
+        # by the Barman archiver.
+        if not xlog.is_partial_file(wal_info.fullpath(self)):
+            wal_file_compression = None
+            # Before any decompression operation, check for encryption.
+            if wal_info.encryption:
+                # We need to check if `encryption_passphrase_command` is set.
+                if not self.config.encryption_passphrase_command:
+                    output.error(
+                        "Encrypted WAL file '%s' detected, but no "
+                        "'encryption_passphrase_command' is configured. "
+                        "Please set 'encryption_passphrase_command' in the configuration "
+                        "so the correct private key can be identified for decryption.",
+                        wal_info.name,
                     )
-                    out_compressor.compress(source_file, compressed_file.name)
-                    source_file = compressed_file.name
+                    output.close_and_exit()
+
+                passphrase = get_passphrase_from_command(
+                    self.config.encryption_passphrase_command
+                )
+
+                encryption_handler = backup_manager.encryption_manager.get_encryption(
+                    encryption=wal_info.encryption
+                )
+
+                tempdir = tempfile.mkdtemp(
+                    dir=self.config.wals_directory,
+                    prefix=".%s." % os.path.basename(wal_file),
+                )
+                # Decrypt wal to a tmp directory.
+                decrypted_file = encryption_handler.decrypt(
+                    file=source_file, dest=tempdir, passphrase=passphrase
+                )
+                # Now, check compression info.
+                wal_file_compression = (
+                    backup_manager.compression_manager.identify_compression(
+                        decrypted_file
+                    )
+                )
+
+                source_file = decrypted_file
+
+            wal_info_compression = wal_info.compression or wal_file_compression
+            # Get a decompressor for the file (None if not compressed)
+            wal_compressor = backup_manager.compression_manager.get_compressor(
+                wal_info_compression
+            )
+
+            # Get a compressor for the output (None if not compressed)
+            out_compressor = backup_manager.compression_manager.get_compressor(
+                compression
+            )
+
+            # Ignore compression/decompression when:
+            # * It's a partial WAL file; and
+            # * The user wants to decompress on the client side.
+            if not keep_compression:
+                # If the required compression is different from the source we
+                # decompress/compress it into the required format (getattr is
+                # used here to gracefully handle None objects)
+                if getattr(wal_compressor, "compression", None) != getattr(
+                    out_compressor, "compression", None
+                ):
+                    # If source is compressed, decompress it into a temporary file
+                    if wal_compressor is not None:
+                        uncompressed_file = NamedTemporaryFile(
+                            dir=self.config.wals_directory,
+                            prefix=".%s." % os.path.basename(wal_file),
+                            suffix=".uncompressed",
+                        )
+                        # If a custom decompression filter is set, we prioritize using it
+                        # instead of the compression guessed by Barman based on the magic
+                        # number.
+                        is_decompressed = False
+                        if (
+                            self.config.custom_decompression_filter is not None
+                            and not isinstance(wal_compressor, CustomCompressor)
+                        ):
+                            try:
+                                backup_manager.compression_manager.get_compressor(
+                                    "custom"
+                                ).decompress(source_file, uncompressed_file.name)
+                            except CommandFailedException as exc:
+                                output.debug("Error decompressing WAL: %s", str(exc))
+                            else:
+                                is_decompressed = True
+                        # But if a custom decompression filter is not set, or if using the
+                        # custom decompression filter was not successful, then try using
+                        # the decompressor identified by the magic number
+                        if not is_decompressed:
+                            try:
+                                wal_compressor.decompress(
+                                    source_file, uncompressed_file.name
+                                )
+                            except CommandFailedException as exc:
+                                output.error("Error decompressing WAL: %s", str(exc))
+                                return
+
+                        source_file = uncompressed_file.name
+
+                    # If output compression is required compress the source
+                    # into a temporary file
+                    if out_compressor is not None:
+                        compressed_file = NamedTemporaryFile(
+                            dir=self.config.wals_directory,
+                            prefix=".%s." % os.path.basename(wal_file),
+                            suffix=".compressed",
+                        )
+                        out_compressor.compress(source_file, compressed_file.name)
+                        source_file = compressed_file.name
 
         # Copy the prepared source file to destination
         with open(source_file, "rb") as input_file:
             shutil.copyfileobj(input_file, destination)
 
+        # Remove file
+        if tempdir is not None:
+            fs.LocalLibPathDeletionCommand(tempdir).delete()
         # Remove temp files
         if uncompressed_file is not None:
             uncompressed_file.close()
@@ -3287,7 +3336,6 @@ class Server(RemoteStatusMixin):
                 pass
 
         root = self.config.wals_directory
-        comp_manager = self.backup_manager.compression_manager
         wal_count = label_count = history_count = 0
         # lock the xlogdb as we are about replacing it completely
         with self.xlogdb("w") as fxlogdb:
@@ -3665,7 +3713,6 @@ class Server(RemoteStatusMixin):
         :return List[xlog.HistoryFileData]: the list of timelines that
           have the timeline with id 'tli' as parent
         """
-        comp_manager = self.backup_manager.compression_manager
 
         if forked_after:
             forked_after = xlog.parse_lsn(forked_after)
