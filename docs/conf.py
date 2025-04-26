@@ -334,6 +334,13 @@ man_pages = [
         1,
     ),
     (
+        "user_guide/commands/barman/list_processes.inc",
+        "barman-list-processes",
+        "Barman Sub-Commands",
+        [author],
+        1,
+    ),
+    (
         "user_guide/commands/barman/list_servers.inc",
         "barman-list-servers",
         "Barman Sub-Commands",

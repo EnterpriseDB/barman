@@ -86,6 +86,7 @@ setup(
                 "docs/_build/man/barman-keep.1",
                 "docs/_build/man/barman-list_backups.1",
                 "docs/_build/man/barman-list-files.1",
+                "docs/_build/man/barman-list-processes.1",
                 "docs/_build/man/barman-list-servers.1",
                 "docs/_build/man/barman-lock-directory-cleanup.1",
                 "docs/_build/man/barman-put-wal.1",

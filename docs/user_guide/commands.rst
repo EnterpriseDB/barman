@@ -68,6 +68,7 @@ quickly navigate to it.
 .. include:: commands/barman/keep.inc.rst
 .. include:: commands/barman/list_backups.inc.rst
 .. include:: commands/barman/list_files.inc.rst
+.. include:: commands/barman/list_processes.inc.rst
 .. include:: commands/barman/list_servers.inc.rst
 .. include:: commands/barman/lock_directory_cleanup.inc.rst
 .. include:: commands/barman/put_wal.inc.rst
