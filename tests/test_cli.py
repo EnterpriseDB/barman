@@ -56,6 +56,7 @@ from barman.cli import (
     replication_status,
     restore,
     show_servers,
+    terminate_process,
 )
 from barman.exceptions import WalArchiveContentError
 from barman.infofile import BackupInfo
@@ -1823,6 +1824,27 @@ class TestCli(object):
         mock_output.result.assert_called_once_with(
             "list_processes", processes_list, "test_server"
         )
+        mock_output.close_and_exit.assert_called_once()
+
+    @patch("barman.cli.get_server")
+    @patch("barman.cli.output")
+    def test_terminate_process(self, mock_output, mock_get_server):
+        """
+        Test that the terminate_process command performs the expected
+        actions.
+        """
+        args = Mock()
+        args.server_name = "test_server"
+        args.task = "backup"
+
+        dummy_server = Mock()
+        dummy_server.config.name = "test_server"
+        dummy_server.kill = MagicMock(return_value=True)
+        mock_get_server.return_value = dummy_server
+
+        terminate_process(args)
+
+        dummy_server.kill.assert_called_once_with(args.task)
         mock_output.close_and_exit.assert_called_once()
 
 
