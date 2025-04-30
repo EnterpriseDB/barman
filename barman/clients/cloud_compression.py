@@ -18,9 +18,8 @@
 
 
 from abc import ABCMeta, abstractmethod
-from types import SimpleNamespace
 
-from barman.compression import CompressionManager, _try_import_snappy
+from barman.compression import _try_import_snappy, get_internal_compressor
 from barman.utils import with_metaclass
 
 
@@ -117,51 +116,6 @@ def get_streaming_tar_mode(mode, compression):
         return "%s|" % mode
     else:
         return "%s|%s" % (mode, compression)
-
-
-def get_server_config_minimal(compression, compression_level):
-    """
-    Returns a placeholder for a :class:`~barman.config.ServerConfig` object with all compression
-    parameters relevant to :class:`barman.compression.CompressionManager` filled.
-
-    :param str compression: a valid compression algorithm option
-    :param str|int|None: a compression level for the specified algorithm
-    :return: a fake server config object
-    :rtype: SimpleNamespace
-    """
-    return SimpleNamespace(
-        compression=compression,
-        compression_level=compression_level,
-        custom_compression_magic=None,
-        custom_compression_filter=None,
-        custom_decompression_filter=None,
-    )
-
-
-def get_internal_compressor(compression, compression_level=None):
-    """
-    Get a :class:`barman.compression.InternalCompressor`
-    for the specified *compression* algorithm
-
-    :param str compression: a valid compression algorithm
-    :param str|int|None: a compression level for the specified algorithm
-    :return: the respective internal compressor
-    :rtype: barman.compression.InternalCompressor
-    :raises ValueError: if the compression received is unkown to Barman
-    """
-    # Replace gzip and bzip2 with their respective internal-compressor options so that
-    # we are able to compress/decompress in-memory, avoiding forking an OS process
-    if compression == "gzip":
-        compression = "pygzip"
-    elif compression == "bzip2":
-        compression = "pybzip2"
-    # Use a fake server config so we can reuse the logic of barman.compression module
-    server_config = get_server_config_minimal(compression, compression_level)
-    comp_manager = CompressionManager(server_config, None)
-    compressor = comp_manager.get_compressor(compression)
-    if compressor is None:
-        raise ValueError("Unknown compression type: %s" % compression)
-    return compressor
 
 
 def compress(wal_file, compression, compression_level):

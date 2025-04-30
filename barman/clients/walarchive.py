@@ -34,10 +34,9 @@ import time
 from contextlib import closing
 from io import BytesIO
 from tempfile import TemporaryDirectory
-from types import SimpleNamespace
 
 import barman
-from barman.compression import CompressionManager
+from barman.compression import get_internal_compressor
 from barman.config import parse_compression_level
 
 DEFAULT_USER = "barman"
@@ -414,35 +413,15 @@ class RemotePutWal(object):
                 tar.hash_algorithm = hash_algorithm
                 tar.HASHSUMS_FILE = HASHSUMS_FILE
                 if config.compression is not None:
-                    # Use the equivalent internal compressor for gzip and bzip2 options
-                    if config.compression == "gzip":
-                        config.compression = "pygzip"
-                    elif config.compression == "bzip2":
-                        config.compression = "pybzip2"
                     with TemporaryDirectory(prefix="barman-wal-archive-") as tmpdir:
-                        server_config = self._get_server_config_minimal(config)
-                        comp_manager = CompressionManager(server_config, None)
-                        compressor = comp_manager.get_compressor(config.compression)
+                        compressor = get_internal_compressor(
+                            config.compression, config.compression_level
+                        )
                         compressed_file_path = os.path.join(tmpdir, filename)
                         compressor.compress(wal_path, compressed_file_path)
                         tar.add(compressed_file_path, filename)
                 else:
                     tar.add(wal_path, filename)
-
-    def _get_server_config_minimal(self, config):
-        """
-        Returns a placeholder for a server config object with all compression
-        parameters relevant to ``CompressionManager`` filled.
-
-        :param argparse.Namespace config: the configuration from command line
-        """
-        return SimpleNamespace(
-            compression=config.compression,
-            compression_level=config.compression_level,
-            custom_compression_magic=None,
-            custom_compression_filter=None,
-            custom_decompression_filter=None,
-        )
 
     @classmethod
     def wait_for_all(cls):

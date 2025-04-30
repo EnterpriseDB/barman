@@ -32,10 +32,13 @@ import subprocess
 import sys
 import time
 from tempfile import NamedTemporaryFile
-from types import SimpleNamespace
 
 import barman
-from barman.compression import CompressionManager, InternalCompressor
+from barman.compression import (
+    CompressionManager,
+    InternalCompressor,
+    get_server_config_minimal,
+)
 from barman.utils import force_str
 
 DEFAULT_USER = "barman"
@@ -470,7 +473,7 @@ class RemoteGetWal(object):
         self.ssh_process.stdout.close()
 
         # Identify the WAL compression, if any
-        server_config = self._get_server_config_minimal(config)
+        server_config = get_server_config_minimal(config.compression, None)
         compression_manager = CompressionManager(server_config, None)
         compression = compression_manager.identify_compression(self.source_file.name)
 
@@ -497,21 +500,6 @@ class RemoteGetWal(object):
         self.processes.add(self.ssh_process)
         if self.decompressor_process:
             self.processes.add(self.decompressor_process)
-
-    def _get_server_config_minimal(self, config):
-        """
-        Returns a placeholder for a server config object with all compression
-        parameters relevant to ``CompressionManager`` filled.
-
-        :param argparse.Namespace config: the configuration from command line
-        """
-        return SimpleNamespace(
-            compression=config.compression,
-            compression_level=None,
-            custom_compression_magic=None,
-            custom_compression_filter=None,
-            custom_decompression_filter=None,
-        )
 
     @classmethod
     def wait_for_all(cls):
