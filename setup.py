@@ -102,6 +102,7 @@ setup(
                 "docs/_build/man/barman-sync-backup.1",
                 "docs/_build/man/barman-sync-info.1",
                 "docs/_build/man/barman-sync-wals.1",
+                "docs/_build/man/barman-terminate-process.1",
                 "docs/_build/man/barman-verify.1",
                 "docs/_build/man/barman-verify-backup.1",
                 "docs/_build/man/barman-wal-restore.1",

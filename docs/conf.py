@@ -446,6 +446,13 @@ man_pages = [
         1,
     ),
     (
+        "user_guide/commands/barman/terminate_process.inc",
+        "barman-terminate-process",
+        "Barman Sub-Commands",
+        [author],
+        1,
+    ),
+    (
         "user_guide/commands/barman/verify_backup.inc",
         "barman-verify-backup",
         "Barman Sub-Commands",

@@ -85,6 +85,7 @@ quickly navigate to it.
 .. include:: commands/barman/sync_backup.inc.rst
 .. include:: commands/barman/sync_info.inc.rst
 .. include:: commands/barman/sync_wals.inc.rst
+.. include:: commands/barman/terminate_process.inc.rst
 .. include:: commands/barman/verify_backup.inc.rst
 .. include:: commands/barman/verify.inc.rst
 
