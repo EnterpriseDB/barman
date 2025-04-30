@@ -1039,13 +1039,13 @@ Scope: Global / Server / Model.
 
 Specifies the compression level to be used by the selected compression algorithm. Valid
 values are integers within the supported range of the chosen algorithm or one
-of the predefined values: ``low``, ``medium``, and ``high``, which serve as shortcuts.
+of the predefined labels: ``low``, ``medium``, and ``high``, which serve as shortcuts.
 
 * ``low``: uses low level of compression, favoring compression speed over compression ratio.
 * ``medium``: uses a medium level of compression, balancing between compression speed and compression ratio.
 * ``high``: uses a high level of compression, favoring compression ratio over compression speed.
 
-Predefined values map to algorithm-specific levels, as detailed below:
+Predefined labels map to algorithm-specific levels, as detailed below:
 
 * ``lz4``: 0 to 16, ``low=0``, ``medium=6``, ``high=10``
 * ``xz``: 1 to 9, ``low=1``, ``medium=3``, ``high=5``

@@ -94,21 +94,22 @@ Barman server. Additionally, it can be utilized as a hook script for WAL archivi
   xz-compress the WAL while uploading to the cloud.
 
 ``--snappy``
-  snappy-compress the WAL while uploading to the cloud (requires optional
-  ``python-snappy`` library).
+  snappy-compress the WAL while uploading to the cloud (requires the ``python-snappy``
+  Python library to be installed).
 
 ``--zstd``
-  zstd-compress the WAL while uploading to the cloud (requires optional ``zstandard``
-  library).
+  zstd-compress the WAL while uploading to the cloud (requires the ``zstandard`` Python
+  library to be installed).
 
 ``--lz4``
-  lz4-compress the WAL while uploading to the cloud (requires optional ``lz4`` library).
+  lz4-compress the WAL while uploading to the cloud (requires the ``lz4`` Python
+  library to be installed).
 
 ``--compression-level``
   A compression level to be used by the selected compression algorithm. Valid
   values are integers within the supported range of the chosen algorithm or one
-  of the predefined values: ``fast``, ``average``, and ``high``. The range of each
-  algorithm as well as what level each predefined value maps to can be found in
+  of the predefined labels: ``low``, ``medium``, and ``high``. The range of each
+  algorithm as well as what level each predefined label maps to can be found in
   :ref:`compression_level <configuration-options-compression-level>`.
 
 ``--tags``

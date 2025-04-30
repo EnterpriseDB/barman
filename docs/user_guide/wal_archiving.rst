@@ -44,6 +44,12 @@ The option can use one of the following values:
     decompress old WALs still archived with the previous compression algorithm when
     restoring.
 
+A compression level can also be specified by using the ``compression_level``
+configuration. Valid values are integers within the supported range of the chosen
+algorithm or one of the predefined labels: ``low``, ``medium``, and ``high``. The range
+of each algorithm as well as what level each predefined label maps to can be found in
+:ref:`compression_level <configuration-options-compression-level>`.
+
 If archiving via ``archive_command`` with ``barman-wal-archive``, compression
 can also be configured using the ``--compression`` and ``--compression-level`` options
 with an algorithm and level of your choice. In such cases, compression is done on the
