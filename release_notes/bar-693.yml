@@ -1,0 +1,7 @@
+- summary: Add `encryption` field to the `show-backup` output
+  description: |
+    Adds a new encryption field to the `show-backup` output. It specifies the
+    encryption method that was used for the backup, if any.
+  type: minor_change
+  jira_tickets:
+    - BAR-693
