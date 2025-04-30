@@ -1,0 +1,9 @@
+- summary: Introduces the new `terminate-process` sub-command for terminating Barman subprocesses
+  description: |
+    Adds a new `terminate-process` command that allows users to terminate an active
+    Barman subprocess for a given server by specifying its task name. Barman will
+    terminate the subprocess as long as it belongs to the specified server and it is
+    currently active.
+  type: minor_change
+  jira_tickets:
+    - BAR-665
