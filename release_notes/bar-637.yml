@@ -1,0 +1,11 @@
+- summary: Remove pin from version of boto3 used in cloud scripts
+  description: |
+    After thorough investigation of issues with boto3 >= 1.36, we've
+    decided to remove the pin that kept the dependency at version
+    1.35.
+
+    Both AWS and MinIO object stores work correctly, and using a version
+    of boto3 which is >= 1.36 ensures the Barman cloud scripts work in a FIPS-compliant environment.
+  type: minor_change
+  jira_tickets:
+    - BAR-637

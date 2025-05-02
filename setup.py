@@ -131,10 +131,10 @@ setup(
     install_requires=install_requires,
     extras_require={
         "argcomplete": ["argcomplete"],
-        "aws-snapshots": ["boto3<=1.35.99"],
+        "aws-snapshots": ["boto3"],
         "azure": ["azure-identity", "azure-storage-blob"],
         "azure-snapshots": ["azure-identity", "azure-mgmt-compute"],
-        "cloud": ["boto3<=1.35.99"],
+        "cloud": ["boto3"],
         "google": [
             "google-cloud-storage",
         ],
