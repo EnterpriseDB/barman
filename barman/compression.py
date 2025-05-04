@@ -32,7 +32,6 @@ from distutils.version import LooseVersion as Version
 from io import BytesIO
 from types import SimpleNamespace
 
-import barman.infofile
 from barman.command_wrappers import Command
 from barman.exceptions import (
     CommandFailedException,
@@ -109,23 +108,6 @@ class CompressionManager(object):
                 config=self.config, compression=compression, path=self.path
             )
         return None
-
-    def get_wal_file_info(self, filename):
-        """
-        Populate a WalFileInfo object taking into account the server
-        configuration.
-
-        Set compression to 'custom' if no compression is identified
-        and Barman is configured to use custom compression.
-
-        :param str filename: the path of the file to identify
-        :rtype: barman.infofile.WalFileInfo
-        """
-        return barman.infofile.WalFileInfo.from_file(
-            filename,
-            compression_manager=self,
-            unidentified_compression=self.unidentified_compression,
-        )
 
     def identify_compression(self, filename):
         """

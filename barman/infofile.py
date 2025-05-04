@@ -28,7 +28,6 @@ import dateutil.tz
 
 from barman import xlog
 from barman.cloud_providers import snapshots_info_from_dict
-from barman.encryption import EncryptionManager
 from barman.exceptions import BackupInfoBadInitialisation
 from barman.utils import fsync_dir
 
@@ -378,7 +377,12 @@ class WalFileInfo(FieldListFile):
 
     @classmethod
     def from_file(
-        cls, filename, compression_manager=None, unidentified_compression=None, **kwargs
+        cls,
+        filename,
+        compression_manager=None,
+        unidentified_compression=None,
+        encryption_manager=None,
+        **kwargs,
     ):
         """
         Factory method to generate a WalFileInfo from a WAL file.
@@ -390,6 +394,8 @@ class WalFileInfo(FieldListFile):
         :param str filename: the file to inspect
         :param Compressionmanager compression_manager: a compression manager
             which will be used to identify the compression
+        :param EncryptionManager encryption_manager: an encryption manager which
+            will be used to identify the encryption
         :param str unidentified_compression: the compression to set if
             the current schema is not identifiable
         """
@@ -397,7 +403,9 @@ class WalFileInfo(FieldListFile):
         kwargs.setdefault("name", os.path.basename(filename))
         kwargs.setdefault("size", stat.st_size)
         kwargs.setdefault("time", stat.st_mtime)
-        kwargs.setdefault("encryption", EncryptionManager.identify_encryption(filename))
+        kwargs.setdefault(
+            "encryption", encryption_manager.identify_encryption(filename)
+        )
         if "compression" not in kwargs:
             # If the file is encrypted we are not able to identify any compression
             if kwargs["encryption"] is not None:

@@ -305,7 +305,7 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
 
             # Check if destination already exists
             if os.path.exists(dst_file):
-                dst_info = comp_manager.get_wal_file_info(dst_file)
+                dst_info = self.backup_manager.get_wal_file_info(dst_file)
                 src_uncompressed = src_file
                 dst_uncompressed = dst_file
                 try:
@@ -551,7 +551,12 @@ class FileWalArchiver(WalArchiver):
 
         # Build the list of WalFileInfo
         wal_files = [
-            WalFileInfo.from_file(f, self.backup_manager.compression_manager)
+            WalFileInfo.from_file(
+                filename=f,
+                compression_manager=self.backup_manager.compression_manager,
+                unidentified_compression=None,
+                encryption_manager=self.backup_manager.encryption_manager,
+            )
             for f in files
         ]
         return WalArchiverQueue(wal_files, batch_size=batch_size, errors=errors)
@@ -999,7 +1004,15 @@ class StreamingWalArchiver(WalArchiver):
 
         # Build the list of WalFileInfo
         wal_files = [
-            WalFileInfo.from_file(f, compression=None, encryption=None) for f in files
+            WalFileInfo.from_file(
+                filename=f,
+                compression_manager=self.backup_manager.compression_manager,
+                encryption_manager=self.backup_manager.encryption_manager,
+                unidentified_compression=None,
+                compression=None,
+                encryption=None,
+            )
+            for f in files
         ]
         return WalArchiverQueue(
             wal_files, batch_size=batch_size, errors=errors, skip=skip

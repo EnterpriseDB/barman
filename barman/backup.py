@@ -1517,7 +1517,6 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         from os.path import isdir, join
 
         root = self.config.wals_directory
-        comp_manager = self.compression_manager
 
         # If the WAL archive directory doesn't exists the archive is empty
         if not isdir(root):
@@ -1548,7 +1547,9 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                     fullname = join(hash_dir, wal_name)
                     # Return the first file that has the correct name
                     if not isdir(fullname) and xlog.is_wal_file(fullname):
-                        timelines[timeline] = comp_manager.get_wal_file_info(fullname)
+                        timelines[timeline] = self.get_wal_file_info(
+                            filename=fullname,
+                        )
                         break
 
         # Return the timeline map
@@ -1886,3 +1887,21 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             output.error(e.args[0]["err"])
             return
         output.info(pg_verifybackup.get_output()[0].strip())
+
+    def get_wal_file_info(self, filename):
+        """
+        Populate a WalFileInfo object taking into account the server
+        configuration.
+
+        Set compression to 'custom' if no compression is identified
+        and Barman is configured to use custom compression.
+
+        :param str filename: the path of the file to identify
+        :rtype: barman.infofile.WalFileInfo
+        """
+        return WalFileInfo.from_file(
+            filename,
+            compression_manager=self.compression_manager,
+            unidentified_compression=self.compression_manager.unidentified_compression,
+            encryption_manager=self.encryption_manager,
+        )

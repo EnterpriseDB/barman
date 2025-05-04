@@ -2491,7 +2491,7 @@ class Server(RemoteStatusMixin):
         :param destination: file stream to use to write the data
         """
         # Identify the wal file
-        wal_info = self.backup_manager.compression_manager.get_wal_file_info(wal_file)
+        wal_info = self.backup_manager.get_wal_file_info(wal_file)
 
         # Get a decompressor for the file (None if not compressed)
         wal_compressor = self.backup_manager.compression_manager.get_compressor(
@@ -3328,13 +3328,15 @@ class Server(RemoteStatusMixin):
                                         fullname,
                                     )
                                     continue
-                                wal_info = comp_manager.get_wal_file_info(fullname)
+                                wal_info = self.backup_manager.get_wal_file_info(
+                                    fullname
+                                )
                                 fxlogdb_new.write(wal_info.to_xlogdb_line())
                     else:
                         # only history files are here
                         if xlog.is_history_file(fullname):
                             history_count += 1
-                            wal_info = comp_manager.get_wal_file_info(fullname)
+                            wal_info = self.backup_manager.get_wal_file_info(fullname)
                             fxlogdb_new.write(wal_info.to_xlogdb_line())
                         else:
                             _logger.warning(
@@ -3681,7 +3683,7 @@ class Server(RemoteStatusMixin):
                 break
 
             # Create the WalFileInfo object using the file
-            wal_info = comp_manager.get_wal_file_info(history_path)
+            wal_info = self.backup_manager.get_wal_file_info(history_path)
             # Get content of the file. We need to pass a compressor manager
             # here to handle an eventual compression of the history file
             history_info = xlog.decode_history_file(
