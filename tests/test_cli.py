@@ -1503,15 +1503,24 @@ class TestCli(object):
         # GIVEN a server with a list of backups
         server = build_real_server()
         backup_infos = {
-            "20221110T120000": Mock(backup_id="20221110T120000", status="DONE"),
-            "20221109T120000": Mock(backup_id="20221109T120000", status="DONE"),
-            "20221108T120000": Mock(backup_id="20221108T120000", status="FAILED"),
+            "20221110T120000": Mock(
+                backup_id="20221110T120000", status="DONE", backup_type="full"
+            ),
+            "20221109T120000": Mock(
+                backup_id="20221109T120000", status="DONE", backup_type="full"
+            ),
+            "20221108T120000": Mock(
+                backup_id="20221108T120000", status="FAILED", backup_type="full"
+            ),
             "20221107T120000": Mock(
                 backup_id="20221107T120000",
                 backup_name="named backup",
                 status="DONE",
+                backup_type="full",
             ),
-            "20221106T120000": Mock(backup_id="20221106T120000", status="DONE"),
+            "20221106T120000": Mock(
+                backup_id="20221106T120000", status="DONE", backup_type="full"
+            ),
         }
         server.backup_manager._backup_cache = backup_infos
 

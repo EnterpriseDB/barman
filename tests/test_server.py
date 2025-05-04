@@ -1657,6 +1657,50 @@ class TestServer(object):
             in caplog.text
         )
 
+    @patch("barman.server.Server.perform_delete_backup")
+    @patch("barman.backup.BackupManager.get_available_backups")
+    def test_can_delete_backup_due_to_minimum_redundancy_and_being_incremental(
+        self, mock_get_available_backups, mock_perform_delete, caplog, tmpdir
+    ):
+        """
+        Verify that we can delete a backup when it is an incremental backup even if it
+        does not satisfy the server's minimum redundancy policy.
+        """
+        server = build_real_server({"barman_home": tmpdir.strpath})
+        server.config.minimum_redundancy = 2
+
+        backup_info = build_test_backup_info(
+            backup_id="full_backup_id",
+            status=BackupInfo.DONE,
+            server=server,
+            mode="postgres",
+        )
+
+        backup_info_ch = build_test_backup_info(
+            backup_id="child_backup_id",
+            status=BackupInfo.DONE,
+            server=server,
+            mode="postgres",
+            parent_backup_id="full_backup_id",
+        )
+
+        mock_get_available_backups.return_value = {
+            backup_info.backup_id: backup_info,
+            backup_info_ch.backup_id: backup_info_ch,
+        }
+        mock_perform_delete.return_value = True
+        # Test we CAN delete an incremental backup
+        res = server.delete_backup(backup_info_ch)
+        mock_perform_delete.assert_called_once_with(backup_info_ch)
+        assert res is True
+
+        # Test we CANNOT delete a full backup
+        mock_perform_delete.reset_mock()
+        res = server.delete_backup(backup_info)
+        mock_perform_delete.assert_not_called()
+        assert res is not True
+        assert "Skipping delete of backup full_backup_id for server main" in caplog.text
+
     @patch("barman.server.BackupManager.delete_backup")
     @patch("barman.backup.BackupManager.get_available_backups")
     def test_delete_running_backup(

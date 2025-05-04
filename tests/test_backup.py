@@ -544,6 +544,7 @@ class TestBackup(object):
             backup_id="fake_backup_id",
             server=backup_manager.server,
             status=BackupInfo.DONE,
+            children_backup_ids=["child_backup_id"],
         )
         b_info.save()
 
@@ -562,6 +563,25 @@ class TestBackup(object):
         assert available_backups[b_info.backup_id].to_dict() == (b_info.to_dict())
         # Check that the  failed backup have been filtered from the result
         assert failed_b_info.backup_id not in available_backups
+        assert len(available_backups) == 1
+
+        # Create an incremental BackupInfo object with status DONE
+        incremental_b_info = build_test_backup_info(
+            backup_id="child_backup_id",
+            server=backup_manager.server,
+            status=BackupInfo.DONE,
+            parent_backup_id="fake_backup_id",
+        )
+        incremental_b_info.save()
+
+        available_backups = backup_manager.get_available_backups(
+            status_filter=(BackupInfo.DONE,),
+            backup_type_filter=(BackupInfo.NOT_INCREMENTAL),
+        )
+
+        assert available_backups[b_info.backup_id].to_dict() == (b_info.to_dict())
+        # Check that the incremental backup have been filtered from the result
+        assert incremental_b_info.backup_id not in available_backups
         assert len(available_backups) == 1
 
     def test_load_backup_cache(self, tmpdir):
@@ -697,21 +717,43 @@ class TestBackup(object):
         backup_manager.check(strategy_mock)
         # Expect a failure from the method
         strategy_mock.result.assert_called_with(
-            "TestServer", False, hint="have 0 backups, expected at least 1"
+            "TestServer",
+            False,
+            hint="have 0 non-incremental backups, expected at least 1",
         )
         # Test the satisfied minimum_redundancy option
+        # Add parent backup
         b_info = build_test_backup_info(
             backup_id="fake_backup_id",
             server=backup_manager.server,
+            children_backup_ids=["child_backup_id1"],
         )
         b_info.save()
+
+        # Add 2 incremental backups - chained from `fake_backup_id`
+        b_info_ch1 = build_test_backup_info(
+            backup_id="child_backup_id1",
+            server=backup_manager.server,
+            parent_backup_id="fake_backup_id",
+            children_backup_ids=["child_backup_id2"],
+        )
+        b_info_ch1.save()
+
+        b_info_ch2 = build_test_backup_info(
+            backup_id="child_backup_id2",
+            server=backup_manager.server,
+            parent_backup_id="child_backup_id1",
+        )
+        b_info_ch2.save()
 
         strategy_mock.reset_mock()
         backup_manager._load_backup_cache()
         backup_manager.check(strategy_mock)
         # Expect a success from the method
         strategy_mock.result.assert_called_with(
-            "TestServer", True, hint="have 1 backups, expected at least 1"
+            "TestServer",
+            True,
+            hint="have 1 non-incremental backups, expected at least 1",
         )
 
         # Test for no failed backups
