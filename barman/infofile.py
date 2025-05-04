@@ -485,6 +485,14 @@ class BackupInfo(FieldListFile):
         NONE,
     )
 
+    # Backup types according to `backup_method``
+    FULL = "full"
+    INCREMENTAL = "incremental"
+    RSYNC = "rsync"
+    SNAPSHOT = "snapshot"
+    NOT_INCREMENTAL = (FULL, RSYNC, SNAPSHOT)
+    BACKUP_TYPE_ALL = (FULL, INCREMENTAL, RSYNC, SNAPSHOT)
+
     version = Field("version", load=int)
     pgdata = Field("pgdata")
     # Parse the tablespaces as a literal Python list of namedtuple

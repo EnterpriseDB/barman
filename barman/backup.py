@@ -85,6 +85,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
     DEFAULT_STATUS_FILTER = BackupInfo.STATUS_COPY_DONE
     DELETE_ANNOTATION = "delete_this"
+    DEFAULT_BACKUP_TYPE_FILTER = BackupInfo.BACKUP_TYPE_ALL
 
     def __init__(self, server):
         """
@@ -124,17 +125,28 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             return self.executor.mode
         return None
 
-    def get_available_backups(self, status_filter=DEFAULT_STATUS_FILTER):
+    def get_available_backups(
+        self,
+        status_filter=DEFAULT_STATUS_FILTER,
+        backup_type_filter=DEFAULT_BACKUP_TYPE_FILTER,
+    ):
         """
         Get a list of available backups
 
         :param status_filter: default DEFAULT_STATUS_FILTER. The status of
             the backup list returned
+        :param backup_type_filter: default DEFAULT_BACKUP_TYPE_FILTER. The type
+            of the backup list returned
         """
-        # If the filter is not a tuple, create a tuple using the filter
+        # If the status filter is not a tuple, create a tuple using the filter
         if not isinstance(status_filter, tuple):
             status_filter = tuple(
                 status_filter,
+            )
+        # If the backup_type filter is not a tuple, create a tuple using the filter
+        if not isinstance(backup_type_filter, tuple):
+            backup_type_filter = tuple(
+                backup_type_filter,
             )
         # Load the cache if necessary
         if self._backup_cache is None:
@@ -142,7 +154,10 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         # Filter the cache using the status filter tuple
         backups = {}
         for key, value in self._backup_cache.items():
-            if value.status in status_filter:
+            if (
+                value.status in status_filter
+                and value.backup_type in backup_type_filter
+            ):
                 backups[key] = value
         return backups
 
@@ -1393,8 +1408,13 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             ),
         )
         check_strategy.init_check("minimum redundancy requirements")
-        # Minimum redundancy checks
-        no_backups = len(self.get_available_backups(status_filter=(BackupInfo.DONE,)))
+        # Minimum redundancy checks will take into account only not-incremental backups
+        no_backups = len(
+            self.get_available_backups(
+                status_filter=(BackupInfo.DONE,),
+                backup_type_filter=(BackupInfo.NOT_INCREMENTAL),
+            )
+        )
         # Check minimum_redundancy_requirements parameter
         if no_backups < int(self.config.minimum_redundancy):
             status = False
@@ -1403,7 +1423,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         check_strategy.result(
             self.config.name,
             status,
-            hint="have %s backups, expected at least %s"
+            hint="have %s non-incremental backups, expected at least %s"
             % (no_backups, self.config.minimum_redundancy),
         )
 
@@ -1440,15 +1460,23 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             "Last available backup",
             self.get_last_backup_id(),
         )
-        # Minimum redundancy check. if number of backups minor than minimum
-        # redundancy, fail.
-        if no_backups < self.config.minimum_redundancy:
+
+        no_backups_not_incremental = len(
+            self.get_available_backups(
+                status_filter=(BackupInfo.DONE,),
+                backup_type_filter=(BackupInfo.NOT_INCREMENTAL),
+            )
+        )
+        # Minimum redundancy check. if number of non-incremental backups minor than
+        # minimum redundancy, fail.
+        if no_backups_not_incremental < self.config.minimum_redundancy:
             output.result(
                 "status",
                 self.config.name,
                 "minimum_redundancy",
                 "Minimum redundancy requirements",
-                "FAILED (%s/%s)" % (no_backups, self.config.minimum_redundancy),
+                "FAILED (%s/%s)"
+                % (no_backups_not_incremental, self.config.minimum_redundancy),
             )
         else:
             output.result(
@@ -1456,7 +1484,8 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 self.config.name,
                 "minimum_redundancy",
                 "Minimum redundancy requirements",
-                "satisfied (%s/%s)" % (no_backups, self.config.minimum_redundancy),
+                "satisfied (%s/%s)"
+                % (no_backups_not_incremental, self.config.minimum_redundancy),
             )
 
         # Output additional status defined by the BackupExecutor

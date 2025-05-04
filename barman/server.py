@@ -1614,11 +1614,18 @@ class Server(RemoteStatusMixin):
             )
             return False
 
-        # Honour minimum required redundancy
-        available_backups = self.get_available_backups(status_filter=(BackupInfo.DONE,))
+        # Honour minimum required redundancy, considering backups that are not
+        # incremental.
+        available_backups = self.get_available_backups(
+            status_filter=(BackupInfo.DONE,),
+            backup_type_filter=(BackupInfo.NOT_INCREMENTAL),
+        )
         minimum_redundancy = self.config.minimum_redundancy
-        if backup.status == BackupInfo.DONE and minimum_redundancy >= len(
-            available_backups
+        # If the backup is incremental, skip check for minimum redundancy and delete.
+        if (
+            backup.status == BackupInfo.DONE
+            and not backup.is_incremental
+            and minimum_redundancy >= len(available_backups)
         ):
             output.warning(
                 "Skipping delete of backup %s for server %s "
@@ -1816,14 +1823,20 @@ class Server(RemoteStatusMixin):
         except LockFilePermissionDenied as e:
             output.error("Permission denied, unable to access '%s'" % e)
 
-    def get_available_backups(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
+    def get_available_backups(
+        self,
+        status_filter=BackupManager.DEFAULT_STATUS_FILTER,
+        backup_type_filter=BackupManager.DEFAULT_BACKUP_TYPE_FILTER,
+    ):
         """
         Get a list of available backups
 
         param: status_filter: the status of backups to return,
             default to BackupManager.DEFAULT_STATUS_FILTER
         """
-        return self.backup_manager.get_available_backups(status_filter)
+        return self.backup_manager.get_available_backups(
+            status_filter, backup_type_filter
+        )
 
     def get_last_backup_id(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
         """
