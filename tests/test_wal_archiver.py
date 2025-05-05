@@ -361,9 +361,11 @@ class TestFileWalArchiver(object):
         backup_manager.server.get_backup.return_value = None
         backup_manager.compression_manager = MagicMock()
         backup_manager.encryption_manager = MagicMock()
-        backup_manager.compression_manager.get_wal_file_info.side_effect = (
+        backup_manager.get_wal_file_info.side_effect = (
             lambda filename: WalFileInfo.from_file(
-                filename, compression_manager=backup_manager.compression_manager
+                filename,
+                compression_manager=backup_manager.compression_manager,
+                encryption_manager=backup_manager.encryption_manager,
             )
         )
 
@@ -417,6 +419,7 @@ class TestFileWalArchiver(object):
         wal_info = WalFileInfo.from_file(
             wal_file.strpath,
             backup_manager.compression_manager,
+            encryption_manager=backup_manager.encryption_manager,
             encryption=None,
         )
         # Run the archiver
@@ -425,11 +428,15 @@ class TestFileWalArchiver(object):
         assert not os.path.exists(wal_file.strpath)
         assert os.path.exists(wal_info.fullpath(backup_manager.server))
 
+        backup_manager.encryption_manager.identify_encryption.return_value = None
         # Case 2: Test that a duplicate file (name and content) raises the appropriate
         # exception. The same file was already archived in case 1, so this is a duplicate
         wal_file.ensure()
         wal_info = WalFileInfo.from_file(
-            wal_file.strpath, backup_manager.compression_manager
+            wal_file.strpath,
+            backup_manager.compression_manager,
+            encryption_manager=backup_manager.encryption_manager,
+            encryption=None,
         )
         with pytest.raises(MatchingDuplicateWalFile):
             archiver.archive_wal(None, None, wal_info)
@@ -440,6 +447,7 @@ class TestFileWalArchiver(object):
         wal_info = WalFileInfo.from_file(
             wal_file.strpath,
             backup_manager.compression_manager,
+            encryption_manager=backup_manager.encryption_manager,
             compression=None,
             encryption=None,
         )
@@ -451,7 +459,10 @@ class TestFileWalArchiver(object):
         # before trying to archive. It should decompress and see that's already archived
         mock_compressor.compress(wal_file.strpath, wal_file.strpath)
         wal_info = WalFileInfo.from_file(
-            wal_file.strpath, backup_manager.compression_manager
+            wal_file.strpath,
+            backup_manager.compression_manager,
+            encryption_manager=backup_manager.encryption_manager,
+            encryption=None,
         )
         assert os.path.exists(wal_file.strpath)
         with pytest.raises(MatchingDuplicateWalFile):
@@ -469,7 +480,9 @@ class TestFileWalArchiver(object):
         wal_info = WalFileInfo.from_file(
             wal_file.strpath,
             backup_manager.compression_manager,
+            encryption_manager=backup_manager.encryption_manager,
             compression="some compression",
+            encryption=None,
         )
         with pytest.raises(MatchingDuplicateWalFile):
             archiver.archive_wal(None, None, wal_info)
@@ -484,6 +497,7 @@ class TestFileWalArchiver(object):
         wal_info = WalFileInfo.from_file(
             wal_file.strpath,
             backup_manager.compression_manager,
+            encryption_manager=backup_manager.encryption_manager,
             compression=None,
             encryption=None,
         )
@@ -495,6 +509,7 @@ class TestFileWalArchiver(object):
             wal_file.strpath, "%s.tmp" % wal_info.fullpath(backup_manager.server)
         )
 
+        backup_manager.encryption_manager.identify_encryption.return_value = "gpg"
         # Case 7: Test the archival of a new WAL file using encryption
         os.unlink(wal_info.fullpath(backup_manager.server))
 
@@ -502,8 +517,8 @@ class TestFileWalArchiver(object):
         wal_info = WalFileInfo.from_file(
             wal_file.strpath,
             backup_manager.compression_manager,
+            encryption_manager=backup_manager.encryption_manager,
             compression=None,
-            encryption=None,
         )
         archiver.archive_wal(None, mock_encryption, wal_info)
         assert os.path.exists(wal_info.fullpath(backup_manager.server))
@@ -519,8 +534,8 @@ class TestFileWalArchiver(object):
         wal_info = WalFileInfo.from_file(
             wal_file.strpath,
             backup_manager.compression_manager,
+            encryption_manager=backup_manager.encryption_manager,
             compression=None,
-            encryption=None,
         )
         mock_compressor = MagicMock(wraps=Compressor())
         mock_encryption = MagicMock(wraps=Encryption())
@@ -701,7 +716,10 @@ class TestFileWalArchiver(object):
         # This is an hack, instead of a WalFileInfo we use a simple string to
         # ease all the comparisons. The resulting string is the name enclosed
         # in colons. e.g. ":000000010000000000000001:"
-        from_file_mock.side_effect = lambda wal_name, *args, **kwargs: ":%s:" % wal_name
+        from_file_mock.side_effect = (
+            lambda filename, compression_manager, unidentified_compression, encryption_manager, *args, **kwargs: ":%s:"
+            % filename
+        )
 
         backup_manager = build_backup_manager(name="TestServer")
         archiver = FileWalArchiver(backup_manager)
@@ -1109,8 +1127,9 @@ class TestStreamingWalArchiver(object):
         # This is an hack, instead of a WalFileInfo we use a simple string to
         # ease all the comparisons. The resulting string is the name enclosed
         # in colons. e.g. ":000000010000000000000001:"
-        from_file_mock.side_effect = lambda wal_name, *args, **kwargs: (
-            ":%s:" % wal_name
+        from_file_mock.side_effect = (
+            lambda filename, compression_manager, unidentified_compression, encryption_manager, *args, **kwargs: ":%s:"
+            % filename
         )
 
         backup_manager = build_backup_manager(name="TestServer")

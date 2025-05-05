@@ -271,26 +271,41 @@ class TestFieldListFile(object):
 
 # noinspection PyMethodMayBeStatic
 class TestWalFileInfo(object):
+    @mock.patch("barman.encryption.EncryptionManager")
     @mock.patch("barman.compression.CompressionManager")
-    def test_from_file_no_compression(self, mock_compression_manager, tmpdir):
+    def test_from_file_no_compression(
+        self, mock_compression_manager, mock_encryption_manager, tmpdir
+    ):
         tmp_file = tmpdir.join("000000000000000000000001")
         tmp_file.write("dummy_content\n")
         stat = os.stat(tmp_file.strpath)
-        wfile_info = WalFileInfo.from_file(tmp_file.strpath, mock_compression_manager)
+        wfile_info = WalFileInfo.from_file(
+            filename=tmp_file.strpath,
+            compression_manager=mock_compression_manager,
+            encryption_manager=mock_encryption_manager,
+        )
         assert wfile_info.name == tmp_file.basename
         assert wfile_info.size == stat.st_size
         assert wfile_info.time == stat.st_mtime
         assert wfile_info.filename == "%s.meta" % tmp_file.strpath
         assert wfile_info.relpath() == ("0000000000000000/000000000000000000000001")
 
+    @mock.patch("barman.encryption.EncryptionManager")
     @mock.patch("barman.compression.CompressionManager")
-    def test_from_file_compression(self, mock_compression_manager, tmpdir):
+    def test_from_file_compression(
+        self, mock_compression_manager, mock_encryption_manager, tmpdir
+    ):
         # prepare
         mock_compression_manager.identify_compression.return_value = "test_compression"
 
         tmp_file = tmpdir.join("000000000000000000000001")
         tmp_file.write("dummy_content\n")
-        wfile_info = WalFileInfo.from_file(tmp_file.strpath, mock_compression_manager)
+        wfile_info = WalFileInfo.from_file(
+            filename=tmp_file.strpath,
+            compression_manager=mock_compression_manager,
+            encryption_manager=mock_encryption_manager,
+            encryption=None,
+        )
         assert wfile_info.name == tmp_file.basename
         assert wfile_info.size == tmp_file.size()
         assert wfile_info.time == tmp_file.mtime()
@@ -299,16 +314,21 @@ class TestWalFileInfo(object):
         assert wfile_info.compression == "test_compression"
         assert wfile_info.relpath() == ("0000000000000000/000000000000000000000001")
 
+    @mock.patch("barman.encryption.EncryptionManager")
     @mock.patch("barman.compression.CompressionManager")
-    def test_from_file_unidentified_compression(self, mock_compression_manager, tmpdir):
+    def test_from_file_unidentified_compression(
+        self, mock_compression_manager, mock_encryption_manager, tmpdir
+    ):
         # prepare
         mock_compression_manager.identify_compression.return_value = None
         tmp_file = tmpdir.join("00000001000000E500000064")
         tmp_file.write("dummy_content\n")
         wfile_info = WalFileInfo.from_file(
-            tmp_file.strpath,
-            mock_compression_manager,
+            filename=tmp_file.strpath,
+            compression_manager=mock_compression_manager,
             unidentified_compression="test_unidentified_compression",
+            encryption_manager=mock_encryption_manager,
+            encryption=None,
         )
         assert wfile_info.name == tmp_file.basename
         assert wfile_info.size == tmp_file.size()
@@ -318,17 +338,22 @@ class TestWalFileInfo(object):
         assert wfile_info.compression == "test_unidentified_compression"
         assert wfile_info.relpath() == ("00000001000000E5/00000001000000E500000064")
 
+    @mock.patch("barman.encryption.EncryptionManager")
     @mock.patch("barman.compression.CompressionManager")
-    def test_from_file_override_compression(self, mock_compression_manager, tmpdir):
+    def test_from_file_override_compression(
+        self, mock_compression_manager, mock_encryption_manager, tmpdir
+    ):
         # prepare
         mock_compression_manager.identify_compression.return_value = None
 
         tmp_file = tmpdir.join("000000000000000000000001")
         tmp_file.write("dummy_content\n")
         wfile_info = WalFileInfo.from_file(
-            tmp_file.strpath,
-            mock_compression_manager,
+            filename=tmp_file.strpath,
+            compression_manager=mock_compression_manager,
             compression="test_override_compression",
+            encryption_manager=mock_encryption_manager,
+            encryption=None,
         )
         assert wfile_info.name == tmp_file.basename
         assert wfile_info.size == tmp_file.size()
@@ -338,17 +363,24 @@ class TestWalFileInfo(object):
         assert wfile_info.compression == "test_override_compression"
         assert wfile_info.relpath() == ("0000000000000000/000000000000000000000001")
 
+    @mock.patch("barman.encryption.EncryptionManager")
     @mock.patch("barman.compression.CompressionManager")
-    def test_from_file_override(self, compression_manager, tmpdir):
+    def test_from_file_override(
+        self, compression_manager, mock_encryption_manager, tmpdir
+    ):
         # prepare
         compression_manager.identify_compression.return_value = None
         compression_manager.unidentified_compression = None
-
+        mock_encryption_manager.identify_encryption.return_vale = None
         tmp_file = tmpdir.join("000000000000000000000001")
         tmp_file.write("dummy_content\n")
 
         wfile_info = WalFileInfo.from_file(
-            tmp_file.strpath, compression_manager, name="000000000000000000000002"
+            filename=tmp_file.strpath,
+            compression_manager=compression_manager,
+            name="000000000000000000000002",
+            encryption_manager=mock_encryption_manager,
+            encryption=None,
         )
         assert wfile_info.name == "000000000000000000000002"
         assert wfile_info.size == tmp_file.size()
@@ -359,7 +391,11 @@ class TestWalFileInfo(object):
         assert wfile_info.relpath() == ("0000000000000000/000000000000000000000002")
 
         wfile_info = WalFileInfo.from_file(
-            tmp_file.strpath, compression_manager, size=42
+            filename=tmp_file.strpath,
+            compression_manager=compression_manager,
+            size=42,
+            encryption_manager=mock_encryption_manager,
+            encryption=None,
         )
         assert wfile_info.name == tmp_file.basename
         assert wfile_info.size == 42
@@ -370,7 +406,11 @@ class TestWalFileInfo(object):
         assert wfile_info.relpath() == ("0000000000000000/000000000000000000000001")
 
         wfile_info = WalFileInfo.from_file(
-            tmp_file.strpath, compression_manager, time=43
+            filename=tmp_file.strpath,
+            compression_manager=compression_manager,
+            time=43,
+            encryption_manager=mock_encryption_manager,
+            encryption=None,
         )
         assert wfile_info.name == tmp_file.basename
         assert wfile_info.size == tmp_file.size()
@@ -380,14 +420,17 @@ class TestWalFileInfo(object):
         assert wfile_info.encryption is None
         assert wfile_info.relpath() == ("0000000000000000/000000000000000000000001")
 
-    @mock.patch("barman.infofile.EncryptionManager")
+    @mock.patch("barman.encryption.EncryptionManager")
     def test_from_file_encryption(self, mock_encryption_manager, tmpdir):
         # prepare
         mock_encryption_manager.identify_encryption.return_value = "test_encryption"
 
         tmp_file = tmpdir.join("000000000000000000000001")
         tmp_file.write("dummy_content\n")
-        wfile_info = WalFileInfo.from_file(tmp_file.strpath)
+        wfile_info = WalFileInfo.from_file(
+            tmp_file.strpath,
+            encryption_manager=mock_encryption_manager,
+        )
         assert wfile_info.name == tmp_file.basename
         assert wfile_info.size == tmp_file.size()
         assert wfile_info.time == tmp_file.mtime()
@@ -396,7 +439,7 @@ class TestWalFileInfo(object):
         assert wfile_info.encryption == "test_encryption"
         assert wfile_info.relpath() == ("0000000000000000/000000000000000000000001")
 
-    @mock.patch("barman.infofile.EncryptionManager")
+    @mock.patch("barman.encryption.EncryptionManager")
     def test_from_file_override_encryption(self, encryption_manager, tmpdir):
         # prepare
         encryption_manager.identify_encryption.return_value = None
@@ -405,6 +448,7 @@ class TestWalFileInfo(object):
         tmp_file.write("dummy_content\n")
         wfile_info = WalFileInfo.from_file(
             tmp_file.strpath,
+            encryption_manager=encryption_manager,
             encryption="test_override_encryption",
         )
         assert wfile_info.name == tmp_file.basename

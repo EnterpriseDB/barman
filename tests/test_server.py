@@ -2629,9 +2629,7 @@ class TestServer(object):
             Mock(),
         ]
         mock_wal_info = Mock()
-        mock_compression_manager.return_value.get_wal_file_info.return_value = (
-            mock_wal_info
-        )
+        server.backup_manager.get_wal_file_info.return_value = mock_wal_info
 
         # WHEN get_wal_sendfile is called
         server.get_wal_sendfile(

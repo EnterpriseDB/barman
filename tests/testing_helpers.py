@@ -497,8 +497,11 @@ def build_backup_manager(
     with mock.patch("barman.backup.CompressionManager"):
         manager = BackupManager(server=server)
     manager.compression_manager.unidentified_compression = None
-    manager.compression_manager.get_wal_file_info.side_effect = (
-        lambda filename: WalFileInfo.from_file(filename, manager.compression_manager)
+    manager.get_wal_file_info = mock.Mock()
+    manager.get_wal_file_info.side_effect = lambda filename: WalFileInfo.from_file(
+        filename,
+        manager.compression_manager,
+        encryption_manager=manager.encryption_manager,
     )
     server.backup_manager = manager
     return manager

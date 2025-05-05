@@ -24,6 +24,7 @@ from mock import mock
 import barman.exceptions
 from barman import xlog
 from barman.compression import CompressionManager
+from barman.encryption import EncryptionManager
 from barman.exceptions import CommandException, WalArchiveContentError
 from barman.infofile import WalFileInfo
 
@@ -348,12 +349,15 @@ class Test(object):
         config_mock = mock.Mock()
         config_mock.compression = "gzip"
         comp_manager = CompressionManager(config_mock, None)
+        encryption_manager = EncryptionManager(config_mock, None)
         compressor = mock.Mock()
 
         # Regular history file
         p = tmpdir.join("00000002.history")
         p.write('1\t2/83000168\tat restore point "myrp"\n')
-        wal_info = WalFileInfo.from_file(p.strpath, comp_manager)
+        wal_info = WalFileInfo.from_file(
+            p.strpath, comp_manager, encryption_manager=encryption_manager
+        )
         result = xlog.HistoryFileData(
             tli=2,
             parent_tli=1,
@@ -366,7 +370,9 @@ class Test(object):
         # Comments must be skipped
         p = tmpdir.join("00000003.history")
         p.write('# Comment\n1\t2/83000168\tat restore point "testcomment"\n')
-        wal_info = WalFileInfo.from_file(p.strpath, comp_manager)
+        wal_info = WalFileInfo.from_file(
+            p.strpath, comp_manager, encryption_manager=encryption_manager
+        )
         result = xlog.HistoryFileData(
             tli=3,
             parent_tli=1,
@@ -379,7 +385,9 @@ class Test(object):
         # History file with comments and empty lines
         p = tmpdir.join("00000004.history")
         p.write('# Comment\n\n1\t2/83000168\ttesting "testemptyline"\n')
-        wal_info = WalFileInfo.from_file(p.strpath, comp_manager)
+        wal_info = WalFileInfo.from_file(
+            p.strpath, comp_manager, encryption_manager=encryption_manager
+        )
         result = xlog.HistoryFileData(
             tli=4,
             parent_tli=1,
@@ -401,7 +409,9 @@ class Test(object):
             switchpoint=0x283000168,
         )
         comp_manager.get_compressor("gzip").compress(u.strpath, p.strpath)
-        wal_info = WalFileInfo.from_file(p.strpath, comp_manager)
+        wal_info = WalFileInfo.from_file(
+            p.strpath, comp_manager, encryption_manager=encryption_manager
+        )
         assert xlog.decode_history_file(wal_info, comp_manager) == [result]
 
         with pytest.raises(barman.exceptions.BadHistoryFileContents):
