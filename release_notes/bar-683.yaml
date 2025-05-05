@@ -1,0 +1,8 @@
+- summary: Implemented GPG encryption of tar base backups
+  description: |
+    Implemented the GPG encryption of tar base backups. Encryption happens at the end of
+    the backup, encrypting the backup and tablespaces present in the backup directory.
+    Encrypted files will have the `.gpg` extension added.
+  type: minor_change
+  jira_tickets:
+    - BAR-683
