@@ -1172,26 +1172,48 @@ class TestRecoveryExecutor(object):
             mock.call().copy(),
         ]
 
+    @mock.patch("shutil.rmtree")
+    @mock.patch("os.unlink")
+    @mock.patch("shutil.copy2")
+    @mock.patch("tempfile.mkdtemp")
+    @mock.patch("barman.backup.EncryptionManager")
     @mock.patch("barman.backup.CompressionManager")
     @mock.patch("barman.recovery_executor.RsyncPgData")
-    def test_recover_xlog(self, rsync_pg_mock, cm_mock, tmpdir):
+    def test_recover_xlog(
+        self,
+        rsync_pg_mock,
+        cm_mock,
+        encr_mock,
+        mock_tmp_file,
+        mock_copy,
+        mock_unlink,
+        mock_rmtree,
+        tmpdir,
+    ):
         """
-        Test the recovery of the xlogs of a backup
+        Test the recovery of the xlogs of a backup. This unit test has 4 WAL files,
+        one is plain, one is compressed with gzip, one is compressed with bzip2 and the
+        last one is encrypted with gpg (not compressed).
         :param rsync_pg_mock: Mock rsync object for the purpose if this test
         """
         # Build basic folders/files structure
         dest = tmpdir.mkdir("destination")
         wals = tmpdir.mkdir("wals")
-        # Create 3 WAL files with different compressions
+        # Create 3 WAL files with different compressions and 1 with encryption
         xlog_dir = wals.mkdir(xlog.hash_dir("000000000000000000000002"))
         xlog_plain = xlog_dir.join("000000000000000000000001")
         xlog_gz = xlog_dir.join("000000000000000000000002")
         xlog_bz2 = xlog_dir.join("000000000000000000000003")
+        xlog_gpg = xlog_dir.join("000000000000000000000004")
         xlog_plain.write("dummy content")
         xlog_gz.write("dummy content gz")
         xlog_bz2.write("dummy content bz2")
+        xlog_gpg.write("dummy content gpg")
         server = testing_helpers.build_real_server(
-            main_conf={"wals_directory": wals.strpath}
+            main_conf={
+                "wals_directory": wals.strpath,
+                "encryption_passphrase_command": "echo 'passphrase'",
+            }
         )
         # Prepare compressors mock
         c = {
@@ -1199,6 +1221,17 @@ class TestRecoveryExecutor(object):
             "bzip2": mock.Mock(name="bzip2"),
         }
         cm_mock.return_value.get_compressor = lambda compression=None: c[compression]
+        # Encrypted WAL is not compressed
+        cm_mock.return_value.identify_compression.return_value = None
+        cm_mock.return_value.unidentified_compression = None
+
+        # Prepare compressors mock
+        e = {
+            "gpg": mock.Mock(name="gpg"),
+        }
+        encr_mock.return_value.get_encryption = lambda encryption: e[encryption]
+        mock_tmp_file.return_value = "/tmp/barman-wal-x"
+        mock_copy.return_value = None
         # touch destination files to avoid errors on cleanup
         c["gzip"].decompress.side_effect = lambda src, dst: open(dst, "w")
         c["bzip2"].decompress.side_effect = lambda src, dst: open(dst, "w")
@@ -1207,11 +1240,20 @@ class TestRecoveryExecutor(object):
 
         # Test: local copy
         required_wals = (
-            WalFileInfo.from_xlogdb_line("000000000000000000000001\t42\t43\tNone\n"),
-            WalFileInfo.from_xlogdb_line("000000000000000000000002\t42\t43\tgzip\n"),
-            WalFileInfo.from_xlogdb_line("000000000000000000000003\t42\t43\tbzip2\n"),
+            WalFileInfo.from_xlogdb_line(
+                "000000000000000000000001\t42\t43\tNone\tNone\n"
+            ),
+            WalFileInfo.from_xlogdb_line(
+                "000000000000000000000002\t42\t43\tgzip\tNone\n"
+            ),
+            WalFileInfo.from_xlogdb_line(
+                "000000000000000000000003\t42\t43\tbzip2\tNone\n"
+            ),
+            WalFileInfo.from_xlogdb_line(
+                "000000000000000000000004\t42\t43\tNone\tgpg\n"
+            ),
         )
-        executor._xlog_copy(required_wals, dest.strpath, None)
+        executor._xlog_copy(required_wals, dest.strpath, None, b"passphrase")
         # Check for a correct invocation of rsync using local paths
         rsync_pg_mock.assert_called_once_with(
             network_compression=False, bwlimit=None, path=None, ssh=None
@@ -1219,14 +1261,26 @@ class TestRecoveryExecutor(object):
         assert not rsync_pg_mock.return_value.from_file_list.called
         c["gzip"].decompress.assert_called_once_with(xlog_gz.strpath, mock.ANY)
         c["bzip2"].decompress.assert_called_once_with(xlog_bz2.strpath, mock.ANY)
-
+        e["gpg"].decrypt.assert_called_once_with(
+            file=xlog_gpg.strpath,
+            dest=dest.strpath + "/",
+            passphrase=b"passphrase",
+        )
+        cm_mock.return_value.identify_compression.assert_called_once_with(
+            e["gpg"].decrypt()
+        )
+        mock_copy.assert_called_once_with(xlog_plain.strpath, mock.ANY)
         # Reset mock calls
         rsync_pg_mock.reset_mock()
         c["gzip"].reset_mock()
         c["bzip2"].reset_mock()
-
+        e["gpg"].reset_mock()
+        cm_mock.reset_mock()
+        mock_copy.reset_mock()
         # Test: remote copy
-        executor._xlog_copy(required_wals, dest.strpath, "remote_command")
+        executor._xlog_copy(
+            required_wals, dest.strpath, "remote_command", b"passphrase"
+        )
         # Check for the invocation of rsync on a remote call
         rsync_pg_mock.assert_called_once_with(
             network_compression=False, bwlimit=None, path=mock.ANY, ssh="remote_command"
@@ -1236,12 +1290,188 @@ class TestRecoveryExecutor(object):
                 "000000000000000000000001",
                 "000000000000000000000002",
                 "000000000000000000000003",
+                "000000000000000000000004",
             ],
-            mock.ANY,
+            "/tmp/barman-wal-x",
             mock.ANY,
         )
         c["gzip"].decompress.assert_called_once_with(xlog_gz.strpath, mock.ANY)
         c["bzip2"].decompress.assert_called_once_with(xlog_bz2.strpath, mock.ANY)
+        e["gpg"].decrypt.assert_called_once_with(
+            file=xlog_gpg.strpath,
+            dest="/tmp/barman-wal-x",
+            passphrase=b"passphrase",
+        )
+        cm_mock.return_value.identify_compression.assert_called_once_with(
+            e["gpg"].decrypt()
+        )
+        mock_copy.assert_called_once_with(xlog_plain.strpath, mock.ANY)
+
+        mock_unlink.call_count = 4
+        mock_unlink.assert_has_calls(
+            [
+                call("/tmp/barman-wal-x/000000000000000000000001"),
+                call("/tmp/barman-wal-x/000000000000000000000002"),
+                call("/tmp/barman-wal-x/000000000000000000000003"),
+                call("/tmp/barman-wal-x/000000000000000000000004"),
+            ]
+        )
+
+    @mock.patch("shutil.move")
+    @mock.patch("tempfile.mkdtemp")
+    @mock.patch("barman.backup.EncryptionManager")
+    @mock.patch("barman.backup.CompressionManager")
+    @mock.patch("barman.recovery_executor.RsyncPgData")
+    def test_recover_xlog_compressed_encrypted(
+        self,
+        rsync_pg_mock,
+        cm_mock,
+        encr_mock,
+        mock_tmp_file,
+        mock_move,
+        tmpdir,
+    ):
+        """
+        Test the recovery of the xlogs of a backup. This unit test has 1 WAL file that
+        is compressed with gzip and encrypted with gpg.
+        :param rsync_pg_mock: Mock rsync object for the purpose if this test
+        """
+        # Build basic folders/files structure
+        dest = tmpdir.mkdir("destination")
+        wals = tmpdir.mkdir("wals")
+        # Create 3 WAL files with different compressions and 1 with encryption
+        xlog_dir = wals.mkdir(xlog.hash_dir("000000000000000000000002"))
+        xlog_gpg = xlog_dir.join("000000000000000000000004")
+        xlog_gpg.write("dummy content gpg")
+        server = testing_helpers.build_real_server(
+            main_conf={
+                "wals_directory": wals.strpath,
+                "encryption_passphrase_command": "echo 'passphrase'",
+            }
+        )
+        # Prepare compressors mock
+        c = {
+            "gzip": mock.Mock(name="gzip"),
+        }
+        cm_mock.return_value.get_compressor = lambda compression=None: c[compression]
+        # Encrypted WAL is not compressed
+        cm_mock.return_value.identify_compression.return_value = "gzip"
+        # Prepare compressors mock
+        e = {
+            "gpg": mock.Mock(name="gpg"),
+        }
+        encr_mock.return_value.get_encryption = lambda encryption: e[encryption]
+        mock_tmp_file.return_value = "/tmp/barman-wal-x"
+        mock_move.return_value = None
+        # touch destination files to avoid errors on cleanup
+        c["gzip"].decompress.side_effect = lambda src, dst: open(dst, "w")
+        e["gpg"].decrypt.return_value = dest.strpath + "/000000000000000000000004"
+        # Build executor
+        executor = RecoveryExecutor(server.backup_manager)
+
+        # Test: local copy
+        required_wals = (
+            WalFileInfo.from_xlogdb_line(
+                "000000000000000000000004\t42\t43\tNone\tgpg\n"
+            ),
+        )
+        executor._xlog_copy(required_wals, dest.strpath, None, b"passphrase")
+        # Check for a correct invocation of rsync using local paths
+        rsync_pg_mock.assert_called_once_with(
+            network_compression=False, bwlimit=None, path=None, ssh=None
+        )
+        assert not rsync_pg_mock.return_value.from_file_list.called
+        e["gpg"].decrypt.assert_called_once_with(
+            file=xlog_gpg.strpath,
+            dest=dest.strpath + "/",
+            passphrase=b"passphrase",
+        )
+        c["gzip"].decompress.assert_called_once_with(
+            dest.strpath + "/000000000000000000000004",
+            dest.strpath + "/000000000000000000000004.decompressed",
+        )
+        mock_move.assert_called_once_with(
+            dest.strpath + "/000000000000000000000004.decompressed",
+            dest.strpath + "/000000000000000000000004",
+        )
+        # Reset mock calls
+        rsync_pg_mock.reset_mock()
+        c["gzip"].reset_mock()
+        e["gpg"].reset_mock()
+        mock_move.reset_mock()
+        e["gpg"].decrypt.return_value = "/tmp/barman-wal-x/000000000000000000000004"
+        # Test: remote copy
+        executor._xlog_copy(
+            required_wals, dest.strpath, "remote_command", b"passphrase"
+        )
+        # Check for the invocation of rsync on a remote call
+        rsync_pg_mock.assert_called_once_with(
+            network_compression=False, bwlimit=None, path=mock.ANY, ssh="remote_command"
+        )
+        rsync_pg_mock.return_value.from_file_list.assert_called_once_with(
+            [
+                "000000000000000000000004",
+            ],
+            "/tmp/barman-wal-x",
+            mock.ANY,
+        )
+        e["gpg"].decrypt.assert_called_once_with(
+            file=xlog_gpg.strpath,
+            dest="/tmp/barman-wal-x",
+            passphrase=b"passphrase",
+        )
+        c["gzip"].decompress.assert_called_once_with(
+            "/tmp/barman-wal-x/000000000000000000000004",
+            "/tmp/barman-wal-x/000000000000000000000004.decompressed",
+        )
+
+        mock_move.assert_called_once_with(
+            "/tmp/barman-wal-x/000000000000000000000004.decompressed",
+            "/tmp/barman-wal-x/000000000000000000000004",
+        )
+
+    @mock.patch("barman.backup.EncryptionManager")
+    @mock.patch("barman.backup.CompressionManager")
+    @mock.patch("barman.recovery_executor.RsyncPgData")
+    def test_recover_xlog_encrypted_wals_with_no_passphrase_raises_exception(
+        self, rsync_pg_mock, cm_mock, encr_mock, tmpdir, caplog
+    ):
+        """
+        Test that when there is an encrypted WAL and there is no passphrase, the restore
+        process will raise an exception.
+        """
+        # Build basic folders/files structure
+        dest = tmpdir.mkdir("destination")
+        wals = tmpdir.mkdir("wals")
+        # Create 1 WAL encrypted file
+        xlog_dir = wals.mkdir(xlog.hash_dir("000000000000000000000002"))
+        xlog_gpg = xlog_dir.join("000000000000000000000001")
+        xlog_gpg.write("dummy content gpg")
+        server = testing_helpers.build_real_server(
+            main_conf={
+                "wals_directory": wals.strpath,
+                "encryption_passphrase_command": None,
+            }
+        )
+        # Prepare compressors mock
+        encr_mock.return_value.get_encryption.return_value = {
+            "gpg": mock.Mock(name="gpg"),
+        }
+        # Build executor
+        executor = RecoveryExecutor(server.backup_manager)
+
+        required_wals = (
+            WalFileInfo.from_xlogdb_line(
+                "000000000000000000000001\t42\t43\tNone\tgpg\n"
+            ),
+        )
+        with pytest.raises(SystemExit):
+            executor._xlog_copy(required_wals, dest.strpath, None, None)
+
+        assert (
+            "Encrypted WALs were found for server 'main', but "
+            "'encryption_passphrase_command' is not configured." in caplog.text
+        )
 
     def test_prepare_tablespaces(self, tmpdir):
         """
@@ -1547,8 +1777,8 @@ class TestRecoveryExecutor(object):
                 executor.recover(backup_info, dest.strpath)
 
         assert (
-            "The backup '1234567890' is encrypted, but no 'encryption_passphrase_command' was configured. "
-            in caplog.text
+            "Encrypted backup '1234567890' was found for server 'main', but "
+            "'encryption_passphrase_command' is not configured." in caplog.text
         )
 
     def test_recover_standby_mode(self, tmpdir):

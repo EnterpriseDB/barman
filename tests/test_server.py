@@ -382,8 +382,7 @@ class TestServer(object):
                 assert re.match(expected_line, xlogdb_file.readline()) is not None
             assert xlogdb_file.readline() == ""
 
-    @patch("barman.backup.CompressionManager")
-    def test_rebuild_xlogdb_with_compression(self, mock_comp_manager, tmpdir):
+    def test_rebuild_xlogdb_with_compression(self, tmpdir):
         """Test rebuilding the xlogdb when compression is enabled"""
         # set up the wal and xlogdb temp directories
         xlogdb_dir = tmpdir.mkdir("xlogdb_directory")
@@ -398,11 +397,17 @@ class TestServer(object):
         )
         # create a WAL file
         wals_dir.join("0000000100000000").join("000000010000000000000001").ensure()
+        # mock the backup manager
+
+        server.backup_manager = Mock()
+
         # mock the wal_file object returned by the compression manager
         mock_wal_info = Mock()
-        expected_line = "000000010000000000000001\t16777216\t1733775204.2337587\tgzip"
+        expected_line = (
+            "000000010000000000000001\t16777216\t1733775204.2337587\tgzip\tNone\n"
+        )
+        server.backup_manager.get_wal_file_info.return_value = mock_wal_info
         mock_wal_info.to_xlogdb_line.return_value = expected_line
-        mock_comp_manager.return_value.get_wal_file_info.return_value = mock_wal_info
         # rebuild the xlogdb based on the wals present in the wals directory
         server.rebuild_xlogdb()
         # assert that the correct line was written to the file
@@ -2603,6 +2608,7 @@ class TestServer(object):
         # error
         server.wait_for_wal(wal_file="00000001000000EF000000AB", archive_timeout=0.1)
 
+    @patch("tempfile.mkdtemp")
     @patch("barman.xlog.is_partial_file", return_value=False)
     @patch("barman.server.NamedTemporaryFile")
     @patch("barman.backup.CompressionManager")
@@ -2611,11 +2617,18 @@ class TestServer(object):
         mock_compression_manager,
         _mock_named_temporary_file,
         _mock_is_partial,
+        mock_mkdtemp,
         capsys,
     ):
         """Verify CommandFailedException uncompressing WAL is handled"""
         # GIVEN a server
-        server = build_real_server()
+        server = build_real_server(
+            main_conf={"encryption_passphrase_command": "echo 'passphrase'"}
+        )
+        server.backup_manager = Mock()
+        mock_wal_info = Mock()
+        server.backup_manager.get_wal_file_info.return_value = mock_wal_info
+        mock_wal_info.fullpath.return_value = "/some/path"
         # AND no existing errors in the output
         output.error_occurred = False
         # AND a mock compressor which raises CommandFailedException
@@ -2624,7 +2637,7 @@ class TestServer(object):
             "an error happened"
         )
         # Make sure the two compressors used by get_wal_sendfile are different mocks
-        mock_compression_manager.return_value.get_compressor.side_effect = [
+        server.backup_manager.compression_manager.get_compressor.side_effect = [
             mock_compressor,
             Mock(),
         ]
@@ -2643,6 +2656,7 @@ class TestServer(object):
         _out, err = capsys.readouterr()
         assert "ERROR: Error decompressing WAL: an error happened" in err
 
+    @patch("tempfile.mkdtemp")
     @patch("barman.server.open")
     @patch("barman.server.shutil")
     @patch("barman.server.NamedTemporaryFile")
@@ -2655,6 +2669,7 @@ class TestServer(object):
         _mock_named_temporary_file,
         _mock_shutil,
         _mock_open,
+        mock_tempdir,
     ):
         """
         Assert partial WAL files are ignored for compression/decompression.
@@ -2665,11 +2680,14 @@ class TestServer(object):
             server. Partial WAL files are never compressed/decompressed.
         """
         # GIVEN a server
-        server = build_real_server()
+        server = build_real_server(
+            main_conf={"encryption_passphrase_command": "echo 'passphrase'"}
+        )
+        server.backup_manager = Mock()
         # AND a mock compressor
         mock_compressor = Mock()
         mock_compressor.compression = "custom compression"
-        mock_compression_manager.return_value.get_compressor.side_effect = [
+        server.backup_manager.compression_manager.get_compressor.side_effect = [
             Mock(),
             Mock(),
         ]
@@ -2681,7 +2699,7 @@ class TestServer(object):
 
         # Reset mock and side effect
         mock_compressor.reset_mock()
-        mock_compression_manager.return_value.get_compressor.side_effect = [
+        server.backup_manager.compression_manager.get_compressor.side_effect = [
             mock_compressor,
             Mock(),
         ]
@@ -2692,6 +2710,7 @@ class TestServer(object):
         # THEN decompression should occur
         mock_compressor.decompress.assert_called_once()
 
+    @patch("tempfile.mkdtemp")
     @patch("barman.server.open")
     @patch("barman.server.shutil")
     @patch("barman.server.NamedTemporaryFile")
@@ -2702,14 +2721,21 @@ class TestServer(object):
         _mock_named_temporary_file,
         _mock_shutil,
         _mock_open,
+        mock_tempdir,
     ):
         """Assert `--keep-compression` option works in the ``get_wal_sendfile`` method"""
         # GIVEN a server
-        server = build_real_server()
+        server = build_real_server(
+            main_conf={"encryption_passphrase_command": "echo 'passphrase'"}
+        )
+        server.backup_manager = Mock()
+        mock_wal_info = Mock()
+        server.backup_manager.get_wal_file_info.return_value = mock_wal_info
+        mock_wal_info.fullpath.return_value = "/some/path"
         # AND a mock compressor, which is only present if the WAL is compressed
         mock_compressor = Mock()
         mock_compressor.compression = "some compression"
-        mock_compression_manager.return_value.get_compressor.side_effect = [
+        server.backup_manager.compression_manager.get_compressor.side_effect = [
             mock_compressor,
             Mock(),
         ]
@@ -2724,7 +2750,7 @@ class TestServer(object):
 
         # Reset mock and side effect
         mock_compressor.reset_mock()
-        mock_compression_manager.return_value.get_compressor.side_effect = [
+        server.backup_manager.compression_manager.get_compressor.side_effect = [
             mock_compressor,
             Mock(),
         ]
@@ -2737,6 +2763,7 @@ class TestServer(object):
         # THEN decompression should not occur
         mock_compressor.decompress.assert_not_called()
 
+    @patch("tempfile.mkdtemp")
     @patch("barman.server.open")
     @patch("barman.server.shutil")
     @patch("barman.server.NamedTemporaryFile")
@@ -2747,6 +2774,7 @@ class TestServer(object):
         _mock_named_temporary_file,
         _mock_shutil,
         _mock_open,
+        mock_tempdir,
     ):
         """
         Assert that it always prioritize using the custom decompression filter set.
@@ -2764,17 +2792,26 @@ class TestServer(object):
                 "compression": "custom",
                 "custom_compression_filter": "compression-A -c",
                 "custom_decompression_filter": "compression-A -c -d",
+                "encryption_passphrase_command": "echo 'passphrase'",
             }
         )
+        server.backup_manager = Mock()
+        mock_wal_info = Mock()
+        server.backup_manager.get_wal_file_info.return_value = mock_wal_info
+        mock_wal_info.fullpath.return_value = "/some/path"
         mock_custom_compressor = Mock()
         mock_custom_compressor.compression = "custom"
-        mock_compression_manager.custom_compression_filter = "compression-A -c"
-        mock_compression_manager.custom_decompression_filter = "compression-A -c -d"
+        server.backup_manager.compression_manager.custom_compression_filter = (
+            "compression-A -c"
+        )
+        server.backup_manager.compression_manager.custom_decompression_filter = (
+            "compression-A -c -d"
+        )
         # AND the compression identified by the magic number is also compression A, to
         # which Barman also has its own internal implementation i.e. a compressor class
         mock_compressor = Mock()
         mock_compressor.compression = "compression-A"
-        mock_compression_manager.return_value.get_compressor.side_effect = [
+        server.backup_manager.compression_manager.get_compressor.side_effect = [
             mock_compressor,  # compressor found based on the magic number
             None,  # compressor based on the `compression` param of get_wal_sendfile
             mock_custom_compressor,  # compressor to prioritize if a custom comp is set
@@ -2789,7 +2826,7 @@ class TestServer(object):
         # reset mocks and side effect
         mock_compressor.reset_mock()
         mock_custom_compressor.reset_mock()
-        mock_compression_manager.return_value.get_compressor.side_effect = [
+        server.backup_manager.compression_manager.get_compressor.side_effect = [
             mock_compressor,
             None,
             mock_custom_compressor,
@@ -2805,6 +2842,152 @@ class TestServer(object):
         # THEN it should fallback to the native internal Barman implementation
         mock_custom_compressor.decompress.assert_called_once()
         mock_compressor.decompress.assert_called_once()
+
+    @patch("barman.fs.LocalLibPathDeletionCommand")
+    @patch("barman.server.get_passphrase_from_command")
+    @patch("tempfile.mkdtemp")
+    @patch("barman.server.open")
+    @patch("barman.server.shutil")
+    @patch("barman.server.NamedTemporaryFile")
+    @patch("barman.backup.CompressionManager")
+    def test_get_wal_encrypted(
+        self,
+        mock_compression_manager,
+        _mock_named_temporary_file,
+        _mock_shutil,
+        _mock_open,
+        mock_tempdir,
+        mock_getpass,
+        mock_fs_cmd,
+    ):
+        """
+        Assert that it always prioritize using the custom decompression filter set.
+
+        .. note::
+            This handle cases where e.g., the user is using a custom compression filter
+            which implements, let's say, the LZ4 algorithm. LZ4 is an algorithm
+            supported natively by Barman so it has its own ways of handling it.
+            However, we always have to honor the custom parameters set by the user,
+            even if having a native handler for it. This is what this test is for.
+        """
+        # GIVEN a server with custom compression set to, let's say, compression A
+        server = build_real_server(
+            main_conf={
+                "compression": "custom",
+                "custom_compression_filter": "compression-A -c",
+                "custom_decompression_filter": "compression-A -c -d",
+                "encryption_passphrase_command": "echo 'passphrase'",
+            }
+        )
+        server.backup_manager = Mock()
+        mock_wal_info = Mock()
+        server.backup_manager.get_wal_file_info.return_value = mock_wal_info
+        mock_wal_info.fullpath.return_value = "/some/path"
+        mock_wal_info.encryption = "gpg"
+        mock_custom_compressor = Mock()
+        mock_custom_compressor.compression = "custom"
+        server.backup_manager.compression_manager.custom_compression_filter = (
+            "compression-A -c"
+        )
+        server.backup_manager.compression_manager.custom_decompression_filter = (
+            "compression-A -c -d"
+        )
+        # AND the compression identified by the magic number is also compression A, to
+        # which Barman also has its own internal implementation i.e. a compressor class
+        mock_compressor = Mock()
+        mock_compressor.compression = "compression-A"
+        server.backup_manager.compression_manager.get_compressor.side_effect = [
+            mock_compressor,  # compressor found based on the magic number
+            None,  # compressor based on the `compression` param of get_wal_sendfile
+            mock_custom_compressor,  # compressor to prioritize if a custom comp is set
+        ]
+        encryption_handler = Mock()
+        server.backup_manager.encryption_manager.get_encryption.return_value = (
+            encryption_handler
+        )
+        # WHEN get_wal_sendfile is called
+        server.get_wal_sendfile("test_wal_file", None, False, "/path/to/dest")
+
+        mock_getpass.assert_called_once_with("echo 'passphrase'")
+        server.backup_manager.encryption_manager.get_encryption.assert_called_once_with(
+            encryption=mock_wal_info.encryption
+        )
+        mock_tempdir.assert_called_once_with(
+            dir="/some/barman/home/main/wals",
+            prefix=".%s." % os.path.basename("test_wal_file"),
+        )
+
+        encryption_handler.decrypt.assert_called_once_with(
+            file="test_wal_file",
+            dest=mock_tempdir.return_value,
+            passphrase=mock_getpass.return_value,
+        )
+        server.backup_manager.compression_manager.identify_compression.assert_called_once_with(
+            encryption_handler.decrypt.return_value
+        )
+        # THEN decompression should occur using the custom compressor, not the one
+        # found by the magic number
+        mock_custom_compressor.decompress.assert_called_once_with(
+            encryption_handler.decrypt.return_value, mock.ANY
+        )
+        mock_compressor.decompress.assert_not_called()
+
+        # reset mocks and side effect
+        mock_compressor.reset_mock()
+        mock_custom_compressor.reset_mock()
+        server.backup_manager.compression_manager.get_compressor.side_effect = [
+            mock_compressor,
+            None,
+            mock_custom_compressor,
+        ]
+
+        # HOWEVER, if the custom decompression filter fails
+        mock_custom_compressor.decompress.side_effect = CommandFailedException(
+            "oh no! custom decompression failed!!!"
+        )
+
+        mock_fs_cmd.assert_called_once_with(mock_tempdir.return_value)
+        mock_fs_cmd.return_value.delete.assert_called_once_with()
+        mock_fs_cmd.reset_mock()
+        server.get_wal_sendfile("test_wal_file", None, False, "/path/to/dest")
+
+        # THEN it should fallback to the native internal Barman implementation
+        mock_custom_compressor.decompress.assert_called_once_with(
+            encryption_handler.decrypt.return_value, mock.ANY
+        )
+        mock_compressor.decompress.assert_called_once_with(
+            encryption_handler.decrypt.return_value, mock.ANY
+        )
+
+        mock_fs_cmd.assert_called_once_with(mock_tempdir.return_value)
+        mock_fs_cmd.return_value.delete.assert_called_once_with()
+
+    def test_get_wal_sendfile_encrypted_wal_with_no_passphrase_raise_exception(
+        self, caplog
+    ):
+        """
+        Test that when an encrypted WAL is found and no passphrase is passed, the
+        get_wal process (a.k.a barman-wal-restore) will raise an exception.
+        """
+        server = build_real_server(
+            main_conf={
+                "encryption_passphrase_command": None,
+            }
+        )
+        server.backup_manager = Mock()
+        mock_wal_info = Mock()
+        server.backup_manager.get_wal_file_info.return_value = mock_wal_info
+        mock_wal_info.fullpath.return_value = "/some/path"
+        mock_wal_info.encryption = "gpg"
+        mock_wal_info.name = "test_wal_file"
+
+        with pytest.raises(SystemExit):
+            server.get_wal_sendfile("test_wal_file", None, False, "/path/to/dest")
+
+        assert (
+            "Encrypted WAL file 'test_wal_file' detected, but no "
+            "'encryption_passphrase_command' is configured."
+        ) in caplog.text
 
     @pytest.mark.parametrize(
         "obj, HASHSUMS_FILE, hash_algorithm, checksum, mode, success, error_msg",
