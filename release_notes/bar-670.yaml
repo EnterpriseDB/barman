@@ -1,0 +1,11 @@
+- summary: Implement GPG WAL encryption
+  description: |
+    Added GPG encryption to WAL files. This is part of the feature of
+    introducing GPG encryption in backups for Barman. This includes
+    changing the way that xlogdb is read and written to
+    (maintaining backwards compatibility), a new logic
+    to detect when files are encrypted and encryption process itself.
+  type: minor_change
+  jira_tickets:
+    - BAR-670
+    - BAR-681
