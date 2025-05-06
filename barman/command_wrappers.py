@@ -1296,7 +1296,7 @@ class GPG(Command):
     .. important::
         `--pinentry-mode loopback` requires GPG version >= 2.1.
 
-    .. security::
+    .. important::
         This class expects sensitive data such as a GPG passphrase to be passed
         as a ``bytearray``, not as a ``str``. Python strings are immutable and may
         linger in memory, potentially exposing sensitive data. Using a ``bytearray``
@@ -1308,25 +1308,28 @@ class GPG(Command):
             gpg(stdin=passphrase)
             passphrase[:] = b"\x00" * len(passphrase)
 
-    .. example::
-        Decryption:
-            >>> gpg = GPG(
-            ...     action="decrypt",
-            ...     input_filepath="file.gpg",
-            ...     output_filepath="file.decrypted"
-            ... )
-            >>> passphrase = bytearray(b"secret")
-            >>> gpg(stdin=passphrase)
-            >>> passphrase[:] = b"\x00" * len(passphrase)
+    Example for decryption:
+        .. code-block:: python
 
-        Encryption:
-            >>> gpg = GPG(
-            ...     action="encrypt",
-            ...     input_filepath="file.txt",
-            ...     output_filepath="file.txt.gpg",
-            ...     recipient="user@example.com"
-            ... )
-            >>> gpg()
+                >>> gpg = GPG(
+                ...     action="decrypt",
+                ...     input_filepath="file.gpg",
+                ...     output_filepath="file.decrypted"
+                ... )
+                >>> passphrase = bytearray(b"secret")
+                >>> gpg(stdin=passphrase)
+                >>> passphrase[:] = b"\x00" * len(passphrase)
+
+    Example for decryption:
+        .. code-block:: python
+
+                >>> gpg = GPG(
+                ...     action="encrypt",
+                ...     input_filepath="file.txt",
+                ...     output_filepath="file.txt.gpg",
+                ...     recipient="user@example.com"
+                ... )
+                >>> gpg()
     """
 
     def __init__(
