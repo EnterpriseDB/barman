@@ -24,7 +24,6 @@ from mock import ANY, MagicMock, patch
 from testing_helpers import build_backup_manager, build_test_backup_info, caplog_reset
 
 import barman.xlog
-from barman.compression import CompressionManager, PyGZipCompressor
 from barman.exceptions import (
     ArchiverFailure,
     CommandFailedException,
@@ -348,116 +347,193 @@ class TestFileWalArchiver(object):
         registry.pop("pigz")
         return registry
 
-    def test_archive_wal(self, mock_compression_registry, tmpdir, capsys):
+    def test_archive_wal(self, tmpdir):
         """
-        Test WalArchiver.archive_wal behaviour when the WAL file already
-        exists in the archive
+        Assert that WALs ar archvied correctly, mainly when dealing with duplication
+        and when using compression or encryption.
         """
-        # Hack the compression registry so we do not attempt to use native gzip
-        with patch.dict(
-            "barman.compression.compression_registry",
-            mock_compression_registry,
-            clear=True,
-        ):
-            # Setup the test environment
-            backup_manager = build_backup_manager(
-                name="TestServer", global_conf={"barman_home": tmpdir.strpath}
+        # Setup the test environment
+        backup_manager = build_backup_manager(
+            name="TestServer", global_conf={"barman_home": tmpdir.strpath}
+        )
+
+        # Mock the compression and encryption manager
+        backup_manager.server.get_backup.return_value = None
+        backup_manager.compression_manager = MagicMock()
+        backup_manager.encryption_manager = MagicMock()
+        backup_manager.compression_manager.get_wal_file_info.side_effect = (
+            lambda filename: WalFileInfo.from_file(
+                filename, compression_manager=backup_manager.compression_manager
             )
-            # Replace mock compression manager with a real compression manager
-            backup_manager.compression_manager = CompressionManager(
-                backup_manager.config, tmpdir.strpath
-            )
+        )
 
-            backup_manager.server.get_backup.return_value = None
+        # Mock an actual simple compressor so that we can test with real
+        # compression/decompression without relying on the compression classes
+        class Compressor:
+            compression = "some compression"
 
-            basedir = tmpdir.join("main")
-            incoming_dir = basedir.join("incoming")
-            archive_dir = basedir.join("wals")
-            xlog_db = archive_dir.join("xlog.db")
-            wal_name = "000000010000000000000001"
-            wal_file = incoming_dir.join(wal_name)
-            wal_file.ensure()
-            archive_dir.ensure(dir=True)
-            xlog_db.ensure()
-            backup_manager.server.xlogdb.return_value.__enter__.return_value = (
-                xlog_db.open(mode="a")
-            )
-            archiver = FileWalArchiver(backup_manager)
-            backup_manager.server.archivers = [archiver]
+            def compress(self, src, dst):
+                with open(src, "rb") as f_in, gzip.open(dst, "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
 
-            # Tests a basic archival process
-            wal_info = WalFileInfo.from_file(
-                wal_file.strpath, backup_manager.compression_manager
-            )
-            archiver.archive_wal(None, wal_info)
+            def decompress(self, src, dst):
+                with gzip.open(src, "rb") as f_in, open(dst, "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
 
-            assert not os.path.exists(wal_file.strpath)
-            assert os.path.exists(wal_info.fullpath(backup_manager.server))
+        class Encryption:
+            NAME = "some encryption"
 
-            # Tests the archiver behaviour for duplicate WAL files, as the
-            # wal file named '000000010000000000000001' was already archived
-            # in the previous test
-            wal_file.ensure()
-            wal_info = WalFileInfo.from_file(
-                wal_file.strpath, backup_manager.compression_manager
-            )
+            def encrypt(self, filename, dest_dir):
+                filename = os.path.basename(filename) + ".gpg"
+                dest_filename = os.path.join(dest_dir, filename)
+                open(dest_filename, mode="w+").write("encrypted-content")
+                return dest_filename
 
-            with pytest.raises(MatchingDuplicateWalFile):
-                archiver.archive_wal(None, wal_info)
+        mock_compressor = MagicMock(wraps=Compressor())
+        mock_encryption = MagicMock(wraps=Encryption())
+        backup_manager.compression_manager.get_compressor.return_value = mock_compressor
+        # Set up the required directories, incoming and archived
+        basedir = tmpdir.join("main")
+        incoming_dir = basedir.join("incoming")
+        archive_dir = basedir.join("wals")
+        archive_dir.ensure(dir=True)
 
-            # Tests the archiver behaviour for duplicated WAL files with
-            # different contents
-            wal_file.write("test")
-            wal_info = WalFileInfo.from_file(
-                wal_file.strpath, backup_manager.compression_manager
-            )
+        # Create xlogdb and a test WAL file
+        xlog_db = archive_dir.join("xlog.db")
+        xlog_db.ensure()
+        wal_file = incoming_dir.join("000000010000000000000001")
+        wal_file.ensure()
 
-            with pytest.raises(DuplicateWalFile):
-                archiver.archive_wal(None, wal_info)
+        # Mock the xlogdb to just open the file when requested
+        backup_manager.server.xlogdb.return_value.__enter__.return_value = xlog_db.open(
+            mode="a"
+        )
 
-            # Tests the archiver behaviour for duplicate WAL files, as the
-            # wal file named '000000010000000000000001' was already archived
-            # in the previous test and the input file uses compression
-            compressor = PyGZipCompressor(backup_manager.config, "pygzip")
-            compressor.compress(wal_file.strpath, wal_file.strpath)
-            wal_info = WalFileInfo.from_file(
-                wal_file.strpath, backup_manager.compression_manager
-            )
-            assert os.path.exists(wal_file.strpath)
+        # Initialize the archiver
+        archiver = FileWalArchiver(backup_manager)
+        backup_manager.server.archivers = [archiver]
 
-            with pytest.raises(MatchingDuplicateWalFile):
-                archiver.archive_wal(None, wal_info)
+        # Case 1: Test a basic archival process
+        wal_info = WalFileInfo.from_file(
+            wal_file.strpath,
+            backup_manager.compression_manager,
+            encryption=None,
+        )
+        # Run the archiver
+        archiver.archive_wal(None, None, wal_info)
+        # Assert that the file as moved from incoming to the archive directory
+        assert not os.path.exists(wal_file.strpath)
+        assert os.path.exists(wal_info.fullpath(backup_manager.server))
 
-            # Test the archiver behaviour when the incoming file is compressed
-            # and it has been already archived and compressed.
-            compressor.compress(
-                wal_info.fullpath(backup_manager.server),
-                wal_info.fullpath(backup_manager.server),
-            )
+        # Case 2: Test that a duplicate file (name and content) raises the appropriate
+        # exception. The same file was already archived in case 1, so this is a duplicate
+        wal_file.ensure()
+        wal_info = WalFileInfo.from_file(
+            wal_file.strpath, backup_manager.compression_manager
+        )
+        with pytest.raises(MatchingDuplicateWalFile):
+            archiver.archive_wal(None, None, wal_info)
 
-            wal_info = WalFileInfo.from_file(
-                wal_file.strpath, backup_manager.compression_manager
-            )
+        # Case 3: test that a duplicate file (only name is equal) raises the appropriate
+        # exception. The file name is the same but we modify the content for this case
+        wal_file.write("test")
+        wal_info = WalFileInfo.from_file(
+            wal_file.strpath,
+            backup_manager.compression_manager,
+            compression=None,
+            encryption=None,
+        )
+        with pytest.raises(DuplicateWalFile):
+            archiver.archive_wal(None, None, wal_info)
 
-            with pytest.raises(MatchingDuplicateWalFile):
-                archiver.archive_wal(None, wal_info)
+        # Case 4: Test that a duplicate file (name and content) raises the appropriate
+        # exception. This is the same incoming file used in case 3, but we compress it
+        # before trying to archive. It should decompress and see that's already archived
+        mock_compressor.compress(wal_file.strpath, wal_file.strpath)
+        wal_info = WalFileInfo.from_file(
+            wal_file.strpath, backup_manager.compression_manager
+        )
+        assert os.path.exists(wal_file.strpath)
+        with pytest.raises(MatchingDuplicateWalFile):
+            archiver.archive_wal(None, None, wal_info)
 
-            # Reset the status of the incoming and WALs directory
-            # removing the files archived during the preceding tests.
-            os.unlink(wal_info.fullpath(backup_manager.server))
-            os.unlink(wal_file.strpath)
+        # Case 5: Test that a duplicate file (name and content) raises the appropriate
+        # exception. This is the same incoming file used in case 4. In this case, we
+        # are compressing the file already archived, so incoming is uncompressed and
+        # the archived is compressed. It should decompress the archived one and see
+        # that it's the same file trying to be archived
+        mock_compressor.compress(
+            wal_info.fullpath(backup_manager.server),
+            wal_info.fullpath(backup_manager.server),
+        )
+        wal_info = WalFileInfo.from_file(
+            wal_file.strpath,
+            backup_manager.compression_manager,
+            compression="some compression",
+        )
+        with pytest.raises(MatchingDuplicateWalFile):
+            archiver.archive_wal(None, None, wal_info)
 
-            # Test the archival of a WAL file using compression.
-            wal_file.write("test")
-            wal_info = WalFileInfo.from_file(
-                wal_file.strpath, backup_manager.compression_manager
-            )
-            archiver.archive_wal(compressor, wal_info)
-            assert os.path.exists(wal_info.fullpath(backup_manager.server))
-            assert not os.path.exists(wal_file.strpath)
-            assert "pygzip" == CompressionManager(MagicMock(), "").identify_compression(
-                wal_info.fullpath(backup_manager.server)
-            )
+        # Reset the status of the incoming and WALs directory
+        # removing the files archived during the preceding tests
+        os.unlink(wal_info.fullpath(backup_manager.server))
+        os.unlink(wal_file.strpath)
+
+        # Case 6: Test the archival of a new WAL file using compression
+        wal_file.write("test")
+        wal_info = WalFileInfo.from_file(
+            wal_file.strpath,
+            backup_manager.compression_manager,
+            compression=None,
+            encryption=None,
+        )
+        mock_compressor = MagicMock(wraps=Compressor())
+        archiver.archive_wal(mock_compressor, None, wal_info)
+        assert os.path.exists(wal_info.fullpath(backup_manager.server))
+        assert not os.path.exists(wal_file.strpath)
+        mock_compressor.compress.assert_called_once_with(
+            wal_file.strpath, "%s.tmp" % wal_info.fullpath(backup_manager.server)
+        )
+
+        # Case 7: Test the archival of a new WAL file using encryption
+        os.unlink(wal_info.fullpath(backup_manager.server))
+
+        wal_file.write("test")
+        wal_info = WalFileInfo.from_file(
+            wal_file.strpath,
+            backup_manager.compression_manager,
+            compression=None,
+            encryption=None,
+        )
+        archiver.archive_wal(None, mock_encryption, wal_info)
+        assert os.path.exists(wal_info.fullpath(backup_manager.server))
+        assert not os.path.exists(wal_file.strpath)
+        mock_encryption.encrypt.assert_called_once_with(
+            wal_file.strpath, os.path.dirname(wal_info.fullpath(backup_manager.server))
+        )
+
+        # Case 8: Test the archival of a new WAL file using compression and encryption
+        os.unlink(wal_info.fullpath(backup_manager.server))
+
+        wal_file.write("test")
+        wal_info = WalFileInfo.from_file(
+            wal_file.strpath,
+            backup_manager.compression_manager,
+            compression=None,
+            encryption=None,
+        )
+        mock_compressor = MagicMock(wraps=Compressor())
+        mock_encryption = MagicMock(wraps=Encryption())
+        archiver.archive_wal(mock_compressor, mock_encryption, wal_info)
+        assert os.path.exists(wal_info.fullpath(backup_manager.server))
+        assert not os.path.exists(wal_file.strpath)
+        mock_compressor.compress.assert_called_once_with(
+            wal_file.strpath, "%s.tmp" % wal_info.fullpath(backup_manager.server)
+        )
+        mock_encryption.encrypt.assert_called_once_with(
+            "%s.tmp" % wal_info.fullpath(backup_manager.server),
+            os.path.dirname(wal_info.fullpath(backup_manager.server)),
+        )
 
     # TODO: The following test should be splitted in two
     # the BackupManager part and the FileWalArchiver part

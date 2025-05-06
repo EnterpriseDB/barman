@@ -379,6 +379,40 @@ class TestWalFileInfo(object):
         assert wfile_info.compression is None
         assert wfile_info.encryption is None
         assert wfile_info.relpath() == ("0000000000000000/000000000000000000000001")
+
+    @mock.patch("barman.infofile.EncryptionManager")
+    def test_from_file_encryption(self, mock_encryption_manager, tmpdir):
+        # prepare
+        mock_encryption_manager.identify_encryption.return_value = "test_encryption"
+
+        tmp_file = tmpdir.join("000000000000000000000001")
+        tmp_file.write("dummy_content\n")
+        wfile_info = WalFileInfo.from_file(tmp_file.strpath)
+        assert wfile_info.name == tmp_file.basename
+        assert wfile_info.size == tmp_file.size()
+        assert wfile_info.time == tmp_file.mtime()
+        assert wfile_info.filename == "%s.meta" % tmp_file.strpath
+        assert wfile_info.compression is None
+        assert wfile_info.encryption == "test_encryption"
+        assert wfile_info.relpath() == ("0000000000000000/000000000000000000000001")
+
+    @mock.patch("barman.infofile.EncryptionManager")
+    def test_from_file_override_encryption(self, encryption_manager, tmpdir):
+        # prepare
+        encryption_manager.identify_encryption.return_value = None
+
+        tmp_file = tmpdir.join("000000000000000000000001")
+        tmp_file.write("dummy_content\n")
+        wfile_info = WalFileInfo.from_file(
+            tmp_file.strpath,
+            encryption="test_override_encryption",
+        )
+        assert wfile_info.name == tmp_file.basename
+        assert wfile_info.size == tmp_file.size()
+        assert wfile_info.time == tmp_file.mtime()
+        assert wfile_info.filename == "%s.meta" % tmp_file.strpath
+        assert wfile_info.compression is None
+        assert wfile_info.encryption == "test_override_encryption"
         assert wfile_info.relpath() == ("0000000000000000/000000000000000000000001")
 
     def test_to_xlogdb_line(self):
