@@ -1,0 +1,8 @@
+- summary: Add support for encryption in Barman checks
+  description: |
+    The `barman check` command now supports encryption. This allows users to verify if
+    their encryption settings are correctly configured in the Barman server and
+    functioning as expected.
+  type: minor_change
+  jira_tickets:
+    - BAR-702
