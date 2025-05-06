@@ -28,6 +28,7 @@ import dateutil.tz
 
 from barman import xlog
 from barman.cloud_providers import snapshots_info_from_dict
+from barman.encryption import EncryptionManager
 from barman.exceptions import BackupInfoBadInitialisation
 from barman.utils import fsync_dir
 
@@ -373,6 +374,7 @@ class WalFileInfo(FieldListFile):
         "time", load=float, doc="WAL file modification time (seconds since epoch)"
     )
     compression = Field("compression", doc="compression type")
+    encryption = Field("encryption", doc="encryption type")
 
     @classmethod
     def from_file(
@@ -395,11 +397,16 @@ class WalFileInfo(FieldListFile):
         kwargs.setdefault("name", os.path.basename(filename))
         kwargs.setdefault("size", stat.st_size)
         kwargs.setdefault("time", stat.st_mtime)
+        kwargs.setdefault("encryption", EncryptionManager.identify_encryption(filename))
         if "compression" not in kwargs:
-            kwargs["compression"] = (
-                compression_manager.identify_compression(filename)
-                or unidentified_compression
-            )
+            # If the file is encrypted we are not able to identify any compression
+            if kwargs["encryption"] is not None:
+                kwargs["compression"] = None
+            else:
+                kwargs["compression"] = (
+                    compression_manager.identify_compression(filename)
+                    or unidentified_compression
+                )
         obj = cls(**kwargs)
         obj.filename = "%s.meta" % filename
         obj.orig_filename = filename
@@ -409,7 +416,13 @@ class WalFileInfo(FieldListFile):
         """
         Format the content of this object as a xlogdb line.
         """
-        return "%s\t%s\t%s\t%s\n" % (self.name, self.size, self.time, self.compression)
+        return "%s\t%s\t%s\t%s\t%s\n" % (
+            self.name,
+            self.size,
+            self.time,
+            self.compression,
+            self.encryption,
+        )
 
     @classmethod
     def from_xlogdb_line(cls, line):
@@ -419,21 +432,31 @@ class WalFileInfo(FieldListFile):
         :param str line: a line in the wal database to parse
         :rtype: WalFileInfo
         """
-        try:
-            name, size, time, compression = line.split()
-        except ValueError:
-            # Old format compatibility (no compression)
-            compression = None
-            try:
-                name, size, time = line.split()
-            except ValueError:
-                raise ValueError("cannot parse line: %r" % (line,))
+        parts = line.split()
+        # Checks length to keep compatibility with old xlog files where
+        # compression and/or encryption did not exist yet
+        if len(parts) == 3:
+            name, size, time, compression, encryption = parts + [None, None]
+        elif len(parts) == 4:
+            name, size, time, compression, encryption = parts + [None]
+        elif len(parts) == 5:
+            name, size, time, compression, encryption = parts
+        else:
+            raise ValueError("cannot parse line: %r" % (line,))
         # The to_xlogdb_line method writes None values as literal 'None'
         if compression == "None":
             compression = None
+        if encryption == "None":
+            encryption = None
         size = int(size)
         time = float(time)
-        return cls(name=name, size=size, time=time, compression=compression)
+        return cls(
+            name=name,
+            size=size,
+            time=time,
+            compression=compression,
+            encryption=encryption,
+        )
 
     def to_json(self):
         """

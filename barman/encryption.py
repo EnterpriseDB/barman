@@ -22,6 +22,7 @@ This module is responsible to manage the encryption features of Barman
 
 import logging
 import os
+import subprocess
 from abc import ABC, abstractmethod
 
 from barman.command_wrappers import GPG, Command, Handler
@@ -93,14 +94,12 @@ class Encryption(ABC):
         self.path = path
 
     @abstractmethod
-    def encrypt(self, file, dest, preserve_filename=False):
+    def encrypt(self, file, dest):
         """
         Encrypts a given *file*.
 
         :param str file: The full path to the file to be encrypted
         :param str dest: The destination directory for the encrypted file
-        :param bool preserve_filename: Do not add an extension to the encrypted file,
-            if ``True``
         :returns str: The path to the encrypted file
         """
         pass
@@ -115,6 +114,17 @@ class Encryption(ABC):
         :returns str: The path to the decrypted file.
         """
         pass
+
+    @staticmethod
+    @abstractmethod
+    def recognize_encryption(filename):
+        """
+        Check if a file is encrypted with the class' encryption algorithm.
+
+        :param str filename: The path to the file to be checked
+        :returns bool: ``True`` if the encryption type is recognized, ``False``
+            otherwise
+        """
 
 
 class GPGEncryption(Encryption):
@@ -142,10 +152,8 @@ class GPGEncryption(Encryption):
         super(GPGEncryption, self).__init__(path)
         self.key_id = key_id
 
-    def encrypt(self, file, dest, preserve_filename=False):
-        dest_filename = os.path.basename(file)
-        if not preserve_filename:
-            dest_filename += ".gpg"
+    def encrypt(self, file, dest):
+        dest_filename = os.path.basename(file) + ".gpg"
         output = os.path.join(dest, dest_filename)
         gpg = GPG(
             action="encrypt",
@@ -175,7 +183,8 @@ class GPGEncryption(Encryption):
             incorrect.
         """
         filename = os.path.basename(file)
-        # The file may or may not have a .gpg extension -- see GPGEncryption.encrypt().
+        # The file may or may not have a .gpg extension -- for example, Barman archives
+        # WAL files without the extension, even if the file is encrypted.
         # The decrypted file should not contain the extension, so we remove it, if
         # present.
         if filename.lower().endswith(".gpg"):
@@ -197,6 +206,21 @@ class GPGEncryption(Encryption):
                 raise ValueError("Error: Bad passphrase provided for decryption.")
             raise e
         return output
+
+    @staticmethod
+    def recognize_encryption(filename):
+        try:
+            process = subprocess.run(
+                ["file", "--brief", filename],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                text=True,
+            )
+            output = process.stdout.upper()
+            return "PGP" in output and "ENCRYPTED" in output
+        except subprocess.CalledProcessError:
+            return False
 
 
 class EncryptionManager:
@@ -279,3 +303,15 @@ class EncryptionManager:
         :returns: barman.encryption.GPGEncryption instance
         """
         return GPGEncryption(self.config.encryption_key_id, path=self.path)
+
+    @classmethod
+    def identify_encryption(cls, filename):
+        """
+        Try to identify the encryption algorithm of a file.
+        :param str filename: The path of the file to identify
+        :returns: The encryption name, if found
+        """
+        for klass, _, _ in sorted(cls.REGISTRY.values()):
+            if klass.recognize_encryption(filename):
+                return klass.NAME
+        return None

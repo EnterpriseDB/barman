@@ -136,6 +136,7 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
         :param boolean verbose: Flag for verbose output
         """
         compressor = self.backup_manager.compression_manager.get_default_compressor()
+        encryption = self.backup_manager.encryption_manager.get_encryption()
         processed = 0
         header = "Processing xlog segments from %s for %s" % (
             self.name,
@@ -206,7 +207,7 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
             )
             # Archive the WAL file
             try:
-                self.archive_wal(compressor, wal_info)
+                self.archive_wal(compressor, encryption, wal_info)
             except MatchingDuplicateWalFile:
                 # We already have this file. Simply unlink the file.
                 os.unlink(wal_info.orig_filename)
@@ -271,11 +272,12 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
                     error, basename, "unknown"
                 )
 
-    def archive_wal(self, compressor, wal_info):
+    def archive_wal(self, compressor, encryption, wal_info):
         """
         Archive a WAL segment and update the wal_info object
 
         :param compressor: the compressor for the file (if any)
+        :param None|Encryption encryption: the encryptor for the file (if any)
         :param WalFileInfo wal_info: the WAL file is being processed
         """
 
@@ -303,15 +305,26 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
 
             # Check if destination already exists
             if os.path.exists(dst_file):
+                dst_info = comp_manager.get_wal_file_info(dst_file)
                 src_uncompressed = src_file
                 dst_uncompressed = dst_file
-                dst_info = comp_manager.get_wal_file_info(dst_file)
                 try:
+                    # If the existing destination file is already encrypted, it can't be
+                    # decrypted or uncompressed to perform any of the later comparisons
+                    # (because we cannot assume the encryption passphrase is always
+                    # available in the configuration).
+                    if dst_info.encryption:
+                        raise DuplicateWalFile(wal_info)
+                    # If the existing file is already compressed, decompress it to a
+                    # <dst_wal_path>.uncompressed file
                     if dst_info.compression is not None:
                         dst_uncompressed = dst_file + ".uncompressed"
                         comp_manager.get_compressor(dst_info.compression).decompress(
                             dst_file, dst_uncompressed
                         )
+                    # If the source file is already compressed (because the user
+                    # compressed it manually with a script in the archive_command),
+                    # then decompress it to a <src_wal_path>.uncompressed file
                     if wal_info.compression:
                         src_uncompressed = src_file + ".uncompressed"
                         comp_manager.get_compressor(wal_info.compression).decompress(
@@ -332,36 +345,52 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
                         os.unlink(dst_uncompressed)
 
             mkpath(dst_dir)
-            # Compress the file only if not already compressed
+
+            # List of intermediate files that will need to be removed after the archival
+            files_to_remove = []
+            # The current working file being touched
+            current_file = src_file
+            # If the bits of the file has changed e.g. due to compression or encryption
+            content_changed = False
+            # Compress the file if not already compressed
             if compressor and not wal_info.compression:
                 compressor.compress(src_file, tmp_file)
+                files_to_remove.append(current_file)
+                current_file = tmp_file
+                content_changed = True
+                wal_info.compression = compressor.compression
+            # Encrypt the file
+            if encryption:
+                encrypted_file = encryption.encrypt(current_file, dst_dir)
+                files_to_remove.append(current_file)
+                current_file = encrypted_file
+                wal_info.encryption = encryption.NAME
+                content_changed = True
 
             # Perform the real filesystem operation with the xlogdb lock taken.
             # This makes the operation atomic from the xlogdb file POV
             with self.server.xlogdb("a") as fxlogdb:
-                if compressor and not wal_info.compression:
-                    shutil.copystat(src_file, tmp_file)
-                    os.rename(tmp_file, dst_file)
-                    os.unlink(src_file)
-                    # Update wal_info
-                    stat = os.stat(dst_file)
+                # If the content has changed, it means the file was either compressed
+                # or encrypted or both. In this case, we need to update its metadata
+                if content_changed:
+                    shutil.copystat(src_file, current_file)
+                    stat = os.stat(current_file)
                     wal_info.size = stat.st_size
-                    wal_info.compression = compressor.compression
-                else:
-                    # Try to atomically rename the file. If successful,
-                    # the renaming will be an atomic operation
-                    # (this is a POSIX requirement).
-                    try:
-                        os.rename(src_file, dst_file)
-                    except OSError:
-                        # Source and destination are probably on different
-                        # filesystems
-                        shutil.copy2(src_file, tmp_file)
-                        os.rename(tmp_file, dst_file)
-                        os.unlink(src_file)
+
+                # Try to atomically rename the file. If successful, the renaming will
+                # be an atomic operation (this is a POSIX requirement).
+                try:
+                    os.rename(current_file, dst_file)
+                except OSError:
+                    # Source and destination are probably on different filesystems
+                    shutil.copy2(current_file, tmp_file)
+                    os.rename(tmp_file, dst_file)
+                finally:
+                    for file in files_to_remove:
+                        os.unlink(file)
+
                 # At this point the original file has been removed
                 wal_info.orig_filename = None
-
                 # Execute fsync() on the archived WAL file
                 fsync_file(dst_file)
                 # Execute fsync() on the archived WAL containing directory
@@ -969,7 +998,9 @@ class StreamingWalArchiver(WalArchiver):
             skip.append(files.pop())
 
         # Build the list of WalFileInfo
-        wal_files = [WalFileInfo.from_file(f, compression=None) for f in files]
+        wal_files = [
+            WalFileInfo.from_file(f, compression=None, encryption=None) for f in files
+        ]
         return WalArchiverQueue(
             wal_files, batch_size=batch_size, errors=errors, skip=skip
         )
