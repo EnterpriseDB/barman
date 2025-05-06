@@ -506,7 +506,7 @@ class BaseConfig(object):
     Contains basic methods for handling configuration of Servers and Models.
 
     You are expected to inherit from this class and define at least the
-    :cvar:`PARSERS` dictionary with a mapping of parsers for each suported
+    :attr:`PARSERS` dictionary with a mapping of parsers for each suported
     configuration option.
     """
 
@@ -1900,10 +1900,13 @@ class ConfigChange(BaseChange):
 
 
 class ConfigChangeSet(BaseChange):
-    """Represents a set of :class:`ConfigChange` for a given configuration section.
+    """
+    Represents a set of :class:`ConfigChange` for a given configuration section.
 
     :ivar section str: name of the configuration section related with the changes.
-    :ivar changes_set List[:class:`ConfigChange`]: list of configuration changes to be applied to the section.
+
+    :ivar changes_set List[:class:`ConfigChange`]: list of configuration changes to be
+        applied to the section.
     """
 
     _fields = ["section", "changes_set"]

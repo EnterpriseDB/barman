@@ -1678,7 +1678,7 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
             to be backed up are attached.
         :param list[str] snapshot_disks: A list containing the names of the disks for
             which snapshots should be taken at backup time.
-        :rtype tuple[list[str],list[str]]
+        :rtype: tuple[list[str],list[str]]
         :return: A tuple where the first element is a list of all disks which are not
             attached to the VM instance and the second element is a list of all disks
             which are attached but not mounted.
@@ -1900,10 +1900,9 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
         Fill a backup info with information from a start_backup
 
         :param barman.infofile.BackupInfo backup_info: object
-        representing a
-            backup
+            representing a backup
         :param DictCursor start_info: the result of the pg_backup_start
-        command
+            command
         """
         backup_info.set_attribute("status", BackupInfo.STARTED)
         backup_info.set_attribute("begin_time", start_info["timestamp"])

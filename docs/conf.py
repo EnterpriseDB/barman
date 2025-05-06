@@ -558,6 +558,8 @@ exclude_from_builder = {
 # Internal holding list, anything added here will always be excluded
 _docs_to_remove = []
 
+suppress_warnings = ["toc.not_included"]
+
 
 def builder_inited(app):
     """Run during Sphinx ``builder-inited`` phase.

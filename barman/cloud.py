@@ -865,8 +865,7 @@ class CloudInterface(with_metaclass(ABCMeta)):
         Repeatedly grab a task from the queue and execute it, until a task
         containing "None" is grabbed, indicating that the process must stop.
 
-        :param int process_number: the process number, used in the logging
-        output
+        :param int process_number: the process number, used in the logging output
         """
         logging.info("Upload process started (worker %s)", process_number)
 
@@ -905,9 +904,7 @@ class CloudInterface(with_metaclass(ABCMeta)):
         Exec a single task
 
         :param Dict task: task to execute
-        :param int process_number: the process number, used in the logging
-        output
-        :return:
+        :param int process_number: the process number, used in the logging output
         """
         if task["job_type"] == "upload_part":
             if self.abort_requested:

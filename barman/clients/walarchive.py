@@ -317,6 +317,14 @@ class ChecksumTarFile(tarfile.TarFile):
     """
 
     def __init__(self, *args, **kwargs):
+        """
+        Initialize a ``ChecksumTarFile`` instance.
+
+        This constructor behaves like ``tarfile.TarFile``, but adds two attributes.
+        ``hash_algorithm`` is the hashing algorithm used for checksums (default is
+        ``sha256``).``HASHSUMS_FILE`` is the name of the file where checksums will be stored
+        (default is ``SHA256SUMS``).
+        """
         super(ChecksumTarFile, self).__init__(*args, **kwargs)
         self.hash_algorithm = "sha256"
         self.HASHSUMS_FILE = "SHA256SUMS"

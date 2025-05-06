@@ -767,9 +767,9 @@ def get_pg_basebackup_compression(server):
     Factory method which returns an instantiated PgBaseBackupCompression subclass
     for the backup_compression option in config for the supplied server.
 
-    :param barman.server.Server server: the server for which the
-      PgBaseBackupCompression should be constructed
-    :return GZipPgBaseBackupCompression
+    :param barman.server.Server server: the server for which the PgBaseBackupCompression
+        should be constructed
+    :return GZipPgBaseBackupCompression:
     """
     if server.config.backup_compression is None:
         return

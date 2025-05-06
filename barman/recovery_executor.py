@@ -1591,7 +1591,7 @@ class TarballRecoveryExecutor(RemoteConfigRecoveryExecutor):
 
         :param barman.backup.BackupManager backup_manager: the BackupManager
             owner of the executor
-        :param compression Compression.
+        :param compression: Compression
         """
         super(TarballRecoveryExecutor, self).__init__(backup_manager)
         self.compression = compression
@@ -2552,7 +2552,7 @@ class ConfigurationFileMangeler:
         :param filename: the PostgreSQL configuration file
         :param backup_filename: config file backup copy. Default is None.
         :param append_lines: Additional lines to add to the config file
-        :return [Assertion]
+        :return: [Assertion]
         """
         # Read the full content of the file in memory
         with open(filename, "rb") as f:
@@ -2636,7 +2636,7 @@ class ConfigIssueDetection:
         have been found.
 
         :param filename str: the Postgres configuration file
-        :return clashes [Assertion]
+        :return: clashes [Assertion]
         """
 
         clashes = []

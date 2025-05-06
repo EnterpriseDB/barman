@@ -34,9 +34,10 @@ from barman.utils import force_str
 
 def main(args=None):
     """
-    The main script entry point
-    :param list[str] args: the raw arguments list. When not provided
-        it defaults to sys.args[1:]
+    The main script entry point.
+
+    :param list[str] args: the raw arguments list. When not provided it defaults to
+        sys.args[1:].
     """
     config = parse_arguments(args)
     configure_logging(config)

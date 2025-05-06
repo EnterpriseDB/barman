@@ -187,17 +187,26 @@ def argument(*name_or_flags, **kwargs):
 
 
 def command(args=None, parent=subparsers, cmd_aliases=None):
-    """Decorator to define a new subcommand in a sanity-preserving way.
+    """
+    Decorator to define a new subcommand in a sanity-preserving way.
     The function will be stored in the ``func`` variable when the parser
-    parses arguments so that it can be called directly like so::
+    parses arguments so that it can be called directly like so:
+
+    Usage example:
+    .. code-block:: python
+
         args = cli.parse_args()
         args.func(args)
-    Usage example::
+
+    .. code-block:: python
+
         @command([argument("-d", help="Enable debug mode", action="store_true")])
         def command(args):
             print(args)
-    Then on the command line::
-        $ python cli.py command -d
+
+    Then on the command line:
+    .. code:: bash
+    $ python cli.py command -d
     """
 
     if args is None:

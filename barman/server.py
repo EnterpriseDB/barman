@@ -890,6 +890,7 @@ class Server(RemoteStatusMixin):
         If WAL-specific connection information *is* defined then we must verify that
         streaming is possible using that connection information *as well as* check
         the replication slot. This check will therefore:
+
           1. Create these connections.
           2. Fetch the remote status of these connections.
           3. Pass the remote status information to :meth:`_check_wal_streaming_preflight`
@@ -898,8 +899,8 @@ class Server(RemoteStatusMixin):
           4. Pass the remote status information to :meth:`_check_replication_slot`
              so that the status of the replication slot can be verified.
 
-        :param CheckStrategy check_strategy: The strategy for the management
-            of the result of this check
+        :param CheckStrategy check_strategy: The strategy for the management of the
+            result of this check.
         """
         # If we have wal-specific conninfo then we must use those to get
         # the remote status information for the check
@@ -1728,14 +1729,14 @@ class Server(RemoteStatusMixin):
     def backup(self, wait=False, wait_timeout=None, backup_name=None, **kwargs):
         """
         Performs a backup for the server
+
         :param bool wait: wait for all the required WAL files to be archived
-        :param int|None wait_timeout: the time, in seconds, the backup
-            will wait for the required WAL files to be archived
-            before timing out
-        :param str|None backup_name: a friendly name by which this backup can
-            be referenced in the future
-        :kwparam str parent_backup_id: id of the parent backup when taking a
-            Postgres incremental backup
+        :param int|None wait_timeout: the time, in seconds, the backup will wait for the
+            required WAL files to be archived before timing out
+        :param str|None backup_name: a friendly name by which this backup can be
+            referenced in the future
+        :kwparam str parent_backup_id: id of the parent backup when taking a Postgres
+            incremental backup
         """
         # The 'backup' command is not available on a passive node.
         # We assume that if we get here the node is not passive
@@ -2024,13 +2025,13 @@ class Server(RemoteStatusMixin):
             targets.
 
         :param BackupInfo backup: a backup object
-        :param target_tli : target timeline, either a timeline ID or one of the keywords
+        :param target_tli: target timeline, either a timeline ID or one of the keywords
             supported by Postgres
         :param target_time: target time, in epoch
         :param target_xid: target transaction ID
         :param target_lsn: target LSN
-        :param target_immediate: target that ends recovery as soon as
-            consistency is reached. Defaults to ``False``.
+        :param target_immediate: target that ends recovery as soon as consistency is
+            reached. Defaults to ``False``.
         """
         begin = backup.begin_wal
         end = backup.end_wal
@@ -2881,7 +2882,8 @@ class Server(RemoteStatusMixin):
         """
         Method that handles the start of an 'archive-wal' sub-process.
 
-        This method must be run protected by ServerCronLock
+        This method must be run protected by ServerCronLock.
+
         :param bool keep_descriptors: whether to keep subprocess descriptors
             attached to this process.
         """
@@ -2922,9 +2924,11 @@ class Server(RemoteStatusMixin):
 
     def background_receive_wal(self, keep_descriptors):
         """
-        Method that handles the start of a 'receive-wal' sub process, running in background.
+        Method that handles the start of a 'receive-wal' sub process, running in
+        background.
 
         This method must be run protected by ServerCronLock
+
         :param bool keep_descriptors: whether to keep subprocess
             descriptors attached to this process.
         """
@@ -3908,6 +3912,7 @@ class Server(RemoteStatusMixin):
         The method recover information from the remote master
         server, evaluate if synchronisation with the master is required
         and spawn barman sub processes, syncing backups and WAL files
+
         :param bool keep_descriptors: whether to keep subprocess descriptors
            attached to this process.
         """

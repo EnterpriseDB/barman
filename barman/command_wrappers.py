@@ -1128,14 +1128,14 @@ class PgVerifyBackup(PostgreSQLClient):
     ):
         """
         Constructor
+
         :param str data_path: backup data directory
         :param str command: the command to use
-        :param PostgreSQL connection: an object representing
-          a database connection
+        :param PostgreSQL connection: an object representing a database connection
         :param Version version: the command version
         :param str app_name: the application name to use for the connection
-        :param bool check: check if the return value is in the list of
-          allowed values of the Command obj
+        :param bool check: check if the return value is in the list of allowed values of
+            the Command obj
         :param List[str] args: additional arguments
         """
         PostgreSQLClient.__init__(

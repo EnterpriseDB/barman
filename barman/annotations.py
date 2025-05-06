@@ -303,6 +303,7 @@ class KeepManagerMixin(KeepManager):
 
     Keep management is built on top of annotations and consists of the
     following functionality:
+
       - Determine whether a given backup is intended to be kept beyond its retention
         period.
       - Determine the intended recovery target for the archival backup.

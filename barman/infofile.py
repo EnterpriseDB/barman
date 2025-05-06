@@ -1232,8 +1232,7 @@ class VolatileBackupInfo(LocalBackupInfo):
             option.
         :param str|None backup_id: The backup id of the backup.
         :param None|str|TextIO info_file: The path to an existing ``backup.info`` file,
-        or
-            a file-like object from which to read the backup information.
+            or a file-like object from which to read the backup information.
         """
         self.base_directory = base_directory
         super(VolatileBackupInfo, self).__init__(server, info_file, backup_id, **kwargs)

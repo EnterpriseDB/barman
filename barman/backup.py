@@ -295,6 +295,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
              do nothing. We need to allow PITR from that keep:full backup to the
              current time.
           4. If there is a previous backup and it has a keep target of "standalone":
+
             a. If that previous backup is the oldest backup then delete WALs up to
                the begin_wal of the next backup except for WALs which are
                >= begin_wal and <= end_wal of the keep:standalone backup - we can

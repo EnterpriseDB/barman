@@ -256,9 +256,11 @@ class EncryptionManager:
             to ``config.encryption``. This flexibility is useful for cases where
             encryption is disabled midway, i.e. no longer present in ``config``, but an
             encryption instance is still needed, e.g. for decrypting an old backup.
-        :returns None|:class:`barman.encryption.Encryption`: A respective encryption
-            instance, if *encryption* is set, otherwise ``None``.
-        :raises ValueError: If the encryption handler is unknown
+
+        :returns None|barman.encryption.Encryption: A respective encryption instance, if
+            *encryption* is set, otherwise ``None``. If encryption is set, returns
+            :class:`barman.encryption.Encryption`.
+        :raises ValueError: If the encryption handler is unknown.
         """
         encryption = encryption or self.config.encryption
         entry = self.REGISTRY.get(encryption)

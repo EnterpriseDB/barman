@@ -190,8 +190,8 @@ Scope: Global.
 Specifies the connection string used by Barman to connect to the Postgres server.
 This is a libpq connection string. Commonly used keys include: ``host``, ``hostaddr``,
 ``port``, ``dbname``, ``user`` and ``password``. See the 
-`PostgreSQL documentation <https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING>`_
-for details.
+`libpq-connstring <https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING>`_
+PostgreSQL documentation for details.
 
 Scope: Server / Model.
 
@@ -454,8 +454,8 @@ This is a boolean option that allows for the automatic creation of backup manife
 files. The manifest file, which is a JSON document, lists all files included in the
 backup. It is generated upon completion of the backup and saved in the backup
 directory. The format of the manifest file adheres to the specifications outlined in the
-`PostgreSQL documentation <https://www.postgresql.org/docs/current/backup-manifest-format.html>`_
-and is compatible with the ``pg_verifybackup`` tool. Default is ``false``.
+`backup manifest format <https://www.postgresql.org/docs/current/backup-manifest-format.html>`_
+PostgreSQL documentation and is compatible with the ``pg_verifybackup`` tool. Default is ``false``.
 
 .. note::
   This option is ignored if the ``backup_method`` is not ``rsync``.
