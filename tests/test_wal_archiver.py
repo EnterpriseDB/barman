@@ -15,7 +15,9 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
+import gzip
 import os
+import shutil
 
 import pytest
 from mock import ANY, MagicMock, patch
@@ -623,9 +625,7 @@ class TestFileWalArchiver(object):
         # This is an hack, instead of a WalFileInfo we use a simple string to
         # ease all the comparisons. The resulting string is the name enclosed
         # in colons. e.g. ":000000010000000000000001:"
-        from_file_mock.side_effect = (
-            lambda wal_name, compressionmanager: ":%s:" % wal_name
-        )
+        from_file_mock.side_effect = lambda wal_name, *args, **kwargs: ":%s:" % wal_name
 
         backup_manager = build_backup_manager(name="TestServer")
         archiver = FileWalArchiver(backup_manager)
@@ -1033,7 +1033,9 @@ class TestStreamingWalArchiver(object):
         # This is an hack, instead of a WalFileInfo we use a simple string to
         # ease all the comparisons. The resulting string is the name enclosed
         # in colons. e.g. ":000000010000000000000001:"
-        from_file_mock.side_effect = lambda wal_name, compression: (":%s:" % wal_name)
+        from_file_mock.side_effect = lambda wal_name, *args, **kwargs: (
+            ":%s:" % wal_name
+        )
 
         backup_manager = build_backup_manager(name="TestServer")
         archiver = StreamingWalArchiver(backup_manager)

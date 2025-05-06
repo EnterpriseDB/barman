@@ -295,6 +295,7 @@ class TestWalFileInfo(object):
         assert wfile_info.size == tmp_file.size()
         assert wfile_info.time == tmp_file.mtime()
         assert wfile_info.filename == "%s.meta" % tmp_file.strpath
+        assert wfile_info.encryption is None
         assert wfile_info.compression == "test_compression"
         assert wfile_info.relpath() == ("0000000000000000/000000000000000000000001")
 
@@ -313,6 +314,7 @@ class TestWalFileInfo(object):
         assert wfile_info.size == tmp_file.size()
         assert wfile_info.time == tmp_file.mtime()
         assert wfile_info.filename == "%s.meta" % tmp_file.strpath
+        assert wfile_info.encryption is None
         assert wfile_info.compression == "test_unidentified_compression"
         assert wfile_info.relpath() == ("00000001000000E5/00000001000000E500000064")
 
@@ -332,6 +334,7 @@ class TestWalFileInfo(object):
         assert wfile_info.size == tmp_file.size()
         assert wfile_info.time == tmp_file.mtime()
         assert wfile_info.filename == "%s.meta" % tmp_file.strpath
+        assert wfile_info.encryption is None
         assert wfile_info.compression == "test_override_compression"
         assert wfile_info.relpath() == ("0000000000000000/000000000000000000000001")
 
@@ -352,6 +355,7 @@ class TestWalFileInfo(object):
         assert wfile_info.time == tmp_file.mtime()
         assert wfile_info.filename == "%s.meta" % tmp_file.strpath
         assert wfile_info.compression is None
+        assert wfile_info.encryption is None
         assert wfile_info.relpath() == ("0000000000000000/000000000000000000000002")
 
         wfile_info = WalFileInfo.from_file(
@@ -362,6 +366,7 @@ class TestWalFileInfo(object):
         assert wfile_info.time == tmp_file.mtime()
         assert wfile_info.filename == "%s.meta" % tmp_file.strpath
         assert wfile_info.compression is None
+        assert wfile_info.encryption is None
         assert wfile_info.relpath() == ("0000000000000000/000000000000000000000001")
 
         wfile_info = WalFileInfo.from_file(
@@ -372,6 +377,8 @@ class TestWalFileInfo(object):
         assert wfile_info.time == 43
         assert wfile_info.filename == "%s.meta" % tmp_file.strpath
         assert wfile_info.compression is None
+        assert wfile_info.encryption is None
+        assert wfile_info.relpath() == ("0000000000000000/000000000000000000000001")
         assert wfile_info.relpath() == ("0000000000000000/000000000000000000000001")
 
     def test_to_xlogdb_line(self):
@@ -380,10 +387,11 @@ class TestWalFileInfo(object):
         wfile_info.size = 42
         wfile_info.time = 43
         wfile_info.compression = None
+        wfile_info.encryption = None
         assert wfile_info.relpath() == ("0000000000000000/000000000000000000000002")
 
         assert wfile_info.to_xlogdb_line() == (
-            "000000000000000000000002\t42\t43\tNone\n"
+            "000000000000000000000002\t42\t43\tNone\tNone\n"
         )
 
     def test_from_xlogdb_line(self):
@@ -396,6 +404,7 @@ class TestWalFileInfo(object):
         wfile_info.size = 42
         wfile_info.time = 43
         wfile_info.compression = None
+        wfile_info.encryption = None
         assert wfile_info.relpath() == ("0000000000000000/000000000000000000000001")
 
         # mock a server object
@@ -404,7 +413,7 @@ class TestWalFileInfo(object):
 
         # parse the string
         info_file = wfile_info.from_xlogdb_line(
-            "000000000000000000000001\t42\t43\tNone\n"
+            "000000000000000000000001\t42\t43\tNone\tNone\n"
         )
 
         assert list(wfile_info.items()) == list(info_file.items())

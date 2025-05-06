@@ -87,30 +87,34 @@ EXPECTED_MINIMAL = {
     },
     "config": {},
     "last_name": "000000010000000000000005",
-    "last_position": 209,
+    "last_position": 229,
     "wals": [
         {
             "time": 1406019026.0,
             "size": 16777216,
             "compression": None,
+            "encryption": None,
             "name": "000000010000000000000002",
         },
         {
             "time": 1406019026.0,
             "size": 16777216,
             "compression": None,
+            "encryption": None,
             "name": "000000010000000000000003",
         },
         {
             "time": 1406019329.9300001,
             "size": 16777216,
             "compression": None,
+            "encryption": None,
             "name": "000000010000000000000004",
         },
         {
             "time": 1406019330.84,
             "size": 16777216,
             "compression": None,
+            "encryption": None,
             "name": "000000010000000000000005",
         },
     ],
@@ -190,11 +194,11 @@ class TestSync(object):
         # Create a test xlog.db
         tmp_path = tmpdir.join("xlog.db")
         tmp_path.write(
-            "000000010000000000000001\t16777216\t1406019022.4\tNone\n"
-            "000000010000000000000002\t16777216\t1406019026.0\tNone\n"
-            "000000010000000000000003\t16777216\t1406019026.0\tNone\n"
-            "000000010000000000000004\t16777216\t1406019329.93\tNone\n"
-            "000000010000000000000005\t16777216\t1406019330.84\tNone\n"
+            "000000010000000000000001\t16777216\t1406019022.4\tNone\tNone\n"
+            "000000010000000000000002\t16777216\t1406019026.0\tNone\tNone\n"
+            "000000010000000000000003\t16777216\t1406019026.0\tNone\tNone\n"
+            "000000010000000000000004\t16777216\t1406019329.93\tNone\tNone\n"
+            "000000010000000000000005\t16777216\t1406019330.84\tNone\tNone\n"
         )
 
         # Build a server, replacing some function to use the tmpdir objects
@@ -680,10 +684,10 @@ class TestSync(object):
         assert err == ""
         # check the xlog content for primary.info wals
         exp_xlog = [
-            "000000010000000000000002\t16777216\t1406019026.0\tNone\n",
-            "000000010000000000000003\t16777216\t1406019026.0\tNone\n",
-            "000000010000000000000004\t16777216\t1406019329.93\tNone\n",
-            "000000010000000000000005\t16777216\t1406019330.84\tNone\n",
+            "000000010000000000000002\t16777216\t1406019026.0\tNone\tNone\n",
+            "000000010000000000000003\t16777216\t1406019026.0\tNone\tNone\n",
+            "000000010000000000000004\t16777216\t1406019329.93\tNone\tNone\n",
+            "000000010000000000000005\t16777216\t1406019330.84\tNone\tNone\n",
         ]
         with server.xlogdb() as fxlogdb:
             xlog = fxlogdb.readlines()

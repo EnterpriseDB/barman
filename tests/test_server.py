@@ -348,7 +348,7 @@ class TestServer(object):
         with open(server.xlogdb_file_path, mode="r") as xlogdb_file:
             for wal in wals_created:
                 # {walname} + tab + {size} + tab + {timecreated} + tab + {compression}
-                expected_line = rf"^{wal.basename}\t0\t[0-9]+\.[0-9]+\tNone$"
+                expected_line = rf"^{wal.basename}\t0\t[0-9]+\.[0-9]+\tNone\tNone$"
                 assert re.match(expected_line, xlogdb_file.readline()) is not None
             assert xlogdb_file.readline() == ""
 
@@ -378,7 +378,7 @@ class TestServer(object):
         with open(server.xlogdb_file_path, mode="r") as xlogdb_file:
             for wal in wals_created:
                 # {walname} + tab + {size} + tab + {timecreated} + tab + {compression}
-                expected_line = rf"^{wal.basename}\t0\t[0-9]+\.[0-9]+\tNone$"
+                expected_line = rf"^{wal.basename}\t0\t[0-9]+\.[0-9]+\tNone\tNone$"
                 assert re.match(expected_line, xlogdb_file.readline()) is not None
             assert xlogdb_file.readline() == ""
 

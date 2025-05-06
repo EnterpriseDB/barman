@@ -146,7 +146,7 @@ class TestGPGEncryption:
         # Initialize the encryptor
         encryptor = GPGEncryption(key_id="test-key-id")
 
-        # WHEN called without setting `preserve_filename`
+        # WHEN called
         encryptor.encrypt(file, dest)
 
         # THEN the encrypted file is saved in the destination directory with `.gpg`
@@ -162,20 +162,6 @@ class TestGPGEncryption:
 
         # Resets the mock
         mock_gpg.reset_mock()
-
-        # WHEN called setting `preserve_filename` as `True`
-        encryptor.encrypt(file, dest, preserve_filename=True)
-
-        # THEN the encrypted file is saved in the destination directory with `.gpg`
-        output_file = "path/to/destination/file"
-        mock_gpg.assert_called_once_with(
-            action="encrypt",
-            recipient="test-key-id",
-            input_filepath=file,
-            output_filepath=output_file,
-            path=encryptor.path,
-        )
-        mock_gpg.return_value.assert_called_once()
 
     @patch("barman.encryption.GPG")
     def test_decrypt(self, mock_gpg):
