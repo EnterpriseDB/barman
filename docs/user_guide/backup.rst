@@ -539,15 +539,13 @@ Current limitations
 """""""""""""""""""
 
 The current implementation of immutable backup support in Barman has the following 
-limitations:
+limitation:
 
 * The WORM environment must have a grace period. A grace period provides a predefined
   window during which data can be modified or deleted before WORM restrictions take
   effect. This requirement exists because Barman makes use of renaming to safely copy
   WALs to external partitions, which would fail if the file has already entered a WORM
   state.
-* Keeping backups by using `barman keep` command is not supported. This may be lifted
-  in a future version.
 
 In general, a grace period of at least 15 minutes is recommended, as this provides
 enough time for Barman to complete any necessary operations.
