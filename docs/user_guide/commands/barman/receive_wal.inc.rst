@@ -46,3 +46,10 @@ Parameters
 
 ``--stop``
     Stop the process for the server.
+
+.. warning::
+
+   The ``--stop`` option for the ``barman receive-wal`` command will be obsoleted
+   in a future release. Users should favor using the
+   :ref:`terminate-process <commands-barman-terminate-process>` command instead, which
+   is the new way of handling this feature.
