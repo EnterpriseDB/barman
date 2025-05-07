@@ -356,9 +356,9 @@ Scope: Global / Server / Model.
 **path_prefix**
 
 Lists one or more absolute paths, separated by colons, where Barman looks for executable
-files. These paths are checked before the ``PATH`` environment variable. This option can
-be set for each server and needs to point to the ``bin`` directory for the appropriate
-``PG_MAJOR_VERSION``.
+files such as PostgreSQL binaries (from the appropriate ``bin`` directory for the
+``PG_MAJOR_VERSION``), ``rsync``, encryption, and compression tools. These paths are
+prepended to the ``PATH`` environment variable and are checked before any others.
 
 Scope: Global / Server / Model.
 
