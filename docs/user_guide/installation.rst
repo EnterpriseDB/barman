@@ -51,6 +51,8 @@ The minimal system requirements needed to run a Barman server are the following:
 * PostgreSQL client tools: Required to interact with the Postgres server
 * PostgreSQL server >= 13
 * ``rsync`` >= 3.1.0: Required for recovery and Rsync backups
+* ``boto3`` >= 1.29.1: Required when using ``backup_method = snapshot`` together with
+  the snapshot lock feature on AWS.
 
 .. _installation-rhel-based-distributions:
 
