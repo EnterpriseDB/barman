@@ -49,6 +49,27 @@ based on the recovery criteria:
   that Postgres is fully stopped before initiating recovery, including recovery of
   tablespace directories.
 
+.. _recovery-local-recovery:
+
+Local recovery
+--------------
+
+In the absence of ``--remote-ssh-command``, Barman restores the backup locally to
+the path specified in ``DESTINATION_PATH``.
+
+All files and directories will be owned by the ``barman`` user. Therefore, there are two
+options when starting Postgres to perform the recovery:
+
+1. Start Postgres as the ``barman`` user. In this case, if using ``--get-wal``, the
+   ``restore_command`` can invoke ``get-wal`` without requiring ``sudo``.
+2. Start Postgres as the ``postgres`` user. In this case, you must change the ownership
+   of all files and directories restored (this includes PGDATA and any tablespaces) to
+   the ``postgres`` user before starting the server. If using ``--get-wal``, the
+   ``restore_command`` must use ``sudo`` to run ``get-wal`` as the ``barman`` user.
+
+Check the :ref:`Fetching WALs <recovery-fetching-wals-from-barman>` for more information
+on settings for WAL restore.
+
 .. _recovery-remote-recovery:
 
 Remote Recovery
