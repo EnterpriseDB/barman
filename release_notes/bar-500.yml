@@ -1,0 +1,8 @@
+- summary: Snapshot Backup Now Supports Non-Root EBS Volumes of Nitro instances on AWS
+  description: |
+    Resolved an issue where snapshot backups failed to detect non-root EBS volumes on
+    NVMe (Nitro) devices in AWS. Snapshot backups now work reliably with all non-root
+    EBS volumes attached to the instance.
+  type: bugfix
+  jira_tickets:
+    - BAR-500
