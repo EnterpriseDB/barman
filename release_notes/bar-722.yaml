@@ -1,0 +1,8 @@
+- summary: Fix usage of `barman-wal-restore` with `--keep-compression` with `gzip`,`bzip2` and `pigz`
+  description: |
+    Fixed an issue in `barman-wal-restore` where, when trying to restore WALs
+    compressed with `gzip`, `bzip2` or `pigz` while having `--keep-compression`
+    specified, lead to unexpected errors.
+  type: bugfix
+  jira_tickets:
+    - BAR-722
