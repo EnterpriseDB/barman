@@ -550,6 +550,17 @@ limitation:
 In general, a grace period of at least 15 minutes is recommended, as this provides
 enough time for Barman to complete any necessary operations.
 
+.. note::
+  If backup encryption is also enabled, then the grace period must be long enough
+  to cover the time required to perform the encryption (especially when the backup
+  also includes tablespaces, which results in multiple tarballs).
+
+
+  This is because encryption only happens at the end of the backup process, i.e.
+  after ``pg_basebackup`` is finished.  As encryption can not be performed in-place,
+  each tar file is encrypted individually, having its unencrypted version deleted once
+  it is complete.
+
 Given these constraints, users should evaluate whether the current implementation meets
 their requirements before enabling immutable backup support.
 
