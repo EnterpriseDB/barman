@@ -489,7 +489,7 @@ class RemoteGetWal(object):
             else:
                 # Otherwise it's a CommandCompressor so we spawn the local decompressor
                 self.decompressor_process = subprocess.Popen(
-                    [config.compression, "-d"],
+                    [compression, "-d"],
                     stdin=self.source_file,
                     stdout=dest_file,
                 )
