@@ -1047,18 +1047,44 @@ of the predefined labels: ``low``, ``medium``, and ``high``, which serve as shor
 
 Predefined labels map to algorithm-specific levels, as detailed below:
 
-* ``lz4``: 0 to 16, ``low=0``, ``medium=6``, ``high=10``
-* ``xz``: 1 to 9, ``low=1``, ``medium=3``, ``high=5``
-* ``zstd``: -22 to 22, ``low=1``, ``medium=4``, ``high=9``
-* ``gzip``: 1 to 9, ``low=1``, ``medium=6``, ``high=9``
-* ``pygzip``: 1 to 9, ``low=1``, ``medium=6``, ``high=9``
-* ``pigz``: 1 to 9, ``low=1``, ``medium=6``, ``high=9``
-* ``bzip2``: 1 to 9, ``low=1``, ``medium=5``, ``high=9``
-* ``pybzip2``: 1 to 9, ``low=1``, ``medium=5``, ``high=9``
+.. list-table:: Compression levels
+   :widths: 30 25 15 15 15
+   :header-rows: 1
 
-If the specified compression level is greater than the algorithm's max level, the
-max level is used. Similarly, if it is lower than the min level, the min level is used.
-The default value is ``medium``.
+   * - Algorithm
+     - Level range
+     - low
+     - medium
+     - high
+   * - ``lz4``
+     - 0 to 16
+     - 0
+     - 6
+     - 10
+   * - ``xz``
+     - 1 to 9
+     - 1
+     - 3
+     - 5
+   * - ``zstd``
+     - -22 to 22
+     - 1
+     - 4
+     - 9
+   * - ``gzip``, ``pygzip`` and ``pigz``
+     - 1 to 9
+     - 1
+     - 6
+     - 9
+   * - ``bzip2`` and ``pybzip2``
+     - 1 to 9
+     - 1
+     - 5
+     - 9
+
+If the specified compression level is greater than the algorithm's maximum level, that
+maximum level is used. Similarly, if it is lower than the minimum level, that minimum
+level is used. The default value is ``medium``.
 
 Scope: Global / Server / Model.
 
