@@ -196,8 +196,7 @@ or the ``client``. Set the ``backup_compression_location`` option:
   but increasing server workload.
 * ``client``: Compression is handled by ``pg_basebackup`` on the client side.
 
-When ``backup_compression_location`` is set to ``server``, you can also configure
-``backup_compression_format``:
+You can also specify the backup format using ``backup_compression_format``:
 
 .. code-block:: text
 
