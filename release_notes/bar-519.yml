@@ -1,0 +1,18 @@
+- summary: Ensure correct WAL segment naming for PG17 boundary LSNs
+  description: |
+    Addresses a backup hang issue experienced with PostgreSQL 17 and later versions when
+    using barman backup <server> --wait on low-activity instances and modifies the logic
+    within the methods and properties that interact with pg_walfile_name() and
+    pg_walfile_name_offset().
+
+    As described in barman#1041, PostgreSQL 17 altered the behavior where the end WAL of
+    a backup is now the currently written WAL file, rather than the last completed one.
+    On servers with minimal activity, this current WAL file might not be completed or
+    archived promptly, leading to the backup process stalling indefinitely until a
+    pg_switch_wal() occurs.
+
+    More details on the PostgreSQL change can be found at
+    `https://www.postgresql.org/docs/release/17.0/`.
+  type: bugfix
+  jira_tickets:
+    - BAR-519
