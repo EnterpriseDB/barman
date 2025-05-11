@@ -35,6 +35,7 @@ from psycopg2.errorcodes import DUPLICATE_OBJECT, OBJECT_IN_USE, UNDEFINED_OBJEC
 from psycopg2.extensions import STATUS_IN_TRANSACTION, STATUS_READY
 from psycopg2.extras import DictCursor, NamedTupleCursor
 
+from barman import xlog
 from barman.exceptions import (
     BackupFunctionsAccessRequired,
     ConninfoException,
@@ -55,7 +56,6 @@ from barman.infofile import Tablespace
 from barman.postgres_plumbing import function_name_map
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import force_str, simplify_version, with_metaclass
-from barman.xlog import previous_segment_name
 
 try:
     from queue import Empty
@@ -741,10 +741,16 @@ class PostgreSQLConnection(PostgreSQL):
                     "FROM {pg_current_wal_lsn}() AS location".format(**self.name_map)
                 )
                 result = cur.fetchone()
-                # pg_walfile_name_offset() in Postgres 17 returns the current segment
-                # if on a segment boundary so return the previous segment name in that case.
-                if self.server_version >= 170000 and result["file_offset"] == 00000000:
-                    result["file_name"] = previous_segment_name(
+                # The following change was made in PostgreSQL 17:
+                # The functions pg_walfile_name() and pg_walfile_name_offset() used to
+                # report the previous LSN segment number when the LSN was on a file
+                # segment boundary; it now returns the current LSN segment.
+                # For PostgreSQL 17 and above, when the WAL file offset is 0 (i.e., at
+                # the start of a new segment), use the name of the previous WAL segment
+                # to maintain compatibility and consistent behavior across PostgreSQL
+                # major versions.
+                if self.server_version >= 170000 and result["file_offset"] == 0:
+                    result["file_name"] = xlog.previous_segment_name(
                         result["file_name"], self.xlog_segment_size
                     )
                 return result
@@ -1401,11 +1407,18 @@ class PostgreSQLConnection(PostgreSQL):
 
             cur = conn.cursor()
             # Collect the xlog file name before the switch
-            cur.execute(
-                "SELECT {pg_walfile_name}("
-                "{pg_current_wal_insert_lsn}())".format(**self.name_map)
+            query = "SELECT {pg_walfile_name}({pg_current_wal_insert_lsn}())".format(
+                **self.name_map
             )
-            pre_switch = cur.fetchone()[0]
+            if self.server_version >= 170000:
+                query = (
+                    "SELECT ({pg_walfile_name_offset}(location)).* "
+                    "FROM {pg_current_wal_insert_lsn}() AS location"
+                ).format(**self.name_map)
+            cur.execute(query)
+            pre_switch_result = cur.fetchone()
+            pre_switch = pre_switch_result[0]
+
             # Switch
             cur.execute(
                 "SELECT {pg_walfile_name}({pg_switch_wal}())".format(**self.name_map)
@@ -1416,7 +1429,20 @@ class PostgreSQLConnection(PostgreSQL):
                 "{pg_current_wal_insert_lsn}())".format(**self.name_map)
             )
             post_switch = cur.fetchone()[0]
+
             if pre_switch < post_switch:
+                # The following change was made in PostgreSQL 17:
+                # The functions pg_walfile_name() and pg_walfile_name_offset() used to
+                # report the previous LSN segment number when the LSN was on a file
+                # segment boundary; it now returns the current LSN segment.
+                # For PostgreSQL 17 and above, when the WAL file offset is 0 (i.e., at
+                # the start of a new segment), use the name of the previous WAL segment
+                # to maintain compatibility and consistent behavior across PostgreSQL
+                # major versions.
+                if self.server_version >= 170000 and pre_switch_result[1] == 0:
+                    pre_switch = xlog.previous_segment_name(
+                        pre_switch_result[0], self.xlog_segment_size
+                    )
                 return pre_switch
             else:
                 return ""

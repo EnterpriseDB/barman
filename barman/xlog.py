@@ -314,7 +314,7 @@ def previous_segment_name(segment, xlog_segment_size):
     tli, log, seg = decode_segment_name(segment)
     xlog_seg_per_file = xlog_segments_per_file(xlog_segment_size)
     prev_log, prev_seg = log, seg
-    if prev_seg == 0:
+    if seg == 0:
         prev_seg = xlog_seg_per_file
         prev_log -= 1
     else:
