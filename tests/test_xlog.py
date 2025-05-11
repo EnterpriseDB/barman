@@ -25,7 +25,11 @@ import barman.exceptions
 from barman import xlog
 from barman.compression import CompressionManager
 from barman.encryption import EncryptionManager
-from barman.exceptions import CommandException, WalArchiveContentError
+from barman.exceptions import (
+    BadXlogSegmentName,
+    CommandException,
+    WalArchiveContentError,
+)
 from barman.infofile import WalFileInfo
 
 
@@ -517,6 +521,34 @@ class Test(object):
     )
     def test_xlog_segment_mask(self, mask, size):
         assert mask == xlog.xlog_segment_mask(size)
+
+    @pytest.mark.parametrize(
+        "segment, xlog_segment_size, expected",
+        [
+            # Regular decrement
+            ("000000010000000200000002", 1 << 24, "000000010000000200000001"),
+            ("000000010000000200000001", 1 << 24, "000000010000000200000000"),
+            # At segment 0, should wrap to previous log and last segment
+            (
+                "000000010000000200000000",
+                1 << 24,
+                "0000000100000001" + "%08X" % xlog.xlog_segments_per_file(1 << 24),
+            ),
+            # Different segment sizes
+            (
+                "000000010000000200000000",
+                1 << 22,
+                "0000000100000001" + "%08X" % xlog.xlog_segments_per_file(1 << 22),
+            ),
+            ("000000010000000200000005", 1 << 22, "000000010000000200000004"),
+        ],
+    )
+    def test_previous_segment_name(self, segment, xlog_segment_size, expected):
+        assert xlog.previous_segment_name(segment, xlog_segment_size) == expected
+
+    def test_previous_segment_name_invalid_segment(self):
+        with pytest.raises(BadXlogSegmentName):
+            xlog.previous_segment_name("invalidsegment", 1 << 24)
 
 
 class TestCheckArchiveUsable(object):

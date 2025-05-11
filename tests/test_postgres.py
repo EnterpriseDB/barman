@@ -810,6 +810,65 @@ class TestPostgres(object):
         cursor_mock.execute.side_effect = psycopg2.ProgrammingError
         assert server.postgres.current_xlog_info is None
 
+    @pytest.mark.parametrize(
+        "pg_server_version, xlog_file_name",
+        [(170000, "000000010000000200000019"), (160000, "000000010000000200000018")],
+    )
+    @patch("barman.xlog.previous_segment_name")
+    @patch(
+        "barman.postgres.PostgreSQLConnection.xlog_segment_size",
+        new_callable=PropertyMock,
+    )
+    @patch("barman.postgres.PostgreSQLConnection.connect")
+    @patch(
+        "barman.postgres.PostgreSQLConnection.is_in_recovery", new_callable=PropertyMock
+    )
+    def test_current_xlog_info_is_at_segment_boundary(
+        self,
+        is_in_recovery_mock,
+        conn_mock,
+        xlog_segment_size_mock,
+        previous_segment_name_mock,
+        pg_server_version,
+        xlog_file_name,
+    ):
+        """
+        Test current_xlog_info will call previous_segment_name and will return the
+        previous wal file name when the segment is at the boundary.
+        """
+        # Build and configure a server using a mock
+        server = build_real_server()
+        cursor_mock = conn_mock.return_value.cursor.return_value
+        timestamp = datetime.datetime(2025, 6, 30, 17, 4, 20, 271376)
+        current_xlog_info = dict(
+            location="2/19000000",
+            file_name=xlog_file_name,
+            file_offset=0,
+            timestamp=timestamp,
+        )
+        cursor_mock.fetchone.return_value = current_xlog_info
+
+        # Test call on master, PostgreSQL older than 10
+        conn_mock.return_value.server_version = pg_server_version
+        xlog_segment_size_mock.return_value = 16777216
+        is_in_recovery_mock.return_value = False
+        previous_segment_name_mock.return_value = "000000010000000200000018"
+        remote_loc = server.postgres.current_xlog_info
+        cursor_mock.execute.assert_called_once_with(
+            "SELECT location, (pg_walfile_name_offset(location)).*, "
+            "CURRENT_TIMESTAMP AS timestamp "
+            "FROM pg_current_wal_lsn() AS location"
+        )
+
+        if conn_mock.return_value.server_version >= 170000:
+            previous_segment_name_mock.assert_called_once_with(
+                "000000010000000200000019", 16777216
+            )
+        else:
+            previous_segment_name_mock.assert_not_called()
+
+        assert remote_loc == current_xlog_info
+
     @patch("barman.postgres.PostgreSQLConnection.connect")
     @patch(
         "barman.postgres.PostgreSQLConnection.is_in_recovery", new_callable=PropertyMock
@@ -1230,6 +1289,64 @@ class TestPostgres(object):
             server.postgres.switch_wal()
         # Check for the right invocation
         assert not cursor_mock.execute.called
+
+    @patch("barman.xlog.previous_segment_name")
+    @patch(
+        "barman.postgres.PostgreSQLConnection.xlog_segment_size",
+        new_callable=PropertyMock,
+    )
+    @patch("barman.postgres.PostgreSQLConnection.connect")
+    @patch(
+        "barman.postgres.PostgreSQLConnection.is_in_recovery", new_callable=PropertyMock
+    )
+    @patch(
+        "barman.postgres.PostgreSQLConnection.has_backup_privileges",
+        new_callable=PropertyMock,
+    )
+    def test_switch_wal_at_segment_boundary(
+        self,
+        has_backup_privileges_mock,
+        is_in_recovery_mock,
+        conn_mock,
+        xlog_segment_size_mock,
+        previous_segment_name_mock,
+    ):
+        """
+        Test switch_wal will call previous_segment_name and will return the
+        previous wal file name when the segment is at the boundary.
+        """
+        # Build a server
+        server = build_real_server()
+        cursor_mock = conn_mock.return_value.cursor.return_value
+        is_in_recovery_mock.return_value = False
+        has_backup_privileges_mock.return_value = True
+        xlog_segment_size_mock.return_value = 16777216
+        previous_segment_name_mock.return_value = "000000010000000200000017"
+
+        # Test for the response of a correct switch for PostgreSQL < 10
+        conn_mock.return_value.server_version = 170000
+        cursor_mock.fetchone.side_effect = [
+            ("000000010000000200000018", 0),
+            ("000000010000000200000019",),
+        ]
+        xlog = server.postgres.switch_wal()
+
+        previous_segment_name_mock.assert_called_once_with(
+            "000000010000000200000018", 16777216
+        )
+
+        # Check for the right invocation for PostgreSQL >= 17
+        cursor_mock.execute.assert_has_calls(
+            [
+                call(
+                    "SELECT (pg_walfile_name_offset(location)).* "
+                    "FROM pg_current_wal_insert_lsn() AS location"
+                ),
+                call("SELECT pg_walfile_name(pg_switch_wal())"),
+                call("SELECT pg_walfile_name(pg_current_wal_insert_lsn())"),
+            ]
+        )
+        assert xlog == "000000010000000200000017"
 
     @patch("barman.postgres.PostgreSQLConnection.connect")
     @patch(
