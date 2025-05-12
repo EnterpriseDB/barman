@@ -48,6 +48,32 @@ install_requires = [
     "setuptools",  # Python 3.12+ no longer includes setuptools by default
 ]
 
+extras_requires = {
+    "argcomplete": ["argcomplete"],
+    "aws-snapshots": ["boto3"],
+    "azure": ["azure-identity", "azure-storage-blob"],
+    "azure-snapshots": ["azure-identity", "azure-mgmt-compute"],
+    "cloud": ["boto3"],
+    "google": [
+        "google-cloud-storage",
+    ],
+    "google-snapshots": [
+        "grpcio",
+        "google-cloud-compute",
+    ],
+    "snappy": [
+        "python-snappy",
+        "cramjam >= 2.7.0",
+    ],
+    "zstandard": ["zstandard"],
+    "lz4": ["lz4"],
+}
+
+# Automatically create "all" extra requirement by combining everything
+extras_requires["all"] = sorted(
+    {pkg for group in extras_requires.values() for pkg in group}
+)
+
 barman = {}
 with open("barman/version.py", "r", encoding="utf-8") as fversion:
     exec(fversion.read(), barman)
@@ -132,26 +158,7 @@ setup(
     description=__doc__.split("\n")[0],
     long_description="\n".join(__doc__.split("\n")[2:]),
     install_requires=install_requires,
-    extras_require={
-        "argcomplete": ["argcomplete"],
-        "aws-snapshots": ["boto3"],
-        "azure": ["azure-identity", "azure-storage-blob"],
-        "azure-snapshots": ["azure-identity", "azure-mgmt-compute"],
-        "cloud": ["boto3"],
-        "google": [
-            "google-cloud-storage",
-        ],
-        "google-snapshots": [
-            "grpcio",
-            "google-cloud-compute",
-        ],
-        "snappy": [
-            "python-snappy",
-            "cramjam >= 2.7.0",
-        ],
-        "zstandard": ["zstandard"],
-        "lz4": ["lz4"],
-    },
+    extras_require=extras_requires,
     platforms=["Linux", "Mac OS X"],
     classifiers=[
         "Environment :: Console",
