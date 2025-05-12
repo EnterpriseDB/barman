@@ -1,7 +1,0 @@
-- summary: Introduces the new `list-processes` sub-command for listing the server processes
-  description: |
-    Adds a new "list-processes" command that outputs all active subprocesses for
-    a Barman server. The command displays each process's PID and task.
-  type: minor_change
-  jira_tickets:
-    - BAR-664

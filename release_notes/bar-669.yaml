@@ -1,9 +1,0 @@
-- summary: Adds new encryption options
-  description: |
-    Adds new configuration options required for encryption and decryption of backups and WAL files.
-    The new options are `encryption`, `encryption_key_id` and `encryption_passphrase_command`.
-  type: minor_change
-  jira_tickets:
-    - BAR-669
-    - BAR-671
-    - BAR-692
