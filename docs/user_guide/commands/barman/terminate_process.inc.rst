@@ -1,7 +1,7 @@
 .. _commands-barman-terminate-process:
 
 ``barman terminate-process``
-""""""""""""""""
+""""""""""""""""""""""""""""
 
 Synopsis
 ^^^^^^^^
