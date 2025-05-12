@@ -43,5 +43,7 @@ RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Install Sphinx and any additional Python dependencies
-RUN pip3 install --upgrade pip \
+# We need to pin pip to 25.0.1 because of the following pip issue:
+# https://github.com/jazzband/pip-tools/issues/2176
+RUN pip3 install --upgrade pip==25.0.1 \
   && pip3 install tox
