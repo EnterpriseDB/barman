@@ -1,0 +1,10 @@
+- summary: Add `--check-timeout` argument to `barman check` and `barman backup` commands
+  description: |
+    A new CLI option has been introduced for the `barman check` and `barman backup`
+    commands to address situations where the check operation duration exceeds the
+    configured `check_timeout`, preventing backups from being scheduled. This option
+    allows users to disable the timeout or override the default or configured
+    `check_timeout` value.
+  type: minor_change
+  jira_tickets:
+    - BAR-219
