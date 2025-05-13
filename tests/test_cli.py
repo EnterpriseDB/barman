@@ -38,6 +38,7 @@ from barman.cli import (
     OrderedHelpFormatter,
     argument,
     backup,
+    check,
     check_target_action,
     check_wal_archive,
     command,
@@ -1924,6 +1925,76 @@ class TestCli(object):
 
         dummy_server.kill.assert_called_once_with(args.task)
         mock_output.close_and_exit.assert_called_once()
+
+    @pytest.mark.parametrize(
+        "arg_timeout, config_timeout, expected_timeout",
+        [(None, None, 30), (None, 300, 300), (600, 300, 600)],
+    )
+    @patch("barman.output.close_and_exit")
+    @patch("barman.cli.get_server_list")
+    def test_backup_check_timeout_cli_arg_overrides_config_option(
+        self,
+        mock_get_server_list,
+        mock_close_and_exit,
+        arg_timeout,
+        config_timeout,
+        expected_timeout,
+    ):
+        """
+        Verify the check_timeout from args overrides check_timeout from configuration
+        option when running a backup command.
+        """
+        config = {"main_conf": {"check_timeout": config_timeout}}
+        server = build_real_server(**config if config_timeout is not None else {})
+
+        mock_server_list = {"main": server}
+        mock_get_server_list.return_value = mock_server_list
+        mock_close_and_exit.return_value = None
+
+        args = Mock()
+        args.sever_name = "main"
+        args.check_timeout = arg_timeout
+        args.backup_id = "test_backup"
+        backup(args)
+        assert server.config.check_timeout == expected_timeout
+
+    @pytest.mark.parametrize(
+        "arg_timeout, config_timeout, expected_timeout",
+        [(None, None, 30), (None, 300, 300), (600, 300, 600)],
+    )
+    @patch("barman.cli.output")
+    @patch("barman.cli.get_server_list")
+    def test_check_check_timeout_cli_arg_overrides_config_option(
+        self,
+        mock_get_server_list,
+        mock_output,
+        arg_timeout,
+        config_timeout,
+        expected_timeout,
+    ):
+        """
+        Verify the check_timeout from args overrides check_timeout from configuration
+        option when running a backup command.
+        """
+        config = {"main_conf": {"check_timeout": config_timeout}}
+        server = build_mocked_server(**config if config_timeout is not None else {})
+        server.config.active = True
+        server.config.active = False
+        mock_server_list = {"main": server}
+        mock_get_server_list.return_value = mock_server_list
+
+        args = Mock()
+        args.sever_name = "main"
+        args.check_timeout = arg_timeout
+        args.backup_id = "test_backup"
+        args.nagios = False  # This has to be assigned to `False`, otherwise this is a
+        # leaky tests. the `output.set_output_writer` uses a global
+        # variable that will impact other tests.
+        check(args)
+        assert server.config.check_timeout == expected_timeout
+        server.check.assert_called_once_with()
+        mock_output.init.assert_called_once_with("check", "main", False, False)
+        mock_output.close_and_exit.assert_called_once_with()
 
 
 class TestKeepCli(object):
