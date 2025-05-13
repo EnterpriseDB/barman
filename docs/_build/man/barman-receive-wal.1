@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-RECEIVE-WAL" "1" "Mar 27, 2024" "3.13" "Barman"
+.TH "BARMAN-RECEIVE-WAL" "1" "May 15, 2024" "3.14" "Barman"
 .SH NAME
 barman-receive-wal \- Barman Sub-Commands
 .SH SYNOPSIS
@@ -73,6 +73,16 @@ of the server.
 .TP
 .B \fB\-\-stop\fP
 Stop the process for the server.
+.UNINDENT
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+The \fB\-\-stop\fP option for the \fBbarman receive\-wal\fP command will be obsoleted
+in a future release. Users should favor using the
+\fI\%terminate\-process\fP command instead, which
+is the new way of handling this feature.
+.UNINDENT
 .UNINDENT
 .SH AUTHOR
 EnterpriseDB

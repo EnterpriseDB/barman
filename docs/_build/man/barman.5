@@ -1,3 +1,4 @@
+'\" t
 .\" Man page generated from reStructuredText.
 .
 .
@@ -27,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN" "5" "Mar 27, 2024" "3.13" "Barman"
+.TH "BARMAN" "5" "May 15, 2024" "3.14" "Barman"
 .SH NAME
 barman \- Barman Configurations
 .sp
@@ -269,6 +270,35 @@ replace the duplicate file archived before, etc.)
 .sp
 Scope: Server.
 .sp
+\fBencryption\fP
+.sp
+Specifies the encryption method used for encrypting backups and WAL files. Supported
+values are:
+.INDENT 0.0
+.IP \(bu 2
+\fBnone\fP (default): No encryption is applied.
+.IP \(bu 2
+\fBgpg\fP: Uses \fI\%GPG\fP for encryption. Requires \fI\%GPG\fP to be installed
+and properly configured on the system.
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBencryption_key_id\fP
+.sp
+Specifies the encryption key ID used for encrypting backups and WAL files. This option
+is required when \fBencryption = gpg\fP and must correspond to a valid \fI\%GPG\fP key ID
+available on the system.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBencryption_passphrase_command\fP
+.sp
+Specifies a command used to retrieve the encryption passphrase for decrypting
+backups and WAL files. The command must write the passphrase to standard output.
+.sp
+Scope: Global / Server / Model.
+.sp
 \fBforward_config_path\fP
 .sp
 Determines whether a passive node should forward its configuration file path to its
@@ -386,9 +416,9 @@ Scope: Global / Server / Model.
 \fBpath_prefix\fP
 .sp
 Lists one or more absolute paths, separated by colons, where Barman looks for executable
-files. These paths are checked before the \fBPATH\fP environment variable. This option can
-be set for each server and needs to point to the \fBbin\fP directory for the appropriate
-\fBPG_MAJOR_VERSION\fP\&.
+files such as PostgreSQL binaries (from the appropriate \fBbin\fP directory for the
+\fBPG_MAJOR_VERSION\fP), \fBrsync\fP, encryption, and compression tools. These paths are
+prepended to the \fBPATH\fP environment variable and are checked before any others.
 .sp
 Scope: Global / Server / Model.
 .sp
@@ -1090,7 +1120,8 @@ These configuration options are related to how Barman will manage the Write\-Ahe
 \fBcompression\fP
 .sp
 Specifies the standard compression algorithm for WAL files. Options include: \fBlz4\fP,
-\fBxz\fP, \fBzstd\fP, \fBgzip\fP, \fBpygzip\fP, \fBpigz\fP, \fBbzip2\fP, \fBpybzip2\fP and \fBcustom\fP\&.
+\fBxz\fP, \fBzstd\fP, \fBgzip\fP, \fBpygzip\fP, \fBpigz\fP, \fBbzip2\fP, \fBpybzip2\fP, \fBsnappy\fP
+and \fBcustom\fP\&.
 .sp
 \fBNOTE:\fP
 .INDENT 0.0
@@ -1185,6 +1216,104 @@ compression algorithm used.
 This is the same as running \fBxz \-c \-d > \(dq$2\(dq < \(dq$1\(dq;\fP\&.
 .UNINDENT
 .UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBcompression_level\fP
+.sp
+Specifies the compression level to be used by the selected compression algorithm. Valid
+values are integers within the supported range of the chosen algorithm or one
+of the predefined labels: \fBlow\fP, \fBmedium\fP, and \fBhigh\fP, which serve as shortcuts.
+.INDENT 0.0
+.IP \(bu 2
+\fBlow\fP: uses low level of compression, favoring compression speed over compression ratio.
+.IP \(bu 2
+\fBmedium\fP: uses a medium level of compression, balancing between compression speed and compression ratio.
+.IP \(bu 2
+\fBhigh\fP: uses a high level of compression, favoring compression ratio over compression speed.
+.UNINDENT
+.sp
+Predefined labels map to algorithm\-specific levels, as detailed below:
+.SS Compression levels
+.TS
+box center;
+l|l|l|l|l.
+T{
+Algorithm
+T}	T{
+Level range
+T}	T{
+low
+T}	T{
+medium
+T}	T{
+high
+T}
+_
+T{
+\fBlz4\fP
+T}	T{
+0 to 16
+T}	T{
+0
+T}	T{
+6
+T}	T{
+10
+T}
+_
+T{
+\fBxz\fP
+T}	T{
+1 to 9
+T}	T{
+1
+T}	T{
+3
+T}	T{
+5
+T}
+_
+T{
+\fBzstd\fP
+T}	T{
+\-22 to 22
+T}	T{
+1
+T}	T{
+4
+T}	T{
+9
+T}
+_
+T{
+\fBgzip\fP, \fBpygzip\fP and \fBpigz\fP
+T}	T{
+1 to 9
+T}	T{
+1
+T}	T{
+6
+T}	T{
+9
+T}
+_
+T{
+\fBbzip2\fP and \fBpybzip2\fP
+T}	T{
+1 to 9
+T}	T{
+1
+T}	T{
+5
+T}	T{
+9
+T}
+.TE
+.sp
+If the specified compression level is greater than the algorithm\(aqs maximum level, that
+maximum level is used. Similarly, if it is lower than the minimum level, that minimum
+level is used. The default value is \fBmedium\fP\&.
 .sp
 Scope: Global / Server / Model.
 .sp

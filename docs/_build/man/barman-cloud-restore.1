@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CLOUD-RESTORE" "1" "Mar 27, 2024" "3.13" "Barman"
+.TH "BARMAN-CLOUD-RESTORE" "1" "May 15, 2024" "3.14" "Barman"
 .SH NAME
 barman-cloud-restore \- Barman-cloud Commands
 .sp
@@ -67,6 +67,10 @@ Use this script to restore a backup directly from cloud storage that was created
 the \fBbarman\-cloud\-backup\fP command. Additionally, this script can prepare for recovery
 from a snapshot backup by verifying that attached disks were cloned from the correct
 snapshots and by downloading the backup label from object storage.
+.sp
+This command does not automatically prepare Postgres for recovery. You must manually
+manage any \fI\%PITR\fP options, custom \fBrestore_command\fP values, signal files, or
+required WAL files to ensure Postgres starts, either manually or using external tools.
 .sp
 \fBNOTE:\fP
 .INDENT 0.0

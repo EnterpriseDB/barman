@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-WAL-ARCHIVE" "1" "Mar 27, 2024" "3.13" "Barman"
+.TH "BARMAN-WAL-ARCHIVE" "1" "May 15, 2024" "3.14" "Barman"
 .SH NAME
 barman-wal-archive \- Barman-cli Commands
 .SH SYNOPSIS
@@ -40,6 +40,8 @@ barman\-wal\-archive
     [ { \-V | \-\-version } ]
     [ { \-U | \-\-user } USER ]
     [ \-\-port PORT ]
+    [ { { \-z | \-\-gzip } | { \-j | \-\-bzip2 } | \-\-xz | \-\-snappy | \-\-zstd | \-\-lz4 } ]
+    [ \-\-compression\-level COMPRESSION_LEVEL ]
     [ { \-c | \-\-config } CONFIG ]
     [ { \-t | \-\-test } ]
     [ \-\-md5 ]
@@ -87,6 +89,34 @@ Specify the user for the SSH connection to the Barman server (defaults to
 .B \fB\-\-port\fP
 Define the port used for the SSH connection to the Barman server.
 .TP
+.B \fB\-z\fP / \fB\-\-gzip\fP
+gzip\-compress the WAL file before sending it to the Barman server.
+.TP
+.B \fB\-j\fP / \fB\-\-bzip2\fP
+bzip2\-compress the WAL file before sending it to the Barman server.
+.TP
+.B \fB\-\-xz\fP
+xz\-compress the WAL file before sending it to the Barman server.
+.TP
+.B \fB\-\-snappy\fP
+snappy\-compress the WAL file before sending it to the Barman server (requires the
+\fBpython\-snappy\fP Python library to be installed).
+.TP
+.B \fB\-\-zstd\fP
+zstd\-compress the WAL file before sending it to the Barman server (requires the
+\fBzstandard\fP Python library to be installed).
+.TP
+.B \fB\-\-lz4\fP
+lz4\-compress the WAL file before sending it to the Barman server (requires the
+\fBlz4\fP Python library to be installed).
+.TP
+.B \fB\-\-compression\-level\fP
+A compression level to be used by the selected compression algorithm. Valid
+values are integers within the supported range of the chosen algorithm or one
+of the predefined labels: \fBlow\fP, \fBmedium\fP, and \fBhigh\fP\&. The range of each
+algorithm as well as what level each predefined label maps to can be found in
+\fI\%compression_level\fP\&.
+.TP
 .B \fB\-c\fP /  \fB\-\-config\fP
 Specify the configuration file on the Barman server.
 .TP
@@ -100,6 +130,24 @@ Use MD5 instead of SHA256 as the hash algorithm to calculate the checksum of the
 file when transmitting it to the Barman server. This is used to maintain
 compatibility with older server versions, as older versions of Barman server used to
 support only MD5.
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+When compression is enabled in \fBbarman\-wal\-archive\fP, it takes precedence over the
+compression settings configured on the Barman server, if they differ.
+.UNINDENT
+.UNINDENT
+.sp
+\fBIMPORTANT:\fP
+.INDENT 0.0
+.INDENT 3.5
+When compression is enabled in \fBbarman\-wal\-archive\fP, it is performed on the client
+side, before the file is sent to Barman. Be mindful of the database server\(aqs load and
+the chosen compression algorithm and level, as higher compression can delay WAL
+shipping, causing WAL files to accumulate.
+.UNINDENT
 .UNINDENT
 .SH AUTHOR
 EnterpriseDB

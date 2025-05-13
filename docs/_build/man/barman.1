@@ -28,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN" "1" "Mar 27, 2024" "3.13" "Barman"
+.TH "BARMAN" "1" "May 15, 2024" "3.14" "Barman"
 .SH NAME
 barman \- Barman Commands
 .sp
@@ -1064,6 +1064,32 @@ T}	T{
 Most recent backup that failed, in chronological order.
 T}
 .TE
+.SS \fBbarman list\-processes\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+list\-processes
+    [ { \-h | \-\-help } ]
+    SERVER_NAME
+.EE
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+The \fBlist\-processes\fP sub\-command outputs all active subprocesses for a Barman server.
+It displays the process identifier (PID) and the corresponding barman task for each active
+subprocess.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server for which to list active subprocesses.
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Displays a help message and exits.
+.UNINDENT
 .SS \fBbarman list\-servers\fP
 .SS Synopsis
 .INDENT 0.0
@@ -1239,6 +1265,16 @@ of the server.
 .TP
 .B \fB\-\-stop\fP
 Stop the process for the server.
+.UNINDENT
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+The \fB\-\-stop\fP option for the \fBbarman receive\-wal\fP command will be obsoleted
+in a future release. Users should favor using the
+\fI\%terminate\-process\fP command instead, which
+is the new way of handling this feature.
+.UNINDENT
 .UNINDENT
 .SS \fBbarman restore\fP
 .SS Synopsis
@@ -1892,6 +1928,36 @@ Name of the server in barman node
 .B \fB\-h\fP / \fB\-\-help\fP
 Show a help message and exit. Provides information about command usage.
 .UNINDENT
+.SS \fBbarman terminate\-process\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+terminate\-process SERVER_NAME TASK_NAME
+.EE
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+The \fBbarman terminate\-process\fP command terminates an active Barman subprocess on a
+specified server. The target process is identified by its task name (for example, \fBbackup\fP
+or \fBreceive\-wal\fP). Note that only processes that are running on the server level can be
+terminated, so global processes like \fBcron\fP or \fBconfig\-update\fP can not be terminated
+by this command.
+.sp
+You can also use the output of \fBbarman list\-processes\fP to display all active processes
+for a given server and determine which tasks can be terminated. More details about this
+command can be found in \fI\%barman list\-processes\fP\&.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+The name of the server where the subprocess is running.
+.TP
+.B \fBTASK_NAME\fP
+The task name that identifies the subprocess to be terminated.
+.UNINDENT
 .SS \fBbarman verify\-backup\fP
 .SS Synopsis
 .INDENT 0.0
@@ -1979,6 +2045,8 @@ barman\-wal\-archive
     [ { \-V | \-\-version } ]
     [ { \-U | \-\-user } USER ]
     [ \-\-port PORT ]
+    [ { { \-z | \-\-gzip } | { \-j | \-\-bzip2 } | \-\-xz | \-\-snappy | \-\-zstd | \-\-lz4 } ]
+    [ \-\-compression\-level COMPRESSION_LEVEL ]
     [ { \-c | \-\-config } CONFIG ]
     [ { \-t | \-\-test } ]
     [ \-\-md5 ]
@@ -2026,6 +2094,34 @@ Specify the user for the SSH connection to the Barman server (defaults to
 .B \fB\-\-port\fP
 Define the port used for the SSH connection to the Barman server.
 .TP
+.B \fB\-z\fP / \fB\-\-gzip\fP
+gzip\-compress the WAL file before sending it to the Barman server.
+.TP
+.B \fB\-j\fP / \fB\-\-bzip2\fP
+bzip2\-compress the WAL file before sending it to the Barman server.
+.TP
+.B \fB\-\-xz\fP
+xz\-compress the WAL file before sending it to the Barman server.
+.TP
+.B \fB\-\-snappy\fP
+snappy\-compress the WAL file before sending it to the Barman server (requires the
+\fBpython\-snappy\fP Python library to be installed).
+.TP
+.B \fB\-\-zstd\fP
+zstd\-compress the WAL file before sending it to the Barman server (requires the
+\fBzstandard\fP Python library to be installed).
+.TP
+.B \fB\-\-lz4\fP
+lz4\-compress the WAL file before sending it to the Barman server (requires the
+\fBlz4\fP Python library to be installed).
+.TP
+.B \fB\-\-compression\-level\fP
+A compression level to be used by the selected compression algorithm. Valid
+values are integers within the supported range of the chosen algorithm or one
+of the predefined labels: \fBlow\fP, \fBmedium\fP, and \fBhigh\fP\&. The range of each
+algorithm as well as what level each predefined label maps to can be found in
+\fI\%compression_level\fP\&.
+.TP
 .B \fB\-c\fP /  \fB\-\-config\fP
 Specify the configuration file on the Barman server.
 .TP
@@ -2039,6 +2135,24 @@ Use MD5 instead of SHA256 as the hash algorithm to calculate the checksum of the
 file when transmitting it to the Barman server. This is used to maintain
 compatibility with older server versions, as older versions of Barman server used to
 support only MD5.
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+When compression is enabled in \fBbarman\-wal\-archive\fP, it takes precedence over the
+compression settings configured on the Barman server, if they differ.
+.UNINDENT
+.UNINDENT
+.sp
+\fBIMPORTANT:\fP
+.INDENT 0.0
+.INDENT 3.5
+When compression is enabled in \fBbarman\-wal\-archive\fP, it is performed on the client
+side, before the file is sent to Barman. Be mindful of the database server\(aqs load and
+the chosen compression algorithm and level, as higher compression can delay WAL
+shipping, causing WAL files to accumulate.
+.UNINDENT
 .UNINDENT
 .SS \fBbarman\-wal\-restore\fP
 .SS Synopsis
