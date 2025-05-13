@@ -259,6 +259,68 @@ the :ref:`commands-barman-cli-barman-wal-restore` command reference.
   removing the original. Be mindful of the filesystem locations to optimize WAL file
   management efficiency.
 
+.. _recovery-recovering-encrypted-backups:
+
+Recovering Encrypted Backups
+-----------------------------
+
+Encrypted backups and WALs are decrypted during the restore phase, before they are
+copied to the final destination. During the restore, a command to fetch the private key's
+passphrase must be present in ``encryption_passphrase_command``. This command must
+output the passphrase to standard output and can be used to retrieve it from a secure
+location such as a password vault, an external key management service, or a file.
+
+These are some examples of how to set the passphrase command:
+
+* Example reading from an environment variable:
+
+  .. code-block:: ini
+
+      encryption_passphrase_command="echo $BARMAN_PASSPHRASE"
+
+* Example reading from a file:
+
+  .. code-block:: ini
+
+      encryption_passphrase_command="cat /path/to/barman_passphrase"
+
+* Example reading from HashiCorp Vault:
+
+  .. code-block:: ini  
+
+      encryption_passphrase_command="vault kv get -field=<FIELD> <KEY>"
+
+* Example reading from AWS Secret Manager:
+
+  .. code-block:: ini
+
+      encryption_passphrase_command="aws secretsmanager get-secret-value --secret-id
+      <SECRET_NAME>  --profile <AWS_PROFILE> --output text --query SecretString | jq -r
+      '.<SECRET_KEY>'"
+
+The decryption of backups happens as follows:
+
+1. The backup is decrypted into a staging directory on the Barman server. This location
+   is defined by the ``local_staging_path`` option.
+2. If any additional operations are required — such as decompression or combination
+   (in the case of incremental backups) — they are performed using the staging
+   directory's content as source. Otherwise, the decrypted files are copied directly
+   to the final destination.
+3. The staging directory is removed after the restore is complete.
+
+Decryption of WAL files depends on how they are retrieved during recovery:
+
+1. If using the ``--no-get-wal`` option (default), all required WAL files are
+   decrypted into the staging directory and then copied to the final destination. That
+   means the ``encryption_passphrase_command`` is invoked once and the output is reused
+   for all WAL files. Also, the command is only required during the execution of the
+   ``barman restore`` command, and not during the Postgres recovery process.
+2. Using the ``--get-wal`` option, WAL files are served to the Postgres server
+   when needed during recovery process. In this scenario, Barman decrypts each WAL
+   file locally before sending it to the Postgres server. This also means that
+   ``encrytion_passphrase_command`` is invoked once for each WAL file being fetched
+   through the ``restore_command``.
+
 .. _recovery-recovering-compressed-backups:
 
 Recovering Compressed Backups
@@ -279,7 +341,7 @@ The process involves a few steps:
    itself, so editing and mangling operations are done in place. This intermediate step
    is necessary because Barman can only access individual files in the restore
    directory, as the backup directory contains only a compressed tarball file.
-4. The staging directory is removed after restore is complete.
+4. The staging directory is removed after the restore is complete.
 
 Since Barman does not have knowledge of the deployment environment, it depends on the
 ``recovery_staging_path`` option to determine an appropriate location for the staging

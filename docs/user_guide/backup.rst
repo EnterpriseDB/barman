@@ -260,9 +260,8 @@ Refer to the table below to select the appropriate tools for your configuration.
 Backup Encryption
 -----------------
 
-Barman supports encryption of both backups and WAL files using :term:`GPG`. Encryption
-is configured using the ``encryption`` setting in the configuration file. Currently,
-only ``gpg`` and ``none`` (no encryption) are accepted values.
+Barman supports encryption of both backups and WAL files. This feature can be enabled
+with the ``encryption`` option (global or per server).
 
 Requirements
 """"""""""""
@@ -276,63 +275,30 @@ configuration as follows:
 * ``backup_compression_format = tar``
 
 The backed up tar files are encrypted immediately after ``pg_basebackup`` finishes
-writing them on the Barman server disk. WAL files are encrypted as they enter the
-Barman archive catalogue, either directly through the execution of the
-``barman archive-wal`` command or indirectly via ``barman cron``.
+writing them on the Barman server disk.
 
-Encryption
-""""""""""
+Encryption Methods
+""""""""""""""""""
+
+Setting the ``encryption`` option dictates the encryption method used for base backups
+and WALs. Currently, only ``gpg`` and ``none`` (no encryption) are accepted values.
+
+.. note::
+  For details about WAL encryption, refer to :ref:`wal_archiving-WAL-encryption`.
+
+.. note::
+  For details about decryption, refer to :ref:`recovery-recovering-encrypted-backups`.
 
 GPG
 ^^^
+
+This method is enabled by setting ``encryption = gpg`` in the configuration file.
 
 To use :term:`GPG` for encryption, you need ``gpg`` version 2.1 or higher installed on
 the server. You must also generate a GPG key pair in advance and configure the
 ``encryption_key_id`` option with the ID or recipient's email of the generated public
 key. The corresponding private key must be present in GPG's keyring and secured with a
 strong passphrase.
-
-When decryption is required, i.e. during a restore, a command to fetch the passphrase
-must be present in ``encryption_passphrase_command``. This command must output the
-passphrase to standard output and can be used to retrieve it from a secure location such
-as a password vault, an external key management service, or a file.
-
-Example reading from an environment variable:
-
-.. code-block:: ini
-
-    encryption_passphrase_command="echo $BARMAN_PASSPHRASE"
-
-Example reading from a file:
-
-.. code-block:: ini
-
-    encryption_passphrase_command="cat /path/to/barman_passphrase"
-
-Example reading from HashiCorp Vault:
-
-.. code-block:: ini  
-
-    encryption_passphrase_command="vault kv get -field=<FIELD> <KEY>"
-
-Example reading from AWS Secret Manager:
-
-.. code-block:: ini
-
-    encryption_passphrase_command="aws secretsmanager get-secret-value --secret-id
-    <SECRET_NAME>  --profile <AWS_PROFILE> --output text --query SecretString | jq -r
-    '.<SECRET_KEY>'"
-
-Decryption
-""""""""""
-
-During a restore, Barman decrypts all backup files locally before transferring them to
-the destination node. For WAL files, if using the ``--no-get-wal`` option
-(default), all the required WAL files are decrypted and copied along with the backup. 
-Using the ``--get-wal`` option instead, WAL files are served to the Postgres server
-when needed during recovery process. In this last scenario, Barman decrypts 
-each WAL file locally before sending it to the Postgres server. This also means that
-``encrytion_passphrase_command`` is invoked once for each WAL file.
 
 .. _backup-immediate-checkpoint:
 

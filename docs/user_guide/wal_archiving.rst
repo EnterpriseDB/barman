@@ -67,6 +67,21 @@ See :ref:`commands-barman-cli-barman-wal-archive`.
   shipping, causing WAL files to accumulate.
 
 
+.. _wal_archiving-WAL-encryption:
+
+WAL encryption
+--------------
+
+Barman can encrypt WAL files as they enter the Barman's WAL archive. This process is
+handled automatically by ``barman cron`` or when the ``barman archive-wal`` command is
+executed manually.
+
+Both WAL and backup encryption are enabled via the ``encryption`` option in the
+configuration file. Currently, only ``gpg`` and ``none`` (no encryption) are accepted
+as values. A detailed guide on how to configure encryption is available in
+:ref:`backup-encryption`.
+
+
 .. _wal_archiving-synchronous-WAL-streaming:
 
 Synchronous WAL streaming
