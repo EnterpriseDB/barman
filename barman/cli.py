@@ -546,6 +546,14 @@ def backup_completer(prefix, parsed_args, **kwargs):
             action="store_false",
             default=SUPPRESS,
         ),
+        argument(
+            "--check-timeout",
+            help="Specifies the time limit, in seconds, for the check operation. "
+            "Set to zero to disable the timeout.",
+            metavar="CHECK_TIMEOUT",
+            default=None,
+            type=check_non_negative,
+        ),
     ]
 )
 def backup(args):
@@ -595,6 +603,8 @@ def backup(args):
             )
         if hasattr(args, "bwlimit"):
             server.config.bandwidth_limit = args.bwlimit
+        if args.check_timeout is not None:
+            server.config.check_timeout = args.check_timeout
         with closing(server):
             server.backup(
                 wait=args.wait,
@@ -1386,6 +1396,14 @@ def switch_wal(args):
         argument(
             "--nagios", help="Nagios plugin compatible output", action="store_true"
         ),
+        argument(
+            "--check-timeout",
+            help="Specifies the time limit, in seconds, for the check operation. "
+            "Set to zero to disable the timeout.",
+            metavar="TIMEOUT",
+            default=None,
+            type=check_non_negative,
+        ),
     ]
 )
 def check(args):
@@ -1401,6 +1419,8 @@ def check(args):
     for name in sorted(servers):
         server = servers[name]
 
+        if args.check_timeout is not None:
+            server.config.check_timeout = args.check_timeout
         # Validate the returned server
         if not manage_server_command(
             server,
