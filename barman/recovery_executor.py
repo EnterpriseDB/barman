@@ -1495,7 +1495,7 @@ class RecoveryExecutor(object):
         encryption_manager = self.backup_manager.encryption_manager
         encryption_handler = encryption_manager.get_encryption(backup_info.encryption)
 
-        for backup_file in backup_info.get_list_of_files("data"):
+        for backup_file in backup_info.get_directory_entries("data"):
             # We "reconstruct" the "original backup" in the staging path. Encrypted
             # files are decrypted, while unencrypted files are copied as-is.
             if backup_file.endswith(".gpg"):

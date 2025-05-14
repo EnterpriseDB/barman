@@ -879,7 +879,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         :param barman.infofile.LocalBackupInfo backup_info: Backup information
         :param barman.encryption.Encryption encryption: The encryption handler class
         """
-        for tar_file in backup_info.get_list_of_files("data"):
+        for tar_file in backup_info.get_directory_entries("data"):
             filename = os.path.basename(tar_file)
             if re.search(r"\.tar(\.[^.]+)?$", filename):
                 output.debug("Encrypting file %s" % tar_file)

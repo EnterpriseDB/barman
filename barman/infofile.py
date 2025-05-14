@@ -878,14 +878,28 @@ class LocalBackupInfo(BackupInfo):
                 e,
             )
 
-    def get_list_of_files(self, target):
+    def get_directory_entries(self, target, empty_dirs=False):
         """
-        Get the list of files for the current backup
+        Get the list of files and optionally empty directories for the current backup.
+
+        :param str target: The type of entry to target. One among:
+
+            * ``data``: all files in the base backup directory.
+            * ``wal``: all WAL files until the next backup.
+            * ``full``: same as ``data`` plus ``wal``.
+            * ``standalone``: same as ``data`` plus the WAL files required for the
+                consistency of this backup.
+
+        :param bool empty_dirs: Whether to include empty directories in the list.
+            Defaults to ``False``.
+        :yield str: The path to a file or an empty directory.
         """
         # Walk down the base backup directory
         if target in ("data", "standalone", "full"):
-            for root, _, files in os.walk(self.get_basebackup_directory()):
+            for root, dirs, files in os.walk(self.get_basebackup_directory()):
                 files.sort()
+                if empty_dirs and len(dirs + files) == 0:
+                    yield root
                 for f in files:
                     yield os.path.join(root, f)
         if target in "standalone":

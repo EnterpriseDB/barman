@@ -1603,6 +1603,12 @@ def show_backup(args):
                        backup and the following one (if any) or the end of the log) and
                        full (same as data + wal). Defaults to %(default)s""",
         ),
+        argument(
+            "--list-empty-directories",
+            help="Also includes empty directories in the list.",
+            action="store_true",
+            default=False,
+        ),
     ]
 )
 def list_files(args):
@@ -1614,7 +1620,9 @@ def list_files(args):
     # Retrieves the backup
     backup_info = parse_backup_id(server, args)
     try:
-        for line in backup_info.get_list_of_files(args.target):
+        for line in backup_info.get_directory_entries(
+            args.target, empty_dirs=args.list_empty_directories
+        ):
             output.info(line, log=False)
     except BadXlogSegmentName as e:
         output.error(
