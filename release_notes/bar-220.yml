@@ -1,0 +1,7 @@
+- summary: Add `--list-empty-directories` to `barman list-files` command
+  description: |
+    Adds a new `--list-empty-directories` argument to the `list-files`
+    command to add empty directories to the listing.
+  type: minor_change
+  jira_tickets:
+    - BAR-220
