@@ -49,6 +49,7 @@ from barman.cli import (
     get_server,
     get_server_list,
     keep,
+    list_files,
     list_processes,
     manage_model_command,
     manage_server_command,
@@ -59,7 +60,7 @@ from barman.cli import (
     show_servers,
     terminate_process,
 )
-from barman.exceptions import WalArchiveContentError
+from barman.exceptions import BadXlogSegmentName, WalArchiveContentError
 from barman.infofile import BackupInfo
 from barman.server import Server
 
@@ -1995,6 +1996,67 @@ class TestCli(object):
         server.check.assert_called_once_with()
         mock_output.init.assert_called_once_with("check", "main", False, False)
         mock_output.close_and_exit.assert_called_once_with()
+
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    @patch("barman.cli.output")
+    def test_list_files(
+        self,
+        mock_output,
+        mock_get_server,
+        mock_parse_backup,
+    ):
+        """
+        Test that `list_files` yields files under the backup directory for
+        each target and empty dirs when requested.
+        """
+        args = Mock()
+        args.sever_name = "test_server"
+        args.backup_id = "test_backup_id"
+        args.target = "data"
+        args.list_empty_directories = False
+        dummy_server = Mock()
+        dummy_server.config.name = "test_server"
+        mock_get_server.return_value = dummy_server
+
+        mock_parse_backup.return_value.backup_id = "test_backup_id"
+
+        mock_parse_backup.return_value.get_directory_entries.return_value = [
+            "non-empty_dir/file.txt"
+        ]
+
+        list_files(args)
+        mock_output.info.assert_called_once_with("non-empty_dir/file.txt", log=False)
+        mock_parse_backup.return_value.get_directory_entries.assert_called_once_with(
+            "data", empty_dirs=False
+        )
+
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_list_files_bad_xlog_segment_name(
+        self, mock_get_server, mock_parse_backup_id, capsys
+    ):
+        """
+        Test list_files handles BadXlogSegmentName exception.
+        """
+        mock_server = Mock()
+        mock_server.config.name = "main"
+        mock_backup_info = Mock()
+        mock_backup_info.get_directory_entries.side_effect = BadXlogSegmentName(
+            "badseg"
+        )
+        mock_parse_backup_id.return_value = mock_backup_info
+        mock_get_server.return_value = mock_server
+        args = Mock()
+        args.server_name = "main"
+        args.backup_id = "20190101T000000"
+        args.target = "standalone"
+        args.list_empty_directories = False
+        with pytest.raises(SystemExit):
+            list_files(args)
+        out, err = capsys.readouterr()
+        assert "invalid xlog segment name" in err
+        assert 'Please run "barman rebuild-xlogdb main"' in err
 
 
 class TestKeepCli(object):

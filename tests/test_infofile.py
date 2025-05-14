@@ -33,6 +33,7 @@ from testing_helpers import (
     build_test_backup_info,
 )
 
+from barman import xlog
 from barman.cloud_providers.aws_s3 import AwsSnapshotMetadata, AwsSnapshotsInfo
 from barman.cloud_providers.azure_blob_storage import (
     AzureSnapshotMetadata,
@@ -1507,6 +1508,88 @@ class TestLocalBackupInfo:
         )
 
         assert not backup_info.is_full
+
+    @pytest.mark.parametrize("target", ["data", "standalone", "full", "wal"])
+    @patch("barman.infofile.LocalBackupInfo.get_required_wal_segments")
+    @patch("barman.infofile.LocalBackupInfo.get_basebackup_directory")
+    def test_get_directory_entries(
+        self,
+        mock_base_backup_dir,
+        mock_required_wal_segments,
+        target,
+        tmpdir,
+    ):
+        """
+        Test that `get_directory_entries` yields files under the backup directory for
+        each target and empty dirs when requested.
+        """
+        backup_id = "test_backup"
+        server = build_mocked_server(main_conf={"backup_directory": tmpdir.strpath})
+        base_dir = tmpdir.mkdir("base")
+        wals_dir = tmpdir.mkdir("wals")
+        backup_dir = base_dir.mkdir(backup_id)
+        data_dir = backup_dir.mkdir("data")
+        # Create empty subdirectories
+        empty1 = data_dir.mkdir("empty1")
+        empty2 = data_dir.mkdir("empty2")
+        # Create a non-empty directory
+        non_empty = data_dir.mkdir("not_empty")
+        file_path = non_empty.join("file.txt")
+        file_path.write("content")
+        b_info = LocalBackupInfo(server, backup_id=backup_id)
+        mock_base_backup_dir.return_value = backup_dir
+        segment_name = "%08X%08X%08X" % (1, 1, 0)
+        mock_required_wal_segments.return_value = [segment_name]
+        server.get_wal_full_path.side_effect = lambda x: os.path.join(
+            wals_dir,
+            xlog.hash_dir(x),
+            x,
+        )
+        wal1_file_path = os.path.join(
+            wals_dir,
+            xlog.hash_dir(segment_name),
+            segment_name,
+        )
+
+        server.get_wal_until_next_backup.return_value = [
+            WalFileInfo.from_xlogdb_line("000000000000000000000002 42 43 none none ")
+        ]
+
+        wal2_file_path = os.path.join(
+            wals_dir,
+            "0000000000000000",
+            "000000000000000000000002",
+        )
+
+        # Collect all yielded
+        entries_list = list(b_info.get_directory_entries(target, empty_dirs=True))
+        # Should include all files and empty directories.
+        if target in ("full", "standalone", "data"):
+            assert str(file_path) in entries_list
+            assert str(empty1) in entries_list
+            assert str(empty2) in entries_list
+        # Should include only the WAL from `get_required_wal_segments`, not the one from
+        # `get_wal_until_next_backup`
+        if target == "standalone":
+            assert str(wal1_file_path) in entries_list
+            assert str(wal2_file_path) not in entries_list
+        # Should include only the WAL from `get_wal_until_next_backup`, not the one from
+        # `get_required_wal_segments`
+        if target in ("full", "wal"):
+            assert str(wal2_file_path) in entries_list
+            assert str(wal1_file_path) not in entries_list
+        # Should not include WALs
+        if target == "data":
+            assert str(wal2_file_path) not in entries_list
+            assert str(wal1_file_path) not in entries_list
+
+        # Collect only "files" yielded
+        entries_list = list(b_info.get_directory_entries(target))
+        # Should not include empty directories.
+        if target in ("full", "standalone", "data"):
+            assert str(file_path) in entries_list
+            assert str(empty1) not in entries_list
+            assert str(empty2) not in entries_list
 
 
 class TestSyntheticBackupInfo:
