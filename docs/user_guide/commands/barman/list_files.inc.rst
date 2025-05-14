@@ -11,6 +11,7 @@ Synopsis
     list-files
         [ { -h | --help } ]
         [ --target { data | full | standalone | wal } ]
+        [ --list-empty-directories ]
         SERVER_NAME BACKUP_ID
 
 Description
@@ -39,6 +40,9 @@ Parameters
       the log or the start of the following base backup (depending on whether the
       specified base backup is the most recent one available).
     * ``full``: same as ``data`` + ``wal``.
+
+``--list-empty-directories``
+    Add empty directories to the listing.
 
 .. only:: man
 
