@@ -2020,7 +2020,7 @@ class TestRecoveryExecutor(object):
 
         temp_staging_dir.return_value = "/tmp/barman-decryption-random"
         mock_backup_info.get_data_directory.return_value = "default/backup_id/data"
-        mock_backup_info.get_list_of_files.return_value = [
+        mock_backup_info.get_directory_entries.return_value = [
             "default/backup_id/data/data.tar.gpg",
             "default/backup_id/data/11892.tar.gpg",
             "default/backup_id/data/backup_manifest",

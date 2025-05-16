@@ -1643,7 +1643,7 @@ class TestBackup(object):
         mock_backup_info = Mock(spec=build_test_backup_info(backup_manager.server))
 
         # AND a backup directory with the following files
-        mock_backup_info.get_list_of_files.return_value = [
+        mock_backup_info.get_directory_entries.return_value = [
             "path/to/backup/base.tar",
             "path/to/backup/25137.tar.gz",
             "path/to/backup/25138.tar.zstd",
