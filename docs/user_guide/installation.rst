@@ -55,6 +55,10 @@ The minimal system requirements needed to run a Barman server are the following:
   the snapshot lock feature on AWS
 * ``file`` POSIX command, generally provided by the ``file`` package
 
+.. note::
+   Users of RedHat Enterprise Linux, RockyLinux and AlmaLinux are required to install
+   the `Extra Packages Enterprise Linux (EPEL) repository <https://fedoraproject.org/wiki/EPEL>`
+
 .. _installation-rhel-based-distributions:
 
 RHEL-based distributions
