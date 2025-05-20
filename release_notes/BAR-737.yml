@@ -1,0 +1,15 @@
+- summary: Deprecation of Python versions 3.6 and 3.7
+  description: |
+    As of version 3.14 of Barman, we are deprecating support for Python versions
+    3.6 and 3.7. These versions have gone out of support from the Python community
+    already.
+    Support for 3.8 has is still supported by Barman as it's the newest version on
+    RHEL 8 systems which contains all needed modules.
+  # Possible types: notable_change, minor_change, bugfix or breaking_change
+  type: notable_change
+  # At least one between jira_tickets or support_tickets must be defined. You
+  # can define both if you want
+  # You must have at least one list item in each *_tickets section that is
+  # defined
+  jira_tickets:
+    - BAR-737
