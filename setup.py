@@ -33,8 +33,8 @@ import sys
 
 from setuptools import find_packages, setup
 
-if sys.version_info < (3, 6):
-    raise SystemExit("ERROR: Barman needs at least python 3.6 to work")
+if sys.version_info < (3, 8):
+    raise SystemExit("ERROR: Barman needs at least python 3.8 to work")
 
 # Depend on pytest_runner only when the tests are actually invoked
 needs_pytest = set(["pytest", "test"]).intersection(sys.argv)
@@ -45,6 +45,7 @@ setup_requires = pytest_runner
 install_requires = [
     "psycopg2 >= 2.4.2",
     "python-dateutil",
+    "setuptools",  # Python 3.12+ no longer includes setuptools by default
 ]
 
 barman = {}
@@ -142,12 +143,11 @@ setup(
         ],
         "google-snapshots": [
             "grpcio",
-            "google-cloud-compute",  # requires minimum python3.7
+            "google-cloud-compute",
         ],
         "snappy": [
-            'python-snappy==0.6.1; python_version<"3.7"',
-            'python-snappy; python_version>="3.7"',
-            'cramjam >= 2.7.0; python_version>="3.7"',
+            "python-snappy",
+            "cramjam >= 2.7.0",
         ],
         "zstandard": ["zstandard"],
         "lz4": ["lz4"],
@@ -162,11 +162,12 @@ setup(
         "Intended Audience :: System Administrators",
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 3.6",
-        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
     ],
     setup_requires=setup_requires,
 )
