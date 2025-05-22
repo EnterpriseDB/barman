@@ -39,6 +39,15 @@
 
   References: BAR-683, BAR-687, BAR-693, BAR-669, BAR-671, BAR-692, BAR-685, BAR-680, BAR-670, BAR-681, BAR-702.
 
+- Deprecation of Python versions 3.6 and 3.7
+
+  As of version 3.14 of Barman, we are deprecating support for Python
+  3.6 and 3.7, which are not supported by the Python community anymore.
+  Barman still supports Python 3.8 as it's the newest version available on
+  RHEL 8 systems which contains all needed modules.
+
+  References: BAR-737.
+
 ### Minor changes
 
 - Allow compression level to be specified for WAL compression in Barman server
