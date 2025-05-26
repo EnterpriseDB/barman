@@ -70,7 +70,7 @@ def _run_worker(job):
 
     :param _RsyncJob job: the job to be executed
     """
-    global _worker_callable
+    global _worker_callable  # noqa: F824
     assert (
         _worker_callable is not None
     ), "Worker has not been initialized with `_init_worker`"
