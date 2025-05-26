@@ -16,6 +16,8 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import sys
+
 import mock
 import pytest
 
@@ -90,10 +92,20 @@ class TestCloudBackupKeepArguments(object):
             )
 
         _, err = capsys.readouterr()
-        assert (
-            "error: argument --target: invalid choice: 'unsupported_target' (choose from 'full', 'standalone')"
-            in err
-        )
+
+        # We need version dependent assertions because Python 3.12 and newer
+        # use `str` instead of `repr` on error message formatting, which causes
+        # a different string output on the expected error message.
+        if sys.version_info < (3, 12):
+            assert (
+                "error: argument --target: invalid choice: 'unsupported_target' (choose from 'full', 'standalone')"
+                in err
+            )
+        else:
+            assert (
+                "error: argument --target: invalid choice: 'unsupported_target' (choose from full, standalone)"
+                in err
+            )
 
 
 class TestCloudBackupKeep(object):
