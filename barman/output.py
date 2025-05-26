@@ -2270,7 +2270,7 @@ class NagiosOutputWriter(ConsoleOutputWriter):
         Also set the exit code as 2 (CRITICAL) in case of errors
         """
 
-        global error_occurred, error_exit_code
+        global error_occurred, error_exit_code  # noqa: F824
 
         servers, issues, perf_detail = self._parse_check_results()
 
