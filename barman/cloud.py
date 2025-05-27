@@ -2203,17 +2203,65 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
         :param str backup_id: The backup identifier to be parsed
         :return str: The matching backup ID for the supplied identifier
         """
-        if not is_backup_id(backup_id):
-            backup_info = self._get_backup_info_from_name(backup_id)
-            if backup_info is not None:
-                return backup_info.backup_id
-            else:
-                raise ValueError(
-                    "Unknown backup '%s' for server '%s'"
-                    % (backup_id, self.server_name)
-                )
-        else:
+        if is_backup_id(backup_id):
             return backup_id
+        else:
+            backup_id_shortcut = self._get_backup_id_using_shortcut(backup_id)
+            if backup_id_shortcut is not None:
+                return backup_id_shortcut
+            else:
+                backup_info = self._get_backup_info_from_name(backup_id)
+                if backup_info is not None:
+                    return backup_info.backup_id
+                else:
+                    raise ValueError(
+                        "Unknown backup '%s' for server '%s'"
+                        % (backup_id, self.server_name)
+                    )
+
+    def _get_backup_id_using_shortcut(self, shortcut):
+        """
+        Given a backup identifier which might be a shortcut, return the actual
+        backup ID if the shortcut is recognized. Supported shortcuts include:
+
+        * ``first``/``oldest``: the oldest available backup for the server in
+          chronological order.
+        * ``last``/``latest``:  the most recent available backup for the server in
+          chronological order.
+        * ``last-failed``: the most recent backup that failed.
+
+        If no backups are found for a given shortcut or if the provided *shortcut*
+        is not recognized, return ``None``.
+
+        .. note::
+            When this method was written, we already had the helper function
+            :func:`barman.utils.get_backup_id_using_shortcut` available. However, that
+            function is too tied to a :class:`barman.server.Server` instance and it
+            would require a non small amount of refactoring to make it work with both
+            :class:`barman.backup.BackupManager` and
+            :class:`barman.cloud.CloudBackupCatalog`. With that in mind, we introduced
+            this method, which mimics the logic of that helper function, but for cloud.
+
+        :param shortcut: The backup shortcut.
+        :return: The resolved backup id or ``None``.
+        """
+        backups = self.get_backup_list()
+
+        if not backups:
+            return None
+
+        backup_ids = sorted(backups.keys())
+        if shortcut in ("last", "latest"):
+            return backup_ids[-1]
+        elif shortcut in ("first", "oldest"):
+            return backup_ids[0]
+        elif shortcut == "last-failed":
+            # If no failed backups are found, the last instruction
+            # of this method is a "return None", so we rely on that.
+            for bid in reversed(backup_ids):
+                if backups[bid].status == BackupInfo.FAILED:
+                    return bid
+        return None
 
     def get_backup_info(self, backup_id):
         """
