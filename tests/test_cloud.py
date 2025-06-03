@@ -3332,6 +3332,47 @@ end_time=2022-11-09 12:05:00
             exc.value
         )
 
+    def test__get_backup_id_using_shortcut(self):
+        """
+        Verify that CloudBackupCatalog._get_backup_id_using_shortcut resolves:
+        - first/oldest to the earliest backup ID
+        - last/latest to the most recent backup ID
+        - last-failed to the most recent FAILED backup ID
+        - non-string or unknown shortcuts return None
+        """
+        dummy_cloud_interface = MagicMock()
+        catalog = CloudBackupCatalog(dummy_cloud_interface, "test-server")
+
+        # Set up a backups dictionary with three backups
+        backups = {
+            "20210723T133818": MagicMock(),
+            "20210723T154445": MagicMock(),
+            "20210723T154554": MagicMock(),
+        }
+        backups["20210723T133818"].status = BackupInfo.DONE
+        backups["20210723T154445"].status = BackupInfo.FAILED
+        backups["20210723T154554"].status = BackupInfo.DONE
+
+        # Override get_backup_list() so we simulate these available backups
+        catalog.get_backup_list = lambda: backups
+
+        # Verify the 'first' and 'oldest' shortcuts return the earliest backup
+        assert catalog._get_backup_id_using_shortcut("first") == "20210723T133818"
+        assert catalog._get_backup_id_using_shortcut("oldest") == "20210723T133818"
+
+        # Verify the 'last' and 'latest' shortcuts return the latest backup
+        assert catalog._get_backup_id_using_shortcut("last") == "20210723T154554"
+        assert catalog._get_backup_id_using_shortcut("latest") == "20210723T154554"
+
+        # Verify the 'last-failed' shortcut returns the most recent backup with status FAILED
+        assert catalog._get_backup_id_using_shortcut("last-failed") == "20210723T154445"
+
+        # Non-string input should return None
+        assert catalog._get_backup_id_using_shortcut(123) is None
+
+        # An unrecognized shortcut should return None
+        assert catalog._get_backup_id_using_shortcut("name") is None
+
     def test_get_wal_prefixes(self):
         """Verify the retrieval of common WAL prefixes."""
         # GIVEN a mock cloud interface
