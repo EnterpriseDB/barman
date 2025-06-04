@@ -2432,7 +2432,7 @@ class RecoveryOperation(ABC):
         :param datetime.datetime|None safe_horizon: The safe horizon of the backup.
             Any file rsync-copied after this time has to be checked with checksum
         :param bool is_last_operation: Whether this is the last operation in the
-            recovery chain.
+            recovery chain
         :return barman.infofile.VolatileBackupInfo: The respective volatile backup info
             of *backup_info* which reflects all changes performed by the operation
         """
@@ -2491,7 +2491,7 @@ class RecoveryOperation(ABC):
         :param datetime.datetime|None safe_horizon: The safe horizon of the backup.
             Any file rsync-copied after this time has to be checked with checksum
         :param bool is_last_operation: Whether this is the last operation in the
-            recovery chain.
+            recovery chain
         :return barman.infofile.VolatileBackupInfo: The respective volatile backup info
             of *backup_info* which reflects all changes performed by the operation
         """
@@ -2664,6 +2664,16 @@ class RsyncCopyOperation(RecoveryOperation):
 
     NAME = "barman-rsync-copy"
 
+    def _should_execute(self, backup_info):
+        """
+        Check if the rsync copy operation should be executed on the given backup.
+
+        :param barman.infofile.LocalBackupInfo backup_info: The backup info to check
+        :return bool: ``True`` if the operation should be executed, ``False`` otherwise
+        """
+        # This operation is always executed as there are no preconditions
+        return True
+
     def _execute(
         self,
         backup_info,
@@ -2680,23 +2690,191 @@ class RsyncCopyOperation(RecoveryOperation):
             destination,
             tablespaces,
             remote_command,
-            recovery_info,
             safe_horizon,
             is_last_operation,
         )
 
-    def _rsync_backup_copy(self, *args, **kwargs):
-        pass
-
-    def _should_execute(self, backup_info):
+    def _rsync_backup_copy(
+        self,
+        backup_info,
+        destination,
+        tablespaces,
+        remote_command,
+        safe_horizon,
+        is_last_operation,
+    ):
         """
-        Check if the rsync copy operation should be executed on the given backup.
+        Perform the rsync copy of the backup data to the specified destination.
 
-        :param barman.infofile.LocalBackupInfo backup_info: The backup info to check
-        :return bool: ``True`` if the operation should be executed, ``False`` otherwise
+        When this is the last operation in the recovery chain, it copies the PGDATA to
+        the root of *destination* and tablespaces to their final destination, honoring
+        relocation, if requested. Otherwise, it copies the whole backup directory
+        (as in the barman catalog) to *destination* (a staging directory, in this case).
+
+        :param barman.infofile.LocalBackupInfo backup_info: The backup info to copy
+        :param str destination: The destination directory
+        :param dict[str,str]|None tablespaces: A dictionary mapping tablespace names to
+            their target directories. This is the relocation chosen by the user when
+            invoking the ``restore`` command. If ``None``, it means no relocation
+            chosen
+        :param str|None remote_command: The SSH remote command to use for the recovery,
+            in case of a remote recovery. If ``None``, it means the recovery is local
+        :param datetime.datetime|None safe_horizon: The safe horizon of the backup.
+            Any file rsync-copied after this time has to be checked with checksum
+        :param bool is_last_operation: Whether this is the last operation in the
+            recovery chain
+        :return barman.infofile.VolatileBackupInfo: The respective volatile backup info
+            of *backup_info* which reflects all changes performed by the operation
         """
-        # This operation is always executed as there are no preconditions
-        return True
+        # Create a volatile backup info with the destination as its base directory
+        vol_backup_info = self._create_volatile_backup_info(backup_info, destination)
+
+        # Set a ':' prefix to remote destinations
+        dest_prefix = ""
+        if remote_command:
+            dest_prefix = ":"
+
+        # Create the copy controller object, specific for rsync, which will drive all
+        # the copy operations. Items to be copied are added before calling copy()
+        controller = RsyncCopyController(
+            path=self.server.path,
+            ssh_command=remote_command,
+            network_compression=self.config.network_compression,
+            safe_horizon=safe_horizon,
+            retry_times=self.config.basebackup_retry_times,
+            retry_sleep=self.config.basebackup_retry_sleep,
+            workers=self.config.parallel_jobs,
+            workers_start_batch_period=self.config.parallel_jobs_start_batch_period,
+            workers_start_batch_size=self.config.parallel_jobs_start_batch_size,
+        )
+
+        if is_last_operation:
+            # If this is the last operation then the root of *destination* is where
+            # the backup is copied to. Tablespaces are copied directly to their
+            # final destination
+            self._copy_pgdata_and_tablespaces(
+                backup_info, controller, dest_prefix, destination, tablespaces
+            )
+        else:
+            # Otherwise, it means this is still an intermediate step, so we just copy
+            # the whole backup directory (includes tablespaces) as in the Barman
+            # catalog to the destination (which is a staging directory), as this backup
+            # will still be referenced by following operations in the chain. This way
+            # we maintain a consistent structure among volatile backups
+            self._copy_backup_dir(backup_info, controller, dest_prefix, vol_backup_info)
+
+        return vol_backup_info
+
+    def _copy_backup_dir(self, backup_info, controller, dest_prefix, vol_backup_info):
+        """
+        Copy the backup directory to the destination.
+
+        Copies the entire backup directory (as in the Barman catalog) to the
+        specified destination, ensuring that the directory structure is preserved.
+
+        :param barman.infofile.LocalBackupInfo backup_info: The backup info to copy
+        :param barman.copy_controller.RsyncCopyController controller: The rsync controller object
+        :param str dest_prefix: The prefix to add to the destination path
+        :param barman.infofile.VolatileBackupInfo vol_backup_info: The volatile backup
+            info that is the result of the whole operation
+        :raises barman.exceptions.DataTransferFailure: If the copy operation fails
+        """
+        dest = vol_backup_info.get_basebackup_directory()
+        controller.add_directory(
+            label="backup",
+            src="%s/" % backup_info.get_basebackup_directory(),
+            dst=dest_prefix + dest,
+            bwlimit=self.config.get_bwlimit(),
+        )
+
+        # Prepare the destination directories for the backup copy
+        self._prepare_directory(dest)
+
+        # Execute the copy
+        try:
+            controller.copy()
+        except CommandFailedException as e:
+            msg = "data transfer failure"
+            raise DataTransferFailure.from_command_error("rsync", e, msg)
+
+    def _copy_pgdata_and_tablespaces(
+        self, backup_info, controller, dest_prefix, destination, tablespaces
+    ):
+        """
+        Copy the PGDATA and tablespaces to the specified destination.
+
+        Copies the PGDATA to the root of *destination* and tablespaces to their
+        final destination, honoring relocation if requested.
+
+        :param barman.infofile.LocalBackupInfo backup_info: The backup info to copy
+        :param barman.copy_controller.RsyncCopyController controller: The rsync controller object
+        :param str dest_prefix: The prefix to add to the destination path
+        :param str destination: The destination directory where for the backup
+        :param dict[str,str]|None tablespaces: A dictionary mapping tablespace names to
+            their target directories. This is the relocation chosen by the user when
+            invoking the ``restore`` command. If ``None``, it means no relocation was
+            chosen
+        :raises barman.exceptions.DataTransferFailure: If the copy operation fails
+        """
+        dest_dirs = [destination]
+        exclude_and_protect = []
+        if backup_info.tablespaces:
+            for tablespace in backup_info.tablespaces:
+                # By default a tablespace goes in the same location where
+                # it was on the source server when the backup was taken
+                location = tablespace.location
+                # If a relocation has been requested for this tablespace
+                # use the user provided target directory
+                if tablespaces and tablespace.name in tablespaces:
+                    location = tablespaces[tablespace.name]
+                # If the tablespace location is inside the data directory,
+                # exclude and protect it from being deleted during
+                # the data directory copy
+                if location.startswith(destination):
+                    exclude_and_protect += [location[len(destination) :]]
+                # Append it to the list of destination directories
+                dest_dirs.append(location)
+                # Exclude and protect the tablespace from being deleted during
+                # the data directory copy
+                exclude_and_protect.append("/pg_tblspc/%s" % tablespace.oid)
+                # Add the tablespace directory to the list of objects
+                # to be copied by the controller
+                controller.add_directory(
+                    label=tablespace.name,
+                    src="%s/" % backup_info.get_data_directory(tablespace.oid),
+                    dst=dest_prefix + location,
+                    bwlimit=self.config.get_bwlimit(tablespace),
+                    item_class=controller.TABLESPACE_CLASS,
+                )
+        # Add the PGDATA directory to the list of items to be copied by the controller
+        controller.add_directory(
+            label="pgdata",
+            src="%s/" % backup_info.get_data_directory(),
+            dst=dest_prefix + destination,
+            bwlimit=self.config.get_bwlimit(),
+            exclude=[
+                "/pg_log/*",
+                "/log/*",
+                "/pg_xlog/*",
+                "/pg_wal/*",
+                "/postmaster.pid",
+                "/recovery.conf",
+                "/tablespace_map",
+            ],
+            exclude_and_protect=exclude_and_protect,
+            item_class=controller.PGDATA_CLASS,
+        )
+
+        # Prepare the destination directories for the backup copy
+        for _dir in dest_dirs:
+            self._prepare_directory(_dir)
+
+        # Execute the copy
+        try:
+            controller.copy()
+        except CommandFailedException as e:
+            msg = "data transfer failure"
+            raise DataTransferFailure.from_command_error("rsync", e, msg)
 
 
 class DecryptionOperation(RecoveryOperation):
