@@ -3862,6 +3862,370 @@ class TestRecoveryOperation(object):
             )
 
 
+class TestRsyncCopyOperation(object):
+    """
+    Tests for the :class:`RsyncCopyOperation` class.
+    """
+
+    def test_execute(self):
+        """
+        Test that :meth:`_execute` calls :meth:`_execute_on_chain` correctly.
+        """
+        # GIVEN a RsyncCopyOperation instance
+        operation = RsyncCopyOperation(
+            config=mock.Mock(),
+            server=mock.Mock(),
+            backup_manager=mock.Mock(),
+        )
+        operation._execute_on_chain = mock.Mock()
+
+        # Mock the arguments to be passed to execute
+        backup_info = testing_helpers.build_test_backup_info(
+            server=testing_helpers.build_real_server()
+        )
+        args = [
+            backup_info,
+            "destination",
+            "tablespaces",
+            "remote_command",
+            "recovery_info",
+            "safe_horizon",
+            "is_last_operation",
+        ]
+
+        # WHEN execute is called
+        operation.execute(*args)
+
+        # THEN _rsync_backup_copy should be called with the correct arguments
+        operation._execute_on_chain.assert_called_once_with(
+            backup_info,
+            operation._rsync_backup_copy,
+            "destination",
+            "tablespaces",
+            "remote_command",
+            # "recovery_info", # not used in _rsync_backup_copy
+            "safe_horizon",
+            "is_last_operation",
+        )
+
+    @pytest.mark.parametrize("is_last_operation", [True, False])
+    @pytest.mark.parametrize("remote_command", ["ssh postgres@pg", None])
+    @mock.patch("barman.recovery_executor.RsyncCopyOperation._copy_backup_dir")
+    @mock.patch(
+        "barman.recovery_executor.RsyncCopyOperation._copy_pgdata_and_tablespaces"
+    )
+    @mock.patch(
+        "barman.recovery_executor.RsyncCopyOperation._create_volatile_backup_info",
+    )
+    @mock.patch("barman.recovery_executor.RsyncCopyController")
+    def test_rsync_backup_copy(
+        self,
+        mock_copy_controller,
+        mock_create_vol_backup,
+        mock_copy_pgdata_and_tablespaces,
+        mock_copy_backup_dir,
+        is_last_operation,
+        remote_command,
+    ):
+        """
+        Test that :meth:`_rsync_backup_copy` works as expected.
+
+        It should create a volatile backup info, instantiate an
+        :class:`RsyncCopyController` and call the responsible copy method based on
+        whether it is the last operation or not.
+        """
+        # GIVEN a RsyncCopyOperation instance
+        server = testing_helpers.build_mocked_server(
+            main_conf={"path_prefix": "/path/to/binaries"}
+        )
+        operation = RsyncCopyOperation(
+            config=server.config,
+            server=server,
+            backup_manager=server.backup_manager,
+        )
+
+        # Mock a backup_info with a tablespace
+        backup_info = testing_helpers.build_test_backup_info(
+            server=server,
+            tablespaces=[("tbs1", 16409, "/var/lib/pgsql/17/tablespaces1")],
+        )
+
+        # Mock some parameters for _rsync_backup_copy. is_last_operation and
+        # remote_command are in pytest.mark.parametrize so they are not mocked here
+        destination = "/path/to/destination"
+        tablespaces = {"tbs1": "/path/to/relocation"}
+        safe_horizon = datetime.now()
+
+        # WHEN _rsync_backup_copy is called
+        ret = operation._rsync_backup_copy(
+            backup_info,
+            destination,
+            tablespaces,
+            remote_command,
+            safe_horizon,
+            is_last_operation,
+        )
+
+        # THEN the volatile backup info is created
+        mock_create_vol_backup.assert_called_once_with(backup_info, destination)
+        vol_backup_info = mock_create_vol_backup.return_value
+
+        # AND an RsyncCopyController is intantiated with the correct parameters
+        mock_copy_controller.assert_called_once_with(
+            path=server.path,
+            ssh_command=remote_command,
+            network_compression=server.config.network_compression,
+            safe_horizon=safe_horizon,
+            retry_times=server.config.basebackup_retry_times,
+            retry_sleep=server.config.basebackup_retry_sleep,
+            workers=server.config.parallel_jobs,
+            workers_start_batch_period=server.config.parallel_jobs_start_batch_period,
+            workers_start_batch_size=server.config.parallel_jobs_start_batch_size,
+        )
+
+        # AND the responsible copy method is called based on is_last_operation
+        dest_prefix = "" if not remote_command else ":"
+        if is_last_operation:
+            mock_copy_pgdata_and_tablespaces.assert_called_once_with(
+                backup_info,
+                mock_copy_controller.return_value,
+                dest_prefix,
+                destination,
+                tablespaces,
+            )
+            mock_copy_backup_dir.assert_not_called()
+        else:
+            mock_copy_backup_dir.assert_called_once_with(
+                backup_info,
+                mock_copy_controller.return_value,
+                dest_prefix,
+                vol_backup_info,
+            )
+            mock_copy_pgdata_and_tablespaces.assert_not_called()
+
+        # THEN the volatile backup info is returned
+        assert ret is vol_backup_info
+
+    @mock.patch("barman.recovery_executor.RsyncCopyOperation._prepare_directory")
+    @mock.patch(
+        "barman.infofile.LocalBackupInfo.get_basebackup_directory",
+        return_value="/path/to/basebackup/directory/backup_id",
+    )
+    def test_copy_backup_dir(self, mock_get_backup_dir, mock_prepare_directory):
+        """
+        Test that :meth:`_copy_backup_dir` copies the backup directory correctly.
+        """
+        # GIVEN a RsyncCopyOperation instance
+        server = testing_helpers.build_mocked_server(
+            main_conf={"path_prefix": "/path/to/binaries"}
+        )
+        operation = RsyncCopyOperation(
+            config=server.config,
+            server=server,
+            backup_manager=server.backup_manager,
+        )
+
+        # Mock some parameters for _copy_backup_dir
+        backup_info = testing_helpers.build_test_backup_info(server=server)
+        mock_copy_controller = mock.Mock()
+        dest_prefix = ":"
+        vol_backup_info = mock.Mock(
+            get_basebackup_directory=lambda: "/path/to/staging/backup_id"
+        )
+
+        # WHEN _copy_backup_dir is called
+        operation._copy_backup_dir(
+            backup_info, mock_copy_controller, dest_prefix, vol_backup_info
+        )
+
+        # THEN the backup directory is added to the controller correctly
+        mock_copy_controller.add_directory.assert_called_once_with(
+            label="backup",
+            src="/path/to/basebackup/directory/backup_id/",
+            dst=":/path/to/staging/backup_id",
+            bwlimit=server.config.get_bwlimit(),
+        )
+
+        # AND the staging directory destination is prepared correctly
+        mock_prepare_directory.assert_called_once_with("/path/to/staging/backup_id")
+
+        # AND the copy is executed
+        mock_copy_controller.copy.assert_called_once()
+
+    @mock.patch("barman.recovery_executor.RsyncCopyOperation._prepare_directory")
+    @mock.patch(
+        "barman.infofile.LocalBackupInfo.get_data_directory",
+        return_value="/path/to/basebackup/directory/backup_id/data",
+    )
+    def test_copy_pgdata_and_tablespaces_with_no_tablespaces(
+        self, mock_get_data_dir, mock_prepare_directory
+    ):
+        """
+        Test that :meth:`_copy_pgdata_and_tablespaces` copies the pgdata directory
+        correctly when there are no tablespaces.
+        """
+        # GIVEN a RsyncCopyOperation instance
+        server = testing_helpers.build_mocked_server(
+            main_conf={"path_prefix": "/path/to/binaries"}
+        )
+        operation = RsyncCopyOperation(
+            config=server.config,
+            server=server,
+            backup_manager=server.backup_manager,
+        )
+
+        # Mock some parameters for _copy_backup_dir
+        backup_info = testing_helpers.build_test_backup_info(
+            server=server, tablespaces=[]
+        )
+        mock_copy_controller = mock.Mock()
+        dest_prefix = ":"
+        destination = "/path/to/destination"
+        tablespaces = None
+
+        # WHEN _copy_pgdata_and_tablespaces is called
+        operation._copy_pgdata_and_tablespaces(
+            backup_info, mock_copy_controller, dest_prefix, destination, tablespaces
+        )
+
+        # THEN the pgdata directory is added to the controller correctly
+        mock_copy_controller.add_directory.assert_called_once_with(
+            label="pgdata",
+            src="/path/to/basebackup/directory/backup_id/data/",
+            dst=dest_prefix + destination,
+            bwlimit=server.config.get_bwlimit(),
+            exclude=[
+                "/pg_log/*",
+                "/log/*",
+                "/pg_xlog/*",
+                "/pg_wal/*",
+                "/postmaster.pid",
+                "/recovery.conf",
+                "/tablespace_map",
+            ],
+            exclude_and_protect=[],
+            item_class=mock_copy_controller.PGDATA_CLASS,
+        )
+
+        # AND the destination directory is prepared correctly
+        mock_prepare_directory.assert_called_once_with(destination)
+
+        # AND the copy is executed
+        mock_copy_controller.copy.assert_called_once()
+
+    @pytest.mark.parametrize(
+        "tablespace_relocation",
+        [
+            None,
+            {"tbs1": "/path/to/relocation/tbs1", "tbs2": "/path/to/relocation/tbs2"},
+        ],
+    )
+    @mock.patch("barman.recovery_executor.RsyncCopyOperation._prepare_directory")
+    @mock.patch(
+        "barman.infofile.LocalBackupInfo.get_data_directory",
+        lambda self, oid=None: (
+            "/path/to/basebackup/directory/backup_id/data"
+            if oid is None
+            else f"/path/to/basebackup/directory/backup_id/{oid}"
+        ),
+    )
+    def test_copy_pgdata_and_tablespaces_with_tablespaces(
+        self, mock_prepare_directory, tablespace_relocation
+    ):
+        """
+        Test that :meth:`_copy_pgdata_and_tablespaces` copies the pgdata and
+        tablespaces directories correctly when there are tablespaces, honoring
+        the relocation if provided.
+        """
+        # GIVEN a RsyncCopyOperation instance
+        server = testing_helpers.build_mocked_server(
+            main_conf={"path_prefix": "/path/to/binaries"}
+        )
+        operation = RsyncCopyOperation(
+            config=server.config,
+            server=server,
+            backup_manager=server.backup_manager,
+        )
+
+        # Mock a backup_info with tablespaces
+        backup_info = testing_helpers.build_test_backup_info(
+            server=server,
+            tablespaces=[
+                ("tbs1", 16409, "/var/lib/pgsql/17/tablespaces1"),
+                ("tbs2", 16419, "/var/lib/pgsql/17/tablespaces2"),
+            ],
+        )
+
+        # Mock some parameters for _copy_backup_dir
+        mock_copy_controller = mock.Mock()
+        dest_prefix = ":"
+        destination = "/path/to/destination"
+        tablespaces = tablespace_relocation
+
+        # WHEN _copy_pgdata_and_tablespaces is called
+        operation._copy_pgdata_and_tablespaces(
+            backup_info, mock_copy_controller, dest_prefix, destination, tablespaces
+        )
+
+        # The tablespace destination honor the relocation if provided,
+        # otherwise it is its original location
+        if tablespace_relocation is not None:
+            tbs1_dest = tablespace_relocation.get("tbs1")
+            tbs2_dest = tablespace_relocation.get("tbs2")
+        else:
+            tbs1_dest = "/var/lib/pgsql/17/tablespaces1"
+            tbs2_dest = "/var/lib/pgsql/17/tablespaces2"
+
+        # THEN the tablespaces and pgdata are added to the controller correctly
+        mock_copy_controller.add_directory.assert_has_calls(
+            [
+                mock.call(
+                    label="tbs1",
+                    src="/path/to/basebackup/directory/backup_id/16409/",
+                    dst=dest_prefix + tbs1_dest,
+                    bwlimit=server.config.get_bwlimit(16409),
+                    item_class=mock_copy_controller.TABLESPACE_CLASS,
+                ),
+                mock.call(
+                    label="tbs2",
+                    src="/path/to/basebackup/directory/backup_id/16419/",
+                    dst=dest_prefix + tbs2_dest,
+                    bwlimit=server.config.get_bwlimit(16419),
+                    item_class=mock_copy_controller.TABLESPACE_CLASS,
+                ),
+                mock.call(
+                    label="pgdata",
+                    src="/path/to/basebackup/directory/backup_id/data/",
+                    dst=dest_prefix + destination,
+                    bwlimit=server.config.get_bwlimit(),
+                    exclude=[
+                        "/pg_log/*",
+                        "/log/*",
+                        "/pg_xlog/*",
+                        "/pg_wal/*",
+                        "/postmaster.pid",
+                        "/recovery.conf",
+                        "/tablespace_map",
+                    ],
+                    exclude_and_protect=["/pg_tblspc/16409", "/pg_tblspc/16419"],
+                    item_class=mock_copy_controller.PGDATA_CLASS,
+                ),
+            ]
+        )
+
+        # AND the destination directory is prepared correctly
+        mock_prepare_directory.assert_has_calls(
+            [
+                mock.call("/path/to/destination"),
+                mock.call(tbs1_dest),
+                mock.call(tbs2_dest),
+            ]
+        )
+
+        # # AND the copy is executed
+        mock_copy_controller.copy.assert_called_once()
+
+
 class TestMainRecoveryExecutor(object):
     """
     Tests for the :class:`MainRecoveryExecutor` class.
