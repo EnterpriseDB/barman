@@ -1,0 +1,11 @@
+- summary: Add `--staging-path` and `--staging-location` to `barman restore`
+  description: |
+    Added `--staging-path` and `--staging-location` options to `barman restore`
+    command to allow the user to specify a custom path for the staging area
+    during the restore process. `--staging-path` is the absolute path to be used while
+    `--staging-location` defines its location i.e. `local` or `remote`. They also have
+    its equivalent configuration options in `barman.conf` as `staging_path` and
+    `staging_location` respectively.
+  type: minor_change
+  jira_tickets:
+    - BAR-570
