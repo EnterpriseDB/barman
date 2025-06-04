@@ -559,6 +559,8 @@ class TestCli(object):
         args.target_lsn = None
         args.recovery_staging_path = None
         args.local_staging_path = None
+        args.staging_path = None
+        args.staging_location = None
         return args
 
     @patch("barman.cli.parse_backup_id")
@@ -1033,6 +1035,82 @@ class TestCli(object):
         errors = [msg for msg in err.split("\n") if msg.startswith("ERROR: ")]
         assert len(err) > 0
         assert any([error_substring in msg for msg in errors])
+
+    @patch("barman.cli.get_server")
+    @patch("barman.cli.parse_staging_path")
+    def test_restore_staging_path(
+        self, mock_parser, mock_get_server, mock_restore_args, monkeypatch, capsys
+    ):
+        """
+        Test the restore CLI function with a staging path.
+        """
+        # GIVEN a server with a configuration
+        config = build_config_from_dicts()
+        server = config.get_server("main")
+        mock_get_server.return_value.config = server
+        monkeypatch.setattr(
+            barman,
+            "__config__",
+            (config,),
+        )
+
+        mock_restore_args.staging_path = "/some/staging/path"
+
+        # Case 1: a parsing error occurs
+        mock_parser.side_effect = ValueError("Parse error")
+        with pytest.raises(SystemExit):
+            restore(mock_restore_args)
+        # THEN an error is raised and logged
+        _, err = capsys.readouterr()
+        assert "ERROR: Cannot parse staging path: Parse error" in err
+
+        # Case 2: a valid staging path is provided
+        mock_parser.side_effect = None
+        mock_parser.return_value = "/some/staging/path"
+        with pytest.raises(SystemExit):
+            restore(mock_restore_args)
+        # THEN the server's staging path is set correctly
+        assert server.staging_path == "/some/staging/path"
+
+    @patch("barman.cli.get_server")
+    def test_restore_staging_location(
+        self,
+        mock_get_server,
+        mock_restore_args,
+        monkeypatch,
+        capsys,
+    ):
+        """
+        Test the restore CLI function with a staging location.
+        """
+        # GIVEN a server with a configuration
+        config = build_config_from_dicts()
+        server = config.get_server("main")
+        mock_get_server.return_value.config = server
+        monkeypatch.setattr(
+            barman,
+            "__config__",
+            (config,),
+        )
+
+        # Case 1: When remote-ssh-command is not set
+        mock_restore_args.staging_location = "remote"
+        mock_restore_args.remote_ssh_command = None
+        with pytest.raises(SystemExit):
+            restore(mock_restore_args)
+        # THEN an error is raised and logged
+        _, err = capsys.readouterr()
+        assert (
+            "ERROR: --staging-location as remote requires "
+            "--remote-ssh-command to be set"
+        ) in err
+
+        # Case 2: When remote-ssh-command is set
+        mock_restore_args.remote_ssh_command = "ssh postgres@pg"
+        with pytest.raises(SystemExit):
+            restore(mock_restore_args)
+        # THEN the server's staging path is set correctly
+        assert server.staging_location == mock_restore_args.staging_location
 
     @pytest.mark.parametrize(
         ("status", "should_error"),
