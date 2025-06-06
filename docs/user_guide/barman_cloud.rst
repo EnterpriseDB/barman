@@ -62,6 +62,22 @@ differ.
   Barman supports AWS S3 (and S3 compatible object stores), Azure Blob Storage
   and Google Cloud Storage.
 
+.. note::
+   Some S3 third-party providers are not compatible with the new Data Integrity
+   Protection checks provided by default with ``boto3>=1.36``. If your provider falls
+   in this group, there is a workaround which may help you overcome the incompatibility
+   with the AWS S3.
+
+   For this, you will have to set ``when_required`` to the following two environment
+   variables shown below in order for the ``barman-cloud`` tools to work (there is no
+   guarantee it will work, but we've seen that setting these make ``barman-cloud`` work
+   in such environments):
+
+   .. code-block:: bash
+
+      AWS_REQUEST_CHECKSUM_CALCULATION=when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
+
 .. _barman-cloud-installation:
 
 Installation
