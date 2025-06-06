@@ -2101,104 +2101,143 @@ class ConfigChangesProcessor:
         # Get all the available configuration change files in order
         changes_list = []
         for section in changes:
-            original_section = deepcopy(section)
-            section_name = None
-            scope = section.pop("scope")
-
-            if scope not in ["server", "model"]:
-                output.warning(
-                    "%r has been ignored because 'scope' is "
-                    "invalid: '%s'. It should be either 'server' "
-                    "or 'model'.",
-                    original_section,
-                    scope,
-                )
-                continue
-            elif scope == "server":
-                try:
-                    section_name = section.pop("server_name")
-                except KeyError:
-                    output.warning(
-                        "%r has been ignored because 'server_name' is missing.",
-                        original_section,
-                    )
-                    continue
-            elif scope == "model":
-                try:
-                    section_name = section.pop("model_name")
-                except KeyError:
-                    output.warning(
-                        "%r has been ignored because 'model_name' is missing.",
-                        original_section,
-                    )
-                    continue
-
-            server_obj = self.config.get_server(section_name)
-            model_obj = self.config.get_model(section_name)
-
-            if scope == "server":
-                # the section already exists as a model
-                if model_obj is not None:
-                    output.warning(
-                        "%r has been ignored because '%s' is a model, not a server.",
-                        original_section,
-                        section_name,
-                    )
-                    continue
-            elif scope == "model":
-                # the section already exists as a server
-                if server_obj is not None:
-                    output.warning(
-                        "%r has been ignored because '%s' is a server, not a model.",
-                        original_section,
-                        section_name,
-                    )
-                    continue
-
-                # If the model does not exist yet in Barman
-                if model_obj is None:
-                    # 'model=on' is required for models, so force that if the
-                    # user forgot 'model' or set it to something invalid
-                    section["model"] = "on"
-
-                    if "cluster" not in section:
-                        output.warning(
-                            "%r has been ignored because it is a "
-                            "new model but 'cluster' is missing.",
-                            original_section,
-                        )
-                        continue
+            raw_section = deepcopy(section)
+            # Validate server and model configurations
+            ok, section_name, opts = self._validate_section(section)
+            if not ok:
+                output.error("Aborting config‐update: invalid section %r", raw_section)
+                output.close_and_exit()
 
             # Instantiate the ConfigChangeSet object
             chg_set = ConfigChangeSet(section=section_name)
-            for json_cng in section:
-                file_name = self.config._config.get_config_source(
-                    section_name, json_cng
+            for key, value in opts.items():
+                file_name = str(
+                    self.config._config.get_config_source(section_name, key)
                 )
                 # if the configuration change overrides a default value
                 # then the source file is ".barman.auto.conf"
                 if file_name == "default":
                     file_name = os.path.expanduser(
-                        "%s/.barman.auto.conf" % self.config.barman_home
+                        f"{self.config.barman_home}/.barman.auto.conf"
                     )
-                chg = None
                 # Instantiate the configuration change object
-                chg = ConfigChange(
-                    json_cng,
-                    section[json_cng],
-                    file_name,
-                )
+                chg = ConfigChange(key, value, file_name)
                 chg_set.changes_set.append(chg)
             changes_list.append(chg_set)
 
         # If there are no configuration change we've nothing to do here
-        if len(changes_list) == 0:
-            _logger.debug("No valid changes submitted")
+        if not changes_list:
+            _logger.debug("No valid changes submitted.")
             return
 
         # Extend the queue with the new changes
         with ConfigChangesQueue(self.config.config_changes_queue) as changes_queue:
             changes_queue.queue.extend(changes_list)
+
+    def _validate_section(self, section):
+        """
+        Validate a single section from the JSON payload of ``config-update``.
+
+        This method:
+
+        1. Removes and checks the ``scope`` field (``server`` or ``model``).
+        2. Removes and returns the matching ``server_name`` or ``model_name``.
+        3. Verifies you're not updating a model as a server (or vice versa).
+        4. Ensures new models declare ``cluster``.
+        5. Runs each remaining key/value through its parser (if any).
+
+        :param section: a dictionary representing the section to validate.
+
+        :return: a tuple of 3 items:
+
+            * ok: ``True`` if all checks passed.
+            * name: extracted section name, if ``ok`` is ``True``, otherwise ``None``.
+            * opts: the leftover option→value pairs to apply, if ``ok`` is ``True``,
+                otherwise ``None``.
+
+        :rtype: tuple[bool, str|None, dict|None]
+        """
+        original = deepcopy(section)
+
+        failure = (False, None, None)
+
+        # Scope validation
+        scope = section.pop("scope", None)
+        if scope not in ("server", "model"):
+            output.error(
+                "Invalid section %r: 'scope' is invalid: '%s'. It should be either 'server' or 'model'.",
+                original,
+                scope,
+            )
+            return failure
+
+        # Extract name
+        name_key = "server_name" if scope == "server" else "model_name"
+        if name_key not in section:
+            output.error("Invalid section %r: '%s' is missing.", original, name_key)
+            return failure
+
+        name = section.pop(name_key)
+        server_obj = self.config.get_server(name)
+        model_obj = self.config.get_model(name)
+
+        if scope == "server" and model_obj is not None:
+            # the section already exists as a model
+            output.error(
+                "Invalid section %r: '%s' is a model, not a server.",
+                original,
+                name,
+            )
+            return failure
+
+        if scope == "model":
+            # the section already exists as a server
+            if server_obj is not None:
+                output.error(
+                    "Invalid section %r: '%s' is a server, not a model.",
+                    original,
+                    name,
+                )
+                return failure
+            # If the model does not exist yet in Barman
+            if model_obj is None:
+                # 'model=on' is required for models, so force that if the
+                # user forgot 'model' or set it to something invalid
+                section.setdefault("model", "on")
+                if "cluster" not in section:
+                    output.error(
+                        "Invalid section %r: new model but 'cluster' is missing.",
+                        original,
+                    )
+                    return failure
+
+        # Prepare parsers and allowed key‐set
+        valid_keys = ServerConfig.KEYS if scope == "server" else ModelConfig.KEYS
+        parsers = ServerConfig.PARSERS if scope == "server" else ModelConfig.PARSERS
+
+        opts = section.copy()
+        for key, val in opts.items():
+            if key not in valid_keys:
+                output.error("Invalid option '%s' for %s '%s'", key, scope, name)
+                return failure
+            # if there's no special parser, accept the raw value
+            parser = parsers.get(key)
+            if parser is None:
+                continue
+            # value parsing
+            try:
+                if inspect.isclass(parser) and issubclass(parser, CsvOption):
+                    parser(val, key, f"{scope} '{name}'")
+                else:
+                    parser(val)
+            except Exception as e:
+                output.error(
+                    "Validation failed for %s '%s': key '%s' -> %s", scope, name, key, e
+                )
+                return failure
+
+        opts = section.copy()
+        return True, name, opts
 
     def process_conf_changes_queue(self):
         """
