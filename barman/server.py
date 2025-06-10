@@ -100,6 +100,7 @@ from barman.utils import (
     human_readable_timedelta,
     is_power_of_two,
     mkpath,
+    muted,
     parse_target_tli,
     pretty_size,
     timeout,
@@ -663,33 +664,63 @@ class Server(RemoteStatusMixin):
              of the results of the various checks
         """
         check_strategy.init_check("WAL archive")
-        # Make sure that WAL archiving has been setup
-        # XLOG_DB needs to exist and its size must be > 0
-        # NOTE: we do not need to acquire a lock in this phase
-        xlogdb_empty = True
-        if os.path.exists(self.xlogdb_file_path):
-            with open(self.xlogdb_file_path, "rb") as fxlogdb:
-                if os.fstat(fxlogdb.fileno()).st_size > 0:
-                    xlogdb_empty = False
 
-        # NOTE: This check needs to be only visible if it fails
-        if xlogdb_empty:
-            # Skip the error if we have a terminated backup
-            # with status WAITING_FOR_WALS.
-            # TODO: Improve this check
-            backup_id = self.get_last_backup_id([BackupInfo.WAITING_FOR_WALS])
-            if not backup_id:
-                check_strategy.result(
-                    self.config.name,
-                    False,
-                    hint="please make sure WAL shipping is setup",
+        # If the xlogdb is not empty, we have WALs archived so the archiving works
+        success = not self._is_xlogdb_empty()
+
+        # If the xlogdb is empty and there is a backup waiting for WALs,
+        # it likely means it was the first backup and Barman removed WALs from before
+        # the start of the backup. In this case, just by having such a backup we can assume
+        # the archiving works (otherwise, the user wouldn't have been able to take it)
+        if not success and self.get_last_backup_id([BackupInfo.WAITING_FOR_WALS]):
+            success = True
+
+        # If still no success, try archiving WALs from the incoming/streaming
+        # directories, in case anything is waiting in there
+        if not success:
+            with muted(output):
+                self.archive_wal(verbose=False)
+            success = not self._is_xlogdb_empty()
+
+        # If none succeeded, try a switch-wal followed by an archive command
+        if not success and self.postgres is not None:
+            with muted(output):
+                output.debug(
+                    "Could not find any archived or to-be-archived WALs during the "
+                    "check. Trying to switch a WAL and archive it as a last resort"
                 )
+                # The timeout for the switched WAL to arrive and be archived is
+                # 1/3 of the server's check timeout
+                timeout = self.config.check_timeout // 3
+                self.switch_wal(force=False, archive=True, archive_timeout=timeout)
+            success = not self._is_xlogdb_empty()
+
+        # If none of the above succeeded, we can assume the archiving is not working
+        if not success:
+            check_strategy.result(
+                self.config.name,
+                False,
+                hint="please make sure WAL shipping is setup",
+            )
 
         # Check the number of wals in the incoming directory
         self._check_wal_queue(check_strategy, "incoming", "archiver")
 
         # Check the number of wals in the streaming directory
         self._check_wal_queue(check_strategy, "streaming", "streaming_archiver")
+
+    def _is_xlogdb_empty(self):
+        """
+        Check if the xlogdb file is empty or does not exist.
+
+        :returns bool: ``True`` if the xlogdb is empty or does not exist, ``False``
+            otherwise.
+        """
+        if os.path.exists(self.xlogdb_file_path):
+            with open(self.xlogdb_file_path, "rb") as fxlogdb:
+                if os.fstat(fxlogdb.fileno()).st_size > 0:
+                    return False
+        return True
 
     def _check_wal_queue(self, check_strategy, dir_name, archiver_name):
         """

@@ -1185,3 +1185,41 @@ def parse_target_tli(obj, target_tli, backup_info=None):
         else:
             raise ValueError("'%s' is not a valid timeline keyword" % target_tli)
     return parsed_target_tli
+
+
+@contextmanager
+def muted(logger):
+    """
+    Context manager to temporarily prevent a logger from printing any kind of
+    messages to the console.
+
+    This effectively mutes ``INFO``, ``WARNING``, and ``ERROR`` messages.
+    ``DEBUG`` messages can still logged in the log file.
+
+    This is useful to hide console outputs during internal operations where it's not
+    worth changing all methods involved to contain a ``verbose`` parameter or similar.
+
+    .. note::
+        As we are modifying an object that is used all throughout the code, it is worth
+        mentioning that it is not thread-safe. It should only be used in
+        single-threaded contexts or where the logger is not shared across threads.
+
+    :param logger: The logger to be muted
+    """
+    # Save original logging methods
+    original_info = logger.info
+    original_warning = logger.warning
+    original_error = logger.error
+
+    # Replace logging methods with no-op functions
+    logger.info = lambda *args, **kwargs: None
+    logger.warning = lambda *args, **kwargs: None
+    logger.error = lambda *args, **kwargs: None
+
+    try:
+        yield
+    finally:
+        # Restore original methods
+        logger.info = original_info
+        logger.warning = original_warning
+        logger.error = original_error
