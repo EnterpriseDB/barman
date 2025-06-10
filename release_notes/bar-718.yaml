@@ -1,0 +1,16 @@
+- summary: Improve archiving check with automatic WAL switching and archiving
+  description: |
+    To improve the user experience, especially during initial server configuration, the
+    `barman check` command is now more robust.
+
+    Previously, when the WAL archive was empty, the check would fail and require manual
+    intervention.
+
+    Barman now intelligently handles this by first attempting to archive any pending
+    WALs. If none exist, it automatically triggers a WAL switch and archives the
+    resulting file to verify the archiving process is working. This enhancement
+    automates a common manual step and makes the initial health check more reliable
+    out-of-the-box.
+  type: minor_change
+  jira_tickets:
+    - BAR-718
