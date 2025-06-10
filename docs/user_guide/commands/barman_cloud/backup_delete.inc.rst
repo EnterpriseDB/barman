@@ -85,7 +85,7 @@ WALs are considered unused if:
   * ``google-cloud-storage``.
 
 ``-b`` / ``--backup-id``
-  ID of the backup to be deleted
+  ID of the backup to be deleted. You can use a shortcut instead of the backup ID.
 
 ``-m`` / ``--minimum-redundancy``
   The minimum number of backups that should always be available.

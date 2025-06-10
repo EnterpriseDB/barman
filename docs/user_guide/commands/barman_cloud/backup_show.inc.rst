@@ -34,7 +34,7 @@ but it has fewer information.
 **Parameters**
 
 ``BACKUP_ID``
-  The ID of the backup.
+  The ID of the backup. You can use a shortcut instead of the backup ID.
 
 ``SERVER_NAME``
   Name of the server that holds the backup to be displayed.

@@ -12,6 +12,8 @@ behavior of the sub-commands and can be used as follows:
 
 .. include:: commands/barman/barman.inc.rst
 
+.. _commands-shortcuts:
+
 Shortcuts
 ---------
 

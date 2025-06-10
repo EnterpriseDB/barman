@@ -43,7 +43,7 @@ and are not subject to standard retention policies.
   ``s3://bucket/path/to/folder``.
 
 ``BACKUP_ID``
-  The ID of the backup to be kept.
+  The ID of the backup to be kept. You can use a shortcut instead of the backup ID.
 
 ``-V`` / ``--version``
   Show version and exit.

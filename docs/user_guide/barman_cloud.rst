@@ -83,6 +83,12 @@ You have several commands available to manage backup and recovery in the cloud u
 this utility. The exit statuses for them are ``SUCCESS`` (0), ``FAILURE`` (1),
 ``FAILED CONNECTION`` (2) and ``INPUT_ERROR`` (3). Any other non-zero is ``FAILURE``.
 
+.. note::
+  When running Barman cloud commands, it is possible to specify some backup
+  :ref:`shortcuts <commands-shortcuts>` instead of a backup ID. The cloud commands
+  support the following shortcuts: ``first``/``oldest``, ``last``/``latest`` and
+  ``last-failed``.
+
 .. include:: commands/barman_cloud/backup.inc.rst
 .. include:: commands/barman_cloud/backup_delete.inc.rst
 .. include:: commands/barman_cloud/backup_show.inc.rst

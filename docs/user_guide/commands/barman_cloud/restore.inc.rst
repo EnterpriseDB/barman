@@ -53,8 +53,9 @@ required WAL files to ensure Postgres starts, either manually or using external 
   ``s3://bucket/path/to/folder``.
 
 ``BACKUP_ID``
-  The ID of the backup to be restored. Use ``auto`` to have Barman automatically find
-  the most suitable backup for the restore operation.
+  The ID of the backup to be restored. You can use a shortcut instead of the backup ID.
+  Besides that, you can use ``auto`` to have Barman automatically find the most suitable
+  backup for the restore operation.
 
 ``RECOVERY_DESTINATION``
   The path to a directory for recovery.
