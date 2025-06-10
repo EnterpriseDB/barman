@@ -1956,74 +1956,126 @@ class TestServer(object):
         assert "No switch required for server 'main'" in out
         assert server.postgres.checkpoint.called is False
 
-    def test_check_archive(self, tmpdir):
+    @patch("barman.server.Server._is_xlogdb_empty", return_value=True)
+    @patch("barman.server.Server.get_last_backup_id", return_value=None)
+    @patch("barman.server.Server.archive_wal")
+    @patch("barman.server.Server.switch_wal")
+    @patch("barman.server.Server._check_wal_queue")
+    def test_check_archive(
+        self,
+        mock_check_wal_queue,
+        mock_switch_wal,
+        mock_archive_wal,
+        mock_get_last_backup,
+        mock_is_xlogdb_empty,
+        tmpdir,
+    ):
         """
-        Test the check_archive method
+        Test the check_archive method.
+
+        The defaults of this test make every check fail. In every case we modify
+        a different piece of the logic which makes it succeed. When the check fails
+        the ``strategy.result`` method is called, that's how we identify it here.
         """
-        # Setup temp dir and server
+        # Setup temp a server
         server = build_real_server(
             global_conf={"barman_lock_directory": tmpdir.mkdir("lock").strpath},
             main_conf={
+                "check_timeout": 60,
                 "wals_directory": tmpdir.mkdir("wals").strpath,
                 "incoming_wals_directory": tmpdir.mkdir("incoming").strpath,
                 "streaming_wals_directory": tmpdir.mkdir("streaming").strpath,
             },
         )
-        strategy = CheckStrategy()
+        server.postgres = None
 
-        # Call the server on an unexistent xlog file. expect it to fail
-        server.check_archive(strategy)
-        assert strategy.has_error is True
-        assert strategy.check_result[0].check == "WAL archive"
-        assert strategy.check_result[0].status is False
+        # Case 1: The defaults of this test makes every check fail, so this first case
+        # should not succeed
+        mock_strategy = Mock()
+        server.check_archive(mock_strategy)
+        mock_strategy.result.assert_called_once_with(
+            server.config.name,
+            False,
+            hint="please make sure WAL shipping is setup",
+        )
+        mock_check_wal_queue.assert_has_calls(
+            [
+                mock.call(mock_strategy, "incoming", "archiver"),
+                mock.call(mock_strategy, "streaming", "streaming_archiver"),
+            ]
+        )
 
-        # Call the check on an empty xlog file. expect it to contain errors.
-        with open(server.xlogdb_file_path, "a"):
-            # the open call forces the file creation
-            pass
+        # Reset mocks for the next case
+        mock_check_wal_queue.reset_mock()
 
-        server.check_archive(strategy)
-        assert strategy.has_error is True
-        assert strategy.check_result[0].check == "WAL archive"
-        assert strategy.check_result[0].status is False
+        # Case 2: xlogdb is not empty, then it succeeds
+        mock_is_xlogdb_empty.return_value = False
+        mock_strategy = Mock()
+        server.check_archive(mock_strategy)
+        mock_strategy.result.assert_not_called()
+        mock_check_wal_queue.assert_has_calls(
+            [
+                mock.call(mock_strategy, "incoming", "archiver"),
+                mock.call(mock_strategy, "streaming", "streaming_archiver"),
+            ]
+        )
+        # Reset mocks for the next case
+        mock_is_xlogdb_empty.return_value = True
+        mock_check_wal_queue.reset_mock()
 
-        # Write something in the xlog db file and check for the results
-        with server.xlogdb("w") as fxlogdb:
-            fxlogdb.write("00000000000000000000")
-        # The check strategy should contain no errors.
-        strategy = CheckStrategy()
-        server.check_archive(strategy)
-        assert strategy.has_error is False
-        assert len(strategy.check_result) == 0
+        # Case 3: xlogdb is empty, but there is a backup in WAITING_FOR_WALS
+        # so it succeeds
+        mock_get_last_backup.return_value = "last_backup_id"
+        mock_strategy = Mock()
+        server.check_archive(mock_strategy)
+        mock_strategy.result.assert_not_called()
+        mock_check_wal_queue.assert_has_calls(
+            [
+                mock.call(mock_strategy, "incoming", "archiver"),
+                mock.call(mock_strategy, "streaming", "streaming_archiver"),
+            ]
+        )
 
-        # Call the server on with archive = off and
-        # the incoming directory not empty
-        with open(
-            "%s/00000000000000000000" % server.config.incoming_wals_directory, "w"
-        ) as f:
-            f.write("fake WAL")
-        server.config.archiver = False
-        server.check_archive(strategy)
-        assert strategy.has_error is False
-        assert strategy.check_result[0].check == "empty incoming directory"
-        assert strategy.check_result[0].status is False
+        # Reset mocks for the next case
+        mock_get_last_backup.return_value = None
+        mock_check_wal_queue.reset_mock()
+        mock_archive_wal.reset_mock()
 
-        # Check that .tmp files are ignored
-        # Create a nonempty tmp file
-        with open(
-            os.path.join(
-                server.config.incoming_wals_directory, "00000000000000000000.tmp"
-            ),
-            "w",
-        ) as wal:
-            wal.write("a")
-        # The check strategy should contain no errors.
-        strategy = CheckStrategy()
-        server.config.archiver = True
-        server.check_archive(strategy)
-        # Check that is ignored
-        assert strategy.has_error is False
-        assert len(strategy.check_result) == 0
+        # Case 4: xlogdb empty, no last backup, but incoming/streaming directories
+        # might have files, so tries to archive such files and succeeds if successful
+        mock_is_xlogdb_empty.side_effect = [True, False]
+        mock_strategy = Mock()
+        server.check_archive(mock_strategy)
+        mock_archive_wal.assert_called_once_with(verbose=False)
+        mock_strategy.result.assert_not_called()
+        mock_check_wal_queue.assert_has_calls(
+            [
+                mock.call(mock_strategy, "incoming", "archiver"),
+                mock.call(mock_strategy, "streaming", "streaming_archiver"),
+            ]
+        )
+
+        # Reset mocks for the next case
+        mock_is_xlogdb_empty.return_value = True
+        mock_archive_wal.reset_mock()
+        mock_check_wal_queue.reset_mock()
+
+        # Case 5: xlogdb empty, no last backup, no files in incoming/streaming
+        # directories, so it tries running switch-wal
+        mock_is_xlogdb_empty.side_effect = [True, True, False]
+        server.postgres = Mock()
+        mock_strategy = Mock()
+        server.check_archive(mock_strategy)
+        mock_switch_wal.assert_called_once_with(
+            force=False, archive=True, archive_timeout=20
+        )
+        mock_strategy.result.assert_not_called()
+        mock_check_wal_queue.assert_has_calls(
+            [
+                mock.call(mock_strategy, "incoming", "archiver"),
+                mock.call(mock_strategy, "streaming", "streaming_archiver"),
+            ]
+        )
 
     @pytest.mark.parametrize(
         "icoming_name, archiver_name",
