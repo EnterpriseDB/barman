@@ -1,0 +1,11 @@
+- summary: Fix WAL archiving performance issues
+  description: |
+    The Barman WAL archiving process was suffering from a performance degradation due to
+    processing of WAL files that would not be archived in the current run. There was also an
+    oversight in the encryption logic introduced in 3.14, that caused Barman to check
+    for encryption in WAL files streamed to the server, which is unnecessary as streamed
+    WALs are never GPG-encrypted, nor compressed. With both issues fixed, the archiving
+    process will be significantly faster and more resource-efficient.
+  type: bugfix
+  jira_tickets:
+    - BAR-775
