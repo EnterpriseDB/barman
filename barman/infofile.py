@@ -403,9 +403,8 @@ class WalFileInfo(FieldListFile):
         kwargs.setdefault("name", os.path.basename(filename))
         kwargs.setdefault("size", stat.st_size)
         kwargs.setdefault("time", stat.st_mtime)
-        kwargs.setdefault(
-            "encryption", encryption_manager.identify_encryption(filename)
-        )
+        if "encryption" not in kwargs:
+            kwargs["encryption"] = encryption_manager.identify_encryption(filename)
         if "compression" not in kwargs:
             # If the file is encrypted we are not able to identify any compression
             if kwargs["encryption"] is not None:
