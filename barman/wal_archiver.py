@@ -43,7 +43,7 @@ _logger = logging.getLogger(__name__)
 
 
 class WalArchiverQueue(list):
-    def __init__(self, items, errors=None, skip=None, batch_size=0):
+    def __init__(self, items, errors=None, skip=None, batch_size=0, total_size=0):
         """
         A WalArchiverQueue is a list of WalFileInfo which has two extra
         attribute list:
@@ -56,10 +56,21 @@ class WalArchiverQueue(list):
         number of WAL files that are processed in a single
         run of the archive-wal command.
 
+        .. note::
+            This class was originally designed to hold all the WAL files pending to be
+            archived, and to process up to a certain number of files (the batch size).
+            However, it is now used to hold only the files that are being processed in a
+            single run of the archive-wal command. That change was made to avoid the
+            overhead of having to create lots of WalFileInfo objects, even if only a
+            subset of them would be used by the archiver in a given batch. We might want
+            to rework or remove this class in the future, as it doesn't seem to add much
+            value to the archiving process anymore.
+
         :param items: iterable from which initialize the list
-        :param batch_size: size of the current batch run (0=unlimited)
         :param errors: an optional list of unrecognized files
         :param skip: an optional list of skipped files
+        :param batch_size: size of the current batch run (0=unlimited)
+        :param total_size: the total number of WAL files available for archiving.
         """
         super(WalArchiverQueue, self).__init__(items)
         self.skip = []
@@ -74,30 +85,8 @@ class WalArchiverQueue(list):
         else:
             self.batch_size = 0
 
-    @property
-    def size(self):
-        """
-        Number of valid WAL segments waiting to be processed (in total)
-
-        :return int: total number of valid WAL files
-        """
-        return len(self)
-
-    @property
-    def run_size(self):
-        """
-        Number of valid WAL files to be processed in this run - takes
-        in consideration the batch size
-
-        :return int: number of valid WAL files for this batch run
-        """
-        # In case a batch size has been explicitly specified
-        # (i.e. batch_size > 0), returns the minimum number between
-        # batch size and the queue size. Otherwise, simply
-        # returns the total queue size (unlimited batch size).
-        if self.batch_size > 0:
-            return min(self.size, self.batch_size)
-        return self.size
+        self.total_size = total_size
+        self.run_size = len(self)
 
 
 class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
@@ -147,13 +136,13 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
         batch = self.get_next_batch()
 
         # Analyse the batch and properly log the information
-        if batch.size:
-            if batch.size > batch.run_size:
+        if batch.run_size:
+            if batch.total_size > batch.run_size:
                 # Batch mode enabled
                 _logger.info(
                     "Found %s xlog segments from %s for %s."
                     " Archive a batch of %s segments in this run.",
-                    batch.size,
+                    batch.total_size,
                     self.name,
                     self.config.name,
                     batch.run_size,
@@ -164,7 +153,7 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
                 _logger.info(
                     "Found %s xlog segments from %s for %s."
                     " Archive all segments in one run.",
-                    batch.size,
+                    batch.total_size,
                     self.name,
                     self.config.name,
                 )
@@ -182,16 +171,6 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
             # Print the header (non verbose mode)
             if not processed and not verbose:
                 output.info(header, log=False)
-
-            # Exit when archive batch size is reached
-            if processed >= batch.run_size:
-                _logger.debug(
-                    "Batch size reached (%s) - Exit %s process for %s",
-                    batch.batch_size,
-                    self.name,
-                    self.config.name,
-                )
-                break
 
             processed += 1
 
@@ -232,10 +211,18 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
                 return
 
         if processed:
+            if batch.total_size > batch.run_size:
+                _logger.debug(
+                    "Batch size reached (%s) - Exit %s process for %s",
+                    batch.batch_size,
+                    self.name,
+                    self.config.name,
+                )
+
             _logger.debug(
                 "Archived %s out of %s xlog segments from %s for %s",
                 processed,
-                batch.size,
+                batch.total_size,
                 self.name,
                 self.config.name,
             )
@@ -280,7 +267,6 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
         :param None|Encryption encryption: the encryptor for the file (if any)
         :param WalFileInfo wal_info: the WAL file is being processed
         """
-
         src_file = wal_info.orig_filename
         src_dir = os.path.dirname(src_file)
         dst_file = wal_info.fullpath(self.server)
@@ -535,6 +521,12 @@ class FileWalArchiver(WalArchiver):
         # verify that a backup has all the WALs required for the restore.
         file_names = glob(os.path.join(self.config.incoming_wals_directory, "*"))
         file_names.sort()
+        total_size = len(file_names)
+        # If batch size is set, limit the number of files to the batch size. The idea
+        # is to avoid the overhead of creating several unused WalFileInfo objects. See
+        # the note in the WalArchiverQueue class.
+        if batch_size > 0:
+            file_names = file_names[:batch_size]
 
         # Process anything that looks like a valid WAL file. Anything
         # else is treated like an error/anomaly
@@ -556,10 +548,18 @@ class FileWalArchiver(WalArchiver):
                 compression_manager=self.backup_manager.compression_manager,
                 unidentified_compression=None,
                 encryption_manager=self.backup_manager.encryption_manager,
+                # We don't try to guess if the WAL is encrypted here. If the user sets
+                # an archive_command which encrypts the WAL file, it's up to the user to
+                # decrypt them later, and Barman won't do anything about it. We still
+                # attempt to guess compression, though, because that's been the behavior
+                # of Barman for a long time.
+                encryption=None,
             )
             for f in files
         ]
-        return WalArchiverQueue(wal_files, batch_size=batch_size, errors=errors)
+        return WalArchiverQueue(
+            wal_files, batch_size=batch_size, errors=errors, total_size=total_size
+        )
 
     def check(self, check_strategy):
         """
@@ -964,6 +964,12 @@ class StreamingWalArchiver(WalArchiver):
         # verify that a backup has all the WALs required for the restore.
         file_names = glob(os.path.join(self.config.streaming_wals_directory, "*"))
         file_names.sort()
+        total_size = len(file_names)
+        # If batch size is set, limit the number of files to the batch size. The idea
+        # is to avoid the overhead of creating several unused WalFileInfo objects. See
+        # the note in the WalArchiverQueue class.
+        if batch_size > 0:
+            file_names = file_names[:batch_size]
 
         # Process anything that looks like a valid WAL file,
         # including partial ones and history files.
@@ -1009,13 +1015,20 @@ class StreamingWalArchiver(WalArchiver):
                 compression_manager=self.backup_manager.compression_manager,
                 encryption_manager=self.backup_manager.encryption_manager,
                 unidentified_compression=None,
+                # WAL files received through pg_receivewal are surely not encrypted nor
+                # compressed, so we avoid the overhead of trying to guess such
+                # algorithms.
                 compression=None,
                 encryption=None,
             )
             for f in files
         ]
         return WalArchiverQueue(
-            wal_files, batch_size=batch_size, errors=errors, skip=skip
+            wal_files,
+            batch_size=batch_size,
+            errors=errors,
+            skip=skip,
+            total_size=total_size,
         )
 
     def check(self, check_strategy):
