@@ -182,8 +182,8 @@ class TestFileWalArchiver(object):
         wal_info = WalFileInfo(name="test_wal_file")
         wal_info.orig_filename = "test_wal_file"
 
-        batch = WalArchiverQueue([wal_info])
-        assert batch.size == 1
+        batch = WalArchiverQueue([wal_info], total_size=1)
+        assert batch.total_size == 1
         assert batch.run_size == 1
         get_next_batch_mock.return_value = batch
         archive_wal_mock.side_effect = DuplicateWalFile
@@ -266,10 +266,10 @@ class TestFileWalArchiver(object):
         wal_info2 = WalFileInfo(name="test_wal_file2")
         wal_info2.orig_filename = "test_wal_file2"
 
-        # Test queue with batch limit 1 with a list of 2 files
-        batch = WalArchiverQueue([wal_info, wal_info2], batch_size=1)
-        assert batch.size == 2
-        assert batch.run_size == 1
+        # Test queue with batch of 2 and 4 in total
+        batch = WalArchiverQueue([wal_info, wal_info2], total_size=4)
+        assert batch.total_size == 4
+        assert batch.run_size == 2
 
         get_next_batch_mock.return_value = batch
         archiver.archive(fxlogdb_mock)
@@ -277,7 +277,7 @@ class TestFileWalArchiver(object):
         assert (
             "Found %s xlog segments from %s for %s."
             " Archive a batch of %s segments in this run."
-            % (batch.size, archiver.name, archiver.config.name, batch.run_size)
+            % (batch.total_size, archiver.name, archiver.config.name, batch.run_size)
         ) in caplog.text
         assert (
             "Batch size reached (%s) - "
