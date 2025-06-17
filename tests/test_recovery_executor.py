@@ -19,6 +19,7 @@
 import os
 import shutil
 from contextlib import closing
+from datetime import datetime
 from functools import partial
 
 import dateutil
@@ -46,11 +47,16 @@ from barman.infofile import (
 )
 from barman.recovery_executor import (
     Assertion,
+    CombineOperation,
     ConfigurationFileMangeler,
+    DecompressOperation,
+    DecryptionOperation,
     IncrementalRecoveryExecutor,
+    MainRecoveryExecutor,
     RecoveryExecutor,
     RecoveryOperation,
     RemoteConfigRecoveryExecutor,
+    RsyncCopyOperation,
     SnapshotRecoveryExecutor,
     TarballRecoveryExecutor,
     recovery_executor_factory,
@@ -3726,3 +3732,327 @@ class TestRecoveryOperation(object):
         mock_cmd.delete_if_exists.assert_called_once_with(dest_dir)
         mock_cmd.create_dir_if_not_exists.assert_called_once_with(dest_dir, mode="700")
         mock_cmd.check_write_permission.assert_called_once_with(dest_dir)
+
+
+class TestMainRecoveryExecutor(object):
+    """
+    Tests for the :class:`MainRecoveryExecutor` class.
+    """
+
+    @pytest.mark.parametrize(
+        # Note: we don't test cases where `is_remote_recovery` is False and
+        # staging_location is "remote" because this not a valid combination
+        # and it's blocked directly in the CLI, so such cases will never
+        # arrive to this method. Besides that, every combination is tested
+        "is_remote_recovery, staging_location, is_incremental, any_compressed, any_encrypted, expected_operations",
+        [
+            (
+                False,
+                "local",
+                False,
+                False,
+                False,
+                [RsyncCopyOperation],
+            ),
+            (
+                True,
+                "local",
+                False,
+                False,
+                False,
+                [RsyncCopyOperation],
+            ),
+            (
+                False,
+                "local",
+                False,
+                False,
+                True,
+                [DecryptionOperation],
+            ),
+            (
+                True,
+                "local",
+                False,
+                False,
+                True,
+                [DecryptionOperation, RsyncCopyOperation],
+            ),
+            (
+                False,
+                "local",
+                True,
+                False,
+                False,
+                [CombineOperation],
+            ),
+            (
+                True,
+                "local",
+                True,
+                False,
+                False,
+                [CombineOperation, RsyncCopyOperation],
+            ),
+            (
+                False,
+                "local",
+                True,
+                False,
+                True,
+                [DecryptionOperation, CombineOperation],
+            ),
+            (
+                True,
+                "local",
+                True,
+                False,
+                True,
+                [DecryptionOperation, CombineOperation, RsyncCopyOperation],
+            ),
+            (
+                False,
+                "local",
+                True,
+                True,
+                False,
+                [DecompressOperation, CombineOperation],
+            ),
+            (
+                True,
+                "local",
+                True,
+                True,
+                False,
+                [DecompressOperation, CombineOperation, RsyncCopyOperation],
+            ),
+            (
+                False,
+                "local",
+                True,
+                True,
+                True,
+                [DecryptionOperation, DecompressOperation, CombineOperation],
+            ),
+            (
+                True,
+                "local",
+                True,
+                True,
+                True,
+                [
+                    DecryptionOperation,
+                    DecompressOperation,
+                    CombineOperation,
+                    RsyncCopyOperation,
+                ],
+            ),
+            (
+                False,
+                "local",
+                False,
+                True,
+                False,
+                [DecompressOperation],
+            ),
+            (
+                True,
+                "local",
+                False,
+                True,
+                False,
+                [DecompressOperation, RsyncCopyOperation],
+            ),
+            (
+                False,
+                "local",
+                False,
+                True,
+                True,
+                [DecryptionOperation, DecompressOperation],
+            ),
+            (
+                True,
+                "local",
+                False,
+                True,
+                True,
+                [DecryptionOperation, DecompressOperation, RsyncCopyOperation],
+            ),
+            (
+                True,
+                "remote",
+                False,
+                False,
+                False,
+                [RsyncCopyOperation],
+            ),
+            (
+                True,
+                "remote",
+                False,
+                False,
+                True,
+                [DecryptionOperation, RsyncCopyOperation],
+            ),
+            (
+                True,
+                "remote",
+                True,
+                False,
+                False,
+                [RsyncCopyOperation, CombineOperation],
+            ),
+            (
+                True,
+                "remote",
+                True,
+                False,
+                True,
+                [DecryptionOperation, RsyncCopyOperation, CombineOperation],
+            ),
+            (
+                True,
+                "remote",
+                True,
+                True,
+                False,
+                [RsyncCopyOperation, DecompressOperation, CombineOperation],
+            ),
+            (
+                True,
+                "remote",
+                True,
+                True,
+                True,
+                [
+                    DecryptionOperation,
+                    RsyncCopyOperation,
+                    DecompressOperation,
+                    CombineOperation,
+                ],
+            ),
+            (
+                True,
+                "remote",
+                False,
+                True,
+                False,
+                [RsyncCopyOperation, DecompressOperation],
+            ),
+            (
+                True,
+                "remote",
+                False,
+                True,
+                True,
+                [DecryptionOperation, RsyncCopyOperation, DecompressOperation],
+            ),
+        ],
+    )
+    def test_build_operations_pipeline(
+        self,
+        is_remote_recovery,
+        staging_location,
+        is_incremental,
+        any_compressed,
+        any_encrypted,
+        expected_operations,
+    ):
+        """
+        Test that :meth:`_build_operations_pipeline` creates the required operations
+        and in the correct order.
+        """
+        # GIVEN a MainRecoveryExecutor
+        mock_backup_manager = testing_helpers.build_backup_manager(
+            main_conf={"staging_location": staging_location}
+        )
+
+        # AND a backup_info object (it has a parent if it is incremental)
+        parent = None
+        if is_incremental:
+            parent = testing_helpers.build_test_backup_info(
+                backup_id="test_backup_id",
+                server=mock_backup_manager.server,
+                parent_backup_id="parent_backup_id",
+            )
+        backup_info = testing_helpers.build_test_backup_info(
+            backup_id="test_backup_id",
+            server=mock_backup_manager.server,
+            parent_backup_id=parent.backup_id if parent else None,
+            compression="compression_method" if any_compressed else None,
+            encryption="encryption_method" if any_encrypted else None,
+        )
+
+        # AND a remote command if it is a remote recovery
+        remote_command = "ssh postgres@pg" if is_remote_recovery else None
+
+        # WHEN _build_operations_pipeline is called
+        executor = MainRecoveryExecutor(mock_backup_manager)
+        operations = executor._build_operations_pipeline(backup_info, remote_command)
+
+        # THEN the operations pipeline is built correctly
+        assert len(operations) == len(expected_operations)
+        for actual_op, expected_op in zip(operations, expected_operations):
+            assert isinstance(actual_op, expected_op)
+
+    @mock.patch(
+        "barman.recovery_executor.MainRecoveryExecutor._build_operations_pipeline"
+    )
+    def test_backup_copy(self, mock_build_pipeline):
+        """
+        Test that :meth:`_backup_copy` executes the pipeline operations correctly.
+        """
+        # GIVEN a MainRecoveryExecutor
+        backup_manager = testing_helpers.build_backup_manager(
+            main_conf={"staging_path": "/fake/staging/path"}
+        )
+        executor = MainRecoveryExecutor(backup_manager)
+        # AND a mock _build_operations_pipeline that returns two mock operations
+        op1 = mock.Mock(NAME="operation-1")
+        op2 = mock.Mock(NAME="operation-2")
+        mock_build_pipeline.return_value = [op1, op2]
+
+        # Prepare all the parameters for the _backup_copy method
+        backup_info = testing_helpers.build_test_backup_info()
+        recovery_destination = "/fake/destination/path"
+        tablespaces = mock.Mock()
+        remote_command = "ssh postgres@pg"
+        safe_horizon = datetime.now()
+        recovery_info = {"random": "data"}
+
+        # WHEN _backup_copy is called
+        executor._backup_copy(
+            backup_info=backup_info,
+            dest=recovery_destination,
+            tablespaces=tablespaces,
+            remote_command=remote_command,
+            safe_horizon=safe_horizon,
+            recovery_info=recovery_info,
+        )
+
+        # THEN the pipeline operations are executed correctly
+        # The first operation is executed with the staging directory as its destination
+        staging_dir = os.path.join(
+            backup_manager.server.config.staging_path, op1.NAME + str(os.getpid())
+        )
+        op1.execute.assert_called_once_with(
+            backup_info=backup_info,
+            destination=staging_dir,
+            tablespaces=tablespaces,
+            remote_command=remote_command,
+            safe_horizon=safe_horizon,
+            recovery_info=recovery_info,
+            is_last_operation=False,
+        )
+        # The last operation is executed with the recovery destination as destination
+        # and the result of the previous operation as its input for backup_info
+        op2.execute.assert_called_once_with(
+            backup_info=op1.execute.return_value,
+            destination=recovery_destination,
+            tablespaces=tablespaces,
+            remote_command=remote_command,
+            recovery_info=recovery_info,
+            safe_horizon=safe_horizon,
+            is_last_operation=True,
+        )
