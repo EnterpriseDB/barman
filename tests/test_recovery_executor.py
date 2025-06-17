@@ -38,12 +38,18 @@ from barman.exceptions import (
     RecoveryTargetActionException,
     SnapshotBackupException,
 )
-from barman.infofile import BackupInfo, SyntheticBackupInfo, WalFileInfo
+from barman.infofile import (
+    BackupInfo,
+    SyntheticBackupInfo,
+    VolatileBackupInfo,
+    WalFileInfo,
+)
 from barman.recovery_executor import (
     Assertion,
     ConfigurationFileMangeler,
     IncrementalRecoveryExecutor,
     RecoveryExecutor,
+    RecoveryOperation,
     RemoteConfigRecoveryExecutor,
     SnapshotRecoveryExecutor,
     TarballRecoveryExecutor,
@@ -3533,3 +3539,190 @@ class TestIncrementalRecoveryExecutor(object):
         mock_rmtree.assert_called_once_with(dest_dir, ignore_errors=True)
         mock_mkdir.assert_called_once_with(dest_dir)
         mock_chmod.assert_called_once_with(dest_dir, 448)
+
+
+class TestRecoveryOperation(object):
+    """
+    Tests for the :class:`RecoveryOperation` class.
+    """
+
+    def get_recovery_operation(self, config=None, server=None, backup_manager=None):
+        """
+        Helper method to create an instance of :class:`RecoveryOperation` for testing.
+        """
+        config = config or mock.Mock()
+        server = server or mock.Mock()
+        backup_manager = backup_manager or mock.Mock()
+
+        # Define a subclass of RecoveryOperation to be able to instantiate it
+        class ImplementedOperation(RecoveryOperation):
+            def _execute(self, *args, **kwargs):
+                pass
+
+            def _should_execute(self, backup_info):
+                pass
+
+        return ImplementedOperation(config, server, backup_manager)
+
+    def test_execute(self):
+        """
+        Test that :meth:`execute` calls the underlying :meth:`_execute` method correctly.
+        """
+        # GIVEN a RecoveryOperation instance
+        operation = self.get_recovery_operation()
+        operation._execute = mock.Mock()
+
+        # Mock the arguments to be passed to execute
+        backup_info = testing_helpers.build_test_backup_info(
+            server=testing_helpers.build_real_server()
+        )
+        args = (
+            backup_info,
+            "destination",
+            "tablespaces",
+            "remote_command",
+            "recovery_info",
+            "safe_horizon",
+            "is_last_operation",
+        )
+
+        # Case 1: When _should_execute returns True
+        operation._should_execute = mock.Mock(return_value=True)
+
+        # THEN _execute should be called with the arguments
+        operation.execute(*args)
+        operation._execute.assert_called_once_with(*args)
+
+        # Case 2: When _should_execute returns False
+        operation._should_execute = mock.Mock(return_value=False)
+        operation._execute = mock.Mock()
+        operation._create_volatile_backup_info = mock.Mock()
+
+        # THEN _execute is not called
+        operation.execute(*args)
+        operation._execute.assert_not_called()
+        operation._create_volatile_backup_info.assert_called_once_with(
+            backup_info, backup_info.get_base_directory()
+        )
+
+    def test_execute_on_chain_on_non_incremental_backup(self):
+        """
+        Test that :meth:`_execute_on_chain` is called with the correct parameters
+        when executing on a non-incremental backup.
+        """
+        # GIVEN a RecoveryOperation instance
+        operation = self.get_recovery_operation()
+
+        # AND a mock backup_info and method
+        backup_info = testing_helpers.build_test_backup_info()
+        mock_method = mock.Mock()
+
+        # WHEN _execute_on_chain is called
+        ret = operation._execute_on_chain(
+            backup_info, mock_method, "arg1", key="value", key2="value2"
+        )
+
+        # THEN the method is called with the correct parameters
+        mock_method.assert_called_once_with(
+            backup_info, "arg1", key="value", key2="value2"
+        )
+
+        # AND the equivalent volatile backup info of the backup info passed is returned
+        assert ret == mock_method.return_value
+
+    @mock.patch("barman.infofile.LocalBackupInfo.walk_to_root")
+    def test_execute_on_chain_on_incremental_backup(self, mock_walk_to_root):
+        """
+        Test that :meth:`_execute_on_chain` is called with the correct parameters
+        when executing on an incremental backup.
+        """
+        # GIVEN a RecoveryOperation instance
+        operation = self.get_recovery_operation()
+
+        # AND a backup info chain
+        parent_backup_info = testing_helpers.build_test_backup_info(
+            backup_id="parent_backup",
+        )
+        backup_info = testing_helpers.build_test_backup_info(
+            backup_id="incremental_backup",
+            parent_backup_id=parent_backup_info.backup_id,
+        )
+        mock_walk_to_root.return_value = [backup_info, parent_backup_info]
+
+        # Mock the return values of mock_method as if it were a volatile backup info
+        # objects of the backups in the chain
+        mock_vol_parent_backup_info = mock.Mock(backup_id=parent_backup_info.backup_id)
+        mock_vol_backup_info = mock.Mock(
+            backup_id=backup_info.backup_id,
+            parent_backup_id=parent_backup_info.backup_id,
+        )
+        mock_method = mock.Mock()
+        mock_method.side_effect = [mock_vol_backup_info, mock_vol_parent_backup_info]
+
+        # WHEN _execute_on_chain is called
+        ret = operation._execute_on_chain(
+            backup_info, mock_method, "arg1", key="value", key2="value2"
+        )
+
+        # THEN the method is called with the correct parameters
+        mock_method.assert_has_calls(
+            [
+                mock.call(backup_info, "arg1", key="value", key2="value2"),
+                mock.call(parent_backup_info, "arg1", key="value", key2="value2"),
+            ]
+        )
+
+        # AND the chain is correctly remounted on the volatile backup info objects
+        assert mock_vol_backup_info.parent_instance is mock_vol_parent_backup_info
+
+        # AND the equivalent volatile backup info of the backup info passed is returned
+        assert ret == mock_vol_backup_info
+
+    def test_create_volatile_backup_info(self):
+        """
+        Test that :meth:`_create_volatile_backup_info` creates the respective
+        :class:`VolatileBackupInfo` object.
+        """
+        # GIVEN a RecoveryOperation instance
+        operation = self.get_recovery_operation(
+            server=testing_helpers.build_mocked_server()
+        )
+
+        # AND a mock backup_info and base_directory
+        backup_info = testing_helpers.build_test_backup_info()
+
+        base_directory = "/fake/base/directory"
+
+        # WHEN _create_volatile_backup_info is called
+        vol_backup_info = operation._create_volatile_backup_info(
+            backup_info, base_directory
+        )
+
+        # THEN the result is a VolatileBackupInfo object with the correct attributes
+        assert isinstance(vol_backup_info, VolatileBackupInfo)
+        assert vol_backup_info.server == operation.server
+        assert vol_backup_info.base_directory == base_directory
+        assert vol_backup_info.backup_id == backup_info.backup_id
+        # Assert some random attributes just to be sure they were loaded to the
+        # volatile backup info object
+        assert vol_backup_info.begin_wal == backup_info.begin_wal
+        assert vol_backup_info.end_wal == backup_info.end_wal
+
+    def test_prepare_directory(self):
+        """
+        Test that :meth:`_prepare_directory` prepares the directory correctly.
+        """
+        # GIVEN a RecoveryOperation instance
+        operation = self.get_recovery_operation()
+
+        # Mock directory and command
+        dest_dir = "/fake/directory"
+        mock_cmd = mock.Mock()
+
+        # WHEN _prepare_directory is called
+        operation._prepare_directory(dest_dir, mock_cmd)
+
+        # THEN the correct calls are made to the command object
+        mock_cmd.delete_if_exists.assert_called_once_with(dest_dir)
+        mock_cmd.create_dir_if_not_exists.assert_called_once_with(dest_dir, mode="700")
+        mock_cmd.check_write_permission.assert_called_once_with(dest_dir)
