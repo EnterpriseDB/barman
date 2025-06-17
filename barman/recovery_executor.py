@@ -2770,9 +2770,70 @@ class CombineOperation(RecoveryOperation):
 
 
 class MainRecoveryExecutor(RemoteConfigRecoveryExecutor):
+    """
+    Main recovery executor.
 
-    def _prepare_tablespaces(self, backup_info, cmd, dest, tablespaces):
-        super()._prepare_tablespaces(backup_info, cmd, dest, tablespaces)
+    This executor is used to deal with more complex recovery scenarios, which require
+    one or more among these operations: backup decryption, backup decompression, or
+    backup combination.
+    """
+
+    def _build_operations_pipeline(self, backup_info, remote_command=None):
+        """
+        Build a list of required operations to be executed on the target backup.
+
+        This method ensures that all required operations are included and in their
+        correct order.
+
+        :param barman.infofile.LocalBackupInfo backup_info: The backup info to process
+        :param str|None remote_command: The SSH remote command to use for the recovery,
+            in case of a remote recovery. If ``None``, it means the recovery is local
+        :return list[RecoveryOperation]: A list of operations to be executed in order
+        """
+        operations = []
+
+        backup_chain = list(backup_info.walk_to_root())
+
+        any_encrypted = any([b.encryption is not None for b in backup_chain])
+        if any_encrypted:
+            operations.append(
+                DecryptionOperation(self.config, self.server, self.backup_manager)
+            )
+
+        any_compressed = any([b.compression is not None for b in backup_chain])
+        if any_compressed:
+            operations.append(
+                DecompressOperation(self.config, self.server, self.backup_manager)
+            )
+
+        if backup_info.is_incremental:
+            operations.append(
+                CombineOperation(self.config, self.server, self.backup_manager)
+            )
+
+        if remote_command:
+            if self.config.staging_location == "local":
+                operations.append(
+                    RsyncCopyOperation(self.config, self.server, self.backup_manager)
+                )
+            elif self.config.staging_location == "remote":
+                # If the staging location is remote, the copy operation must be the
+                # first one to be executed, only after the decryption
+                index = 1 if any_encrypted else 0
+                operations.insert(
+                    index,
+                    RsyncCopyOperation(self.config, self.server, self.backup_manager),
+                )
+
+        if not operations:
+            # If no operations were required, it means it is a local recovery of a plain
+            # non-encrypted non-compressed backup. In such case, we still need to copy
+            # the backup to the destination directory as no operation will do it
+            operations.append(
+                RsyncCopyOperation(self.config, self.server, self.backup_manager)
+            )
+
+        return operations
 
     def _backup_copy(
         self,
@@ -2783,127 +2844,53 @@ class MainRecoveryExecutor(RemoteConfigRecoveryExecutor):
         safe_horizon=None,
         recovery_info=None,
     ):
-        is_incremental = backup_info.is_incremental
-        any_compressed = any(
-            [b.compression is not None for b in backup_info.walk_to_root()]
-        )
+        """
+        Perform the backup copy operation.
 
-        if is_incremental and any_compressed:
-            self._handle_incremental_and_compressed_backup(
-                backup_info,
-                dest,
-                tablespaces,
-                remote_command,
+        This method orchestrates the execution of all operations required to
+        successfully copy the contents of a backup, including decryption, decompression,
+        and combination of incremental backups.
+
+        :param barman.infofile.LocalBackupInfo backup_info: The backup info to process
+        :param str dest: The destination directory for the recovery
+        :param dict[str,str]|None tablespaces: A dictionary mapping tablespace names to
+            their target directories. This is the relocation chosen by the user when
+            invoking the ``restore`` command. If ``None``, it means no relocation was
+            chosen
+        :param str|None remote_command: The SSH remote command to use for the recovery,
+            in case of a remote recovery. If ``None``, it means the recovery is local
+        :param dict[str,any] recovery_info: A dictionary that populated with metadata
+            about the recovery process
+        :param datetime.datetime|None safe_horizon: The safe horizon of the backup.
+            Any file rsync-copied after this time has to be checked with checksum
+        :return barman.infofile.VolatileBackupInfo: The volatile backup info of the
+            final backup after all operations have been executed.
+        """
+        operations = self._build_operations_pipeline(backup_info, remote_command)
+        for n, operation in enumerate(operations, start=1):
+            destination = dest
+            is_last_operation = n == len(operations)
+            if not is_last_operation:
+                staging_path = os.path.join(
+                    self.config.staging_path, operation.NAME + str(os.getpid())
+                )
+                destination = staging_path
+            # Execute the operation on the current backup. Each operation returns a
+            # VolatileBackupInfo that reflects all changes made by that operation.
+            # The output of one operation is passed as input to the next.
+            # Each operation is responsible for handling traversal and execution
+            # on all parent backups (for incremental backups), so we don't need
+            # to manually walk the backup chain here.
+            output.debug("Executing operation %s: %s", n, operation.NAME)
+            backup_info = operation.execute(
+                backup_info=backup_info,
+                destination=destination,
+                tablespaces=tablespaces,
+                recovery_info=recovery_info,
+                remote_command=remote_command,
+                safe_horizon=safe_horizon,
+                is_last_operation=is_last_operation,
             )
-        elif is_incremental:
-            self._handle_incremental_backup(
-                backup_info,
-                dest,
-                tablespaces,
-                remote_command,
-            )
-        elif any_compressed:
-            self._handle_compressed_backup(
-                backup_info,
-                dest,
-                tablespaces,
-                remote_command,
-            )
-
-    def _handle_compressed_backup(
-        self,
-        backup_info,
-        dest,
-        tablespaces,
-        remote_command,
-    ):
-        if remote_command:
-            if self.config.staging_location == "remote":
-                # copy the compressed backup to the remote staging path
-                self._rsync_backup(backup_info, dest, tablespaces, remote_command)
-                # decompress the backup to the remote destination
-                self._decompress_backup(backup_info, dest, tablespaces, remote_command)
-                # remove the compressed backup from the remote staging path
-                # self.temp_dirs.append(...)
-            elif self.config.staging_location == "local":
-                # decompress the backup in the local staging path
-                self._decompress_backup(backup_info, dest, tablespaces, remote_command)
-                # copy the backup to the to the remote destination
-                self._rsync_backup(backup_info, dest, tablespaces, remote_command)
-                # remove the backup from the local staging path
-                # self.temp_dirs.append(...)
-        else:
-            # decompress the backup in the local destination
-            self._decompress_backup(backup_info, dest, tablespaces, remote_command)
-
-    def _handle_incremental_backup(
-        self,
-        backup_info,
-        dest,
-        tablespaces,
-        remote_command,
-    ):
-        if remote_command:
-            if self.config.staging_location == "remote":
-                # copy the backups to the remote staging path
-                self._rsync_backup(backup_info, dest, tablespaces, remote_command)
-                # combine the backups in the remote destination
-                self._combine_backup(backup_info, dest, tablespaces, remote_command)
-                # remove the backups from the remote staging path
-                # self.temp_dirs.append(...)
-            elif self.config.staging_location == "local":
-                # combine the backups in the local staging path
-                self._combine_backup(backup_info, dest, tablespaces, remote_command)
-                # copy the backup to the to the remote destination
-                self._rsync_backup(backup_info, dest, tablespaces, remote_command)
-                # remove the backup from the local staging path
-                # self.temp_dirs.append(...)
-        else:
-            # combine the backups in the local destination
-            self._combine_backup(backup_info, dest, tablespaces, remote_command)
-
-    def _handle_incremental_and_compressed_backup(
-        self,
-        backup_info,
-        dest,
-        tablespaces,
-        remote_command,
-    ):
-        if remote_command:
-            if self.config.staging_location == "remote":
-                # copy the backups to the remote staging path
-                self._rsync_backup(backup_info, dest, tablespaces, remote_command)
-                # decompress the backups in the remote staging path
-                self._decompress_backup(backup_info, dest, tablespaces, remote_command)
-                # combine the backups in the remote destination
-                self._decompress_backup(backup_info, dest, tablespaces, remote_command)
-                # remove the backups from the remote staging path
-                # self.temp_dirs.append(...)
-            elif self.config.staging_location == "local":
-                # decompress the backups in the local staging path
-                self._decompress_backup(backup_info, dest, tablespaces, remote_command)
-                # combine the backups in the local staging path
-                self._combine_backup(backup_info, dest, tablespaces, remote_command)
-                # copy the backup to the to the remote destination
-                self._rsync_backup(backup_info, dest, tablespaces, remote_command)
-                # remove the backup from the local staging path
-                # self.temp_dirs.append(...)
-        else:
-            # decompress the backups in the local staging path
-            self._decompress_backup(backup_info, dest, tablespaces, remote_command)
-            # combine the backups in the local destination
-            self._combine_backup(backup_info, dest, tablespaces, remote_command)
-            # remote the backups from the local staging path
-            # self.temp_dirs.append(...)
-
-    def _rsync_backup(self, backup_info, dest, tablespaces, remote_command):
-        pass
-
-    def _decompress_backup(self, backup_info, dest, tablespaces, remote_command):
-        pass
-
-    def _combine_backup(self, backup_info, dest, tablespaces, remote_command):
-        pass
 
 
 def recovery_executor_factory(backup_manager, command, backup_info):
