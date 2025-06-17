@@ -24,12 +24,14 @@ from __future__ import print_function
 
 import collections
 import datetime
+import io
 import logging
 import os
 import re
 import shutil
 import socket
 import tempfile
+from abc import ABC, abstractmethod
 from functools import partial
 from io import BytesIO
 
@@ -60,7 +62,12 @@ from barman.exceptions import (
     RecoveryTargetActionException,
     SnapshotBackupException,
 )
-from barman.infofile import BackupInfo, LocalBackupInfo, SyntheticBackupInfo
+from barman.infofile import (
+    BackupInfo,
+    LocalBackupInfo,
+    SyntheticBackupInfo,
+    VolatileBackupInfo,
+)
 from barman.utils import force_str, mkpath, parse_target_tli, total_seconds
 
 # generic logger for this module
@@ -2360,6 +2367,406 @@ class IncrementalRecoveryExecutor(RemoteConfigRecoveryExecutor):
             "End combining backup via pg_combinebackup for backup %s",
             backup_info.backup_id,
         )
+
+
+class RecoveryOperation(ABC):
+    """
+    A base class for recovery operations.
+
+    This class defines the interface for recovery operations that can be executed on
+    backups. Subclasses must implement the :meth:`_should_execute` and :meth:`_execute`
+    methods, which checks if the operation should be executed and executes the actual
+    operation, respectively.
+
+    This class also provides utility methods for executing operations on backup trees,
+    and creating volatile backup info objects.
+
+    :cvar NAME: str: The name of the operation, used for identification.
+    """
+
+    NAME = None
+
+    def __init__(self, config, server, backup_manager):
+        """
+        Constructor.
+
+        :param barman.config.Config config: The Barman configuration
+        :param barman.server.Server server: The Barman server instance
+        :param barman.backup.BackupManager backup_manager: The BackupManager instance
+        """
+        self.config = config
+        self.server = server
+        self.backup_manager = backup_manager
+
+    def execute(
+        self,
+        backup_info,
+        destination,
+        tablespaces=None,
+        remote_command=None,
+        recovery_info=None,
+        safe_horizon=None,
+        is_last_operation=False,
+    ):
+        """
+        Execute the operation.
+
+        .. note::
+            This method is the entry point for executing operations. It checks if the
+            operation should be executed on the given backup and calls the
+            respective underlying :meth:`_execute` method of the actual class.
+
+        :param barman.infofile.LocalBackupInfo backup_info: An object representing the
+            backup
+        :param str destination: The destination directory where the output of the
+            operation will be stored
+        :param dict[str,str]|None tablespaces: A dictionary mapping tablespace names to
+            their target directories. This is the relocation chosen by the user when
+            invoking the ``restore`` command. If ``None``, it means no relocation was
+            chosen
+        :param str|None remote_command: The SSH remote command to use for the recovery,
+            in case of a remote recovery. If ``None``, it means the recovery is local
+        :param dict[str,any] recovery_info: A dictionary that populated with metadata
+            about the recovery process
+        :param datetime.datetime|None safe_horizon: The safe horizon of the backup.
+            Any file rsync-copied after this time has to be checked with checksum
+        :param bool is_last_operation: Whether this is the last operation in the
+            recovery chain.
+        :return barman.infofile.VolatileBackupInfo: The respective volatile backup info
+            of *backup_info* which reflects all changes performed by the operation
+        """
+        # If the operation should not be executed, we return a volatile backup info
+        # that is an exact copy of the original backup_info
+        if not self._should_execute(backup_info):
+            output.debug(
+                "Skipping %s operation for backup %s as it's not required",
+                self.NAME,
+                backup_info.backup_id,
+            )
+            return self._create_volatile_backup_info(
+                backup_info, backup_info.get_base_directory()
+            )
+
+        # Otherwise, proceed with the operation execution
+        return self._execute(
+            backup_info,
+            destination,
+            tablespaces,
+            remote_command,
+            recovery_info,
+            safe_horizon,
+            is_last_operation,
+        )
+
+    @abstractmethod
+    def _execute(
+        self,
+        backup_info,
+        destination,
+        tablespaces,
+        remote_command,
+        recovery_info,
+        safe_horizon,
+        is_last_operation,
+    ):
+        """
+        Execute the operation for a given backup.
+
+        :param barman.infofile.LocalBackupInfo backup_info: An object representing the
+            backup
+        :param str destination: The destination directory where the output of the
+            operation will be stored
+        :param dict[str,str]|None tablespaces: A dictionary mapping tablespace names to
+            their target directories. This is the relocation chosen by the user when
+            invoking the ``restore`` command. If ``None``, it means no relocation was
+            chosen
+        :param str|None remote_command: The SSH remote command to use for the recovery,
+            in case of a remote recovery. If ``None``, it means the recovery is local
+        :param dict[str,any] recovery_info: A dictionary that populated with metadata
+            about the recovery process
+        :param datetime.datetime|None safe_horizon: The safe horizon of the backup.
+            Any file rsync-copied after this time has to be checked with checksum
+        :param bool is_last_operation: Whether this is the last operation in the
+            recovery chain.
+        :return barman.infofile.VolatileBackupInfo: The respective volatile backup info
+            of *backup_info* which reflects all changes performed by the operation
+        """
+
+    @abstractmethod
+    def _should_execute(self, backup_info):
+        """
+        Check if the operation should be executed on the given backup.
+
+        This method must be overridden by subclasses to implement specific checks
+        for whether the operation should be executed on the provided *backup_info*.
+
+        :param barman.infofile.LocalBackupInfo backup_info: The backup info to check
+        :return bool: ``True`` if the operation should be executed, ``False`` otherwise
+        """
+
+    def _execute_on_chain(self, backup_info, method, *args, **kwargs):
+        """
+        Executes a given method iteratively on all backups in a chain. In case of
+        a non-incremental backup, it executes the method only on the specified backup,
+        as usual.
+
+        This is a shorthand for operations such as decrypting or decompressing
+        incremental backups, where the operation must be applied not only to the target
+        backup but also to all its ascendants that are also encrypted/compressed.
+
+        *method* must return a :class:`barman.infofile.VolatileBackupInfo` object.
+
+        This method also ensures that all resulting volatile backups are properly
+        re-linked in memory so that tree-based operations like
+        :meth:`~LocalBackupInfo.walk_to_root` continue to work.
+
+        :param barman.infofile.LocalBackupInfo backup_info: The backup in recovery.
+            In case of an incremental backup, all its ascendants are also processed
+        :param callable method: The method to execute on the backup. In case of an
+            incremental backup, this method is also executed on all its ascendants
+        :param args: Positional arguments to pass to the *method*
+        :param kwargs: Keyword arguments to pass to the *method*
+        :return barman.infofile.VolatileBackupInfo: The respective volatile backup info
+            of *backup_info* which reflects all changes performed by the operation
+        """
+        # Main backup is the respective volatile backup of the backup_info received
+        main_vol_backup = None
+
+        backups = {}
+        for backup in backup_info.walk_to_root():
+            volatile_backup = method(backup, *args, **kwargs)
+            backups[volatile_backup.backup_id] = volatile_backup
+            if main_vol_backup is None:
+                main_vol_backup = volatile_backup
+
+        # Rebuild the backup chain in memory if there are multiple backups. This ensures
+        # that parent_instance links between backups are properly re-established
+        if len(backups) > 1:
+            for backup in backups.values():
+                backup.parent_instance = backups.get(backup.parent_backup_id)
+
+        return main_vol_backup
+
+    def _create_volatile_backup_info(self, backup_info, base_directory):
+        """
+        Create a :class:`VolatileBackupInfo` instance as a copy of the given
+        *backup_info* with *base_directory* as its location.
+
+        :param barman.infofile.LocalBackupInfo backup_info: The original backup info
+        :param str base_directory: The base directory where the new volatile backup
+            info will be created
+        :rtype: barman.infofile.VolatileBackupInfo
+        :return: A new :class:`VolatileBackupInfo` instance that is a copy of the
+            original *backup_info*, but with the specified base directory
+        """
+        # Serialize the original backup_info into memory
+        buffer = io.BytesIO()
+        backup_info.save(file_object=buffer)
+        buffer.seek(0)
+
+        # Instantiate a new VolatileBackupInfo and populate it using the serialized data
+        volatile_backup_info = VolatileBackupInfo(
+            server=self.server,
+            base_directory=base_directory,
+            backup_id=backup_info.backup_id,
+        )
+        volatile_backup_info.load(file_object=buffer)
+
+        return volatile_backup_info
+
+    def _prepare_directory(self, dest_dir, cmd):
+        """
+        Prepare a directory for receiving a backup operation's output.
+
+        This method is responsible for removing a directory if it already
+        exists, then (re)creating it and ensuring the correct permissions.
+
+        :param str dest_dir: The destination directory
+        :param barman.fs.UnixLocalCommand cmd: The command interface to run commands
+        """
+        cmd.delete_if_exists(dest_dir)
+        cmd.create_dir_if_not_exists(dest_dir, mode="700")
+        cmd.check_write_permission(dest_dir)
+
+
+class RsyncCopyOperation(RecoveryOperation):
+    """
+    Operation responsible for copying the backup data using ``rsync``.
+
+    This operation copies PGDATA and respective tablespaces of a backup to a specified
+    destination, making sure to exclude irrelevant files and directories.
+
+    :cvar NAME: str: The name of the operation, used for identification
+    """
+
+    NAME = "barman-rsync-copy"
+
+    def _execute(
+        self,
+        backup_info,
+        destination,
+        tablespaces,
+        remote_command,
+        recovery_info,
+        safe_horizon,
+        is_last_operation,
+    ):
+        return self._execute_on_chain(
+            backup_info,
+            self._rsync_backup_copy,
+            destination,
+            tablespaces,
+            remote_command,
+            recovery_info,
+            safe_horizon,
+            is_last_operation,
+        )
+
+    def _rsync_backup_copy(self, *args, **kwargs):
+        pass
+
+    def _should_execute(self, backup_info):
+        """
+        Check if the rsync copy operation should be executed on the given backup.
+
+        :param barman.infofile.LocalBackupInfo backup_info: The backup info to check
+        :return bool: ``True`` if the operation should be executed, ``False`` otherwise
+        """
+        # This operation is always executed as there are no preconditions
+        return True
+
+
+class DecryptionOperation(RecoveryOperation):
+    """
+    Operation responsible for decrypting backups.
+
+    Decrypts the backup content using the respective encryption handler to the
+    specified destination directory.
+
+    :cvar NAME: str: The name of the operation, used for identification
+    """
+
+    NAME = "barman-decryption"
+
+    def _execute(
+        self,
+        backup_info,
+        destination,
+        tablespaces,
+        remote_command,
+        recovery_info,
+        safe_horizon,
+        is_last_operation,
+    ):
+        return self._execute_on_chain(
+            backup_info,
+            self._decrypt_backup,
+            destination,
+            tablespaces,
+            remote_command,
+            recovery_info,
+            is_last_operation,
+        )
+
+    def _should_execute(self, backup_info):
+        """
+        Check if the decryption operation should be executed on the given backup.
+
+        :param barman.infofile.LocalBackupInfo backup_info: The backup info to check
+        :return bool: ``True`` if the operation should be executed, ``False`` otherwise
+        """
+        return backup_info.encryption is not None
+
+    def _decrypt_backup(self, *args, **kwargs):
+        pass
+
+
+class DecompressOperation(RecoveryOperation):
+    """
+    Operation responsible for decompressing backups.
+
+    Decompresses the backup content using the respective compression handler to the
+    specified destination directory.
+
+    :cvar NAME: str: The name of the operation, used for identification
+    :cvar BASE_TARBALL_NAME: str: The name of the backup tarball file
+    """
+
+    NAME = "barman-decompress"
+    BASE_TARBALL_NAME = "base"
+
+    def _execute(
+        self,
+        backup_info,
+        destination,
+        tablespaces,
+        remote_command,
+        recovery_info,
+        safe_horizon,
+        is_last_operation,
+    ):
+        return self._execute_on_chain(
+            backup_info,
+            self._decompress_backup,
+            destination,
+            tablespaces,
+            remote_command,
+            recovery_info,
+            is_last_operation,
+        )
+
+    def _should_execute(self, backup_info):
+        """
+        Check if the decompression operation should be executed on the given backup.
+
+        :param barman.infofile.LocalBackupInfo backup_info: The backup info to check
+        :return bool: ``True`` if the operation should be executed, ``False`` otherwise
+        """
+        return backup_info.compression is not None
+
+    def _decompress_backup(self, *args, **kwargs):
+        pass
+
+
+class CombineOperation(RecoveryOperation):
+    """
+    Operation responsible for combining a chain of backups (full + incrementals).
+
+    :cvar NAME: the name of the operation
+    """
+
+    NAME = "barman-combine"
+
+    def _execute(
+        self,
+        backup_info,
+        destination,
+        tablespaces,
+        remote_command,
+        recovery_info,
+        safe_horizon,
+        is_last_operation,
+    ):
+        return self._combine_backups(
+            backup_info,
+            destination,
+            tablespaces,
+            recovery_info,
+            remote_command,
+            is_last_operation,
+        )
+
+    def _should_execute(self, backup_info):
+        """
+        Check if the combine operation should be executed on the given backup.
+
+        :param barman.infofile.LocalBackupInfo backup_info: The backup info to check
+        :return bool: ``True`` if the operation should be executed, ``False`` otherwise
+        """
+        return backup_info.is_incremental
+
+    def _combine_backups(self, *args, **kwargs):
+        pass
 
 
 class MainRecoveryExecutor(RemoteConfigRecoveryExecutor):

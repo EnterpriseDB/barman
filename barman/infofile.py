@@ -927,12 +927,20 @@ class LocalBackupInfo(BackupInfo):
                 return match.group(1)
             return os.path.basename(os.path.dirname(self.filename))
 
+    def get_base_directory(self):
+        """
+        Retrieve the base directory for this backup
+
+        :return str: the base directory for this backup
+        """
+        return self.config.basebackups_directory
+
     def get_basebackup_directory(self):
         """
         Get the default filename for the backup.info file based on
         backup ID and server directory for base backups
         """
-        return os.path.join(self.config.basebackups_directory, self.backup_id)
+        return os.path.join(self.get_base_directory(), self.backup_id)
 
     def get_data_directory(self, tablespace_oid=None):
         """
@@ -1248,7 +1256,16 @@ class VolatileBackupInfo(LocalBackupInfo):
             or a file-like object from which to read the backup information.
         """
         self.base_directory = base_directory
+        self.parent_instance = None
         super(VolatileBackupInfo, self).__init__(server, info_file, backup_id, **kwargs)
+
+    def get_base_directory(self):
+        """
+        Retrieve the base directory for this backup.
+
+        :return str: The base directory for this backup.
+        """
+        return self.base_directory
 
     def get_basebackup_directory(self):
         """
@@ -1262,6 +1279,26 @@ class VolatileBackupInfo(LocalBackupInfo):
         :return str: The full path to the base backup directory.
         """
         return os.path.join(self.base_directory, self.backup_id)
+
+    def walk_to_root(self, return_self=True):
+        """
+        Walk through all the parent backups of the current backup.
+
+        .. note::
+            This method is similar to the one in :class:`LocalBackupInfo`, except that
+            it traverses the tree based on the in-memory :attr:`parent_instance`
+            attribute.
+
+        :param bool return_self: Whether to return the current backup.
+            Default to ``True``.
+        :yield: a generator of :class:`LocalBackupInfo` objects for each parent backup.
+        """
+        if return_self:
+            yield self
+        backup_info = self.parent_instance
+        while backup_info:
+            yield backup_info
+            backup_info = backup_info.parent_instance
 
     def save(self, *args, **kwargs):
         """
