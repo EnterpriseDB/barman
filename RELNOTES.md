@@ -15,6 +15,8 @@
   WALs are never GPG-encrypted, nor compressed. With both issues fixed, the archiving
   process will be significantly faster and more resource-efficient.
 
+  Thanks to @thealex55 for the detailed analysis in the issue #1087.
+
   References: BAR-775.
 
 ## 3.14.0 (2025-05-15)
