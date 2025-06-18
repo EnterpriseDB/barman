@@ -2,6 +2,21 @@
 
 © Copyright EnterpriseDB UK Limited 2025 - All rights reserved.
 
+## 3.14.1 (2025-06-18)
+
+### Bugfixes
+
+- Fix WAL archiving performance issues
+
+  The Barman WAL archiving process was suffering from a performance degradation due to
+  processing of WAL files that would not be archived in the current run. There was also an
+  oversight in the encryption logic introduced in 3.14, that caused Barman to check
+  for encryption in WAL files streamed to the server, which is unnecessary as streamed
+  WALs are never GPG-encrypted, nor compressed. With both issues fixed, the archiving
+  process will be significantly faster and more resource-efficient.
+
+  References: BAR-775.
+
 ## 3.14.0 (2025-05-15)
 
 ### Notable changes
