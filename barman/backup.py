@@ -1118,6 +1118,34 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         # Delegate the recovery operation to a RecoveryExecutor object
 
         command = unix_command_factory(remote_command, self.server.path)
+        # Ensure the PGDATA destination directory is empty.
+        dest_dir = command.list_dir_content(dest)
+        if dest_dir:
+            output.error(
+                "The restore operation cannot proceed because the destination folder "
+                "'%s' is not empty. To prevent accidental data loss, the destination "
+                "must be empty. Please choose a different location or manually empty "
+                "the folder.",
+                dest,
+            )
+            output.close_and_exit()
+
+        if backup_info.tablespaces:
+            for tablespace in backup_info.tablespaces:
+                location = tablespace.location
+                if tablespaces and tablespace.name in tablespaces:
+                    location = tablespaces[tablespace.name]
+                tbs_dir = command.list_dir_content(location)
+                if tbs_dir:
+                    output.error(
+                        "The restore operation cannot proceed. The destination path "
+                        "'%s' for the tablespace '%s' is not empty. To prevent "
+                        "accidental data loss, the tablespace destination must be "
+                        "empty. Please choose a different location or manually empty "
+                        "the folder." % (location, tablespace.name)
+                    )
+                    output.close_and_exit()
+
         executor = recovery_executor_factory(self, command, backup_info)
         # Run the pre_recovery_script if present.
         script = HookScriptRunner(self, "recovery_script", "pre")
