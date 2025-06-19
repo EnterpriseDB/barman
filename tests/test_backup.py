@@ -1681,6 +1681,74 @@ class TestBackup(object):
             any_order=True,
         )
 
+    @mock.patch("barman.backup.unix_command_factory")
+    def test_recover_check_pgdata_directory_is_empty(
+        self, remote_cmd_mock, tmpdir, caplog
+    ):
+        command = remote_cmd_mock.return_value
+        backup_manager = build_backup_manager(
+            main_conf={"backup_options": "concurrent_backup"}
+        )
+        destination = tmpdir.mkdir("data").strpath
+
+        # destination for pgdata is non-empty.
+        command.list_dir_content.side_effect = ["non-empty"]
+
+        backup_info = build_test_backup_info()
+        # No tablespaces
+        with pytest.raises(SystemExit):
+            backup_manager.recover(backup_info, destination)
+
+        assert (
+            "The restore operation cannot proceed because the destination folder"
+            in caplog.text
+        )
+
+    @mock.patch("barman.backup.unix_command_factory")
+    def test_recover_check_tablespace_directory_is_empty(
+        self, remote_cmd_mock, tmpdir, caplog
+    ):
+        command = remote_cmd_mock.return_value
+        backup_manager = build_backup_manager(
+            main_conf={"backup_options": "concurrent_backup"}
+        )
+        destination = tmpdir.mkdir("data").strpath
+
+        backup_info = build_test_backup_info(
+            tablespaces=[
+                ("ts_data", 1234567, "/tbs/destination/ts_data"),
+                ("ts_data2", 1234567, "/tbs/destination/ts_data2"),
+            ]
+        )
+        # destination pgdata is empty, relocated 'ts_data' is non-empty.
+        command.list_dir_content.side_effect = [None, "non-empty"]
+        with pytest.raises(SystemExit):
+            backup_manager.recover(
+                backup_info,
+                destination,
+                tablespaces={"ts_data": "/new_destination"},
+            )
+        assert (
+            "The restore operation cannot proceed. The destination path "
+            "'/new_destination' for the tablespace 'ts_data' is not empty"
+            in caplog.text
+        )
+
+        # destination for pgdata is empty, relocated 'ts_data' is empty, non-relocated
+        # 'ts_data2' is non-empty.
+        command.list_dir_content.side_effect = [None, None, "non-empty"]
+        with pytest.raises(SystemExit):
+            backup_manager.recover(
+                backup_info,
+                destination,
+                tablespaces={"ts_data": "/new_destination"},
+            )
+        assert (
+            "The restore operation cannot proceed. The destination path "
+            "'/tbs/destination/ts_data2' for the tablespace 'ts_data2' is not empty"
+            in caplog.text
+        )
+
 
 class TestWalCleanup(object):
     """Test cleanup of WALs by BackupManager"""
