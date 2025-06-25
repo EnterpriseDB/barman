@@ -4379,6 +4379,548 @@ class TestRsyncCopyOperation(object):
         mock_copy_controller.copy.assert_called_once()
 
 
+class TestCombineOperation(object):
+    """Tests for the :class:`CombineOperation` class"""
+
+    def test_execute(self):
+        """
+        Test that :meth:`_execute` calls :meth:`_combine_backups` correctly.
+        """
+        # GIVEN a CombineOperation instance
+        operation = CombineOperation(
+            config=mock.Mock(),
+            server=mock.Mock(),
+            backup_manager=mock.Mock(),
+        )
+        operation._combine_backups = mock.Mock()
+
+        # Mock the arguments to be passed to execute
+        backup_info = mock.Mock()
+        args = [
+            backup_info,
+            "destination",
+            "tablespaces",
+            "remote_command",
+            "recovery_info",
+            "safe_horizon",
+            "is_last_operation",
+        ]
+
+        # WHEN _execute is called
+        operation._execute(*args)
+
+        # THEN _combine_backups should be called with the correct arguments
+        operation._combine_backups.assert_called_once_with(
+            backup_info,
+            "destination",
+            "tablespaces",
+            "is_last_operation",
+        )
+
+    def test_should_execute(self):
+        """
+        Test that :meth:`_should_execute` works correctly.
+        """
+        # GIVEN a CombineOperation instance
+        operation = CombineOperation(
+            config=mock.Mock(),
+            server=mock.Mock(),
+            backup_manager=mock.Mock(),
+        )
+        # Case 1: When the backup is incremental it returns True
+        backup_info = mock.Mock(is_incremental=True)
+        assert operation._should_execute(backup_info) is True
+
+        # Case W: When the backup is not incremental it returns False
+        backup_info = mock.Mock(is_incremental=False)
+        assert operation._should_execute(backup_info) is False
+
+    @pytest.mark.parametrize("is_last_operation", [True, False])
+    @pytest.mark.parametrize("tablespaces", [None, {"tbs1": "/path/to/relocation"}])
+    @pytest.mark.parametrize("is_checksum_consistent", [True, False])
+    @mock.patch(
+        "barman.recovery_executor.CombineOperation._create_volatile_backup_info",
+        return_value=mock.Mock(
+            get_data_directory=lambda *args: "/path/to/backup_id/data"
+        ),
+    )
+    @mock.patch("barman.recovery_executor.CombineOperation._get_tablespace_mapping")
+    @mock.patch("barman.recovery_executor.CombineOperation._prepare_directory")
+    @mock.patch("barman.recovery_executor.CombineOperation._post_recovery_cleanup")
+    @mock.patch("barman.recovery_executor.CombineOperation._run_pg_combinebackup")
+    @mock.patch("barman.recovery_executor.output")
+    def test_combine_backups(
+        self,
+        mock_output,
+        mock_run_pg_combinebackup,
+        mock_post_recovery_cleanup,
+        mock_prepare_directory,
+        mock_get_tablespace_mapping,
+        mock_create_volatile_backup_info,
+        tablespaces,
+        is_last_operation,
+        is_checksum_consistent,
+    ):
+        """
+        Test that :meth:`_combine_backups` works correctly.
+        It should create a volatile backup info, do the tablespace mapping, and call
+        :meth:`_run_pg_combinebackup` with the correct parameters.
+        """
+        # Finish mocking get_tablespace_mapping as it depends on the tablespaces value
+        mock_get_tablespace_mapping.return_value = {}
+        if tablespaces is not None:
+            mock_get_tablespace_mapping.return_value = {
+                "/path/tp/source/tbs1": "/path/to/final/destination/tbs1"
+            }
+
+        # Also finish mocking the volatile backup info, as its object retunred should
+        # have the is_checksum_consistent method mocked to return the parametrized
+        # value of is_checksum_consistent
+        mock_create_volatile_backup_info.return_value.is_checksum_consistent = (
+            lambda: is_checksum_consistent
+        )
+
+        # GIVEN a CombineOperation instance
+        operation = CombineOperation(
+            config=mock.Mock(),
+            server=mock.Mock(),
+            backup_manager=mock.Mock(),
+        )
+
+        # Mock the rest of the method arguments
+        backup_info = mock.Mock()
+        destination = "/path/to/destination"
+
+        # WHEN _combine_backups is called
+        ret = operation._combine_backups(
+            backup_info, destination, tablespaces, is_last_operation
+        )
+
+        # THEN _create_volatile_backup_info is called with the correct parameters
+        mock_create_volatile_backup_info.assert_called_once_with(
+            backup_info, destination
+        )
+        vol_backup_info = mock_create_volatile_backup_info.return_value
+
+        # AND _get_tablespace_mapping is called with the correct parameters
+        mock_get_tablespace_mapping.assert_called_once_with(
+            backup_info, vol_backup_info, tablespaces, is_last_operation
+        )
+
+        # Note: The actual desination output of the operation depend
+        # on whether it is the last operation or not
+        output_dest = (
+            destination if is_last_operation else vol_backup_info.get_data_directory()
+        )
+
+        # AND all the destinations are prepared
+        dests = [output_dest] + list(mock_get_tablespace_mapping.return_value.values())
+        mock_prepare_directory.assert_has_calls(
+            [mock.call(dest) for dest in dests],
+        )
+
+        # AND _run_pg_combinebackup is called with the correct parameters
+        mock_run_pg_combinebackup.assert_called_once_with(
+            backup_info,
+            output_dest,
+            mock_get_tablespace_mapping.return_value,
+            dests,
+        )
+
+        # AND if the checksum of the restored backup is inconsitent raises a warning
+        if not is_checksum_consistent:
+            mock_output.warning.assert_called_once_with(
+                "You are restoring from an incremental backup where checksums were enabled on "
+                "that backup, but not all backups in the chain. It is advised to disable, and "
+                "optionally re-enable, checksums on the destination directory to avoid failures."
+            )
+
+        # AND if this is the last operation _post_recovery_cleanup is called correctly
+        if is_last_operation:
+            mock_post_recovery_cleanup.assert_called_once_with(output_dest)
+
+        # AND the volatile backup info is returned
+        assert ret == vol_backup_info
+
+    @mock.patch(
+        "barman.recovery_executor.CombineOperation._fetch_remote_status",
+        return_value={
+            "pg_combinebackup_path": "/path/to/pg_combinebackup",
+            "pg_combinebackup_version": "17.0.0",
+        },
+    )
+    @mock.patch(
+        "barman.recovery_executor.CombineOperation._get_backup_chain_paths",
+        return_value=["/path/to/backup_id/data", "/path/to/backup_id/parent/data"],
+    )
+    @mock.patch("barman.recovery_executor.PgCombineBackup")
+    def test_run_pg_combinebackup(
+        self,
+        mock_pg_combine_backup,
+        mock_get_backup_chain_paths,
+        mock_fetch_remote_status,
+    ):
+        """
+        Test that :meth:`_run_pg_combinebackup` bulds :class:`PgCombineBackup`
+        with the correct parameters and execute it.
+        """
+        # GIVEN a CombineOperation instance
+        operation = CombineOperation(
+            config=mock.Mock(),
+            server=mock.Mock(),
+            backup_manager=mock.Mock(),
+        )
+
+        # Build the method parameters
+        backup_info = mock.Mock()
+        destination = "/path/to/destination"
+        tablespace_mapping = {
+            "/path/to/backup_id/tbs1": "/path/to/relocation/tbs1",
+            "/path/to/backup_id/tbs2": "/path/to/relocation/tbs2",
+        }
+        dest_dirs = [
+            "/path/to/destination",
+            "/path/to/relocation/tbs1",
+            "/path/to/relocation/tbs2",
+        ]
+
+        # WHEN _run_pg_combinebackup is called
+        operation._run_pg_combinebackup(
+            backup_info, destination, tablespace_mapping, dest_dirs
+        )
+
+        # THEN _fetch_remote_status is called correctly
+        mock_fetch_remote_status.assert_called_once()
+        remote_status = mock_fetch_remote_status.return_value
+
+        # AND _get_backup_chain_paths is called correctly
+        mock_get_backup_chain_paths.assert_called_once_with(backup_info)
+        backups_chain = mock_get_backup_chain_paths.return_value
+
+        # AND PgCombineBackup is instantiated with the correct parameters
+        mock_pg_combine_backup.assert_called_once_with(
+            destination=destination,
+            command=remote_status["pg_combinebackup_path"],
+            version=remote_status["pg_combinebackup_version"],
+            app_name=None,
+            tbs_mapping=tablespace_mapping,
+            retry_times=operation.config.basebackup_retry_times,
+            retry_sleep=operation.config.basebackup_retry_sleep,
+            retry_handler=mock.ANY,
+            out_handler=mock.ANY,
+            args=backups_chain,
+        )
+
+        # AND the combine operation is executed
+        mock_pg_combine_backup.return_value.assert_called_once()
+
+    @mock.patch(
+        "barman.recovery_executor.CombineOperation._fetch_remote_status",
+        return_value={
+            "pg_combinebackup_path": "/path/to/pg_combinebackup",
+            "pg_combinebackup_version": "17.0.0",
+        },
+    )
+    @mock.patch(
+        "barman.recovery_executor.CombineOperation._get_backup_chain_paths",
+        return_value=["/path/to/backup_id/data", "/path/to/backup_id/parent/data"],
+    )
+    @mock.patch("barman.recovery_executor.PgCombineBackup")
+    @mock.patch(
+        "barman.recovery_executor.DataTransferFailure", wraps=DataTransferFailure
+    )
+    def test_run_pg_combinebackup_failed(
+        self,
+        mock_data_transfer_failure,
+        mock_pg_combine_backup,
+        mock_get_backup_chain_paths,
+        mock_fetch_remote_status,
+    ):
+        """
+        Test that :meth:`_run_pg_combinebackup` handles failures correctly.
+        """
+        # GIVEN a CombineOperation instance
+        operation = CombineOperation(
+            config=mock.Mock(),
+            server=mock.Mock(),
+            backup_manager=mock.Mock(),
+        )
+
+        # Build the method parameters
+        backup_info = mock.Mock()
+        destination = "/path/to/destination"
+        tablespace_mapping = {
+            "/path/to/backup_id/tbs1": "/path/to/relocation/tbs1",
+            "/path/to/backup_id/tbs2": "/path/to/relocation/tbs2",
+        }
+        dest_dirs = [
+            "/path/to/destination",
+            "/path/to/relocation/tbs1",
+            "/path/to/relocation/tbs2",
+        ]
+
+        # Mock PgCombineBackup to raise an exception when its instance is called
+        mock_pg_combine_backup.return_value.side_effect = CommandFailedException(
+            "pg_combinebackup failed"
+        )
+
+        # WHEN _run_pg_combinebackup is called THEN a DataTransferFailure is raised
+        with pytest.raises(DataTransferFailure):
+            operation._run_pg_combinebackup(
+                backup_info, destination, tablespace_mapping, dest_dirs
+            )
+            # AND the exception was raised by calling from_command_error correctly
+            msg = "Combine action failure on directory '%s'" % destination
+            mock_data_transfer_failure.from_command_error.assert_called_once_with(
+                "pg_combinebackup",
+                mock.ANY,  # The exception object will vary
+                msg,
+            )
+
+    @pytest.mark.parametrize(
+        "is_last_operation, tablespaces_relocation, expected_result",
+        [
+            # Case 1: Last operation, no relocation
+            # Tablespaces go from the source backup to their original location on the server
+            (
+                True,
+                None,
+                {
+                    "/path/to/backup_id/123": "/path/to/server/tbs1",
+                    "/path/to/backup_id/321": "/path/to/server/tbs2",
+                },
+            ),
+            # Case 2: Not last operation, no relocation
+            # Tablespaces go from the source backup to the volatile backup respective directory
+            (
+                False,
+                None,
+                {
+                    "/path/to/backup_id/123": "/path/to/vol_backup_id/123",
+                    "/path/to/backup_id/321": "/path/to/vol_backup_id/321",
+                },
+            ),
+            # Case 3: Last operation, with relocation
+            # Tablespaces go from the source backup to the relocation path
+            (
+                True,
+                {"tbs1": "/path/to/relocation", "tbs2": "/path/to/relocation2"},
+                {
+                    "/path/to/backup_id/123": "/path/to/relocation",
+                    "/path/to/backup_id/321": "/path/to/relocation2",
+                },
+            ),
+            # Case 4: Not last operation, with relocation
+            # Tablespaces go from the source backup to the volatile backup respective directory
+            (
+                False,
+                {"tbs1": "/path/to/relocation", "tbs2": "/path/to/relocation2"},
+                {
+                    "/path/to/backup_id/123": "/path/to/vol_backup_id/123",
+                    "/path/to/backup_id/321": "/path/to/vol_backup_id/321",
+                },
+            ),
+        ],
+    )
+    def test_get_tablespace_mapping(
+        self,
+        is_last_operation,
+        tablespaces_relocation,
+        expected_result,
+    ):
+        """
+        Test that :meth:`_get_tablespace_mapping` returns the correct mapping
+        for tablespaces. This test covers all cases where the restoring backup
+        actually has tablespaces to be mapped.
+        """
+        # GIVEN a CombineOperation instance
+        operation = CombineOperation(
+            config=mock.Mock(),
+            server=mock.Mock(),
+            backup_manager=mock.Mock(),
+        )
+
+        # AND a backup_info object with two tablespaces
+        backup_info = mock.Mock(
+            get_data_directory=lambda oid: f"/path/to/backup_id/{oid}",
+            tablespaces=[
+                mock.Mock(oid=123, location="/path/to/server/tbs1"),
+                mock.Mock(oid=321, location="/path/to/server/tbs2"),
+            ],
+        )
+        # Set names for the tablespaces as we can't pass them as parameters
+        # to the mock, e.g. mock.Mock(name="tbs1") does not work
+        backup_info.tablespaces[0].name = "tbs1"
+        backup_info.tablespaces[1].name = "tbs2"
+
+        # AND the operation's respective volatile backup info object
+        vol_backup_info = mock.Mock(
+            get_data_directory=lambda oid: f"/path/to/vol_backup_id/{oid}",
+        )
+
+        # WHEN _get_tablespace_mapping is called
+        ret = operation._get_tablespace_mapping(
+            backup_info, vol_backup_info, tablespaces_relocation, is_last_operation
+        )
+
+        # THEN the mapping is correct
+        assert ret == expected_result
+
+    def test_get_tablespace_mapping_no_tablespaces(self):
+        """
+        Test that :meth:`_get_tablespace_mapping` returns an empty mapping
+        when the restoring backup does not have any tablespaces.
+        """
+        # GIVEN a CombineOperation instance
+        operation = CombineOperation(
+            config=mock.Mock(),
+            server=mock.Mock(),
+            backup_manager=mock.Mock(),
+        )
+
+        # AND a backup_info object without tablespaces
+        backup_info = mock.Mock(tablespaces=[])
+
+        # AND the operation's respective volatile backup info object
+        vol_backup_info = mock.Mock()
+
+        # WHEN _get_tablespace_mapping is called
+        ret = operation._get_tablespace_mapping(
+            backup_info, vol_backup_info, None, True
+        )
+
+        # THEN the mapping is empty
+        assert ret == {}
+
+    def test_get_backup_chain_paths(self):
+        """
+        Test that :meth:`_get_backup_chain_paths` returns the correct paths
+        for the backup chain.
+        """
+        # GIVEN a CombineOperation instance
+        operation = CombineOperation(
+            config=mock.Mock(),
+            server=mock.Mock(),
+            backup_manager=mock.Mock(),
+        )
+
+        # AND a child backup info with a parent backup
+        # We mock the walk_to_root method to return the correct chain of backups
+        backup_info = mock.Mock(
+            backup_id="child_backup",
+            walk_to_root=lambda: [
+                mock.Mock(
+                    backup_id="child_backup",
+                    get_data_directory=lambda: "/path/to/child/data",
+                ),
+                mock.Mock(
+                    backup_id="parent_backup",
+                    get_data_directory=lambda: "/path/to/parent/data",
+                ),
+            ],
+        )
+
+        # WHEN _get_backup_chain_paths is called
+        ret = operation._get_backup_chain_paths(backup_info)
+
+        # THEN the chain path is correctly returned
+        assert list(ret) == ["/path/to/parent/data", "/path/to/child/data"]
+
+    @pytest.mark.parametrize(
+        "get_version_info_result, should_fail, expected_result",
+        [
+            # Case 1: pg_combinebackup is installed
+            (
+                {
+                    "full_path": "/usr/bin/pg_combinebackup",
+                    "full_version": "17.0.0",
+                },
+                False,
+                {
+                    "pg_combinebackup_path": "/usr/bin/pg_combinebackup",
+                    "pg_combinebackup_version": "17.0.0",
+                },
+            ),
+            # Case 2: pg_combinebackup is not installed
+            (
+                {"full_path": None, "full_version": None},
+                True,
+                None,  # an exception was raised so this is not even used
+            ),
+        ],
+    )
+    def test_fetch_remote_status(
+        self, get_version_info_result, should_fail, expected_result
+    ):
+        """
+        Test that :meth:`_fetch_remote_status` returns the correct status
+        of the remote server.
+        """
+        # GIVEN a CombineOperation instance
+        operation = CombineOperation(
+            config=mock.Mock(),
+            server=mock.Mock(),
+            backup_manager=mock.Mock(),
+        )
+
+        # Mock PgCombineBackup.get_version_info to return the parametrized result
+        with mock.patch(
+            "barman.recovery_executor.PgCombineBackup.get_version_info",
+            return_value=get_version_info_result,
+        ):
+            if should_fail:
+                # WHEN _fetch_remote_status is called and it fails
+                # THEN it raises a CommandFailedException
+                with pytest.raises(
+                    CommandFailedException, match="pg_combinebackup could not be found"
+                ):
+                    operation._fetch_remote_status()
+            else:
+                # WHEN _fetch_remote_status is called
+                ret = operation._fetch_remote_status()
+                # THEN it returns the correct status
+                assert ret == expected_result
+
+    @mock.patch("barman.recovery_executor.CombineOperation._prepare_directory")
+    @mock.patch("barman.recovery_executor.output")
+    def test_retry_handler(self, mock_output, mock_prepare_directory):
+        """
+        Test that :meth:`_retry_handler` logs the correct messages and
+        remove the destination directories correctly.
+        """
+        # GIVEN a CombineOperation instance
+        operation = CombineOperation(
+            config=mock.Mock(),
+            server=mock.Mock(),
+            backup_manager=mock.Mock(),
+        )
+
+        # WHEN _retry_handler is called
+        operation._retry_handler(["/path/to/backup", "/path/to/tbspc1"], attempt=3)
+
+        # THEN the correct messages are logged
+        mock_output.warning.assert_has_calls(
+            [
+                mock.call(
+                    "Failure combining backups using pg_combinebackup (attempt %s)", 3
+                ),
+                mock.call(
+                    "The files created so far will be removed and the combine process "
+                    "will restart in %s seconds",
+                    "30",
+                ),
+            ],
+        )
+
+        # AND the directories are removed
+        mock_prepare_directory.assert_has_calls(
+            [
+                mock.call("/path/to/backup"),
+                mock.call("/path/to/tbspc1"),
+            ],
+        )
+
+
 class TestMainRecoveryExecutor(object):
     """
     Tests for the :class:`MainRecoveryExecutor` class.
