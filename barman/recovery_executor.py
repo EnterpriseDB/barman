@@ -3064,12 +3064,7 @@ class CombineOperation(RecoveryOperation):
         is_last_operation,
     ):
         return self._combine_backups(
-            backup_info,
-            destination,
-            tablespaces,
-            recovery_info,
-            remote_command,
-            is_last_operation,
+            backup_info, destination, tablespaces, is_last_operation
         )
 
     def _should_execute(self, backup_info):
@@ -3081,8 +3076,243 @@ class CombineOperation(RecoveryOperation):
         """
         return backup_info.is_incremental
 
-    def _combine_backups(self, *args, **kwargs):
-        pass
+    def _combine_backups(
+        self,
+        backup_info,
+        destination,
+        tablespaces,
+        is_last_operation,
+    ):
+        """
+        Perform the combination of incrementals + full backups to the destination.
+
+        When this is the last operation in the recovery chain, the output of the
+        combination will be placed in the root of *destination* and tablespaces mapped
+        to their final destination, honoring relocation, if requested. Otherwise, it
+        will be placed in the data directory of the respective volatile backup i.e.
+        ``*destination*/<backup_id>/data``, ``*destination*/<backup_id>/<tbspc>``, etc.
+
+        :param barman.infofile.LocalBackupInfo backup_info: The incremental backup
+            to combine with its ascendants
+        :param str destination: The directory where the combined backup will be placed
+        :param dict[str,str]|None tablespaces: A dictionary mapping tablespace names to
+            their target directories. This is the relocation chosen by the user when
+            invoking the ``restore`` command. If ``None``, it means no relocation was
+            chosen
+        :param bool is_last_operation: Whether this is the last operation in the
+            recovery chain
+        :return barman.infofile.VolatileBackupInfo: The respective volatile backup info
+            of *backup_info* which reflects all changes performed by the operation
+        """
+        combine_start_time = datetime.datetime.now()
+
+        # Create a volatile backup info with the destination as its base directory
+        vol_backup_info = self._create_volatile_backup_info(backup_info, destination)
+
+        # If this is the last operation then the root of *destination* is where
+        # the output of pg_combinebackup will be placed.
+        # Otherwise, it means this is still an intermediate step, so the output
+        # must be in the data directory of the volatile backup info, as this backup
+        # will still be referenced by following operations in the chain. This way
+        # we maintain a consistent structure among volatile backups
+        output_dest = vol_backup_info.get_data_directory()
+        if is_last_operation:
+            output_dest = destination
+
+        # Get the tablespace mapping for the combine operation. If this is the last
+        # operation, they are mapped to their final destination, otherwise they
+        # are mapped to the volatile backup's directory
+        tbspc_mapping = self._get_tablespace_mapping(
+            backup_info, vol_backup_info, tablespaces, is_last_operation
+        )
+
+        # Prepare the destination directories (PGDATA and tablespaces)
+        dest_dirs = [output_dest] + list(tbspc_mapping.values())
+        for _dir in dest_dirs:
+            self._prepare_directory(_dir)
+
+        output.info(
+            "Start combining backup via pg_combinebackup for backup %s on %s",
+            backup_info.backup_id,
+            output_dest,
+        )
+
+        self._run_pg_combinebackup(backup_info, output_dest, tbspc_mapping, dest_dirs)
+
+        output.info(
+            "End combining backup via pg_combinebackup for backup %s",
+            backup_info.backup_id,
+        )
+
+        # Set copy stats
+        # We set them on backup_info instead of vol_backup_info because
+        # vol_backup_info is never saved to disk, backup_info is what will be saved
+        # in the destination directory as .barman-recover.info
+        combine_end_time = datetime.datetime.now()
+        combine_time = total_seconds(combine_end_time - combine_start_time)
+        backup_info.copy_stats = {"combine_time": combine_time}
+
+        # If the checksum configuration is not consistent among all backups in the
+        # chain, raise a warning at the end so the user can optionally take
+        # action about it
+        if not vol_backup_info.is_checksum_consistent():
+            output.warning(
+                "You are restoring from an incremental backup where checksums were "
+                "enabled on that backup, but not all backups in the chain. It is "
+                "advised to disable, and optionally re-enable, checksums on the "
+                "destination directory to avoid failures."
+            )
+
+        # Remove unwanted files from the destination
+        if is_last_operation:
+            self._post_recovery_cleanup(output_dest)
+
+        return vol_backup_info
+
+    def _run_pg_combinebackup(
+        self, backup_info, output_dest, tablespace_mapping, dest_dirs
+    ):
+        """
+        Run the ``pg_combinebackup`` utility to combine backup chain.
+
+        :param barman.infofile.LocalBackupInfo backup_info: The incremental backup
+            to combine with its ascendants
+        :param str output_dest: The destination directory where the combined backup
+            will be placed
+        :param dict[str,str] tablespace_mapping: A mapping of source tablespace
+            directories to their destination directories
+        :param list[str] dest_dirs: A list of destination directories, useful for the
+            retry handler to remove already created directories in case of failure
+        :raises barman.exceptions.DataTransferFailure: If the combine operation fails
+        """
+        # Retrieve pg_combinebackup information
+        remote_status = self._fetch_remote_status()
+
+        # Get the backup chain data paths to be passed to pg_combinebackup
+        backups_chain = self._get_backup_chain_paths(backup_info)
+
+        # Prepare the pg_combinebackup command
+        pg_combinebackup = PgCombineBackup(
+            destination=output_dest,
+            command=remote_status["pg_combinebackup_path"],
+            version=remote_status["pg_combinebackup_version"],
+            app_name=None,
+            tbs_mapping=tablespace_mapping,
+            retry_times=self.config.basebackup_retry_times,
+            retry_sleep=self.config.basebackup_retry_sleep,
+            retry_handler=partial(self._retry_handler, dest_dirs),
+            out_handler=PgCombineBackup.make_logging_handler(logging.INFO),
+            args=backups_chain,
+        )
+
+        try:
+            # Run the pg_combinebackup command
+            pg_combinebackup()
+        except CommandFailedException as e:
+            msg = "Combine action failure on directory '%s'" % output_dest
+            raise DataTransferFailure.from_command_error("pg_combinebackup", e, msg)
+
+    def _get_tablespace_mapping(
+        self, backup_info, vol_backup_info, tablespaces, is_last_operation
+    ):
+        """
+        Get the mapping of tablespaces from the source to their destination directories.
+
+        If this is the last operation, tablespaces are mapped to their final
+        destination, honoring relocation, if requested. Otherwise, they are mapped to
+        their directory in the volatile backup's directory (in the staging directory).
+
+        :param barman.infofile.LocalBackupInfo backup_info: The backup info to process
+        :param barman.infofile.VolatileBackupInfo vol_backup_info: The equivalent
+            volatile backup info of the backup being processed by the operation
+        :param dict[str,str]|None tablespaces: A dictionary mapping tablespace names to
+            their target directories. This is the relocation chosen by the user when
+            invoking the ``restore`` command. If ``None``, it means no relocation was
+            chosen
+        :param bool is_last_operation: Whether this is the last operation in the
+            recovery chain
+        :return dict[str,str]: A mapping of source tablespace directories to their
+            destination directories
+        """
+        tbspc_mapping = {}
+        if backup_info.tablespaces:
+            for tablespace in backup_info.tablespaces:
+                source = backup_info.get_data_directory(tablespace.oid)
+                if is_last_operation:
+                    if tablespaces and tablespace.name in tablespaces:
+                        destination = tablespaces[tablespace.name]
+                    else:
+                        destination = tablespace.location
+                else:
+                    destination = vol_backup_info.get_data_directory(tablespace.oid)
+                tbspc_mapping[source] = destination
+
+        return tbspc_mapping
+
+    def _get_backup_chain_paths(self, backup_info):
+        """
+        Get the path of each backup in the chain, from the full backup to
+        the specified incremental backup.
+
+        :param barman.infofile.LocalBackupInfo backup_info: The incremental backup
+        :return Iterator[barman.infofile.LocalBackupInfo]: iterator of paths of
+            the backups in the chain, going from the full to the incremental backup
+            pointed by *backup_info*
+        """
+        return reversed(
+            [backup.get_data_directory() for backup in backup_info.walk_to_root()]
+        )
+
+    def _fetch_remote_status(self):
+        """
+        Gather info from the remote server.
+
+        This method does not raise any exception in case of errors,
+        but set the missing values to ``None`` in the resulting dictionary.
+
+        :return dict[str, str|bool]: the pg_combinebackup client information
+            of the remote server
+        :raises barman.exceptions.CommandFailedException: if pg_combinebackup
+            it not installed
+        """
+        remote_status = dict.fromkeys(
+            (
+                "pg_combinebackup_path",
+                "pg_combinebackup_version",
+            ),
+            None,
+        )
+
+        # Test pg_combinebackup existence
+        version_info = PgCombineBackup.get_version_info(self.server.path)
+
+        if version_info["full_path"]:
+            remote_status["pg_combinebackup_path"] = version_info["full_path"]
+            remote_status["pg_combinebackup_version"] = version_info["full_version"]
+            return remote_status
+
+        raise CommandFailedException("pg_combinebackup could not be found")
+
+    def _retry_handler(self, dest_dirs, attempt):
+        """
+        Handler invoked during a combine backup in case of retry.
+
+        The method simply warn the user of the failure and
+        remove the already existing directories of the backup.
+
+        :param list[str] dest_dirs: destination directories
+        :param int attempt: attempt number (starting from 0)
+        """
+        output.warning(
+            "Failure combining backups using pg_combinebackup (attempt %s)", attempt
+        )
+        output.warning(
+            "The files created so far will be removed and "
+            "the combine process will restart in %s seconds",
+            "30",
+        )
+        for _dir in dest_dirs:
+            self._prepare_directory(_dir)
 
 
 class MainRecoveryExecutor(RemoteConfigRecoveryExecutor):
