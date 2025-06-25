@@ -46,6 +46,8 @@ EXCLUDE_LIST = [
     "postmaster.opts",
     "recovery.conf",
     "standby.signal",
+    # Temporary relation files (similar to pg_basebackup exclusion)
+    "**/[0-9]*/t[0-9]*_[0-9]*",
     # Directories: see excludeDirContents const in PostgreSQL source
     "pg_dynshmem/*",
     "pg_notify/*",
