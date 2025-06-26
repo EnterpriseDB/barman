@@ -3733,6 +3733,63 @@ class TestRecoveryOperation(object):
         mock_cmd.create_dir_if_not_exists.assert_called_once_with(dest_dir, mode="700")
         mock_cmd.check_write_permission.assert_called_once_with(dest_dir)
 
+    @pytest.mark.parametrize(
+        "staging_location, remote_command, expected_call",
+        [
+            # Case 1: When staging location is local and it is a remote recovery
+            # (remote_command is present), it requests a local command
+            (
+                "local",
+                "ssh postgres@pg",
+                mock.call(None, "/fake/server/path"),
+            ),
+            # Case 2: When staging location is local and it is a local recovery
+            # (remote_command not present), it requests a local command interface
+            (
+                "local",
+                None,
+                mock.call(None, "/fake/server/path"),
+            ),
+            # Case 3: When staging location is remote and it is a remote recovery
+            # (remote_command is present), it requests a remote command interface
+            # This is the only possible case where it requests a remote command interface
+            (
+                "remote",
+                "ssh postgres@pg",
+                mock.call("ssh postgres@pg", "/fake/server/path"),
+            ),
+            # Case 4: When staging location is remote and it is a local recovery
+            # (remote_command not present), it requests a local command interface
+            # This case is not even valid in practice, but we test it just for
+            # completeness
+            (
+                "remote",
+                None,
+                mock.call(None, "/fake/server/path"),
+            ),
+        ],
+    )
+    @mock.patch("barman.fs.unix_command_factory")
+    def test_get_command_interface(
+        self, mock_unix_command_factory, staging_location, remote_command, expected_call
+    ):
+        """
+        Test that :meth:`_get_command_interface` returns the correct command interface.
+        """
+        # GIVEN a RecoveryOperation instance
+        operation = self.get_recovery_operation()
+        operation.server.path = "/fake/server/path"
+        operation.config.staging_location = staging_location
+
+        # WHEN _get_command_interface is called with the parametrized values
+        cmd_interface = operation._get_command_interface(remote_command)
+
+        # THEN the command interface is requested appropriately to the factory
+        mock_unix_command_factory.assert_has_calls([expected_call])
+
+        # AND the command interface is returned
+        assert cmd_interface is mock_unix_command_factory.return_value
+
 
 class TestMainRecoveryExecutor(object):
     """
