@@ -2588,6 +2588,24 @@ class RecoveryOperation(ABC):
         cmd.create_dir_if_not_exists(dest_dir, mode="700")
         cmd.check_write_permission(dest_dir)
 
+    def _get_command_interface(self, remote_command):
+        """
+        Get the command interface for executing operations.
+
+        The command interface can be a :class:`barman.fs.UnixLocalCommand` or a
+        :class:`barman.fs.UnixRemoteCommand`, depending on where the operation
+        is meant to be executed (if :attr:`config.staging_location` is ``remote`` or
+        ``local``).
+
+        :param str|None remote_command: The SSH remote command to use for the recovery,
+            in case of a remote recovery. If ``None``, it means the recovery is local
+        :return barman.fs.UnixLocalCommand: The command interface for executing
+            operations
+        """
+        if remote_command and self.config.staging_location == "remote":
+            return fs.unix_command_factory(remote_command, self.server.path)
+        return fs.unix_command_factory(None, self.server.path)
+
 
 class RsyncCopyOperation(RecoveryOperation):
     """
@@ -2647,6 +2665,11 @@ class DecryptionOperation(RecoveryOperation):
     """
 
     NAME = "barman-decryption"
+
+    def _get_command_interface(self, remote_command):
+        # Decryption will always happen locally regardless of config.staging_location,
+        # so we override this method to always return a local command
+        return fs.unix_command_factory(None, self.server.path)
 
     def _execute(
         self,
