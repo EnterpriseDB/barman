@@ -951,7 +951,7 @@ For example:
         Timeline             : 1
         Begin WAL            : 00000001000000000000001A
         End WAL              : 00000001000000000000001A
-        WAL number           : 1
+        Number of WALs       : 1
         Begin time           : 2024-08-14 16:21:50.820618+00:00
         End time             : 2024-08-14 16:22:38.264726+00:00
         Copy time            : 47 seconds

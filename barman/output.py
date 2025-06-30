@@ -886,7 +886,7 @@ class ConsoleOutputWriter(object):
         # This is WAL stuff...
         wal_num = backup_info.get("wal_num")
         if wal_num:
-            output_fun(nested_row.format("WAL number", wal_num))
+            output_fun(nested_row.format("Number of WALs", wal_num))
 
         wal_compression_ratio = backup_info.get("wal_compression_ratio", 0)
         # Output WAL compression ratio for basebackup WAL files

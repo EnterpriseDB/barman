@@ -120,7 +120,7 @@ backup:
         Timeline             : 1
         Begin WAL            : 0000000100000CFD000000AD
         End WAL              : 0000000100000D0D00000008
-        WAL number           : 3932
+        Number of WALs       : 3932
         WAL compression ratio: 79.51%
         Begin time           : 2024-09-02 13:00:01.633925+00:00
         End time             : 2024-09-03 10:27:06.522846+00:00

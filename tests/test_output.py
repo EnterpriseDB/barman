@@ -1274,7 +1274,7 @@ class TestConsoleWriter(object):
             ("Timeline", str(ext_info["timeline"])),
             ("Begin WAL", ext_info["begin_wal"]),
             ("End WAL", ext_info["end_wal"]),
-            ("WAL number", ext_info["wal_num"]),
+            ("Number of WALs", ext_info["wal_num"]),
             ("WAL compression ratio", wal_compression_output),
             ("Begin time", str(ext_info["begin_time"])),
             ("End time", str(ext_info["end_time"])),
