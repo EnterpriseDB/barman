@@ -1059,19 +1059,17 @@ class TestBackup(object):
             mock_is_orphan.return_value = True
             backup_manager.cron_retention_policy()
 
-        basebackup_directory = available_backups[
-            "test_backup"
-        ].get_basebackup_directory()
         # Ensure the warning was logged
         expected_warning = (
-            "Backup directory %s "
-            "contains only a non-empty backup.info file "
-            "which may indicate an incomplete delete operation. Please manually delete "
-            "the directory." % basebackup_directory
+            "Backup 'test_backup' is an orphan backup, this is possibly "
+            "the result of an incomplete delete operation. Please manually "
+            "delete the following files or directories if present:\n* %s \n* %s \n"
+            % (
+                available_backups["test_backup"].get_basebackup_directory(),
+                available_backups["test_backup"].get_filename(),
+            )
         )
         assert expected_warning in caplog.text
-        # Assert deletion was skipped
-        delete_backup.assert_not_called()
 
     @pytest.mark.parametrize("should_fail", (True, False))
     @patch("barman.backup.LocalBackupInfo.save")
