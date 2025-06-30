@@ -2606,6 +2606,49 @@ class RecoveryOperation(ABC):
             return fs.unix_command_factory(remote_command, self.server.path)
         return fs.unix_command_factory(None, self.server.path)
 
+    def _post_recovery_cleanup(self, destination, cmd):
+        """
+        Perform cleanup actions after the recovery operation is completed.
+
+        This takes care of removing unnecessary files on the restored backup.
+        This method is useful for certain operations that direct its output
+        directly to the final destination, without the means to ignore certain files.
+
+        .. note::
+            Previously in Barman, rsync was the only way we copied files to the final
+            destination. The :class:`RsyncCopyOperation` class has an ``exclude``
+            parameter, which is used to ignore unwanted files, hence it was guaranteed
+            such files would never appear in the destination directory.
+            With the new structure provided by the :class:`MainRecoveryExecutor`, we
+            have operations that might direct its output straight to the destination
+            directory, e.g. :class:`CombineOperation` or :class:`DecryptionOperation`,
+            without providing any means to exclude specific content. For these cases,
+            we need to ensure that unwanted files are removed after the operation
+            is finished, which is the main purpose of this method.
+
+        :param str destination: The destination directory where the recovery was performed
+        :param barman.fs.UnixLocalCommand cmd: The command interface to run commands
+        """
+        to_delete = [
+            os.path.join(destination, "pg_log/*"),
+            os.path.join(destination, "log/*"),
+            os.path.join(destination, "pg_xlog/*"),
+            os.path.join(destination, "pg_wal/*"),
+            os.path.join(destination, "postmaster.pid"),
+            os.path.join(destination, "recovery.conf"),
+            os.path.join(destination, "tablespace_map"),
+        ]
+        for item in to_delete:
+            try:
+                cmd.delete_if_exists(item)
+            except CommandFailedException as e:
+                output.warning(
+                    "Cleanup operation failed to delete %s after backup copy: %s\n"
+                    "If this file or directory is irrelevant for the recovery, please remove it manually.",
+                    item,
+                    e,
+                )
+
 
 class RsyncCopyOperation(RecoveryOperation):
     """
