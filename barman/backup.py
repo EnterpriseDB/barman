@@ -1234,7 +1234,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 # was already removed
                 elif backup.is_orphan:
                     output.warning(
-                        "WARNING: Backup directory %s contains only a non-empty "
+                        "Backup directory %s contains only a non-empty "
                         "backup.info file which may indicate an incomplete delete operation. "
                         "Please manually delete the directory.",
                         backup.get_basebackup_directory(),
@@ -1242,6 +1242,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
             for bid in sorted(retention_status.keys()):
                 if retention_status[bid] == BackupInfo.OBSOLETE:
+                    backup = available_backups[bid]
                     try:
                         # Lock acquisition: if you can acquire a ServerBackupLock
                         # it means that no other processes like another delete operation
@@ -1250,12 +1251,19 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                         with ServerBackupIdLock(
                             self.config.barman_lock_directory, self.config.name, bid
                         ):
+                            if backup.is_orphan:
+                                output.debug(
+                                    "Skipping deletion of orphan backup: '%s' at '%s'.",
+                                    backup.backup_id,
+                                    backup.get_basebackup_directory(),
+                                )
+                                continue
                             output.info(
                                 "Enforcing retention policy: removing backup %s for "
                                 "server %s" % (bid, self.config.name)
                             )
                             self.delete_backup(
-                                available_backups[bid],
+                                backup,
                                 skip_wal_cleanup_if_standalone=False,
                             )
                     except LockFileBusy:
@@ -1276,7 +1284,8 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         backup_dir = backup.get_basebackup_directory()
         _logger.debug("Deleting base backup directory: %s" % backup_dir)
 
-        shutil.rmtree(backup_dir)
+        if os.path.exists(backup_dir):
+            shutil.rmtree(backup_dir)
 
     def delete_backupinfo_file(self, backup):
         """
