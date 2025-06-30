@@ -1234,10 +1234,14 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 # was already removed
                 elif backup.is_orphan:
                     output.warning(
-                        "Backup directory %s contains only a non-empty "
-                        "backup.info file which may indicate an incomplete delete operation. "
-                        "Please manually delete the directory.",
+                        "Backup '%s' is an orphan backup, this is possibly "
+                        "the result of an incomplete delete operation. Please manually "
+                        "delete the following files or directories if present:\n"
+                        "* %s \n"
+                        "* %s \n",
+                        backup.backup_id,
                         backup.get_basebackup_directory(),
+                        backup.get_filename(),
                     )
 
             for bid in sorted(retention_status.keys()):
