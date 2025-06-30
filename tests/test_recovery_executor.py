@@ -3790,6 +3790,70 @@ class TestRecoveryOperation(object):
         # AND the command interface is returned
         assert cmd_interface is mock_unix_command_factory.return_value
 
+    def test_post_recovery_cleanup(self):
+        """
+        Test that :meth:`_post_recovery_cleanup` cleans up wanted files.
+        """
+        # GIVEN a RecoveryOperation instance
+        operation = self.get_recovery_operation()
+
+        # Mock directory and command
+        dest_dir = "/fake/destination/directory"
+        mock_cmd = mock.Mock()
+
+        # WHEN _post_recovery_cleanup is called
+        operation._post_recovery_cleanup(dest_dir, mock_cmd)
+
+        # THEN the correct calls are made to the command object to delete files
+        mock_cmd.delete_if_exists.assert_has_calls(
+            [
+                mock.call("/fake/destination/directory/pg_log/*"),
+                mock.call("/fake/destination/directory/log/*"),
+                mock.call("/fake/destination/directory/pg_xlog/*"),
+                mock.call("/fake/destination/directory/pg_wal/*"),
+                mock.call("/fake/destination/directory/postmaster.pid"),
+                mock.call("/fake/destination/directory/recovery.conf"),
+                mock.call("/fake/destination/directory/tablespace_map"),
+            ]
+        )
+
+    @mock.patch("barman.output.warning")
+    def test_post_recovery_cleanup_failed(self, mock_warning):
+        """
+        Test that :meth:`_post_recovery_cleanup` warns about errors during cleanup.
+        """
+        # GIVEN a RecoveryOperation instance
+        operation = self.get_recovery_operation()
+
+        # Mock directory and command
+        dest_dir = "/fake/destination/directory"
+        mock_cmd = mock.Mock()
+
+        # Simulate an error in the command
+        mock_cmd.delete_if_exists.side_effect = CommandFailedException
+
+        # WHEN _post_recovery_cleanup is called
+        operation._post_recovery_cleanup(dest_dir, mock_cmd)
+
+        # THEN a warning is logged (in this case it will fail for all items)
+        items = [
+            os.path.join(dest_dir, "pg_log/*"),
+            os.path.join(dest_dir, "log/*"),
+            os.path.join(dest_dir, "pg_xlog/*"),
+            os.path.join(dest_dir, "pg_wal/*"),
+            os.path.join(dest_dir, "postmaster.pid"),
+            os.path.join(dest_dir, "recovery.conf"),
+            os.path.join(dest_dir, "tablespace_map"),
+        ]
+        for item in items:
+            mock_warning.assert_any_call(
+                "Cleanup operation failed to delete %s after backup copy: %s\n"
+                "If this file or directory is irrelevant for the recovery, please "
+                "remove it manually.",
+                item,
+                mock.ANY,  # The exception object will vary
+            )
+
 
 class TestMainRecoveryExecutor(object):
     """
