@@ -29,10 +29,11 @@ import pytest
 import testing_helpers
 from mock import MagicMock, Mock, call
 
-from barman import xlog
+from barman import output, xlog
 from barman.exceptions import (
     CommandFailedException,
     DataTransferFailure,
+    FsOperationFailed,
     RecoveryInvalidTargetException,
     RecoveryPreconditionException,
     RecoveryStandbyModeException,
@@ -3860,6 +3861,158 @@ class TestRecoveryOperation(object):
                 item,
                 mock.ANY,  # The exception object will vary
             )
+
+    @pytest.mark.parametrize(
+        "is_last_operation, tablespace_mapping, tbspc_destinations",
+        [
+            # Case 1: When it is the last operation and relocation is provided, the
+            # link is from <relocation> to pg_tblspc/<oid>
+            (
+                True,
+                {"tbs1": "/path/relocation/tbs1", "tbs2": "/path/relocation/tbs2"},
+                ["/path/relocation/tbs1", "/path/relocation/tbs2"],
+            ),
+            # Case 2: When it is the last operation and no tablespace mapping is provided,
+            # the link is from <original_tbspc_location> to pg_tblspc/<oid>
+            (
+                True,
+                None,
+                ["/path/to/original/tbs1", "/path/to/original/tbs2"],
+            ),
+            # Case 3: When it is not the last operation the link is always from
+            # <volatile_backup_info_location>/<oid> to pg_tblspc/<oid>
+            (
+                False,
+                {"tbs1": "/relocation/tbs1", "tbs2": "/relocation/tbs2"},
+                ["/path/to/backup_id/data/123", "/path/to/backup_id/data/321"],
+            ),
+            # Case 4: When it is not the last operation the link is always from
+            # <volatile_backup_info_location>/<oid> to pg_tblspc/<oid>
+            (
+                False,
+                None,
+                ["/path/to/backup_id/data/123", "/path/to/backup_id/data/321"],
+            ),
+        ],
+    )
+    @mock.patch("barman.recovery_executor.output")
+    def test_link_tablespaces(
+        self, mock_output, is_last_operation, tablespace_mapping, tbspc_destinations
+    ):
+        """
+        Test that :meth:`_link_tablespaces` links the tablespaces in ``pg_tblspc``.
+        """
+        # GIVEN a RecoveryOperation instance
+        operation = self.get_recovery_operation()
+        operation.cmd = mock.Mock()
+
+        # Mock a backup_info with tablespaces
+        vol_backup_info = mock.Mock(
+            tablespaces=[
+                mock.Mock(oid=123, location="/path/to/original/tbs1"),
+                mock.Mock(oid=321, location="/path/to/original/tbs2"),
+            ],
+            get_data_directory=lambda oid: f"/path/to/backup_id/data/{oid}",
+        )
+        # Mock the tablespaces names as we can't do that when instantiate the
+        # mock, e.g. mock.Mock(name="tbs1") does not work
+        vol_backup_info.tablespaces[0].name = "tbs1"
+        vol_backup_info.tablespaces[1].name = "tbs2"
+
+        # Mock the rest of the method parameters
+        pgdata_dir = "/destination/pgdata"
+
+        # WHEN _link_tablespaces is called
+        operation._link_tablespaces(
+            vol_backup_info, pgdata_dir, tablespace_mapping, is_last_operation
+        )
+
+        # THEN the correct call is made to create the pg_tblspc directory
+        pg_tblspc_dir = os.path.join(pgdata_dir, "pg_tblspc")
+        operation.cmd.create_dir_if_not_exists.assert_called_once_with(pg_tblspc_dir)
+
+        # AND the symlinks destination are cleaned up before being created
+        tbs1_in_pgdata = os.path.join(pg_tblspc_dir, "123")
+        tbs2_in_pgdata = os.path.join(pg_tblspc_dir, "321")
+        operation.cmd.delete_if_exists.assert_has_calls(
+            [mock.call(tbs1_in_pgdata), mock.call(tbs2_in_pgdata)]
+        )
+        # AND the write permission on the tablespace locations are checked
+        operation.cmd.check_write_permission.assert_has_calls(
+            [mock.call(tbspc_destinations[0]), mock.call(tbspc_destinations[1])]
+        )
+        # AND finally the symlinks are created correctly, linking the tablespace
+        # destinations to their respective OID directories in pg_tblspc
+        operation.cmd.create_symbolic_link.assert_has_calls(
+            [
+                mock.call(tbspc_destinations[0], os.path.join(pg_tblspc_dir, "123")),
+                mock.call(tbspc_destinations[1], os.path.join(pg_tblspc_dir, "321")),
+            ]
+        )
+        # AND the info messages are logged correctly in case it is the last operation
+        if is_last_operation:
+            mock_output.info.assert_has_calls(
+                [
+                    mock.call("\t%s, %s, %s", 123, "tbs1", tbspc_destinations[0]),
+                    mock.call("\t%s, %s, %s", 321, "tbs2", tbspc_destinations[1]),
+                ]
+            )
+
+    @mock.patch("barman.recovery_executor.output", wraps=output)
+    def test_link_tablespaces_fails(self, mock_output):
+        """
+        Test that :meth:`_link_tablespaces` handle errors correctly when
+        the preparation or creation of tablespaces symlinks fails.
+        """
+        # GIVEN a RecoveryOperation instance
+        operation = self.get_recovery_operation()
+        operation.cmd = mock.Mock()
+
+        # Mock a backup_info with tablespaces
+        vol_backup_info = mock.Mock(
+            tablespaces=[
+                mock.Mock(oid=123, location="/path/to/original/tbs1"),
+                mock.Mock(oid=321, location="/path/to/original/tbs2"),
+            ],
+            get_data_directory=lambda oid: f"/path/to/backup_id/data/{oid}",
+        )
+        # Mock the tablespaces names as we can't do that when instantiate the
+        # mock, e.g. mock.Mock(name="tbs1") does not work
+        vol_backup_info.tablespaces[0].name = "tbs1"
+        vol_backup_info.tablespaces[1].name = "tbs2"
+
+        # Mock the rest of the method parameters
+        pgdata_dir = "/destination/pgdata"
+
+        tblspc_dir = os.path.join(pgdata_dir, "pg_tblspc")
+
+        # Case 1: WHEN we can not create the pg_tblspc directory
+        operation.cmd.create_dir_if_not_exists.side_effect = FsOperationFailed
+        with pytest.raises(SystemExit):
+            operation._link_tablespaces(vol_backup_info, pgdata_dir, None, True)
+        # THEN it logs an error and exits
+        mock_output.error.assert_called_once_with(
+            "unable to initialize tablespace directory '%s': %s", tblspc_dir, mock.ANY
+        )
+        mock_output.close_and_exit.assert_called_once_with()
+
+        # Reset mocks
+        operation.cmd.create_dir_if_not_exists.reset_mock()
+        operation.cmd.create_dir_if_not_exists.side_effect = None
+        mock_output.reset_mock()
+
+        # Case 2: WHEN we are unable to prepare or create the symlinks
+        operation.cmd.create_symbolic_link.side_effect = FsOperationFailed
+        with pytest.raises(SystemExit):
+            operation._link_tablespaces(vol_backup_info, pgdata_dir, None, True)
+        # THEN it logs an error and exits
+        mock_output.error.assert_called_once_with(
+            "unable to prepare '%s' tablespace (destination '%s'): %s",
+            "tbs1",
+            "/path/to/original/tbs1",
+            mock.ANY,
+        )
+        mock_output.close_and_exit.assert_called_once_with()
 
 
 class TestRsyncCopyOperation(object):
