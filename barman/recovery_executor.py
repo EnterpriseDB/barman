@@ -234,6 +234,7 @@ class RecoveryExecutor(object):
         # Retrieve the safe_horizon for smart copy
         self._retrieve_safe_horizon(recovery_info, backup_info, dest)
 
+        # TODO: analyze removing after MainRecoveryExecutor is ready
         # check destination directory. If doesn't exist create it
         try:
             recovery_info["cmd"].create_dir_if_not_exists(dest, mode="700")
@@ -241,6 +242,7 @@ class RecoveryExecutor(object):
             output.error("unable to initialise destination directory '%s': %s", dest, e)
             output.close_and_exit()
 
+        # TODO: analyze removing after MainRecoveryExecutor is ready
         # Initialize tablespace directories
         if backup_info.tablespaces:
             self._prepare_tablespaces(
@@ -717,6 +719,7 @@ class RecoveryExecutor(object):
 
         recovery_info["safe_horizon"] = safe_horizon
 
+    # TODO: analyze removing after the MainRecoveryExecutor is ready
     def _prepare_tablespaces(self, backup_info, cmd, dest, tablespaces):
         """
         Prepare the directory structure for required tablespaces,
@@ -2650,6 +2653,73 @@ class RecoveryOperation(ABC):
                     item,
                     e,
                 )
+
+    def _link_tablespaces(
+        self, backup_info, pgdata_dir, tablespaces, is_last_operation
+    ):
+        """
+        Create the symlinks for the tablespaces in the destination directory.
+
+        Each tablespace has a symlink created in the ``pg_tblspc`` directory
+        pointing to the respective tablespace location after the recovery.
+
+        :param barman.infofile.VolatileBackupInfo backup_info: The volatile backup info
+            representing the backup state
+        :param str pgdata_dir: The ``PGDATA`` directory of the restored backup
+        :param dict[str,str]|None tablespaces: A dictionary mapping tablespace names to
+            their target directories. This is the relocation chosen by the user when
+            invoking the ``restore`` command. If ``None``, it means no relocation was
+            chosen. Only used if it *is_last_operation*.
+        :param bool is_last_operation: Whether this is the last operation in the
+            recovery chain
+        """
+        tblspc_dir = os.path.join(pgdata_dir, "pg_tblspc")
+        try:
+            # create the pg_tblspc directory in the destination, if it does not exist
+            self.cmd.create_dir_if_not_exists(tblspc_dir)
+        except FsOperationFailed as e:
+            output.error(
+                "unable to initialize tablespace directory '%s': %s", tblspc_dir, e
+            )
+            output.close_and_exit()
+
+        for tablespace in backup_info.tablespaces:
+            # build the filename of the link under pg_tblspc directory
+            pg_tblspc_file = os.path.join(tblspc_dir, str(tablespace.oid))
+            # If this is not the last operation in the recovery chain,
+            # the tablespace currently lives in the volatile backup directory
+            if not is_last_operation:
+                location = backup_info.get_data_directory(tablespace.oid)
+            # Otherwise, it lives in its destination directory
+            else:
+                # by default a tablespace goes in the same location where
+                # it was on the source server when the backup was taken
+                location = tablespace.location
+                # if a relocation has been requested for this tablespace,
+                # use the target directory provided by the user
+                if tablespaces and tablespace.name in tablespaces:
+                    location = tablespaces[tablespace.name]
+            try:
+                # remove the current link in pg_tblspc, if it exists
+                self.cmd.delete_if_exists(pg_tblspc_file)
+                # check for write permissions on destination directory
+                self.cmd.check_write_permission(location)
+                # create symlink between tablespace and recovery folder
+                self.cmd.create_symbolic_link(location, pg_tblspc_file)
+            except FsOperationFailed as e:
+                output.error(
+                    "unable to prepare '%s' tablespace (destination '%s'): %s",
+                    tablespace.name,
+                    location,
+                    e,
+                )
+                output.close_and_exit()
+
+            # If this is the last operation in the recovery chain, we log the
+            # tablespace information, as it might be relevant for the user to know
+            # where tablespaces are being relocated to
+            if is_last_operation:
+                output.info("\t%s, %s, %s", tablespace.oid, tablespace.name, location)
 
 
 class RsyncCopyOperation(RecoveryOperation):
