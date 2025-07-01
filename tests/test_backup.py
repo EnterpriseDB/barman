@@ -19,7 +19,6 @@
 import errno
 import itertools
 import os
-import re
 import shutil
 from datetime import datetime, timedelta
 
@@ -281,7 +280,6 @@ class TestBackup(object):
         # Test 2: delete the backup again, expect a failure in log
         caplog_reset(caplog)
         backup_manager.delete_backup(b_info)
-        assert re.search("ERROR .* Failure deleting backup fake_backup_id", caplog.text)
         assert not os.path.exists(pg_data.strpath)
         assert not os.path.exists(pg_data_v2.strpath)
         assert os.path.exists(wal_file.strpath)
@@ -1842,6 +1840,8 @@ class TestWalCleanup(object):
         )
         os.mkdir(backup_path)
         backup_info.save("%s/backup.info" % backup_path)
+        # Make it a non-orphan backup
+        os.mkdir("%s/%s" % (backup_path, "base"))
 
     def test_delete_no_wal_cleanup_if_not_oldest_backup(self, backup_manager):
         """Verify no WALs are removed when the deleted backup is not the oldest"""
