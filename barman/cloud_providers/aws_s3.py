@@ -213,7 +213,7 @@ class S3CloudInterface(CloudInterface):
         """
         try:
             # Search the bucket on s3
-            self.s3.meta.client.head_bucket(Bucket=self.bucket_name)
+            self.s3.meta.client.list_objects_v2(Bucket=self.bucket_name, MaxKeys=1, Prefix=self.path)
             return True
         except ClientError as exc:
             # If a client error is thrown, then check the error code.
