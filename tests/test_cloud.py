@@ -1490,7 +1490,9 @@ class TestAzureCloudInterface(object):
         # Bucket existence checking is carried out by checking we can successfully
         # iterate the bucket contents
         container_client = container_client_mock.from_connection_string.return_value
-        container_client.list_blobs.assert_called_once_with()
+        container_client.list_blobs.assert_called_once_with(
+            name_starts_with="path/to/blob",
+        )
         blobs_iterator = container_client.list_blobs.return_value
         blobs_iterator.next.assert_called_once_with()
         # Also test that an empty bucket passes connectivity test
