@@ -3577,6 +3577,7 @@ class TestRecoveryOperation(object):
         # GIVEN a RecoveryOperation instance
         operation = self.get_recovery_operation()
         operation._execute = mock.Mock()
+        operation._get_command_interface = mock.Mock()
 
         # Mock the arguments to be passed to execute
         backup_info = testing_helpers.build_test_backup_info(
@@ -3595,8 +3596,12 @@ class TestRecoveryOperation(object):
         # Case 1: When _should_execute returns True
         operation._should_execute = mock.Mock(return_value=True)
 
-        # THEN _execute should be called with the arguments
+        # THEN
         operation.execute(*args)
+        # Assert that the command interface has been set
+        operation._get_command_interface.assert_called_once_with("remote_command")
+        assert operation.cmd == operation._get_command_interface.return_value
+        # AND _execute is called with the arguments
         operation._execute.assert_called_once_with(*args)
 
         # Case 2: When _should_execute returns False
@@ -3720,18 +3725,20 @@ class TestRecoveryOperation(object):
         """
         # GIVEN a RecoveryOperation instance
         operation = self.get_recovery_operation()
+        operation.cmd = mock.Mock()
 
         # Mock directory and command
         dest_dir = "/fake/directory"
-        mock_cmd = mock.Mock()
 
         # WHEN _prepare_directory is called
-        operation._prepare_directory(dest_dir, mock_cmd)
+        operation._prepare_directory(dest_dir)
 
         # THEN the correct calls are made to the command object
-        mock_cmd.delete_if_exists.assert_called_once_with(dest_dir)
-        mock_cmd.create_dir_if_not_exists.assert_called_once_with(dest_dir, mode="700")
-        mock_cmd.check_write_permission.assert_called_once_with(dest_dir)
+        operation.cmd.delete_if_exists.assert_called_once_with(dest_dir)
+        operation.cmd.create_dir_if_not_exists.assert_called_once_with(
+            dest_dir, mode="700"
+        )
+        operation.cmd.check_write_permission.assert_called_once_with(dest_dir)
 
     @pytest.mark.parametrize(
         "staging_location, remote_command, expected_call",
@@ -3796,16 +3803,16 @@ class TestRecoveryOperation(object):
         """
         # GIVEN a RecoveryOperation instance
         operation = self.get_recovery_operation()
+        operation.cmd = mock.Mock()
 
         # Mock directory and command
         dest_dir = "/fake/destination/directory"
-        mock_cmd = mock.Mock()
 
         # WHEN _post_recovery_cleanup is called
-        operation._post_recovery_cleanup(dest_dir, mock_cmd)
+        operation._post_recovery_cleanup(dest_dir)
 
         # THEN the correct calls are made to the command object to delete files
-        mock_cmd.delete_if_exists.assert_has_calls(
+        operation.cmd.delete_if_exists.assert_has_calls(
             [
                 mock.call("/fake/destination/directory/pg_log/*"),
                 mock.call("/fake/destination/directory/log/*"),
@@ -3824,16 +3831,16 @@ class TestRecoveryOperation(object):
         """
         # GIVEN a RecoveryOperation instance
         operation = self.get_recovery_operation()
+        operation.cmd = mock.Mock()
 
         # Mock directory and command
         dest_dir = "/fake/destination/directory"
-        mock_cmd = mock.Mock()
 
         # Simulate an error in the command
-        mock_cmd.delete_if_exists.side_effect = CommandFailedException
+        operation.cmd.delete_if_exists.side_effect = CommandFailedException
 
         # WHEN _post_recovery_cleanup is called
-        operation._post_recovery_cleanup(dest_dir, mock_cmd)
+        operation._post_recovery_cleanup(dest_dir)
 
         # THEN a warning is logged (in this case it will fail for all items)
         items = [

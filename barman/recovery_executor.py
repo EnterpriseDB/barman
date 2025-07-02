@@ -2397,6 +2397,7 @@ class RecoveryOperation(ABC):
         self.config = config
         self.server = server
         self.backup_manager = backup_manager
+        self.cmd = None  # Set once the operation is executed
 
     def execute(
         self,
@@ -2447,7 +2448,10 @@ class RecoveryOperation(ABC):
                 backup_info, backup_info.get_base_directory()
             )
 
-        # Otherwise, proceed with the operation execution
+        # Set the appropriate command interface to run Unix commands
+        self.cmd = self._get_command_interface(remote_command)
+
+        # Then proceed with the operation execution
         return self._execute(
             backup_info,
             destination,
@@ -2574,7 +2578,7 @@ class RecoveryOperation(ABC):
 
         return volatile_backup_info
 
-    def _prepare_directory(self, dest_dir, cmd):
+    def _prepare_directory(self, dest_dir):
         """
         Prepare a directory for receiving a backup operation's output.
 
@@ -2582,11 +2586,10 @@ class RecoveryOperation(ABC):
         exists, then (re)creating it and ensuring the correct permissions.
 
         :param str dest_dir: The destination directory
-        :param barman.fs.UnixLocalCommand cmd: The command interface to run commands
         """
-        cmd.delete_if_exists(dest_dir)
-        cmd.create_dir_if_not_exists(dest_dir, mode="700")
-        cmd.check_write_permission(dest_dir)
+        self.cmd.delete_if_exists(dest_dir)
+        self.cmd.create_dir_if_not_exists(dest_dir, mode="700")
+        self.cmd.check_write_permission(dest_dir)
 
     def _get_command_interface(self, remote_command):
         """
@@ -2606,7 +2609,7 @@ class RecoveryOperation(ABC):
             return fs.unix_command_factory(remote_command, self.server.path)
         return fs.unix_command_factory(None, self.server.path)
 
-    def _post_recovery_cleanup(self, destination, cmd):
+    def _post_recovery_cleanup(self, destination):
         """
         Perform cleanup actions after the recovery operation is completed.
 
@@ -2627,7 +2630,6 @@ class RecoveryOperation(ABC):
             is finished, which is the main purpose of this method.
 
         :param str destination: The destination directory where the recovery was performed
-        :param barman.fs.UnixLocalCommand cmd: The command interface to run commands
         """
         to_delete = [
             os.path.join(destination, "pg_log/*"),
@@ -2640,7 +2642,7 @@ class RecoveryOperation(ABC):
         ]
         for item in to_delete:
             try:
-                cmd.delete_if_exists(item)
+                self.cmd.delete_if_exists(item)
             except CommandFailedException as e:
                 output.warning(
                     "Cleanup operation failed to delete %s after backup copy: %s\n"
