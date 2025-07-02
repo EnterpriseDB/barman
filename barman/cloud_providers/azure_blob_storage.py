@@ -270,7 +270,9 @@ class AzureCloudInterface(CloudInterface):
         :rtype: bool
         """
         try:
-            self.container_client.list_blobs().next()
+            self.container_client.list_blobs(
+                name_starts_with=self.path.strip("/"),
+            ).next()
         except ResourceNotFoundError:
             return False
         except StopIteration:
