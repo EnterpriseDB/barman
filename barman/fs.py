@@ -372,6 +372,35 @@ class UnixLocalCommand(object):
         else:
             return output_fields
 
+    def find_command(self, command_alternatives):
+        """
+        Find the first available command from a list of alternatives.
+
+        :param list[str] command_alternatives: A list of command names to check
+        :return str|None: The first available command from the list, or ``None`` if none
+            of the commands are found.
+        """
+        _logger.debug("Finding command from alternatives: %s", command_alternatives)
+        for cmd in command_alternatives:
+            ret = self.cmd("which", args=[cmd])
+            if ret == 0:
+                return self.internal_cmd.out.strip()
+        return None
+
+    def get_command_version(self, command):
+        """
+        Get the version of a command by executing it with the `--version` option.
+
+        :param str command: The command to check
+        :return str|None: The version output of the command or ``None`` if the command
+            could not be executed or does not support the `--version` option.
+        """
+        _logger.debug("Getting version for command: %s", command)
+        ret = self.cmd(command, args=["--version"])
+        if ret == 0:
+            return self.internal_cmd.out.strip()
+        return None
+
 
 class UnixRemoteCommand(UnixLocalCommand):
     """

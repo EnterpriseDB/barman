@@ -41,7 +41,12 @@ import dateutil.tz
 import barman.fs as fs
 from barman import output, xlog
 from barman.cloud_providers import get_snapshot_interface_from_backup_info
-from barman.command_wrappers import PgCombineBackup, RsyncPgData
+from barman.command_wrappers import (
+    Command,
+    PgCombineBackup,
+    RsyncPgData,
+    full_command_quote,
+)
 from barman.compression import (
     GZipCompression,
     LZ4Compression,
@@ -54,6 +59,7 @@ from barman.encryption import get_passphrase_from_command
 from barman.exceptions import (
     BadXlogSegmentName,
     CommandFailedException,
+    CommandNotFoundException,
     DataTransferFailure,
     FsOperationFailed,
     RecoveryInvalidTargetException,
@@ -3250,7 +3256,7 @@ class CombineOperation(RecoveryOperation):
         is_last_operation,
     ):
         return self._combine_backups(
-            backup_info, destination, tablespaces, is_last_operation
+            backup_info, destination, tablespaces, remote_command, is_last_operation
         )
 
     def _should_execute(self, backup_info):
@@ -3267,6 +3273,7 @@ class CombineOperation(RecoveryOperation):
         backup_info,
         destination,
         tablespaces,
+        remote_command,
         is_last_operation,
     ):
         """
@@ -3285,6 +3292,8 @@ class CombineOperation(RecoveryOperation):
             their target directories. This is the relocation chosen by the user when
             invoking the ``restore`` command. If ``None``, it means no relocation was
             chosen
+        :param str|None remote_command: The SSH remote command to use for the recovery,
+            in case of a remote recovery. If ``None``, it means the recovery is local
         :param bool is_last_operation: Whether this is the last operation in the
             recovery chain
         :return barman.infofile.VolatileBackupInfo: The respective volatile backup info
@@ -3308,12 +3317,12 @@ class CombineOperation(RecoveryOperation):
         # Get the tablespace mapping for the combine operation. If this is the last
         # operation, they are mapped to their final destination, otherwise they
         # are mapped to the volatile backup's directory
-        tbspc_mapping = self._get_tablespace_mapping(
+        tablespace_mapping = self._get_tablespace_mapping(
             backup_info, vol_backup_info, tablespaces, is_last_operation
         )
 
         # Prepare the destination directories (PGDATA and tablespaces)
-        dest_dirs = [output_dest] + list(tbspc_mapping.values())
+        dest_dirs = [output_dest] + list(tablespace_mapping.values())
         for _dir in dest_dirs:
             self._prepare_directory(_dir)
 
@@ -3323,7 +3332,10 @@ class CombineOperation(RecoveryOperation):
             output_dest,
         )
 
-        self._run_pg_combinebackup(backup_info, output_dest, tbspc_mapping, dest_dirs)
+        # Do the actual combine
+        self._run_pg_combinebackup(
+            backup_info, output_dest, tablespace_mapping, dest_dirs, remote_command
+        )
 
         output.info(
             "End combining backup via pg_combinebackup for backup %s",
@@ -3356,10 +3368,18 @@ class CombineOperation(RecoveryOperation):
         return vol_backup_info
 
     def _run_pg_combinebackup(
-        self, backup_info, output_dest, tablespace_mapping, dest_dirs
+        self,
+        backup_info,
+        output_dest,
+        tablespace_mapping,
+        dest_dirs,
+        remote_command,
     ):
         """
         Run the ``pg_combinebackup`` utility to combine backup chain.
+
+        If this operation is running on a remote server, it will execute it
+        directly on the remote node. Otherwise, it is run locally.
 
         :param barman.infofile.LocalBackupInfo backup_info: The incremental backup
             to combine with its ascendants
@@ -3369,6 +3389,8 @@ class CombineOperation(RecoveryOperation):
             directories to their destination directories
         :param list[str] dest_dirs: A list of destination directories, useful for the
             retry handler to remove already created directories in case of failure
+        :param str|None remote_command: The SSH remote command to use for the recovery,
+            in case of a remote recovery. If ``None``, it means the recovery is local
         :raises barman.exceptions.DataTransferFailure: If the combine operation fails
         """
         # Retrieve pg_combinebackup information
@@ -3392,8 +3414,29 @@ class CombineOperation(RecoveryOperation):
         )
 
         try:
-            # Run the pg_combinebackup command
-            pg_combinebackup()
+            # If staging_location is remote, we build a remote command instance
+            # with the same parameters as the PgCombineBackup instance and execute
+            # the command using the same argument list
+            # Note: We need to build a new Command here because PgCombineBackup (and
+            # similar classes) are not designed for remote execution. As a workaround,
+            # we essentially reconstruct the same command, but with the SSH command prepended.
+            if self.config.staging_location == "remote":
+                remote_cmd = Command(
+                    remote_command,
+                    shell=True,  # use the shell instead of an "execve" call
+                    check=True,  # raise CommandFailedException on failure
+                    path=self.server.path,
+                    retry_times=self.config.basebackup_retry_times,
+                    retry_sleep=self.config.basebackup_retry_sleep,
+                    retry_handler=partial(self._retry_handler, dest_dirs),
+                    out_handler=Command.make_logging_handler(logging.INFO),
+                )
+                remote_cmd(
+                    full_command_quote(pg_combinebackup.cmd, pg_combinebackup.args)
+                )
+            # Otherwise, if staging_location is local, just run the command as is
+            else:
+                pg_combinebackup()
         except CommandFailedException as e:
             msg = "Combine action failure on directory '%s'" % output_dest
             raise DataTransferFailure.from_command_error("pg_combinebackup", e, msg)
@@ -3453,13 +3496,16 @@ class CombineOperation(RecoveryOperation):
         """
         Gather info from the remote server.
 
-        This method does not raise any exception in case of errors,
-        but set the missing values to ``None`` in the resulting dictionary.
+        Info includes the path to the ``pg_combinebackup`` client and its version.
+
+        If the staging location is ``remote``, it attempts to find ``pg_combinebackup``
+        in the remote server. If the staging location is ``local``, it attempts to find
+        ``pg_combinebackup`` in the Barman host.
 
         :return dict[str, str|bool]: the pg_combinebackup client information
             of the remote server
-        :raises barman.exceptions.CommandFailedException: if pg_combinebackup
-            it not installed
+        :raises barman.exceptions.CommandNotFoundException: if ``pg_combinebackup``
+            it not found on the target server
         """
         remote_status = dict.fromkeys(
             (
@@ -3469,15 +3515,25 @@ class CombineOperation(RecoveryOperation):
             None,
         )
 
-        # Test pg_combinebackup existence
-        version_info = PgCombineBackup.get_version_info(self.server.path)
+        full_path = None
+        full_version = None
+        if self.config.staging_location == "remote":
+            full_path = self.cmd.find_command(PgCombineBackup.COMMAND_ALTERNATIVES)
+            if full_path:
+                full_version = self.cmd.get_command_version(full_path)
+        else:
+            version_info = PgCombineBackup.get_version_info(self.server.path)
+            full_path = version_info["full_path"]
+            full_version = version_info["full_version"]
 
-        if version_info["full_path"]:
-            remote_status["pg_combinebackup_path"] = version_info["full_path"]
-            remote_status["pg_combinebackup_version"] = version_info["full_version"]
-            return remote_status
+        if not full_path:
+            raise CommandNotFoundException(
+                "pg_combinebackup could not be found on the target server"
+            )
 
-        raise CommandFailedException("pg_combinebackup could not be found")
+        remote_status["pg_combinebackup_path"] = full_path
+        remote_status["pg_combinebackup_version"] = full_version
+        return remote_status
 
     def _retry_handler(self, dest_dirs, attempt):
         """

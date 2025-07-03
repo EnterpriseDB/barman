@@ -218,6 +218,12 @@ class FileNotFoundException(CompressionException):
     """
 
 
+class CommandNotFoundException(CommandException):
+    """
+    Exception for command not found
+    """
+
+
 class FsOperationFailed(CommandException):
     """
     Exception which represents a failed execution of a command on FS
