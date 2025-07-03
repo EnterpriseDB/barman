@@ -30,8 +30,10 @@ import testing_helpers
 from mock import MagicMock, Mock, call
 
 from barman import output, xlog
+from barman.command_wrappers import PgCombineBackup
 from barman.exceptions import (
     CommandFailedException,
+    CommandNotFoundException,
     DataTransferFailure,
     FsOperationFailed,
     RecoveryInvalidTargetException,
@@ -4430,6 +4432,7 @@ class TestCombineOperation(object):
             backup_info,
             "destination",
             "tablespaces",
+            "remote_command",
             "is_last_operation",
         )
 
@@ -4506,10 +4509,11 @@ class TestCombineOperation(object):
         # Mock the rest of the method arguments
         backup_info = mock.Mock()
         destination = "/path/to/destination"
+        remote_command = "ssh postgres@pg"
 
         # WHEN _combine_backups is called
         ret = operation._combine_backups(
-            backup_info, destination, tablespaces, is_last_operation
+            backup_info, destination, tablespaces, remote_command, is_last_operation
         )
 
         # THEN _create_volatile_backup_info is called with the correct parameters
@@ -4541,6 +4545,7 @@ class TestCombineOperation(object):
             output_dest,
             mock_get_tablespace_mapping.return_value,
             dests,
+            remote_command,
         )
 
         # AND if the checksum of the restored backup is inconsitent raises a warning
@@ -4558,6 +4563,7 @@ class TestCombineOperation(object):
         # AND the volatile backup info is returned
         assert ret == vol_backup_info
 
+    @pytest.mark.parametrize("staging_location", ["local", "remote"])
     @mock.patch(
         "barman.recovery_executor.CombineOperation._fetch_remote_status",
         return_value={
@@ -4570,19 +4576,25 @@ class TestCombineOperation(object):
         return_value=["/path/to/backup_id/data", "/path/to/backup_id/parent/data"],
     )
     @mock.patch("barman.recovery_executor.PgCombineBackup")
+    @mock.patch("barman.recovery_executor.Command")
+    @mock.patch("barman.recovery_executor.full_command_quote")
     def test_run_pg_combinebackup(
         self,
+        mock_full_command_quote,
+        mock_command,
         mock_pg_combine_backup,
         mock_get_backup_chain_paths,
         mock_fetch_remote_status,
+        staging_location,
     ):
         """
-        Test that :meth:`_run_pg_combinebackup` bulds :class:`PgCombineBackup`
-        with the correct parameters and execute it.
+        Test that :meth:`_run_pg_combinebackup` builds :class:`PgCombineBackup`
+        with the correct parameters and execute it, locally or remotely
+        depending on the staging location.
         """
         # GIVEN a CombineOperation instance
         operation = CombineOperation(
-            config=mock.Mock(),
+            config=mock.Mock(staging_location=staging_location),
             server=mock.Mock(),
             backup_manager=mock.Mock(),
         )
@@ -4599,10 +4611,13 @@ class TestCombineOperation(object):
             "/path/to/relocation/tbs1",
             "/path/to/relocation/tbs2",
         ]
+        # remote_command is only relevant when the staging location is remote,
+        # otherwise it is not used, so we can leave it as None
+        remote_command = "ssh postgres@pg" if staging_location == "remote" else None
 
         # WHEN _run_pg_combinebackup is called
         operation._run_pg_combinebackup(
-            backup_info, destination, tablespace_mapping, dest_dirs
+            backup_info, destination, tablespace_mapping, dest_dirs, remote_command
         )
 
         # THEN _fetch_remote_status is called correctly
@@ -4627,9 +4642,32 @@ class TestCombineOperation(object):
             args=backups_chain,
         )
 
-        # AND the combine operation is executed
-        mock_pg_combine_backup.return_value.assert_called_once()
+        # AND if the staging location is local, just executes the prepared command
+        if staging_location == "local":
+            mock_pg_combine_backup.return_value.assert_called_once()
+        # otherwise, builds an alternative remote command based on the
+        # prepared command and execute it remotely
+        else:
+            mock_command.assert_called_once_with(
+                remote_command,
+                shell=True,
+                check=True,
+                path=operation.server.path,
+                retry_times=operation.config.basebackup_retry_times,
+                retry_sleep=operation.config.basebackup_retry_sleep,
+                retry_handler=mock.ANY,
+                out_handler=mock.ANY,
+            )
+            # The full command should be quoted correctly
+            mock_full_command_quote.assert_called_once_with(
+                mock_pg_combine_backup.return_value.cmd,
+                mock_pg_combine_backup.return_value.args,
+            )
+            mock_command.return_value.assert_called_once_with(
+                mock_full_command_quote.return_value
+            )
 
+    @pytest.mark.parametrize("staging_location", ["local", "remote"])
     @mock.patch(
         "barman.recovery_executor.CombineOperation._fetch_remote_status",
         return_value={
@@ -4642,22 +4680,25 @@ class TestCombineOperation(object):
         return_value=["/path/to/backup_id/data", "/path/to/backup_id/parent/data"],
     )
     @mock.patch("barman.recovery_executor.PgCombineBackup")
+    @mock.patch("barman.recovery_executor.Command")
     @mock.patch(
         "barman.recovery_executor.DataTransferFailure", wraps=DataTransferFailure
     )
     def test_run_pg_combinebackup_failed(
         self,
         mock_data_transfer_failure,
+        mock_command,
         mock_pg_combine_backup,
         mock_get_backup_chain_paths,
         mock_fetch_remote_status,
+        staging_location,
     ):
         """
         Test that :meth:`_run_pg_combinebackup` handles failures correctly.
         """
         # GIVEN a CombineOperation instance
         operation = CombineOperation(
-            config=mock.Mock(),
+            config=mock.Mock(staging_location=staging_location),
             server=mock.Mock(),
             backup_manager=mock.Mock(),
         )
@@ -4674,24 +4715,32 @@ class TestCombineOperation(object):
             "/path/to/relocation/tbs1",
             "/path/to/relocation/tbs2",
         ]
+        remote_command = "ssh postgres@pg"
 
-        # Mock PgCombineBackup to raise an exception when its instance is called
-        mock_pg_combine_backup.return_value.side_effect = CommandFailedException(
-            "pg_combinebackup failed"
-        )
+        # If staging is local then it is the PgCombineBackup instance that will
+        # raise the exception, otherwise it is the Command instance that will raise it
+        if staging_location == "local":
+            mock_pg_combine_backup.return_value.side_effect = CommandFailedException(
+                "pg_combinebackup failed"
+            )
+        else:
+            mock_command.return_value.side_effect = CommandFailedException(
+                "pg_combinebackup failed"
+            )
 
         # WHEN _run_pg_combinebackup is called THEN a DataTransferFailure is raised
         with pytest.raises(DataTransferFailure):
             operation._run_pg_combinebackup(
-                backup_info, destination, tablespace_mapping, dest_dirs
+                backup_info, destination, tablespace_mapping, dest_dirs, remote_command
             )
-            # AND the exception was raised by calling from_command_error correctly
-            msg = "Combine action failure on directory '%s'" % destination
-            mock_data_transfer_failure.from_command_error.assert_called_once_with(
-                "pg_combinebackup",
-                mock.ANY,  # The exception object will vary
-                msg,
-            )
+
+        # AND the exception was raised by calling from_command_error correctly
+        msg = "Combine action failure on directory '%s'" % destination
+        mock_data_transfer_failure.from_command_error.assert_called_once_with(
+            "pg_combinebackup",
+            mock.ANY,  # The exception object will vary
+            msg,
+        )
 
     @pytest.mark.parametrize(
         "is_last_operation, tablespaces_relocation, expected_result",
@@ -4842,60 +4891,97 @@ class TestCombineOperation(object):
         # THEN the chain path is correctly returned
         assert list(ret) == ["/path/to/parent/data", "/path/to/child/data"]
 
-    @pytest.mark.parametrize(
-        "get_version_info_result, should_fail, expected_result",
-        [
-            # Case 1: pg_combinebackup is installed
-            (
-                {
-                    "full_path": "/usr/bin/pg_combinebackup",
-                    "full_version": "17.0.0",
-                },
-                False,
-                {
-                    "pg_combinebackup_path": "/usr/bin/pg_combinebackup",
-                    "pg_combinebackup_version": "17.0.0",
-                },
-            ),
-            # Case 2: pg_combinebackup is not installed
-            (
-                {"full_path": None, "full_version": None},
-                True,
-                None,  # an exception was raised so this is not even used
-            ),
-        ],
+    @mock.patch(
+        "barman.recovery_executor.PgCombineBackup.get_version_info",
+        return_value={
+            "full_path": "/usr/bin/pg_combinebackup",
+            "full_version": "17.0.0",
+        },
     )
-    def test_fetch_remote_status(
-        self, get_version_info_result, should_fail, expected_result
-    ):
+    def test_fetch_remote_status_staging_local(self, mock_get_version_info):
         """
-        Test that :meth:`_fetch_remote_status` returns the correct status
-        of the remote server.
+        Assert that :meth:`_fetch_remote_status` returns the correct values
+        when the staging location is local.
         """
         # GIVEN a CombineOperation instance
         operation = CombineOperation(
-            config=mock.Mock(),
+            config=mock.Mock(staging_location="local"),
             server=mock.Mock(),
             backup_manager=mock.Mock(),
         )
 
-        # Mock PgCombineBackup.get_version_info to return the parametrized result
-        with mock.patch(
-            "barman.recovery_executor.PgCombineBackup.get_version_info",
-            return_value=get_version_info_result,
-        ):
-            if should_fail:
-                # WHEN _fetch_remote_status is called and it fails
-                # THEN it raises a CommandFailedException
-                with pytest.raises(
-                    CommandFailedException, match="pg_combinebackup could not be found"
-                ):
-                    operation._fetch_remote_status()
-            else:
-                # WHEN _fetch_remote_status is called
-                ret = operation._fetch_remote_status()
-                # THEN it returns the correct status
-                assert ret == expected_result
+        # WHEN _fetch_remote_status is called
+        ret = operation._fetch_remote_status()
+
+        # THEN it calls PgCombineBackup.get_version_info and returns its result in
+        # a slightly different format
+        mock_get_version_info.assert_called_once()
+        assert ret == {
+            "pg_combinebackup_path": "/usr/bin/pg_combinebackup",
+            "pg_combinebackup_version": "17.0.0",
+        }
+
+    def test_fetch_remote_status_staging_remote(self):
+        """
+        Assert that :meth:`_fetch_remote_status` returns the correct values
+        when the staging location is remote.
+        """
+        # GIVEN a CombineOperation instance
+        operation = CombineOperation(
+            config=mock.Mock(staging_location="remote"),
+            server=mock.Mock(),
+            backup_manager=mock.Mock(),
+        )
+        # Mock the command to return a valid pg_combinebackup path and version
+        operation.cmd = mock.Mock()
+        operation.cmd.find_command.return_value = "/usr/bin/pg_combinebackup"
+        operation.cmd.get_command_version.return_value = "17.0.0"
+
+        # WHEN _fetch_remote_status is called
+        ret = operation._fetch_remote_status()
+
+        # THEN find_command and get_command_version are called correctly
+        operation.cmd.find_command.assert_called_once_with(
+            PgCombineBackup.COMMAND_ALTERNATIVES
+        )
+        operation.cmd.get_command_version.assert_called_once_with(
+            operation.cmd.find_command.return_value
+        )
+
+        # AND it returns the correct status
+        assert ret == {
+            "pg_combinebackup_path": "/usr/bin/pg_combinebackup",
+            "pg_combinebackup_version": "17.0.0",
+        }
+
+    @pytest.mark.parametrize("staging_location", ["local", "remote"])
+    @mock.patch("barman.recovery_executor.PgCombineBackup")
+    def test_fetch_remote_status_fail(self, mock_pg_combinebackup, staging_location):
+        """
+        Test that :meth:`_fetch_remote_status` raises a :exc:`CommandNotFoundException`
+        when ``pg_combinebackup`` is not found, either locally or remotely.
+        """
+        # GIVEN a CombineOperation instance
+        operation = CombineOperation(
+            config=mock.Mock(staging_location=staging_location),
+            server=mock.Mock(),
+            backup_manager=mock.Mock(),
+        )
+        operation.cmd = mock.Mock()
+
+        # If staging_location is "local", PgCombineBackup.get_version_info
+        # is used otherwise cmd.find_command is used
+        if staging_location == "local":
+            mock_pg_combinebackup.get_version_info.return_value = {
+                "full_path": None,
+                "full_version": None,
+            }
+            with pytest.raises(CommandNotFoundException):
+                operation._fetch_remote_status()
+        else:
+            operation.cmd.find_command.return_value = None
+            with pytest.raises(CommandNotFoundException):
+                operation._fetch_remote_status()
 
     @mock.patch("barman.recovery_executor.CombineOperation._prepare_directory")
     @mock.patch("barman.recovery_executor.output")

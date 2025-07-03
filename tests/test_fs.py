@@ -18,6 +18,7 @@
 
 import sys
 
+import mock
 import pytest
 from mock import call, patch
 
@@ -554,6 +555,56 @@ class TestUnixLocalCommand(object):
 
         # AND the exception has the expected message
         assert str(exc.value) == "Unexpected findmnt output: {}".format(command_output)
+
+    @pytest.mark.parametrize(
+        "command_ret_code, expected_return_value",
+        [(0, "/path/to/command"), (1, None)],
+    )
+    def test_find_command(self, command_ret_code, expected_return_value):
+        """
+        Test that it calls the ``which`` command correctly and
+        returns the expected output.
+        """
+        # GIVEN a mock UnixLocalCommand which returns a specific command output
+        ulc = UnixLocalCommand()
+        ulc.cmd = mock.Mock(return_value=command_ret_code)
+        ulc.internal_cmd = mock.Mock(
+            out="/path/to/command" if command_ret_code == 0 else "command not found"
+        )
+
+        # WHEN find_command is called
+        result = ulc.find_command(["test_command"])
+
+        # THEN the find command was executed with the expected arguments
+        ulc.cmd.assert_called_once_with("which", args=["test_command"])
+
+        # AND the expected return value was returned
+        assert result == expected_return_value
+
+    @pytest.mark.parametrize(
+        "command_ret_code, expected_return_value",
+        [(0, "17.0.1"), (1, None)],
+    )
+    def test_get_command_version(self, command_ret_code, expected_return_value):
+        """
+        Test that it calls <command> --version correctly and
+        returns the expected output.
+        """
+        # GIVEN a mock UnixLocalCommand which returns a specific command output
+        ulc = UnixLocalCommand()
+        ulc.cmd = mock.Mock(return_value=command_ret_code)
+        ulc.internal_cmd = mock.Mock(
+            out="17.0.1" if command_ret_code == 0 else "command does not have --version"
+        )
+
+        # WHEN get_command_version is called
+        result = ulc.get_command_version("/path/to/command")
+
+        # THEN <command> --version was executed
+        ulc.cmd.assert_called_once_with("/path/to/command", args=["--version"])
+
+        # AND the expected return value was returned
+        assert result == expected_return_value
 
     @patch("barman.fs.Command")
     @patch("barman.fs.UnixLocalCommand.cmd")
