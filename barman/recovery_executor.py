@@ -2834,6 +2834,14 @@ class RsyncCopyOperation(RecoveryOperation):
             # we maintain a consistent structure among volatile backups
             self._copy_backup_dir(backup_info, controller, dest_prefix, vol_backup_info)
 
+        # Create the tablespaces symbolic links in the destination directory
+        pgdata_dir = (
+            destination if is_last_operation else vol_backup_info.get_data_directory()
+        )
+        self._link_tablespaces(
+            vol_backup_info, pgdata_dir, tablespaces, is_last_operation
+        )
+
         return vol_backup_info
 
     def _copy_backup_dir(self, backup_info, controller, dest_prefix, vol_backup_info):
@@ -2850,16 +2858,17 @@ class RsyncCopyOperation(RecoveryOperation):
             info that is the result of the whole operation
         :raises barman.exceptions.DataTransferFailure: If the copy operation fails
         """
-        dest = vol_backup_info.get_basebackup_directory()
+        destination = vol_backup_info.get_basebackup_directory()
         controller.add_directory(
             label="backup",
             src="%s/" % backup_info.get_basebackup_directory(),
-            dst=dest_prefix + dest,
+            dst=dest_prefix + destination,
             bwlimit=self.config.get_bwlimit(),
+            item_class=controller.VOLATILE_BACKUP_CLASS,
         )
 
         # Prepare the destination directories for the backup copy
-        self._prepare_directory(dest)
+        self._prepare_directory(destination)
 
         # Execute the copy
         try:
@@ -2880,7 +2889,7 @@ class RsyncCopyOperation(RecoveryOperation):
         :param barman.infofile.LocalBackupInfo backup_info: The backup info to copy
         :param barman.copy_controller.RsyncCopyController controller: The rsync controller object
         :param str dest_prefix: The prefix to add to the destination path
-        :param str destination: The destination directory where for the backup
+        :param str destination: The destination directory for the backup
         :param dict[str,str]|None tablespaces: A dictionary mapping tablespace names to
             their target directories. This is the relocation chosen by the user when
             invoking the ``restore`` command. If ``None``, it means no relocation was

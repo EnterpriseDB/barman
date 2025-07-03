@@ -221,6 +221,7 @@ class RsyncCopyController(object):
     TABLESPACE_CLASS = "tablespace"
     PGCONTROL_CLASS = "pg_control"
     CONFIG_CLASS = "config"
+    VOLATILE_BACKUP_CLASS = "volatile_backup"
 
     # This regular expression is used to parse each line of the output
     # of a "rsync --list-only" call. This regexp has been tested with any known

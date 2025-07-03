@@ -1300,10 +1300,22 @@ class VolatileBackupInfo(LocalBackupInfo):
             yield backup_info
             backup_info = backup_info.parent_instance
 
-    def save(self, *args, **kwargs):
+    def save(self, filename=None, file_object=None):
         """
-        Override the save method to prevent its usage.
+        Serialize the object to the specified file object
 
-        :raises NotImplementedError: This method is not implemented.
+        .. note::
+            This method overrides the :meth:`save` method of :class:`LocalBackupInfo` to
+            prevent saving to a file. It raises a :exec:`ValueError` if no file-like object
+            is provided, as this class is intended for in-memory operations only.
+            However, we still maintain the same interface to allow :class:`LocalBackupInfo`
+            objects to be used interchangeably in some contexts.
+
+        :param str filename: path of the file to write
+        :param file file_object: a file like object to write in
+        :param str filename: the file to write
+        :raises: ValueError
         """
-        raise NotImplementedError("The save method is not implemented.")
+        if not file_object:
+            raise ValueError("VolatileBackupInfo does not support saving to a file")
+        super(LocalBackupInfo, self).save(filename=filename, file_object=file_object)
