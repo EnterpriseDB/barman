@@ -17,6 +17,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import copy
+import io
 import json
 import os
 import warnings
@@ -1711,10 +1712,10 @@ class TestVolatileBackupInfo:
         expected_directory = os.path.join(base_directory, backup_id)
         assert volatile_backup_info.get_basebackup_directory() == expected_directory
 
-    def test_volatile_backup_info_save_not_implemented(self):
+    def test_volatile_backup_info_save_to_file_not_allowed(self):
         """
         Test that the :meth:`save` method of :class:`VolatileBackupInfo` raises a
-        :exc:`NotImplementedError`.
+        :exc:`ValueError` if attempted to be saved to a file.
         """
         server = build_mocked_server()
         base_directory = "/fake/path/"
@@ -1724,7 +1725,17 @@ class TestVolatileBackupInfo:
             base_directory=base_directory,
             backup_id=backup_id,
         )
+        # Case 1: without passing any parameter (saves to file by default)
         with pytest.raises(
-            NotImplementedError, match="The save method is not implemented."
+            ValueError, match="VolatileBackupInfo does not support saving to a file"
         ):
             volatile_backup_info.save()
+
+        # Case 2: explicitly passing filename
+        with pytest.raises(
+            ValueError, match="VolatileBackupInfo does not support saving to a file"
+        ):
+            volatile_backup_info.save(filename="/path/to/some/file")
+
+        # Case 3: passing to file-like object works
+        volatile_backup_info.save(file_object=io.BytesIO())

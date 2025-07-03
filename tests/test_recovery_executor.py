@@ -4072,8 +4072,10 @@ class TestRsyncCopyOperation(object):
         "barman.recovery_executor.RsyncCopyOperation._create_volatile_backup_info",
     )
     @mock.patch("barman.recovery_executor.RsyncCopyController")
+    @mock.patch("barman.recovery_executor.RsyncCopyOperation._link_tablespaces")
     def test_rsync_backup_copy(
         self,
+        mock_link_tablespaces,
         mock_copy_controller,
         mock_create_vol_backup,
         mock_copy_pgdata_and_tablespaces,
@@ -4157,6 +4159,17 @@ class TestRsyncCopyOperation(object):
             )
             mock_copy_pgdata_and_tablespaces.assert_not_called()
 
+        # AND the tablespaces symlinks are handled
+        pgdata_dir = (
+            destination if is_last_operation else vol_backup_info.get_data_directory()
+        )
+        mock_link_tablespaces.assert_called_once_with(
+            vol_backup_info,
+            pgdata_dir,
+            tablespaces,
+            is_last_operation,
+        )
+
         # THEN the volatile backup info is returned
         assert ret is vol_backup_info
 
@@ -4198,6 +4211,7 @@ class TestRsyncCopyOperation(object):
             src="/path/to/basebackup/directory/backup_id/",
             dst=":/path/to/staging/backup_id",
             bwlimit=server.config.get_bwlimit(),
+            item_class=mock_copy_controller.VOLATILE_BACKUP_CLASS,
         )
 
         # AND the staging directory destination is prepared correctly
