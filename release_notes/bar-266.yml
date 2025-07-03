@@ -1,0 +1,11 @@
+- summary: Ignore temporary relation files during backups
+  description: |
+    Files that match the pattern of temporary relation files will now be
+    ignored during a `rsync` backup, similar to the exclusion implicitly
+    performed by `pg_basebackup`. This is needed to avoid errors when running
+    Barman in rsync-concurrent mode against a Postgres instance that creates
+    and drops many temporary tables, since rsync might try to copy a temp file
+    that had already been removed, causing Barman to hang until manually unblocked.
+  type: bugfix
+  jira_tickets:
+    - BAR-266
