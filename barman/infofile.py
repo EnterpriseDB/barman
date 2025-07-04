@@ -26,7 +26,7 @@ import re
 import dateutil.parser
 import dateutil.tz
 
-from barman import xlog
+from barman import output, xlog
 from barman.cloud_providers import snapshots_info_from_dict
 from barman.exceptions import BackupInfoBadInitialisation
 from barman.utils import fsync_dir
@@ -336,7 +336,16 @@ class FieldListFile(object):
                     value = None
                 elif isinstance(field, Field) and callable(field.from_str):
                     value = field.from_str(value)
-                setattr(self, name, value)
+                try:
+                    setattr(self, name, value)
+                except AttributeError:
+                    output.error(
+                        "Unsupported field '%s' found in backup metadata. This "
+                        "indicates the backup was created with a newer version of "
+                        "Barman. Please upgrade to a compatible or newer version.",
+                        name,
+                    )
+                    output.close_and_exit()
 
     def items(self):
         """
