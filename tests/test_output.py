@@ -1282,7 +1282,7 @@ class TestConsoleWriter(object):
             ("End Offset", str(ext_info["end_offset"])),
             ("Begin LSN", str(ext_info["begin_xlog"])),
             ("End LSN", str(ext_info["end_xlog"])),
-            ("No of files", ext_info["wal_until_next_num"]),
+            ("Number of files", ext_info["wal_until_next_num"]),
             ("Disk usage", pretty_size(ext_info["wal_until_next_size"])),
             ("WAL rate", "%0.2f/hour" % (wal_per_second * 3600)),
             ("Compression ratio", compression_rate_output),

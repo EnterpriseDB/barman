@@ -962,7 +962,7 @@ For example:
         End LSN              : 0/1A000138
 
       WAL information:
-        No of files          : 1
+        Number of files      : 1
         Disk usage           : 16.0 MiB
         WAL rate             : 5048.32/hour
         Last available       : 00000001000000000000001B

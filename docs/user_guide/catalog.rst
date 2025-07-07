@@ -132,7 +132,7 @@ backup:
         End XLOG             : D0D/8D36158
 
       WAL information:
-        No of files          : 35039
+        Number of files      : 35039
         Disk usage           : 121.5 GiB
         WAL rate             : 275.50/hour
         Compression ratio    : 77.81%

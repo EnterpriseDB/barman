@@ -963,7 +963,7 @@ class ConsoleOutputWriter(object):
         ):
             output_fun(header_row.format("WAL information"))
             output_fun(
-                nested_row.format("No of files", backup_info["wal_until_next_num"])
+                nested_row.format("Number of files", backup_info["wal_until_next_num"])
             )
             output_fun(
                 nested_row.format(
