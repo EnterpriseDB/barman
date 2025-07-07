@@ -2215,11 +2215,11 @@ class TestTarballRecoveryExecutor(object):
 
         # AND the expected calls were made to the compression object
         assert compression.mock_calls == [
-            mock.call.uncompress(
+            mock.call.decompress(
                 "%s/%s.tar.gz" % (staging_dir, tablespace_oid),
                 tablespace_location,
             ),
-            mock.call.uncompress(
+            mock.call.decompress(
                 "%s/base.tar.gz" % staging_dir,
                 dest.strpath,
                 exclude=["recovery.conf", "tablespace_map"],

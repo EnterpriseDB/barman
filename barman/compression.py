@@ -1104,7 +1104,7 @@ class Compression(with_metaclass(ABCMeta, object)):
         """
 
     @abstractmethod
-    def uncompress(self, src, dst, exclude=None, include_args=None):
+    def decompress(self, src, dst, exclude=None, include_args=None):
         """
 
         :param src: source file path without compression extension
@@ -1143,7 +1143,7 @@ class GZipCompression(Compression):
         """
         self.command = command
 
-    def uncompress(self, src, dst, exclude=None, include_args=None):
+    def decompress(self, src, dst, exclude=None, include_args=None):
         """
 
         :param src: source file path without compression extension
@@ -1208,7 +1208,7 @@ class LZ4Compression(Compression):
         """
         self.command = command
 
-    def uncompress(self, src, dst, exclude=None, include_args=None):
+    def decompress(self, src, dst, exclude=None, include_args=None):
         """
 
         :param src: source file path without compression extension
@@ -1281,7 +1281,7 @@ class ZSTDCompression(Compression):
         """
         self.command = command
 
-    def uncompress(self, src, dst, exclude=None, include_args=None):
+    def decompress(self, src, dst, exclude=None, include_args=None):
         """
 
         :param src: source file path without compression extension
@@ -1354,7 +1354,7 @@ class NoneCompression(Compression):
         """
         self.command = command
 
-    def uncompress(self, src, dst, exclude=None, include_args=None):
+    def decompress(self, src, dst, exclude=None, include_args=None):
         """
 
         :param src: source file path without compression extension

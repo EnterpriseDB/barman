@@ -1730,7 +1730,7 @@ class TarballRecoveryExecutor(RemoteConfigRecoveryExecutor):
                     tablespace_src_path,
                     tablespace_dst_path,
                 )
-                cmd_output = self.compression.uncompress(
+                cmd_output = self.compression.decompress(
                     tablespace_src_path, tablespace_dst_path
                 )
                 _logger.debug(
@@ -1740,7 +1740,7 @@ class TarballRecoveryExecutor(RemoteConfigRecoveryExecutor):
                 )
         base_src_path = "%s/%s" % (staging_dir, base_file)
         _logger.debug("Uncompressing base tarball from %s to %s.", base_src_path, dest)
-        cmd_output = self.compression.uncompress(
+        cmd_output = self.compression.decompress(
             base_src_path, dest, exclude=["recovery.conf", "tablespace_map"]
         )
         _logger.debug("Uncompression output for base tarball: %s", cmd_output)

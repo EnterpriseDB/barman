@@ -2664,7 +2664,7 @@ class TestServer(object):
     @patch("barman.xlog.is_partial_file", return_value=False)
     @patch("barman.server.NamedTemporaryFile")
     @patch("barman.backup.CompressionManager")
-    def test_get_wal_sendfile_uncompress_fail(
+    def test_get_wal_sendfile_decompress_fail(
         self,
         mock_compression_manager,
         _mock_named_temporary_file,
@@ -2672,7 +2672,7 @@ class TestServer(object):
         mock_mkdtemp,
         capsys,
     ):
-        """Verify CommandFailedException uncompressing WAL is handled"""
+        """Verify CommandFailedException decompressing WAL is handled"""
         # GIVEN a server
         server = build_real_server(
             main_conf={"encryption_passphrase_command": "echo 'passphrase'"}

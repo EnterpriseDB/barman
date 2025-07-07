@@ -44,7 +44,7 @@ Parameters
     Show a help message and exit. Provides information about command usage.
 
 ``--keep-compression``
-    Do not uncompress the file content. The output will be the original compressed
+    Do not decompress the file content. The output will be the original compressed
     file.
 
 ``--output-directory`` / ``-o``

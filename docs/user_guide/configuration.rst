@@ -1482,7 +1482,7 @@ Benefits
     * WAL files will be compressed with ``gzip``.
     * All backups will be compressed with ``gzip``.
     * Recovery for compressed backups will use the ``recovery_staging_path`` as the
-      intermediate location to uncompress the backup.
+      intermediate location to decompress the backup.
     * Set a ``retention_policy`` for backups that are grouped in the ``streaming``
       cluster.
 

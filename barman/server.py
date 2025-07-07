@@ -2345,7 +2345,7 @@ class Server(RemoteStatusMixin):
 
         :param str wal_name: id of the WAL file to find into the WAL archive
         :param str|None compression: compression format for the output
-        :param bool keep_compression: if True, do not uncompress compressed WAL files
+        :param bool keep_compression: if True, do not decompress compressed WAL files
         :param str|None output_directory: directory where to deposit the
             WAL file
         :param int|None peek: if defined list the next N WAL file
@@ -2520,7 +2520,7 @@ class Server(RemoteStatusMixin):
 
         :param str wal_file: WAL file path
         :param str compression: required compression
-        :param bool keep_compression: if True, do not uncompress compressed WAL files
+        :param bool keep_compression: if True, do not decompress compressed WAL files
         :param destination: file stream to use to write the data
         """
         backup_manager = self.backup_manager

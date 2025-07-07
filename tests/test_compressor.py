@@ -1205,26 +1205,26 @@ COMMON_UNCOMPRESS_ARGS = (
 
 class TestGZipCompression(object):
     @pytest.mark.parametrize(*COMMON_UNCOMPRESS_ARGS)
-    def test_uncompress(self, src, dst, exclude, include, expected_error):
+    def test_decompress(self, src, dst, exclude, include, expected_error):
         # GIVEN a GZipCompression object
         command = mock.Mock()
         command.cmd.return_value = 0
         command.get_last_output.return_value = ("all good", "")
         gzip_compression = GZipCompression(command)
 
-        # WHEN uncompress is called with the source and destination
+        # WHEN decompress is called with the source and destination
         # THEN the command is called once
         # AND if we expect an error, that error is raised
         if expected_error is not None:
             with pytest.raises(ValueError):
-                gzip_compression.uncompress(
+                gzip_compression.decompress(
                     src, dst, exclude=exclude, include_args=include
                 )
             # THEN command.cmd was not called
             command.cmd.assert_not_called()
         # OR if we don't expect an error
         else:
-            gzip_compression.uncompress(src, dst, exclude=exclude, include_args=include)
+            gzip_compression.decompress(src, dst, exclude=exclude, include_args=include)
             # THEN command.cmd was called
             command.cmd.assert_called_once()
             # AND the first argument was "tar"
@@ -1255,10 +1255,10 @@ class TestGZipCompression(object):
         command.get_last_output.return_value = ("", "some error")
         gzip_compression = GZipCompression(command)
 
-        # WHEN uncompress is called
+        # WHEN decompress is called
         # THEN a CommandFailedException is raised
         with pytest.raises(CommandFailedException) as exc:
-            gzip_compression.uncompress("/path/to/src", "/path/to/dst")
+            gzip_compression.decompress("/path/to/src", "/path/to/dst")
 
         # AND the exception message contains the command stderr
         assert "some error" in str(exc.value)
@@ -1336,26 +1336,26 @@ class TestGZipCompression(object):
 
 class TestLZ4Compression(object):
     @pytest.mark.parametrize(*COMMON_UNCOMPRESS_ARGS)
-    def test_uncompress(self, src, dst, exclude, include, expected_error):
+    def test_decompress(self, src, dst, exclude, include, expected_error):
         # GIVEN a LZ4Compression object
         command = mock.Mock()
         command.cmd.return_value = 0
         command.get_last_output.return_value = ("all good", "")
         lz4_compression = LZ4Compression(command)
 
-        # WHEN uncompress is called with the source and destination
+        # WHEN decompress is called with the source and destination
         # THEN the command is called once
         # AND if we expect an error, that error is raised
         if expected_error is not None:
             with pytest.raises(ValueError):
-                lz4_compression.uncompress(
+                lz4_compression.decompress(
                     src, dst, exclude=exclude, include_args=include
                 )
             # THEN command.cmd was not called
             command.cmd.assert_not_called()
         # OR if we don't expect an error
         else:
-            lz4_compression.uncompress(src, dst, exclude=exclude, include_args=include)
+            lz4_compression.decompress(src, dst, exclude=exclude, include_args=include)
             # THEN command.cmd was called
             command.cmd.assert_called_once()
             # AND the first argument was "tar"
@@ -1390,10 +1390,10 @@ class TestLZ4Compression(object):
         command.get_last_output.return_value = ("", "some error")
         lz4_compression = LZ4Compression(command)
 
-        # WHEN uncompress is called
+        # WHEN decompress is called
         # THEN a CommandFailedException is raised
         with pytest.raises(CommandFailedException) as exc:
-            lz4_compression.uncompress("/path/to/src", "/path/to/dst")
+            lz4_compression.decompress("/path/to/src", "/path/to/dst")
 
         # AND the exception message contains the command stderr
         assert "some error" in str(exc.value)
@@ -1477,26 +1477,26 @@ class TestLZ4Compression(object):
 
 class TestZSTDCompression(object):
     @pytest.mark.parametrize(*COMMON_UNCOMPRESS_ARGS)
-    def test_uncompress(self, src, dst, exclude, include, expected_error):
+    def test_decompress(self, src, dst, exclude, include, expected_error):
         # GIVEN a ZSTDCompression object
         command = mock.Mock()
         command.cmd.return_value = 0
         command.get_last_output.return_value = ("all good", "")
         zstd_compression = ZSTDCompression(command)
 
-        # WHEN uncompress is called with the source and destination
+        # WHEN decompress is called with the source and destination
         # THEN the command is called once
         # AND if we expect an error, that error is raised
         if expected_error is not None:
             with pytest.raises(ValueError):
-                zstd_compression.uncompress(
+                zstd_compression.decompress(
                     src, dst, exclude=exclude, include_args=include
                 )
             # THEN command.cmd was not called
             command.cmd.assert_not_called()
         # OR if we don't expect an error
         else:
-            zstd_compression.uncompress(src, dst, exclude=exclude, include_args=include)
+            zstd_compression.decompress(src, dst, exclude=exclude, include_args=include)
             # THEN command.cmd was called
             command.cmd.assert_called_once()
             # AND the first argument was "tar"
@@ -1531,10 +1531,10 @@ class TestZSTDCompression(object):
         command.get_last_output.return_value = ("", "some error")
         zstd_compression = ZSTDCompression(command)
 
-        # WHEN uncompress is called
+        # WHEN decompress is called
         # THEN a CommandFailedException is raised
         with pytest.raises(CommandFailedException) as exc:
-            zstd_compression.uncompress("/path/to/src", "/path/to/dst")
+            zstd_compression.decompress("/path/to/src", "/path/to/dst")
 
         # AND the exception message contains the command stderr
         assert "some error" in str(exc.value)
@@ -1618,26 +1618,26 @@ class TestZSTDCompression(object):
 
 class TestNoneCompression:
     @pytest.mark.parametrize(*COMMON_UNCOMPRESS_ARGS)
-    def test_uncompress(self, src, dst, exclude, include, expected_error):
+    def test_decompress(self, src, dst, exclude, include, expected_error):
         # GIVEN a NoneCompression object
         command = mock.Mock()
         command.cmd.return_value = 0
         command.get_last_output.return_value = ("all good", "")
         none_compression = NoneCompression(command)
 
-        # WHEN uncompress is called with the source and destination
+        # WHEN decompress is called with the source and destination
         # THEN the command is called once
         # AND if we expect an error, that error is raised
         if expected_error is not None:
             with pytest.raises(ValueError):
-                none_compression.uncompress(
+                none_compression.decompress(
                     src, dst, exclude=exclude, include_args=include
                 )
             # THEN command.cmd was not called
             command.cmd.assert_not_called()
         # OR if we don't expect an error
         else:
-            none_compression.uncompress(src, dst, exclude=exclude, include_args=include)
+            none_compression.decompress(src, dst, exclude=exclude, include_args=include)
             # THEN command.cmd was called
             command.cmd.assert_called_once()
             # AND the first argument was "tar"
@@ -1668,10 +1668,10 @@ class TestNoneCompression:
         command.get_last_output.return_value = ("", "some error")
         none_compression = NoneCompression(command)
 
-        # WHEN uncompress is called
+        # WHEN decompress is called
         # THEN a CommandFailedException is raised
         with pytest.raises(CommandFailedException) as exc:
-            none_compression.uncompress("/path/to/src", "/path/to/dst")
+            none_compression.decompress("/path/to/src", "/path/to/dst")
 
         # AND the exception message contains the command stderr
         assert "some error" in str(exc.value)

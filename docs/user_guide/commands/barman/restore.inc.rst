@@ -137,7 +137,7 @@ Parameters
 
 ``--recovery-staging-path``
     Specify a path on the recovery host where files for a compressed backup will be
-    staged before being uncompressed to the destination directory. Backups will be
+    staged before being decompressed to the destination directory. Backups will be
     staged in their own directory within the staging path, following the naming
     convention: ``barman-staging-SERVER_NAME-BACKUP_ID``. This staging directory will be
     removed after the restore process is complete. This option is mandatory for
