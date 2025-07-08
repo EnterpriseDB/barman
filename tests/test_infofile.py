@@ -1592,6 +1592,17 @@ class TestLocalBackupInfo:
             assert str(empty1) not in entries_list
             assert str(empty2) not in entries_list
 
+    def test_load_unknown_field(self, tmpdir, caplog):
+        server = build_mocked_server()
+        infofile = tmpdir.mkdir("backup_id").join("backup.info")
+        infofile.write(BASE_BACKUP_INFO)
+        infofile.write("dummy=15\n")
+        with pytest.raises(SystemExit):
+            dummy = LocalBackupInfo(server=server, info_file=infofile.strpath)
+            dummy.load(infofile.strpath)
+
+        assert "Unsupported field 'dummy' found in backup metadata" in caplog.text
+
 
 class TestSyntheticBackupInfo:
     """
