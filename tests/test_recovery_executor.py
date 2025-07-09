@@ -39,6 +39,7 @@ from barman.exceptions import (
     RecoveryStandbyModeException,
     RecoveryTargetActionException,
     SnapshotBackupException,
+    UnsupportedCompressionFormat,
 )
 from barman.infofile import (
     BackupInfo,
@@ -5243,3 +5244,221 @@ class TestMainRecoveryExecutor(object):
             safe_horizon=safe_horizon,
             is_last_operation=True,
         )
+
+
+class TestDecompressOperation(object):
+    """
+    Test suite for the DecompressOperation class, which handles the decompression
+    of backup files during the recovery process in Barman.
+
+    This class contains tests for:
+    - Decompression with and without tablespaces.
+    - Handling of unexpected compression formats.
+    - The logic determining whether decompression should be executed.
+    - The integration of decompression within the operation execution chain.
+    """
+
+    name = "dummy-decompress"
+    file_extension = "tar.dummy"
+
+    @pytest.mark.parametrize(
+        "is_last_op, tablespaces",
+        [
+            (
+                True,
+                {"tbs1": "/relocate_tbs1", "tbs2": "/relocate_tbs2"},
+            ),
+            (True, None),
+            (
+                False,
+                {"tbs1": "/relocate_tbs1", "tbs2": "/relocate_tbs2"},
+            ),
+            (False, None),
+        ],
+    )
+    @mock.patch("barman.recovery_executor.DecompressOperation._link_tablespaces")
+    @mock.patch("barman.recovery_executor.DecompressOperation._prepare_directory")
+    @mock.patch("barman.recovery_executor.GZipCompression")
+    @mock.patch("barman.recovery_executor.output")
+    def test_decompress_backup(
+        self,
+        mock_output,
+        mock_gzip,
+        mock_prep_dir,
+        mock_link_tbs,
+        is_last_op,
+        tablespaces,
+    ):
+        """
+        Test that the decompression operation correctly handles backups with
+        tablespaces and relocation.
+        Ensures that the decompress method is called for each tablespace and the base
+        tarball, and that appropriate debug messages are logged.
+        """
+        compressor = mock.Mock()
+        compressor.file_extension = "tar.gz"
+        compressor.decompress.side_effect = (
+            lambda src, dst, exclude=None: f"decompressed {src} to {dst}"
+        )
+        mock_gzip.return_value = compressor
+        mock_gzip.name = "gzip"
+        mock_backup_manager = testing_helpers.build_backup_manager()
+        config = mock_backup_manager.config
+        server = mock_backup_manager.server
+        # Arrange
+        op = DecompressOperation(config, server, mock_backup_manager)
+        backup_info = testing_helpers.build_test_backup_info(compression="gzip")
+
+        # Test with no tbs relocation
+        result = op._decompress_backup(
+            backup_info=backup_info,
+            destination="/dest",
+            tablespaces=tablespaces,
+            is_last_operation=is_last_op,
+        )
+        if tablespaces:
+            tbs1 = tablespaces["tbs1"]
+            tbs2 = tablespaces["tbs2"]
+        else:
+            tbs1 = "/fake/location"
+            tbs2 = "/another/location"
+        # Should create all destinations before decompressing
+        if is_last_op:
+            prep_calls = [
+                call(tbs1),
+                call(tbs2),
+                call("/dest"),
+            ]
+            decompress_calls = [
+                call(
+                    "/some/barman/home/main/base/1234567890/data/16387.tar.gz",
+                    tbs1,
+                ),
+                call(
+                    "/some/barman/home/main/base/1234567890/data/16405.tar.gz",
+                    tbs2,
+                ),
+                call(
+                    "/some/barman/home/main/base/1234567890/data/base.tar.gz",
+                    "/dest",
+                    exclude=["recovery.conf", "tablespace_map"],
+                ),
+            ]
+            dest = "/dest"
+        else:
+            prep_calls = [
+                call("/dest/1234567890/16387"),
+                call("/dest/1234567890/16405"),
+                call("/dest/1234567890/data"),
+            ]
+            decompress_calls = [
+                call(
+                    "/some/barman/home/main/base/1234567890/data/16387.tar.gz",
+                    "/dest/1234567890/16387",
+                ),
+                call(
+                    "/some/barman/home/main/base/1234567890/data/16405.tar.gz",
+                    "/dest/1234567890/16405",
+                ),
+                call(
+                    "/some/barman/home/main/base/1234567890/data/base.tar.gz",
+                    "/dest/1234567890/data",
+                    exclude=["recovery.conf", "tablespace_map"],
+                ),
+            ]
+            dest = result.get_data_directory()
+        mock_prep_dir.call_count == 3
+        mock_prep_dir.assert_has_calls(prep_calls)
+        mock_link_tbs.assert_called_once_with(result, dest, tablespaces, is_last_op)
+        # Should call decompress for each tablespace and for base tarball
+        assert compressor.decompress.call_count == 3
+        compressor.decompress.assert_has_calls(decompress_calls)
+        # Assert
+        assert isinstance(result, VolatileBackupInfo)
+        # Should log debug messages
+        assert mock_output.debug.call_count == 6
+
+    def test_should_execute_true(self):
+        """
+        Test that _should_execute returns ``True`` when the ``backup_info`` indicates a
+        compression format.
+        """
+        backup_info = mock.Mock()
+        backup_info.compression = "gzip"
+        op = DecompressOperation(mock.Mock(), mock.Mock(), mock.Mock())
+        assert op._should_execute(backup_info) is True
+
+    def test_should_execute_false(self):
+        """
+        Test that _should_execute returns ``False`` when the ``backup_info`` does not
+        indicate a compression format.
+        """
+        backup_info = mock.Mock()
+        backup_info.compression = None
+        op = DecompressOperation(mock.Mock(), mock.Mock(), mock.Mock())
+        assert op._should_execute(backup_info) is False
+
+    @mock.patch(
+        "barman.recovery_executor.DecompressOperation._create_volatile_backup_info"
+    )
+    def test_decompress_backup_unexpected_compression(self, mock_create_v_bi):
+        """
+        Test that the decompression operation raises an `AttributeError` when an unexpected
+        compression format is encountered.
+        """
+        backup_info = mock.Mock()
+        backup_info.compression = "snappy"
+        backup_info.tablespaces = []
+        backup_info.get_data_directory.return_value = "/data/dir"
+        op = DecompressOperation(mock.Mock(), mock.Mock(), mock.Mock())
+        with pytest.raises(
+            UnsupportedCompressionFormat, match="Unexpected compression format: snappy"
+        ):
+            op._decompress_backup(
+                backup_info=backup_info,
+                destination="/dest",
+                tablespaces=None,
+                is_last_operation=True,
+            )
+
+    @mock.patch("barman.recovery_executor.DecompressOperation._execute_on_chain")
+    @mock.patch("barman.recovery_executor.DecompressOperation._prepare_directory")
+    def test_decompress_operation__execute_on_chain_calls_decompress_backup(
+        self, mock_prep_dir, mock_ex_on_chain
+    ):
+        """
+        Test that the `_execute` method of `DecompressOperation` correctly delegates to
+        the `_decompress_backup` method via the operation chain mechanism.
+        """
+        mock_backup_manager = testing_helpers.build_backup_manager()
+        config = mock_backup_manager.config
+        server = mock_backup_manager.server
+        # Arrange
+        op = DecompressOperation(config, server, mock_backup_manager)
+        backup_info = Mock()
+        backup_info.compression = "gzip"
+        backup_info.tablespaces = []
+        backup_info.get_data_directory.return_value = "/data/dir"
+        destination = "/dest"
+        tablespaces = None
+        remote_command = None
+        recovery_info = None
+        safe_horizon = None
+        is_last_operation = True
+
+        mock_ex_on_chain.return_value = "VOLATILE_BACKUP"
+        # Act
+        result = op._execute(
+            backup_info,
+            destination,
+            tablespaces,
+            remote_command,
+            recovery_info,
+            safe_horizon,
+            is_last_operation,
+        )
+        # Assert
+        mock_ex_on_chain.assert_called_once_with(
+            backup_info, op._decompress_backup, "/dest", None, True
+        )
+        assert result == "VOLATILE_BACKUP"
