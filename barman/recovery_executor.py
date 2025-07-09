@@ -61,6 +61,7 @@ from barman.exceptions import (
     RecoveryStandbyModeException,
     RecoveryTargetActionException,
     SnapshotBackupException,
+    UnsupportedCompressionFormat,
 )
 from barman.infofile import (
     BackupInfo,
@@ -3026,8 +3027,6 @@ class DecompressOperation(RecoveryOperation):
             self._decompress_backup,
             destination,
             tablespaces,
-            remote_command,
-            recovery_info,
             is_last_operation,
         )
 
@@ -3040,8 +3039,104 @@ class DecompressOperation(RecoveryOperation):
         """
         return backup_info.compression is not None
 
-    def _decompress_backup(self, *args, **kwargs):
-        pass
+    def _decompress_backup(
+        self,
+        backup_info,
+        destination,
+        tablespaces,
+        is_last_operation,
+    ):
+        """
+        Decompresses a backup and restores its contents to the specified *destination*.
+
+        This method handles decompression of both the base backup tarball and any
+        associated tablespaces, using the appropriate compression method as specified in
+        the backup information. It supports relocation of tablespaces if requested and
+        logs debug information about the decompression process.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Information about the backup
+            to be decompressed.
+        :param str destination: The target directory where the decompressed files will
+            be placed.
+        :param dict tablespaces: Optional mapping of tablespace names to their
+            relocation paths.
+        :param dict recovery_info: Information required for recovery, including the
+            decompression command.
+        :param bool is_last_operation: Indicates if this is the final operation in the
+        recovery process, affecting tablespace relocation.
+
+        :return: Result of the recovery execution chain.
+        :rtype: barman.infofile.VolatileBackupInfo
+        :raises AttributeError: If the backup uses an unsupported or unknown compression
+            format.
+        """
+        vol_backup_info = self._create_volatile_backup_info(backup_info, destination)
+        if not is_last_operation:
+            destination = vol_backup_info.get_data_directory()
+        compressors = {
+            GZipCompression.name: GZipCompression,
+            LZ4Compression.name: LZ4Compression,
+            ZSTDCompression.name: ZSTDCompression,
+            NoneCompression.name: NoneCompression,
+        }
+        compression = backup_info.compression
+        try:
+            compressor = compressors[compression](self.cmd)
+        except KeyError:
+            raise UnsupportedCompressionFormat(
+                f"Unexpected compression format: {compression}"
+            )
+        base_file = "%s.%s" % (self.BASE_TARBALL_NAME, compressor.file_extension)
+        # Untar the results files to their intended location
+        if backup_info.tablespaces:
+            for tablespace in backup_info.tablespaces:
+                tablespace_dst_path = vol_backup_info.get_data_directory(tablespace.oid)
+                # Only relocate or send to final destination if decompression is the
+                # last operation.
+                if is_last_operation:
+                    # By default a tablespace goes in the same location where
+                    # it was on the source server when the backup was taken
+                    tablespace_dst_path = tablespace.location
+                    # If a relocation has been requested for this tablespace
+                    # use the user provided target directory
+                    if tablespaces and tablespace.name in tablespaces:
+                        tablespace_dst_path = tablespaces[tablespace.name]
+                tablespace_file = "%s.%s" % (
+                    tablespace.oid,
+                    compressor.file_extension,
+                )
+                tablespace_src_path = "%s/%s" % (
+                    backup_info.get_data_directory(),
+                    tablespace_file,
+                )
+                output.debug(
+                    "Decompressing tablespace %s from %s to %s",
+                    tablespace.name,
+                    tablespace_src_path,
+                    tablespace_dst_path,
+                )
+                self._prepare_directory(tablespace_dst_path)
+                cmd_output = compressor.decompress(
+                    tablespace_src_path, tablespace_dst_path
+                )
+                output.debug(
+                    "Decompression output for tablespace %s: %s",
+                    tablespace.name,
+                    cmd_output,
+                )
+        base_src_path = "%s/%s" % (backup_info.get_data_directory(), base_file)
+        output.debug(
+            "Decompressing base tarball from %s to %s.", base_src_path, destination
+        )
+        self._prepare_directory(destination)
+        cmd_output = compressor.decompress(
+            base_src_path, destination, exclude=["recovery.conf", "tablespace_map"]
+        )
+        output.debug("Decompression output for base tarball: %s", cmd_output)
+        self._link_tablespaces(
+            vol_backup_info, destination, tablespaces, is_last_operation
+        )
+        return vol_backup_info
 
 
 class CombineOperation(RecoveryOperation):

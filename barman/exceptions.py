@@ -206,6 +206,12 @@ class CompressionIncompatibility(CompressionException):
     """
 
 
+class UnsupportedCompressionFormat(CompressionException):
+    """
+    Exception for unsupported compression format
+    """
+
+
 class FileNotFoundException(CompressionException):
     """
     Exception for file not found in archive
