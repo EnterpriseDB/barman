@@ -1024,7 +1024,7 @@ class TestBackup(object):
     @patch("barman.backup.BackupManager.get_available_backups")
     @patch("barman.backup.BackupManager.check_delete_annotation")
     @patch("barman.backup.BackupManager.release_delete_annotation")
-    def test_cron_retention_orphan_backup_warning(
+    def test_cron_retention_orphan_backup_skip_deletion_and_warn(
         self,
         release_delete_annotation,
         check_delete_annotation,
@@ -1036,7 +1036,9 @@ class TestBackup(object):
         """
         Verify that if the backup is orphaned, cron will output a warning.
         """
-        backup_manager = build_backup_manager()
+        backup_manager = build_backup_manager(
+            main_conf={"backup_options": "concurrent_backup"}
+        )
         backup_manager.server.config.name = "TestServer"
         backup_manager.server.config.barman_lock_directory = tmpdir.strpath
         backup_manager.server.config.backup_options = []
@@ -1057,13 +1059,19 @@ class TestBackup(object):
             mock_is_orphan.return_value = True
             backup_manager.cron_retention_policy()
 
+        basebackup_directory = available_backups[
+            "test_backup"
+        ].get_basebackup_directory()
         # Ensure the warning was logged
         expected_warning = (
-            f"WARNING: Backup directory {available_backups['test_backup'].get_basebackup_directory()} "
+            "Backup directory %s "
             "contains only a non-empty backup.info file "
-            "which may indicate an incomplete delete operation. Please manually delete the directory."
+            "which may indicate an incomplete delete operation. Please manually delete "
+            "the directory." % basebackup_directory
         )
-        assert any(expected_warning in message for message in caplog.messages)
+        assert expected_warning in caplog.text
+        # Assert deletion was skipped
+        delete_backup.assert_not_called()
 
     @pytest.mark.parametrize("should_fail", (True, False))
     @patch("barman.backup.LocalBackupInfo.save")
