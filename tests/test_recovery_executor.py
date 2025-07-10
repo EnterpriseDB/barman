@@ -5535,6 +5535,119 @@ class TestMainRecoveryExecutor(object):
         for actual_op, expected_op in zip(operations, expected_operations):
             assert isinstance(actual_op, expected_op)
 
+    @pytest.mark.parametrize(
+        "staging_path, staging_location, recovery_staging_path, local_staging_path,"
+        "operation_cls, remote_command, expected_path, expected_location",
+        [
+            # Case 1: staging_path and staging_location were set -> the method does nothing
+            (
+                "/some/staging/path",
+                "remote",
+                None,
+                None,
+                CombineOperation,
+                "ssh postgres@pg",
+                "/some/staging/path",
+                "remote",
+            ),
+            # Case 2: staging_path and staging_location unset and operation is decompress -> maps
+            # recovery_staging_path to staging_path and staging_location to "local"
+            # (becausse remote_command is unset)
+            (
+                None,
+                None,
+                "/some/recovery/staging/path",
+                None,
+                DecompressOperation,
+                None,
+                "/some/recovery/staging/path",
+                "local",
+            ),
+            # Case 3: staging_path and staging_location unset and operation is decompress -> maps
+            # recovery_staging_path to staging_path and staging_location to "remote"
+            # (because remote_command is set)
+            (
+                None,
+                None,
+                "/some/recovery/staging/path",
+                None,
+                DecompressOperation,
+                "ssh postgres@pg",
+                "/some/recovery/staging/path",
+                "remote",
+            ),
+            # Case 4: staging_path and staging_location unset and operation is any other than decompress -> maps
+            # local_staging_path to staging_path and staging_location is always "local"
+            # regardless of remote_command
+            (
+                None,
+                None,
+                None,
+                "/some/local/staging/path",
+                CombineOperation,
+                None,
+                "/some/local/staging/path",
+                "local",
+            ),
+            # Case 5: staging_path and staging_location unset and operation is any other than decompress -> maps
+            # local_staging_path to staging_path and staging_location is always "local"
+            # regardless of remote_command (this test is essentially the same as the
+            # previous one, but with remote_command set to assert the result is the same)
+            (
+                None,
+                None,
+                None,
+                "/some/local/staging/path",
+                CombineOperation,
+                "ssh postgres@pg",
+                "/some/local/staging/path",
+                "local",
+            ),
+        ],
+    )
+    def test_handle_deprecated_staging_options(
+        self,
+        staging_path,
+        staging_location,
+        recovery_staging_path,
+        local_staging_path,
+        operation_cls,
+        remote_command,
+        expected_path,
+        expected_location,
+    ):
+        """
+        Test that :meth:`_handle_deprecated_staging_options` correctly maps deprecated
+        staging options to the new ones, during the context of the context manager.
+        """
+        # GIVEN a MainRecoveryExecutor
+        backup_manager = mock.Mock()
+        executor = MainRecoveryExecutor(backup_manager)
+        executor.config = mock.Mock(
+            staging_path=staging_path,
+            staging_location=staging_location,
+            recovery_staging_path=recovery_staging_path,
+            local_staging_path=local_staging_path,
+        )
+
+        # Instantiate the operation
+        operation = operation_cls(executor.config, None, None)
+
+        # Save original values for later comparison
+        orig_staging_path = operation.config.staging_path
+        orig_staging_location = operation.config.staging_location
+
+        # WHEN _handle_deprecated_staging_options is called
+        with executor._handle_deprecated_staging_options(operation, remote_command):
+            # THEN the operation's staging_path and staging_location are changed
+            # to the expected values during the context
+            assert executor.config.staging_path == expected_path
+            assert executor.config.staging_location == expected_location
+
+        # AND after context, values are restored
+        assert executor.config.staging_path == orig_staging_path
+        assert executor.config.staging_location == orig_staging_location
+
     @mock.patch(
         "barman.recovery_executor.MainRecoveryExecutor._build_operations_pipeline"
     )
@@ -5544,12 +5657,15 @@ class TestMainRecoveryExecutor(object):
         """
         # GIVEN a MainRecoveryExecutor
         backup_manager = testing_helpers.build_backup_manager(
-            main_conf={"staging_path": "/fake/staging/path"}
+            main_conf={
+                "staging_path": "/fake/staging/path",
+                "staging_location": "local",
+            }
         )
         executor = MainRecoveryExecutor(backup_manager)
         # AND a mock _build_operations_pipeline that returns two mock operations
-        op1 = mock.Mock(NAME="operation-1")
-        op2 = mock.Mock(NAME="operation-2")
+        op1 = mock.Mock(NAME="operation-1", config=backup_manager.config)
+        op2 = mock.Mock(NAME="operation-2", config=backup_manager.config)
         mock_build_pipeline.return_value = [op1, op2]
 
         # Prepare all the parameters for the _backup_copy method

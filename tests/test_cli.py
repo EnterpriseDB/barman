@@ -761,283 +761,6 @@ class TestCli(object):
         _out, err = capsys.readouterr()
         assert "" == err
 
-    @pytest.mark.parametrize(
-        (
-            "backup_is_compressed",
-            "recovery_staging_path_arg",
-            "recovery_staging_path_config",
-            "expected_recovery_staging_path",
-            "should_error",
-            "error_substring",
-        ),
-        [
-            # If a backup is not compressed then recovery_staging_path is ignored
-            (False, None, None, None, False, None),
-            # If a backup is compressed and no recovery_staging_path is provided
-            # we expect an error
-            (
-                True,
-                None,
-                None,
-                None,
-                True,
-                "backup is compressed with gzip compression but no recovery staging "
-                "path is provided.",
-            ),
-            # If a backup is compressed and an argument is provided then it should
-            # be set in the config
-            (True, "/from/arg", None, "/from/arg", False, None),
-            # If a backup is compressed and a bad argument is provided then it should
-            # error
-            (
-                True,
-                "from/arg",
-                None,
-                None,
-                True,
-                "Cannot parse recovery staging path: Invalid value : 'from/arg' (must "
-                "be an absolute path)",
-            ),
-            # If a backup is compressed and a config value is set then it should
-            # be set in the config
-            (True, None, "/from/conf", "/from/conf", False, None),
-            # If a backup is compressed and both arg and config are set then arg
-            # takes precedence
-            (True, "/from/arg", "/from/conf", "/from/arg", False, None),
-        ],
-    )
-    @patch("barman.cli.parse_backup_id")
-    @patch("barman.cli.get_server")
-    def test_restore_recovery_staging_path(
-        self,
-        get_server_mock,
-        parse_backup_id_mock,
-        mock_backup_info,
-        mock_restore_args,
-        backup_is_compressed,
-        recovery_staging_path_arg,
-        recovery_staging_path_config,
-        expected_recovery_staging_path,
-        should_error,
-        error_substring,
-        monkeypatch,
-        capsys,
-    ):
-        # GIVEN a backup
-        parse_backup_id_mock.return_value = mock_backup_info
-        # AND the backup is not incremental
-        mock_backup_info.is_incremental = False
-        # AND the backup is not encrypted
-        mock_backup_info.encryption = None
-        # AND the backup has the specified compression
-        mock_backup_info.compression = backup_is_compressed and "gzip" or None
-        # AND a configuration with the specified recovery_staging_path
-        config = build_config_from_dicts(
-            global_conf={"recovery_staging_path": recovery_staging_path_config},
-        )
-        server = config.get_server("main")
-        get_server_mock.return_value.config = server
-        monkeypatch.setattr(
-            barman,
-            "__config__",
-            (config,),
-        )
-        # WHEN recover is called with the specified --recovery-staging-path
-        mock_restore_args.recovery_staging_path = recovery_staging_path_arg
-
-        # WITH a barman recover command
-        with pytest.raises(SystemExit):
-            restore(mock_restore_args)
-
-        # THEN if we expected an error the error was observed
-        _, err = capsys.readouterr()
-        errors = [msg for msg in err.split("\n") if msg.startswith("ERROR: ")]
-        if should_error:
-            assert len(err) > 0
-            assert any([error_substring in msg for msg in errors])
-        else:
-            assert len(errors) == 0
-            # AND if we expected success, the server config recovery staging
-            # path matches expectations
-            assert server.recovery_staging_path == expected_recovery_staging_path
-
-    @pytest.mark.parametrize(
-        (
-            "backup_is_incremental_or_encrypted",
-            "local_staging_path_arg",
-            "local_staging_path_config",
-            "expected_local_staging_path",
-            "should_error",
-            "error_substring",
-        ),
-        [
-            # If a backup is not incremental or encrypted then local_staging_path is
-            # ignored
-            (False, None, None, None, False, None),
-            # If a backup is incremental or encrypted and an argument is provided then
-            # it should be set in the config
-            (True, "/from/arg", None, "/from/arg", False, None),
-            # If a backup is incremental or encrypted and a bad argument is provided
-            # then it should error
-            (
-                True,
-                "from/arg",
-                None,
-                None,
-                True,
-                "Cannot parse local staging path: Invalid value : 'from/arg' (must "
-                "be an absolute path)",
-            ),
-            # If a backup is incremental or encrypted and a config value is set then it
-            # should be set in the config
-            (True, None, "/from/conf", "/from/conf", False, None),
-            # If a backup is incremental or encrypted and both arg and config are set
-            # then arg takes precedence
-            (True, "/from/arg", "/from/conf", "/from/arg", False, None),
-        ],
-    )
-    @patch("barman.cli.parse_backup_id")
-    @patch("barman.cli.get_server")
-    def test_restore_local_staging_path_similar_code_path_enc_or_inc(
-        self,
-        get_server_mock,
-        parse_backup_id_mock,
-        mock_backup_info,
-        mock_restore_args,
-        backup_is_incremental_or_encrypted,
-        local_staging_path_arg,
-        local_staging_path_config,
-        expected_local_staging_path,
-        should_error,
-        error_substring,
-        monkeypatch,
-        capsys,
-    ):
-        """
-        Test the behavior of the restore function when using a local staging path.
-        This test verifies that the restore function correctly handles the
-        --local-staging-path argument and the local_staging_path configuration
-        option. It ensures that errors are raised when expected and that the
-        server's local staging path is set correctly on success.
-        For incremental or encrypted backups, this unit test has the same outcome
-        independently. There is a specific test that will be responsible for the
-        specific case - `test_restore_local_staging_path_specific_code_path_enc_or_inc`.
-        """
-        # GIVEN a backup
-        parse_backup_id_mock.return_value = mock_backup_info
-        # AND the backup is incremental, so it is not encrypted.
-        mock_backup_info.is_incremental = backup_is_incremental_or_encrypted
-        mock_backup_info.encryption = backup_is_incremental_or_encrypted
-        # AND a configuration with the specified local_staging_path
-        config = build_config_from_dicts(
-            global_conf={"local_staging_path": local_staging_path_config},
-        )
-        server = config.get_server("main")
-        get_server_mock.return_value.config = server
-        monkeypatch.setattr(
-            barman,
-            "__config__",
-            (config,),
-        )
-        # WHEN recover is called with the specified --local-staging-path
-        mock_restore_args.local_staging_path = local_staging_path_arg
-
-        # WITH a barman recover command
-        with pytest.raises(SystemExit):
-            restore(mock_restore_args)
-
-        # THEN if we expected an error the error was observed
-        _, err = capsys.readouterr()
-        errors = [msg for msg in err.split("\n") if msg.startswith("ERROR: ")]
-        if should_error:
-            assert len(err) > 0
-            assert any([error_substring in msg for msg in errors])
-        else:
-            assert len(errors) == 0
-            # AND if we expected success, the server config recovery staging
-            # path matches expectations
-            assert server.local_staging_path == expected_local_staging_path
-
-    @pytest.mark.parametrize(
-        (
-            "backup_is_incremental",
-            "backup_encryption",
-            "local_staging_path_arg",
-            "local_staging_path_config",
-            "error_substring",
-        ),
-        [
-            # If a backup is incremental and not encrypted and no local_staging_path is
-            # provided we expect an error
-            (
-                True,
-                None,
-                None,
-                None,
-                "backup will be combined with pg_combinebackup in the barman host but "
-                "no local staging path is provided.",
-            ),
-            # If a backup is not incremental and encrypted and no local_staging_path is
-            # provided we expect an error
-            (
-                False,
-                "gpg",
-                None,
-                None,
-                "backup is encrypted with 'gpg' and it will be decrypted in the",
-            ),
-        ],
-    )
-    @patch("barman.cli.parse_backup_id")
-    @patch("barman.cli.get_server")
-    def test_restore_local_staging_path_specific_code_path_enc_or_inc(
-        self,
-        get_server_mock,
-        parse_backup_id_mock,
-        mock_backup_info,
-        mock_restore_args,
-        backup_is_incremental,
-        backup_encryption,
-        local_staging_path_arg,
-        local_staging_path_config,
-        error_substring,
-        monkeypatch,
-        capsys,
-    ):
-        """
-        Test a specific behavior of the restore function when using a local staging
-        path with encrypted or incremental backups. It ensures that errors are raised
-        when expected.
-        """
-        # GIVEN a backup
-        parse_backup_id_mock.return_value = mock_backup_info
-        # AND the backup is encrypted, so it is not incremental.
-        mock_backup_info.encryption = backup_encryption
-        mock_backup_info.is_incremental = backup_is_incremental
-        # AND a configuration with the specified local_staging_path
-        config = build_config_from_dicts(
-            global_conf={"local_staging_path": local_staging_path_config},
-        )
-        server = config.get_server("main")
-        get_server_mock.return_value.config = server
-        monkeypatch.setattr(
-            barman,
-            "__config__",
-            (config,),
-        )
-        # WHEN recover is called with the specified --local-staging-path
-        mock_restore_args.local_staging_path = local_staging_path_arg
-
-        # WITH a barman recover command
-        with pytest.raises(SystemExit):
-            restore(mock_restore_args)
-
-        # THEN if we expected an error the error was observed
-        _, err = capsys.readouterr()
-        errors = [msg for msg in err.split("\n") if msg.startswith("ERROR: ")]
-        assert len(err) > 0
-        assert any([error_substring in msg for msg in errors])
-
     @patch("barman.cli.get_server")
     @patch("barman.cli.parse_staging_path")
     def test_restore_staging_path(
@@ -1095,7 +818,18 @@ class TestCli(object):
             (config,),
         )
 
-        # Case 1: When remote-ssh-command is not set
+        # Case 1: When staging_path is set and staging_location is unset
+        mock_restore_args.staging_path = "/some/staging/path"
+        mock_restore_args.staging_location = None
+        with pytest.raises(SystemExit):
+            restore(mock_restore_args)
+        # THEN an error is raised and logged because it is required
+        _, err = capsys.readouterr()
+        assert (
+            "ERROR: --staging-location must be set when --staging-path is provided"
+        ) in err
+
+        # Case 2: When remote-ssh-command is not set
         mock_restore_args.staging_location = "remote"
         mock_restore_args.remote_ssh_command = None
         with pytest.raises(SystemExit):
@@ -1107,12 +841,127 @@ class TestCli(object):
             "--remote-ssh-command to be set"
         ) in err
 
-        # Case 2: When remote-ssh-command is set
+        # Case 3: When remote-ssh-command is set
         mock_restore_args.remote_ssh_command = "ssh postgres@pg"
         with pytest.raises(SystemExit):
             restore(mock_restore_args)
         # THEN the server's staging path is set correctly
         assert server.staging_location == mock_restore_args.staging_location
+
+    @pytest.mark.parametrize(
+        (
+            "staging_path, recovery_staging_path, local_staging_path, is_incremental, compression, encryption, should_fail, should_warn"
+        ),
+        [
+            # Case 1: compressed backup, no staging_path, no recovery_staging_path -> should fail
+            (None, None, None, False, "gzip", None, True, False),
+            # Case 2: compressed backup, no staging_path, recovery_staging_path set -> should warn, not fail
+            (
+                None,
+                "/path/to/some/recovery/staging",
+                None,
+                False,
+                "gzip",
+                None,
+                False,
+                True,
+            ),
+            # Case 3: incremental backup, no staging_path, no local_staging_path -> should fail
+            (None, None, None, True, None, None, True, False),
+            # Case 4: incremental backup, no staging_path, local_staging_path set -> should warn, not fail
+            (None, None, "/path/to/some/local/staging", True, None, None, False, True),
+            # Case 5: encrypted backup, no staging_path, no local_staging_path -> should fail
+            (None, None, None, False, None, "gpg", True, False),
+            # Case 6: encrypted backup, no staging_path, local_staging_path set -> should warn, not fail
+            (
+                None,
+                None,
+                "/path/to/some/local/staging",
+                False,
+                None,
+                "gpg",
+                False,
+                True,
+            ),
+            # Case 7: compressed backup, staging_path set -> should not fail, no warning
+            ("some/staging/path", None, None, False, "gzip", None, False, False),
+            # Case 8: incremental backup, staging_path set -> should not fail, no warning
+            ("some/staging/path", None, None, True, None, None, False, False),
+            # Case 9: encrypted backup, staging_path set -> should not fail, no warning
+            ("some/staging/path", None, None, False, None, "gpg", False, False),
+        ],
+    )
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_restore_staging_path_supports_deprecated_options(
+        self,
+        mock_get_server,
+        parse_backup_id_mock,
+        mock_restore_args,
+        mock_backup_info,
+        monkeypatch,
+        capsys,
+        staging_path,
+        recovery_staging_path,
+        local_staging_path,
+        is_incremental,
+        compression,
+        encryption,
+        should_fail,
+        should_warn,
+    ):
+        """
+        Test the restore CLI function considers and supports the deprecated
+        staging options when validating.
+        """
+        # GIVEN a server with a configuration
+        config = build_config_from_dicts()
+        server = config.get_server("main")
+        mock_get_server.return_value.config = server
+        monkeypatch.setattr(
+            barman,
+            "__config__",
+            (config,),
+        )
+
+        # Set the staging path options
+        mock_restore_args.staging_path = staging_path
+        mock_restore_args.recovery_staging_path = recovery_staging_path
+        mock_restore_args.local_staging_path = local_staging_path
+
+        # Set relevant backup_info attributes
+        parse_backup_id_mock.return_value = mock_backup_info
+        mock_backup_info.is_incremental = is_incremental
+        mock_backup_info.compression = compression
+        mock_backup_info.encryption = encryption
+        mock_backup_info.server = server
+
+        # IF it should fail THEN an error is raised and logged
+        if should_fail:
+            with pytest.raises(SystemExit):
+                restore(mock_restore_args)
+            _, err = capsys.readouterr()
+            assert "ERROR: Cannot restore from backup" in err
+            return
+
+        # ELSE it runs successfully
+        with pytest.raises(SystemExit):
+            restore(mock_restore_args)
+
+        # AND IF it should warn THEN a warning is logged about deprecated options
+        if should_warn:
+            _, err = capsys.readouterr()
+            assert (
+                "WARNING: recovery_staging_path and local_staging_path, and their equivalent CLI "
+                "options --recovery-staging-path and --local-staging-path, are "
+                "deprecated and will be removed in a future release. "
+                "Please use staging_path and staging_location, and their equivalent CLI "
+                "options --staging-path and --staging-location, instead." in err
+            )
+        # ELSE no warning is logged
+        else:
+            _, err = capsys.readouterr()
+            assert "WARNING" not in err
 
     @pytest.mark.parametrize(
         ("status", "should_error"),
