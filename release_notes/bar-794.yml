@@ -1,0 +1,9 @@
+- summary: Fix errors when deleting orphaned and obsolete backups
+  description: |
+    Resolved an issue where applying retention policies could fail if a backup
+    was both orphaned and obsolete. Barman now verifies that a base backup
+    directory exists before attempting to delete it, preventing errors when the
+    directory has already been removed.
+  type: bugfix
+  jira_tickets:
+    - BAR-794
