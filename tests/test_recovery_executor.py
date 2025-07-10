@@ -52,7 +52,7 @@ from barman.recovery_executor import (
     CombineOperation,
     ConfigurationFileMangeler,
     DecompressOperation,
-    DecryptionOperation,
+    DecryptOperation,
     IncrementalRecoveryExecutor,
     MainRecoveryExecutor,
     RecoveryExecutor,
@@ -2007,6 +2007,7 @@ class TestRecoveryExecutor(object):
             expected_file_list, temp_dir, ":" + recovery_dir
         )
 
+    # TODO: REMOVE THIS AFTER RECOVERYOPERATIONS ARE COMPLETE.
     @mock.patch("shutil.copy2")
     @mock.patch("tempfile.mkdtemp")
     def test__decrypt_backup(
@@ -4936,6 +4937,256 @@ class TestCombineOperation(object):
         )
 
 
+class TestDecryptOperation(object):
+    """
+    Test suite for the `DecryptOperation` class in the recovery executor.
+
+    This suite verifies the functionality of decrypting an encrypted backup as
+    part of a recovery process. It includes tests for:
+    - Aborting the operation when a required passphrase is not provided.
+    - Successfully executing the decryption process when a passphrase is
+      available, ensuring the correct methods are called.
+    - The internal `_decrypt_backup` logic, including manifest copying and
+      invoking the correct decryption method for each encrypted file.
+    - The `_should_execute` logic, which determines if the operation is
+      necessary based on the backup's encryption status.
+    """
+
+    @mock.patch("barman.recovery_executor.get_passphrase_from_command")
+    @mock.patch("barman.recovery_executor.DecryptOperation._prepare_directory")
+    def test__execute_returns_volatile(self, prep_dir_mock, mock_passphrase):
+        """
+        Test that `_execute` returns a `VolatileBackupInfo` object when a
+        passphrase is provided.
+
+        This test verifies that the `_execute` method of `DecryptOperation`:
+          - Calls the appropriate internal methods (`_prepare_directory`)
+          - Logs debug and info messages.
+          - Returns an instance of `VolatileBackupInfo` with the correct base directory.
+
+        Mocks are used to isolate the method from its dependencies and to assert that
+        the correct calls are made.
+
+        :param _patcher.patch prep_dir_mock: Mock for the `_prepare_directory` method.
+        :param _patcher.patch mock_passphrase: Mock for the
+            `get_passphrase_from_command` method.
+        :raises AssertionError: If the expected methods are not called or the result is
+        not as expected.
+        """
+        backup_info = testing_helpers.build_test_backup_info(
+            backup_id="backup-id", server_name="main"
+        )
+        backup_manager = testing_helpers.build_backup_manager(
+            main_conf={"backup_options": "concurrent_backup"}
+        )
+        decrypt_operation = DecryptOperation(
+            backup_manager.config, backup_manager.server, backup_manager
+        )
+
+        with mock.patch("barman.recovery_executor.output") as output_mock:
+            result = decrypt_operation._execute(
+                backup_info=backup_info,
+                destination="/tmp/dest",
+                tablespaces=None,
+                remote_command=None,
+                recovery_info=None,
+                safe_horizon=None,
+                is_last_operation=False,
+            )
+            output_mock.info.assert_called_once()
+        prep_dir_mock.assert_called_once_with("/tmp/dest/backup-id/data")
+        assert isinstance(result, VolatileBackupInfo)
+        assert result.get_base_directory() == "/tmp/dest"
+
+    @mock.patch("barman.recovery_executor.DecryptOperation._execute_on_chain")
+    def test__execute_calls__decrypt_backup(self, mock_ex_on_chain):
+        """
+        Test that `DecryptOperation._execute` calls `_decrypt_backup` when a passphrase
+        is provided.
+
+        This test verifies that when the `passphrase` argument is supplied to the
+        `_execute` method of `DecryptOperation`, the internal `_execute_on_chain` method
+        is called with the `_decrypt_backup` method, and the result is returned as
+        expected.
+
+        Steps:
+            1. Create a test backup info and backup manager.
+            2. Instantiate a DecryptOperation.
+            3. Patch the `_execute_on_chain` method to track calls.
+            4. Call `_execute` with a passphrase.
+            5. Assert that `_decrypt_backup` was passed to `_execute_on_chain`.
+            6. Assert that the result is as expected.
+
+        :param _patcher.patch mock_ex_on_chain: Mock for the `_execute_on_chain` method
+        """
+        backup_info = testing_helpers.build_test_backup_info(
+            backup_id="backup-id", server_name="main"
+        )
+        backup_manager = testing_helpers.build_backup_manager(
+            main_conf={"backup_options": "concurrent_backup"}
+        )
+        decrypt_operation = DecryptOperation(
+            backup_manager.config, backup_manager.server, backup_manager
+        )
+
+        mock_ex_on_chain.return_value = "VOLATILE_BACKUP"
+
+        result = decrypt_operation._execute(
+            backup_info=backup_info,
+            destination="/tmp/dest",
+            tablespaces=None,
+            remote_command=None,
+            recovery_info=None,
+            safe_horizon=None,
+            is_last_operation=False,
+        )
+        # Assert
+        mock_ex_on_chain.assert_called_once_with(
+            backup_info, decrypt_operation._decrypt_backup, "/tmp/dest"
+        )
+        assert result == "VOLATILE_BACKUP"
+
+    @mock.patch("shutil.copy2")
+    @mock.patch("barman.recovery_executor.get_passphrase_from_command")
+    @mock.patch("barman.recovery_executor.DecryptOperation._prepare_directory")
+    def test__decrypt_backup(
+        self,
+        mock_prep_dir,
+        mock_passphrase,
+        mock_cp,
+        tmpdir,
+    ):
+        """
+        This test ensures that:
+            - The appropriate encryption manager is selected based on the backup's
+              encryption type.
+            - The backup manifest file is copied to the correct destination directory.
+            - The decryption method is invoked for each encrypted file in the backup
+              directory, using the correct passphrase.
+
+        Mocks are used to isolate file operations and encryption handling, allowing the
+        test to focus on the logic of the decryption process.
+
+        :param _patcher.patch mock_prep_dir: Mock for the directory preparation method.
+        :param _patcher.patch mock_passphrase: Mock for retrieving the decryption
+            passphrase.
+        :param _patcher.patch mock_cp: Mocked `shutil.copy2` function.
+        :param py.path.local tmpdir: Temporary directory fixture provided by pytest.
+        """
+        server = testing_helpers.build_real_server(
+            main_conf={
+                "local_staging_path": "/tmp",
+                "encryption_key_id": "key_id",
+                "backup_compression_format": "tar",
+                "backup_compression": "none",
+                "encryption_passphrase_command": "echo 'test-passphrase'",
+            }
+        )
+        backup_manager = testing_helpers.build_backup_manager(server=server)
+        operation = DecryptOperation(
+            backup_manager.config, backup_manager.server, backup_manager
+        )
+
+        file = tmpdir.join("test_file")
+        file.write("")
+        mock_backup_info = Mock(
+            server=server, backup_id="backup_id", filename=file, encryption="gpg"
+        )
+
+        destination = "/tmp/barman-decryption-random"
+        mock_backup_info.get_data_directory.return_value = "default/backup_id/data"
+        mock_backup_info.get_directory_entries.return_value = [
+            "default/backup_id/data/data.tar.gpg",
+            "default/backup_id/data/11892.tar.gpg",
+            "default/backup_id/data/backup_manifest",
+        ]
+        backup_manager.encryption_manager.get_encryption = Mock()
+
+        decrypter = backup_manager.encryption_manager.get_encryption.return_value
+        mock_passphrase.return_value = bytearray(b"test-passphrase")
+        # Call the method
+        operation._decrypt_backup(mock_backup_info, destination)
+
+        backup_manager.encryption_manager.get_encryption.assert_called_once_with(
+            mock_backup_info.encryption
+        )
+        mock_prep_dir.assert_called_once_with(
+            "/tmp/barman-decryption-random/backup_id/data"
+        )
+        mock_cp.assert_called_once_with(
+            "default/backup_id/data/backup_manifest",
+            "/tmp/barman-decryption-random/backup_id/data",
+        )
+
+        decrypter.decrypt.call_count == 2
+        decrypter.decrypt.assert_any_call(
+            file="default/backup_id/data/data.tar.gpg",
+            dest="/tmp/barman-decryption-random/backup_id/data",
+            passphrase=mock_passphrase.return_value,
+        )
+        decrypter.decrypt.assert_any_call(
+            file="default/backup_id/data/11892.tar.gpg",
+            dest="/tmp/barman-decryption-random/backup_id/data",
+            passphrase=mock_passphrase.return_value,
+        )
+
+    @pytest.mark.parametrize(
+        "encryption, should_execute", [("gpg", True), (None, False)]
+    )
+    def test_should_execute_returns_when_encryption_present(
+        self, encryption, should_execute
+    ):
+        """
+        Test that `_should_execute` returns the correct value based
+        on encryption presence.
+
+        This test verifies that the `_should_execute` method of `DecryptOperation`
+        returns True when the `backup_info` object has encryption set to ``gpg``, and
+        ``False`` when encryption is ``None``.
+
+        :param str encryption: The encryption type to set on the backup_info mock object.
+        :param bool should_execute: The expected boolean result from `_should_execute`.
+        """
+        backup_info = Mock()
+        backup_info.encryption = encryption
+        operation = DecryptOperation(Mock(), Mock(), Mock())
+        assert operation._should_execute(backup_info) is should_execute
+
+    @pytest.mark.parametrize(
+        "staging_location, expect_warning", [("remote", True), ("local", False)]
+    )
+    @mock.patch("barman.recovery_executor.fs.unix_command_factory")
+    @mock.patch("barman.recovery_executor.output")
+    def test__get_command_interface(
+        self, mock_output, mock_unix_command_factory, staging_location, expect_warning
+    ):
+        backup_manager = testing_helpers.build_backup_manager(
+            main_conf={
+                "backup_options": "concurrent_backup",
+                "staging_location": staging_location,
+            }
+        )
+        op = DecryptOperation(
+            backup_manager.config, backup_manager.server, backup_manager
+        )
+        remote_command = "ssh user@host"
+        result = op._get_command_interface(remote_command)
+        mock_unix_command_factory.assert_called_once_with(
+            None, backup_manager.server.path
+        )
+        assert result == mock_unix_command_factory.return_value
+        if expect_warning:
+            mock_output.warning.assert_called_once_with(
+                "'staging_location' is set to 'remote', but decryption requires GPG,"
+                "which is configured on the Barman host. For this reason, "
+                "decryption will be performed locally, as if 'staging_location' were "
+                "set to 'local'. This applies only to decryption, other steps will "
+                "still honor the configured 'staging_location'."
+            )
+        else:
+            mock_output.warning.assert_not_called()
+
+
 class TestMainRecoveryExecutor(object):
     """
     Tests for the :class:`MainRecoveryExecutor` class.
@@ -4970,7 +5221,7 @@ class TestMainRecoveryExecutor(object):
                 False,
                 False,
                 True,
-                [DecryptionOperation],
+                [DecryptOperation],
             ),
             (
                 True,
@@ -4978,7 +5229,7 @@ class TestMainRecoveryExecutor(object):
                 False,
                 False,
                 True,
-                [DecryptionOperation, RsyncCopyOperation],
+                [DecryptOperation, RsyncCopyOperation],
             ),
             (
                 False,
@@ -5002,7 +5253,7 @@ class TestMainRecoveryExecutor(object):
                 True,
                 False,
                 True,
-                [DecryptionOperation, CombineOperation],
+                [DecryptOperation, CombineOperation],
             ),
             (
                 True,
@@ -5010,7 +5261,7 @@ class TestMainRecoveryExecutor(object):
                 True,
                 False,
                 True,
-                [DecryptionOperation, CombineOperation, RsyncCopyOperation],
+                [DecryptOperation, CombineOperation, RsyncCopyOperation],
             ),
             (
                 False,
@@ -5034,7 +5285,7 @@ class TestMainRecoveryExecutor(object):
                 True,
                 True,
                 True,
-                [DecryptionOperation, DecompressOperation, CombineOperation],
+                [DecryptOperation, DecompressOperation, CombineOperation],
             ),
             (
                 True,
@@ -5043,7 +5294,7 @@ class TestMainRecoveryExecutor(object):
                 True,
                 True,
                 [
-                    DecryptionOperation,
+                    DecryptOperation,
                     DecompressOperation,
                     CombineOperation,
                     RsyncCopyOperation,
@@ -5071,7 +5322,7 @@ class TestMainRecoveryExecutor(object):
                 False,
                 True,
                 True,
-                [DecryptionOperation, DecompressOperation],
+                [DecryptOperation, DecompressOperation],
             ),
             (
                 True,
@@ -5079,7 +5330,7 @@ class TestMainRecoveryExecutor(object):
                 False,
                 True,
                 True,
-                [DecryptionOperation, DecompressOperation, RsyncCopyOperation],
+                [DecryptOperation, DecompressOperation, RsyncCopyOperation],
             ),
             (
                 True,
@@ -5095,7 +5346,7 @@ class TestMainRecoveryExecutor(object):
                 False,
                 False,
                 True,
-                [DecryptionOperation, RsyncCopyOperation],
+                [DecryptOperation, RsyncCopyOperation],
             ),
             (
                 True,
@@ -5111,7 +5362,7 @@ class TestMainRecoveryExecutor(object):
                 True,
                 False,
                 True,
-                [DecryptionOperation, RsyncCopyOperation, CombineOperation],
+                [DecryptOperation, RsyncCopyOperation, CombineOperation],
             ),
             (
                 True,
@@ -5128,7 +5379,7 @@ class TestMainRecoveryExecutor(object):
                 True,
                 True,
                 [
-                    DecryptionOperation,
+                    DecryptOperation,
                     RsyncCopyOperation,
                     DecompressOperation,
                     CombineOperation,
@@ -5148,7 +5399,7 @@ class TestMainRecoveryExecutor(object):
                 False,
                 True,
                 True,
-                [DecryptionOperation, RsyncCopyOperation, DecompressOperation],
+                [DecryptOperation, RsyncCopyOperation, DecompressOperation],
             ),
         ],
     )
