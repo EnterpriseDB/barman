@@ -24,11 +24,13 @@ import logging
 import os
 import subprocess
 from abc import ABC, abstractmethod
+from functools import lru_cache
 
 from barman.command_wrappers import GPG, Command, Handler
 from barman.exceptions import CommandFailedException, EncryptionCommandException
 
 
+@lru_cache(maxsize=1)
 def get_passphrase_from_command(command):
     """
     Execute a shell command to retrieve a passphrase.

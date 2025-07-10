@@ -153,6 +153,8 @@ class RecoveryExecutor(object):
             backup_info, remote_command, dest, recovery_conf_filename
         )
 
+        # TODO: REMOVE THIS AFTER RECOVERYOPERATIONS ARE COMPLETE.
+        # get_passphrase_from_command is called inside DecryptOperation and _xlog_copy
         passphrase = None
         if self.config.encryption_passphrase_command:
             output.info(
@@ -166,6 +168,7 @@ class RecoveryExecutor(object):
                 self.config.encryption_passphrase_command
             )
 
+        # TODO: REMOVE THIS AFTER RECOVERYOPERATIONS ARE COMPLETE.
         # If the backup is encrypted, it consists of tarballs (Barman only supports
         # encryption of tarball based backups for now).
         # Decrypt as the first step to prepare the backup, then begin the recovery
@@ -196,6 +199,7 @@ class RecoveryExecutor(object):
                 passphrase=passphrase,
                 recovery_info=recovery_info,
             )
+            # TODO: REMOVE UNTIL HERE AFTER RECOVERYOPERATIONS ARE COMPLETE.
 
         output.info(
             "Starting %s restore for server %s using backup %s",
@@ -346,6 +350,7 @@ class RecoveryExecutor(object):
                 )
 
                 # Restore WAL segments into the wal_dest directory
+                # TODO: REMOVE passphrase arg AFTER RECOVERYOPERATIONS ARE COMPLETE.
                 self._xlog_copy(
                     required_xlog_files,
                     recovery_info["wal_dest"],
@@ -364,6 +369,7 @@ class RecoveryExecutor(object):
                     self.config.name,
                 )
                 output.close_and_exit()
+
             # If WAL files are put directly in the pg_xlog directory,
             # avoid shipping of just recovered files
             # by creating the corresponding archive status file
@@ -372,6 +378,11 @@ class RecoveryExecutor(object):
                 self._generate_archive_status(
                     recovery_info, remote_command, required_xlog_files
                 )
+
+        # get_passphrase_from_command.cache_clear()
+        # TODO: REMOVE THIS AFTER RECOVERYOPERATIONS ARE COMPLETE and uncomment code
+        # above. The scope of passphrase will be the methods of DecrypOpeartion and
+        # _xlog_copy.
 
         # At this point, the encryption passphrase is not needed anymore, so we dispose
         # it from memory to avoid lingering. See the security note in the GPG command
@@ -903,6 +914,8 @@ class RecoveryExecutor(object):
             msg = "data transfer failure"
             raise DataTransferFailure.from_command_error("rsync", e, msg)
 
+    # TODO: Implement get_passphrase_from_command inside here AFTER RECOVERYOPERATIONS
+    # ARE COMPLETE.
     def _xlog_copy(self, required_xlog_files, wal_dest, remote_command, passphrase):
         """
         Restore WAL segments
@@ -1492,10 +1505,10 @@ class RecoveryExecutor(object):
             temp_dir.delete()
         self.temp_dirs = []
 
+    # TODO: REMOVE THIS AFTER RECOVERYOPERATIONS ARE COMPLETE.
     def _decrypt_backup(self, backup_info, passphrase, recovery_info):
         """
         Decrypt the given backup into the local staging path.
-
         :param barman.infofile.LocalBackupInfo backup_info: the backup to be decrypted.
         :param bytearray passphrase: the passphrase for decrypting the backup.
         :param dict recovery_info: Dictionary of recovery information.
@@ -1607,6 +1620,7 @@ class TarballRecoveryExecutor(RemoteConfigRecoveryExecutor):
         super(TarballRecoveryExecutor, self).__init__(backup_manager)
         self.compression = compression
 
+    # TODO: REMOVE passphrase arg AFTER RECOVERYOPERATIONS ARE COMPLETE.
     def _backup_copy(
         self,
         backup_info,
@@ -2628,7 +2642,7 @@ class RecoveryOperation(ABC):
             such files would never appear in the destination directory.
             With the new structure provided by the :class:`MainRecoveryExecutor`, we
             have operations that might direct its output straight to the destination
-            directory, e.g. :class:`CombineOperation` or :class:`DecryptionOperation`,
+            directory, e.g. :class:`CombineOperation` or :class:`DecryptOperation`,
             without providing any means to exclude specific content. For these cases,
             we need to ensure that unwanted files are removed after the operation
             is finished, which is the main purpose of this method.
@@ -2957,7 +2971,7 @@ class RsyncCopyOperation(RecoveryOperation):
             raise DataTransferFailure.from_command_error("rsync", e, msg)
 
 
-class DecryptionOperation(RecoveryOperation):
+class DecryptOperation(RecoveryOperation):
     """
     Operation responsible for decrypting backups.
 
@@ -2969,11 +2983,6 @@ class DecryptionOperation(RecoveryOperation):
 
     NAME = "barman-decryption"
 
-    def _get_command_interface(self, remote_command):
-        # Decryption will always happen locally regardless of config.staging_location,
-        # so we override this method to always return a local command
-        return fs.unix_command_factory(None, self.server.path)
-
     def _execute(
         self,
         backup_info,
@@ -2984,15 +2993,32 @@ class DecryptionOperation(RecoveryOperation):
         safe_horizon,
         is_last_operation,
     ):
-        return self._execute_on_chain(
-            backup_info,
-            self._decrypt_backup,
-            destination,
-            tablespaces,
-            remote_command,
-            recovery_info,
-            is_last_operation,
-        )
+        return self._execute_on_chain(backup_info, self._decrypt_backup, destination)
+
+    def _get_command_interface(self, remote_command):
+        """
+        Returns a command interface for executing commands locally.
+
+        .. note::
+            This method overrides the default behavior to ensure that decryption
+            always occurs on the local machine, regardless of the configuration
+            for staging location. It achieves this by always returning a local
+           command interface.
+
+        :param str|None remote_command: The SSH remote command to use for the recovery,
+            in case of a remote recovery. If ``None``, it means the recovery is local
+        :return barman.fs.UnixLocalCommand: The command interface for executing
+            operations
+        """
+        if self.config.staging_location == "remote":
+            output.warning(
+                "'staging_location' is set to 'remote', but decryption requires GPG,"
+                "which is configured on the Barman host. For this reason, "
+                "decryption will be performed locally, as if 'staging_location' were "
+                "set to 'local'. This applies only to decryption, other steps will "
+                "still honor the configured 'staging_location'."
+            )
+        return fs.unix_command_factory(None, self.server.path)
 
     def _should_execute(self, backup_info):
         """
@@ -3003,8 +3029,64 @@ class DecryptionOperation(RecoveryOperation):
         """
         return backup_info.encryption is not None
 
-    def _decrypt_backup(self, *args, **kwargs):
-        pass
+    def _decrypt_backup(self, backup_info, destination):
+        """
+        Decrypt the given backup into the local staging path.
+
+        .. note::
+            We don't need to check whether this is the last operation because encrypted
+            backups are always in 'tar' format. This format requires decryption to a
+            staging path before decompression can occur elsewhere.
+
+        :param barman.infofile.LocalBackupInfo backup_info: The backup to be decrypted.
+        :param str destination: Path to the directory where the backup will be restored.
+        """
+        passphrase = None
+        if self.config.encryption_passphrase_command:
+            output.debug(
+                "The 'encryption_passphrase_command' setting is present in the "
+                "configuration. This implies that the catalog contains encrypted "
+                "backup or WAL files. The private key will be retrieved to perform "
+                "decryption as needed."
+            )
+
+            passphrase = get_passphrase_from_command(
+                self.config.encryption_passphrase_command
+            )
+        if not passphrase:
+            output.error(
+                "Encrypted backup '%s' was found for server '%s', but "
+                "'encryption_passphrase_command' is not configured correctly. "
+                "Please fix it before attempting a restore.",
+                backup_info.backup_id,
+                self.server.config.name,
+            )
+            output.close_and_exit()
+
+        volatile_backup_info = self._create_volatile_backup_info(
+            backup_info, destination
+        )
+        destination = volatile_backup_info.get_data_directory()
+        self._prepare_directory(destination)
+        output.info(
+            "Decrypting files from backup '%s' for server '%s'.",
+            backup_info.backup_id,
+            self.server.config.name,
+        )
+        encryption_manager = self.backup_manager.encryption_manager
+        encryption_handler = encryption_manager.get_encryption(backup_info.encryption)
+        for backup_file in backup_info.get_directory_entries("data"):
+            # We "reconstruct" the "original backup" in the staging path. Encrypted
+            # files are decrypted, while unencrypted files are copied as-is.
+            if backup_file.endswith(".gpg"):
+                output.debug("Decrypting file %s at %s" % (backup_file, destination))
+                _ = encryption_handler.decrypt(
+                    file=backup_file, dest=destination, passphrase=passphrase
+                )
+            else:
+                shutil.copy2(backup_file, destination)
+
+        return volatile_backup_info
 
 
 class DecompressOperation(RecoveryOperation):
@@ -3447,7 +3529,7 @@ class MainRecoveryExecutor(RemoteConfigRecoveryExecutor):
         any_encrypted = any([b.encryption is not None for b in backup_chain])
         if any_encrypted:
             operations.append(
-                DecryptionOperation(self.config, self.server, self.backup_manager)
+                DecryptOperation(self.config, self.server, self.backup_manager)
             )
 
         any_compressed = any([b.compression is not None for b in backup_chain])
