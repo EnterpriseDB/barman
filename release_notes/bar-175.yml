@@ -1,0 +1,14 @@
+- summary: Improved S3 connectivity check to support Prefix-Scoped Permissions.
+  description: |
+    The S3 connectivity test logic has been updated to better support granular IAM
+    policies. The test no longer relies on the HeadBucket API call, which requires
+    bucket-level s3:ListBucket permissions. Instead, it now performs a check using the
+    ListObjectsV2 API call, that is compatible with IAM policies scoped to a specific
+    prefix (e.g., s3:prefix conditions). This prevents false-negative connection
+    failures for users whose permissions are correctly limited to a specific path within
+    a bucket.
+
+    Special thanks to @DimitriosLisenko <dima@cloud66.com> for the PR contribution.
+  type: minor_change
+  jira_tickets:
+    - BAR-175
