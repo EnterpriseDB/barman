@@ -643,7 +643,7 @@ class ServerConfig(BaseConfig):
         "last_backup_maximum_age",
         "last_backup_minimum_size",
         "last_wal_maximum_age",
-        "local_staging_path",
+        "local_staging_path",  # Deprecated, replaced by staging_path and staging_location
         "max_incoming_wals_queue",
         "minimum_redundancy",
         "network_compression",
@@ -675,7 +675,7 @@ class ServerConfig(BaseConfig):
         "primary_conninfo",
         "primary_ssh_command",
         "recovery_options",
-        "recovery_staging_path",
+        "recovery_staging_path",  # Deprecated, replaced by staging_path and staging_location
         "create_slot",
         "retention_policy",
         "retention_policy_mode",

@@ -1068,6 +1068,31 @@ def restore(args):
             output.close_and_exit()
         server.config.staging_location = args.staging_location
 
+    # Staging location must be set if staging path is provided
+    if server.config.staging_path and not server.config.staging_location:
+        output.error("--staging-location must be set when --staging-path is provided")
+        output.close_and_exit()
+
+    # TODO: remove once we remove the deprecated recovery_staging_path option
+    # Parse and overrides the recovery staging path if set
+    if args.recovery_staging_path is not None:
+        try:
+            recovery_staging_path = parse_staging_path(args.recovery_staging_path)
+        except ValueError as exc:
+            output.error("Cannot parse recovery staging path: %s", str(exc))
+            output.close_and_exit()
+        server.config.recovery_staging_path = recovery_staging_path
+
+    # TODO: remove once we remove the deprecated local_staging_path option
+    # Parse and overrides the local staging path if set
+    if args.local_staging_path is not None:
+        try:
+            local_staging_path = parse_staging_path(args.local_staging_path)
+        except ValueError as exc:
+            output.error("Cannot parse local staging path: %s", str(exc))
+            output.close_and_exit()
+        server.config.local_staging_path = local_staging_path
+
     if backup_info.status not in BackupInfo.STATUS_COPY_DONE:
         output.error(
             "Cannot restore from backup '%s' of server '%s': "
@@ -1077,74 +1102,76 @@ def restore(args):
         )
         output.close_and_exit()
 
-    # If the backup to be recovered is compressed then there are additional
-    # checks to be carried out
-    if backup_info.compression is not None:
-        # Set the recovery staging path from the cli if it is set
-        if args.recovery_staging_path is not None:
-            try:
-                recovery_staging_path = parse_staging_path(args.recovery_staging_path)
-            except ValueError as exc:
-                output.error("Cannot parse recovery staging path: %s", str(exc))
-                output.close_and_exit()
-            server.config.recovery_staging_path = recovery_staging_path
-        # If the backup is compressed but there is no recovery_staging_path
-        # then this is an error - the user *must* tell barman where recovery
-        # data can be staged.
-        if server.config.recovery_staging_path is None:
+    # TODO: rethink the logic below after we remove the deprecated
+    # recovery_staging_path and local_staging_path options
+
+    # If the user does not have a staging path set, check if maybe they are using the
+    # old staging options (recovery_staging_path or local_staging_path), which are
+    # deprecated, but still supported. The whole block below handles that
+    if (
+        any(
+            [
+                backup_info.is_incremental,
+                backup_info.compression,
+                backup_info.encryption,
+            ]
+        )
+        and not server.config.staging_path
+    ):
+        # If the backup is encrypted and staging_path is not set, the equivalent old
+        # option local_staging_path should be
+        if backup_info.encryption and not server.config.local_staging_path:
             output.error(
                 "Cannot restore from backup '%s' of server '%s': "
-                "backup is compressed with %s compression but no recovery "
-                "staging path is provided. Either set recovery_staging_path "
-                "in the Barman config or use the --recovery-staging-path "
-                "argument.",
+                "backup is encrypted with '%s' and it will be decrypted in the "
+                "barman host but no staging path and location was provided. "
+                "Please set staging_path and staging_location in the server "
+                "configuration file, or use their equivalent CLI options "
+                "--staging-path and --staging-location",
+                args.backup_id,
+                server.config.name,
+                backup_info.encryption,
+            )
+            output.close_and_exit()
+        # If the backup is compressed and staging_path is not set, the equivalent old
+        # option recovery_staging_path should be
+        if backup_info.compression and not server.config.recovery_staging_path:
+            output.error(
+                "Cannot restore from backup '%s' of server '%s': "
+                "backup is compressed with %s compression and it will be "
+                "decompressed in a staging area but no staging "
+                "path was provided. Please set staging_path and staging_location "
+                "in the server configuration file, or use their equivalent CLI "
+                "options --staging-path and --staging-location",
                 args.backup_id,
                 server.config.name,
                 backup_info.compression,
             )
             output.close_and_exit()
+        # If the backup is incremental and staging_path is not set, the equivalent old
+        # option local_staging_path should be
+        if backup_info.is_incremental and not server.config.local_staging_path:
+            output.error(
+                "Cannot restore from backup '%s' of server '%s': "
+                "backup has to be combined with pg_combinebackup in a "
+                "staging area but no staging path and location was provided. "
+                "Please set staging_path and staging_location in the server "
+                "configuration file, or use their equivalent CLI options "
+                "--staging-path and --staging-location",
+                args.backup_id,
+                server.config.name,
+            )
+            output.close_and_exit()
+        # If we got here then the user is using one the old staging options
+        # which are deprecated, but supported, so issue a warning about it
+        output.warning(
+            "recovery_staging_path and local_staging_path, and their equivalent CLI "
+            "options --recovery-staging-path and --local-staging-path, are "
+            "deprecated and will be removed in a future release. "
+            "Please use staging_path and staging_location, and their equivalent CLI "
+            "options --staging-path and --staging-location, instead.",
+        )
 
-    # If the backup to be recovered is incremental or encrypted then there are
-    # additional checks to be carried out. Note that currently Barman does not
-    # support neither taking nor restoring backups that are both incremental
-    # AND encrypted -- you can have only one or the other feature.
-    if backup_info.is_incremental or backup_info.encryption:
-        # Set the local staging path from the cli if it is set
-        if args.local_staging_path is not None:
-            try:
-                local_staging_path = parse_staging_path(args.local_staging_path)
-            except ValueError as exc:
-                output.error("Cannot parse local staging path: %s", str(exc))
-                output.close_and_exit()
-            server.config.local_staging_path = local_staging_path
-        # If the backup is incremental or encrypted, but no ``local_staging_path`` is
-        # provided, this is considered an error — the user must specify a staging path
-        # to combine or decrypt.
-        if server.config.local_staging_path is None:
-            if backup_info.is_incremental:
-                output.error(
-                    "Cannot restore from backup '%s' of server '%s': "
-                    "backup will be combined with pg_combinebackup in the "
-                    "barman host but no local staging path is provided. "
-                    "Either set local_staging_path in the Barman config "
-                    "or use the --local-staging-path argument.",
-                    args.backup_id,
-                    server.config.name,
-                )
-                output.close_and_exit()
-            # If backup_info is not incremental, it is encrypted.
-            else:
-                output.error(
-                    "Cannot restore from backup '%s' of server '%s': "
-                    "backup is encrypted with '%s' and it will be decrypted in the "
-                    "barman host but no local staging path is provided. "
-                    "Either set local_staging_path in the Barman config "
-                    "or use the --local-staging-path argument.",
-                    args.backup_id,
-                    server.config.name,
-                    backup_info.encryption,
-                )
-                output.close_and_exit()
     # decode the tablespace relocation rules
     tablespaces = {}
     if args.tablespace:

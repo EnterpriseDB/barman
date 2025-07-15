@@ -32,6 +32,7 @@ import shutil
 import socket
 import tempfile
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from functools import partial
 from io import BytesIO
 
@@ -3623,6 +3624,54 @@ class MainRecoveryExecutor(RemoteConfigRecoveryExecutor):
 
         return operations
 
+    # TODO: Remove this method once the deprecated options staging_path and
+    # recovery_staging_path are removed
+    @contextmanager
+    def _handle_deprecated_staging_options(self, operation, remote_command):
+        """
+        Context manager to handle the deprecated staging options ``local_staging_path``
+        and ``recovery_staging_path``.
+
+        This context manager temporarily maps ``local_staging_path`` and
+        ``recovery_staging_path`` to ``staging_path`` and ``staging_location``
+        accordingly, depending on the operation to be run.
+
+        This ensures that, even if using deprecated options, operations are still able
+        to rely only on the new options, without having to handle multiple scenarios
+        themselves.
+
+        Once out of this context manager, the original values are restored in the
+        configuration object.
+
+        :param RecoveryOperation operation: The operation to be executed
+        :param str|None remote_command: The SSH remote command to use for the recovery,
+            in case of a remote recovery. If ``None``, it means the recovery is local
+        """
+        # If staging_path and staging_location are set, it means it is already using the
+        # new options, so there's nothing to handle
+        if operation.config.staging_path and operation.config.staging_location:
+            yield
+            return
+
+        original_staging_path = operation.config.staging_path
+        original_staging_location = operation.config.staging_location
+
+        # Previous to the introduction of staging_path and staging_location,
+        # decompress was the only operation that could use remote staging,
+        # depending on the remote_command
+        if isinstance(operation, DecompressOperation):
+            operation.config.staging_path = operation.config.recovery_staging_path
+            operation.config.staging_location = "remote" if remote_command else "local"
+        # Other than that, everything else was staged locally
+        else:
+            operation.config.staging_path = operation.config.local_staging_path
+            operation.config.staging_location = "local"
+
+        yield
+
+        operation.config.staging_path = original_staging_path
+        operation.config.staging_location = original_staging_location
+
     def _backup_copy(
         self,
         backup_info,
@@ -3656,29 +3705,30 @@ class MainRecoveryExecutor(RemoteConfigRecoveryExecutor):
         """
         operations = self._build_operations_pipeline(backup_info, remote_command)
         for n, operation in enumerate(operations, start=1):
-            destination = dest
-            is_last_operation = n == len(operations)
-            if not is_last_operation:
-                staging_path = os.path.join(
-                    self.config.staging_path, operation.NAME + str(os.getpid())
+            with self._handle_deprecated_staging_options(operation, remote_command):
+                destination = dest
+                is_last_operation = n == len(operations)
+                if not is_last_operation:
+                    staging_path = os.path.join(
+                        operation.config.staging_path, operation.NAME + str(os.getpid())
+                    )
+                    destination = staging_path
+                # Execute the operation on the current backup. Each operation returns a
+                # VolatileBackupInfo that reflects all changes made by that operation.
+                # The output of one operation is passed as input to the next.
+                # Each operation is responsible for handling traversal and execution
+                # on all parent backups (for incremental backups), so we don't need
+                # to manually walk the backup chain here.
+                output.debug("Executing operation %s: %s", n, operation.NAME)
+                backup_info = operation.execute(
+                    backup_info=backup_info,
+                    destination=destination,
+                    tablespaces=tablespaces,
+                    recovery_info=recovery_info,
+                    remote_command=remote_command,
+                    safe_horizon=safe_horizon,
+                    is_last_operation=is_last_operation,
                 )
-                destination = staging_path
-            # Execute the operation on the current backup. Each operation returns a
-            # VolatileBackupInfo that reflects all changes made by that operation.
-            # The output of one operation is passed as input to the next.
-            # Each operation is responsible for handling traversal and execution
-            # on all parent backups (for incremental backups), so we don't need
-            # to manually walk the backup chain here.
-            output.debug("Executing operation %s: %s", n, operation.NAME)
-            backup_info = operation.execute(
-                backup_info=backup_info,
-                destination=destination,
-                tablespaces=tablespaces,
-                recovery_info=recovery_info,
-                remote_command=remote_command,
-                safe_horizon=safe_horizon,
-                is_last_operation=is_last_operation,
-            )
 
 
 def recovery_executor_factory(backup_manager, command, backup_info):
