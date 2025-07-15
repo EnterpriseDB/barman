@@ -820,6 +820,61 @@ def check_aws_snapshot_lock_mode(value):
     return value
 
 
+def check_tag(value):
+    """
+    Parses and validates a tag string from the ``key,value`` format.
+
+    This function checks for character, length, and prefix constraints
+    as defined by AWS tag requirements.
+
+    :param value: The input string, e.g., ``owner,data-team``.
+    :return: A tuple of (key, value) if valid, or ``None`` if the input is empty.
+    :raises ValueError: If the format is wrong or constraints are not met.
+    """
+    if not value:
+        return None
+
+    # Split only on the first comma to allow commas in the value.
+    kv_lst = value.split(",", 1)
+    if len(kv_lst) != 2:
+        raise ValueError("Invalid tag format. Expected 'key,value'.")
+
+    # --- 1. Parse the Key and Value ---
+    key, val = kv_lst
+    key = key.strip()
+    val = val.strip()
+
+    # --- 2. Define Validation Rules ---
+    # Regex for allowed characters: letters, numbers, spaces, and _ . : / = + - @
+    # The hyphen is escaped (\-) to be treated as a literal.
+    allowed_chars_pattern = re.compile(r"^[a-zA-Z0-9\s_.:/=+\-@]*$")
+
+    # --- 3. Validate the Key ---
+    if not 1 <= len(key) <= 128:
+        raise ValueError("Tag key must be between 1 and 128 characters.")
+
+    if key.lower().startswith("aws:"):
+        raise ValueError("Tag key cannot start with the reserved prefix 'aws:'.")
+
+    if not allowed_chars_pattern.match(key):
+        raise ValueError(
+            "Tag key contains invalid characters. "
+            "Allowed are letters, numbers, spaces, and _.:/=+-@"
+        )
+
+    # --- 4. Validate the Value ---
+    if len(val) > 256:
+        raise ValueError("Tag value must be 256 characters or less.")
+
+    if not allowed_chars_pattern.match(val):
+        raise ValueError(
+            "Tag value contains invalid characters. "
+            "Allowed are letters, numbers, spaces, and _.:/=+-@"
+        )
+
+    return key, val
+
+
 def check_tli(value):
     """
     Check for a positive integer option, and also make "current" and "latest" acceptable values

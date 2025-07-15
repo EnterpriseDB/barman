@@ -52,6 +52,7 @@ from barman.utils import (
     check_backup_name,
     check_positive,
     check_size,
+    check_tag,
     force_str,
 )
 
@@ -125,13 +126,12 @@ def _validate_config(config):
         "snapshot_instance",
     )
     is_snapshot_backup = any(
-        [getattr(config, var) for var in required_snapshot_variables]
+        [getattr(config, var, None) for var in required_snapshot_variables]
     )
-    if is_snapshot_backup:
-        if getattr(config, "compression"):
-            raise ConfigurationException(
-                "Compression options cannot be used with snapshot backups"
-            )
+    if is_snapshot_backup and getattr(config, "compression", None):
+        raise ConfigurationException(
+            "Compression options cannot be used with snapshot backups"
+        )
     if getattr(config, "aws_snapshot_lock_mode", None) == "governance" and getattr(
         config, "aws_snapshot_lock_cool_off_period", None
     ):
@@ -139,6 +139,21 @@ def _validate_config(config):
             "'aws_snapshot_lock_mode' = 'governance' cannot be used with "
             "'aws_snapshot_lock_cool_off_period'"
         )
+
+    tags = getattr(config, "tags", None)
+    if tags:
+        if len(tags) > 10:
+            raise ValueError(
+                "Maximum number of tags per object exceeded. S3 allows no more "
+                "than 10 tags per object."
+            )
+        seen = set()
+        for key, _ in tags:
+            if key in seen:
+                raise ValueError(
+                    "Duplicate tag keys found: %s. Tag keys must be unique." % key
+                )
+            seen.add(key)
 
 
 def main(args=None):
@@ -405,10 +420,20 @@ def parse_arguments(args=None):
         "--gcp-zone",
         help="Zone of the disks from which snapshots should be taken",
     )
+    tag_arguments = parser.add_mutually_exclusive_group()
     add_tag_argument(
-        parser,
+        tag_arguments,
         name="tags",
+        dest="tags_list",
         help="Tags to be added to all uploaded files in cloud storage",
+    )
+    tag_arguments.add_argument(
+        "--tag",
+        help="Tag to be added to all uploaded files in cloud storage",
+        action="append",
+        type=check_tag,
+        default=[],
+        dest="tags_append",
     )
     s3_arguments.add_argument(
         "-e",
@@ -481,6 +506,7 @@ def parse_arguments(args=None):
     )
 
     parsed_args = parser.parse_args(args=args)
+    parsed_args.tags = parsed_args.tags_append or parsed_args.tags_list
     return parsed_args
 
 

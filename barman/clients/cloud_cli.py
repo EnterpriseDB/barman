@@ -97,11 +97,12 @@ def __parse_tag(tag):
     return tuple(rows[0])
 
 
-def add_tag_argument(parser, name, help):
+def add_tag_argument(parser, name, dest, help):
     parser.add_argument(
         "--%s" % name,
         type=__parse_tag,
         nargs="*",
+        dest=dest,
         help=help,
     )
 

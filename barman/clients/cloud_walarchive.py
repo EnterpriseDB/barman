@@ -34,7 +34,7 @@ from barman.cloud import configure_logging
 from barman.cloud_providers import get_cloud_interface
 from barman.config import parse_compression_level
 from barman.exceptions import BarmanException
-from barman.utils import check_positive, check_size, force_str
+from barman.utils import check_positive, check_size, check_tag, force_str
 from barman.xlog import hash_dir, is_any_xlog_file, is_history_file
 
 
@@ -185,15 +185,36 @@ def parse_arguments(args=None):
         type=parse_compression_level,
         default=None,
     )
+
+    tag_arguments = parser.add_mutually_exclusive_group()
     add_tag_argument(
-        parser,
+        tag_arguments,
         name="tags",
-        help="Tags to be added to archived WAL files in cloud storage",
+        dest="tags_list",
+        help="Tags to be added to all uploaded files in cloud storage",
     )
+    tag_arguments.add_argument(
+        "--tag",
+        help="Tags to be added to archived WAL files in cloud storage",
+        action="append",
+        type=check_tag,
+        default=[],
+        dest="tags_append",
+    )
+    history_tag_arguments = parser.add_mutually_exclusive_group()
     add_tag_argument(
-        parser,
+        history_tag_arguments,
         name="history-tags",
+        dest="history_tags_list",
         help="Tags to be added to archived history files in cloud storage",
+    )
+    history_tag_arguments.add_argument(
+        "--history-tag",
+        help="Tags to be added to archived history files in cloud storage",
+        action="append",
+        type=check_tag,
+        default=[],
+        dest="history_tags_append",
     )
     gcs_arguments = parser.add_argument_group(
         "Extra options for google-cloud-storage cloud provider"
@@ -244,7 +265,13 @@ def parse_arguments(args=None):
         default="64MB",
         type=check_size,
     )
-    return parser.parse_args(args=args)
+
+    parsed_args = parser.parse_args(args=args)
+    parsed_args.tags = parsed_args.tags_append or parsed_args.tags_list
+    parsed_args.history_tags = (
+        parsed_args.history_tags_append or parsed_args.history_tags_list
+    )
+    return parsed_args
 
 
 class CloudWalUploader(object):
