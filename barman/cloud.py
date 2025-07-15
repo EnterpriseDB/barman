@@ -60,6 +60,10 @@ from barman.utils import (
     with_metaclass,
 )
 
+
+_logger = logging.getLogger(__name__)
+
+
 try:
     # Python 3.x
     from queue import Empty as EmptyQueue
@@ -250,13 +254,13 @@ class CloudTarUploader(object):
                 datetime.datetime.now() - self.time_of_last_upload
             ).total_seconds()
             if seconds_since_last_upload < min_time_to_next_upload:
-                logging.info(
+                _logger.info(
                     f"Uploaded {self.size_of_last_upload} bytes "
                     f"{seconds_since_last_upload} seconds ago which exceeds "
                     f"limit of {self.max_bandwidth} bytes/s"
                 )
                 time_to_wait = min_time_to_next_upload - seconds_since_last_upload
-                logging.info(f"Throttling upload by waiting for {time_to_wait} seconds")
+                _logger.info(f"Throttling upload by waiting for {time_to_wait} seconds")
                 time.sleep(time_to_wait)
         self.time_of_last_upload = datetime.datetime.now()
         self.size_of_last_upload = part_size
@@ -325,7 +329,7 @@ class CloudUploadController(object):
         if max_archive_size < self.cloud_interface.MAX_ARCHIVE_SIZE:
             self.max_archive_size = max_archive_size
         else:
-            logging.warning(
+            _logger.warning(
                 "max-archive-size too big. Capping it to to %s",
                 pretty_size(self.cloud_interface.MAX_ARCHIVE_SIZE),
             )
@@ -411,7 +415,7 @@ class CloudUploadController(object):
         return uploader.tar
 
     def upload_directory(self, label, src, dst, exclude=None, include=None):
-        logging.info(
+        _logger.info(
             "Uploading '%s' directory '%s' as '%s'",
             label,
             src,
@@ -435,7 +439,7 @@ class CloudUploadController(object):
                 tar_item = os.path.join(tar_root, item)
                 if not path_allowed(exclude, include, tar_item, False):
                     continue
-                logging.debug("Uploading %s", tar_item)
+                logging._logger("Uploading %s", tar_item)
                 try:
                     self._get_tar(dst).add(os.path.join(root, item), arcname=tar_item)
                 except EnvironmentError as e:
@@ -449,7 +453,7 @@ class CloudUploadController(object):
     def add_file(self, label, src, dst, path, optional=False):
         if optional and not os.path.exists(src):
             return
-        logging.info(
+        _logger.info(
             "Uploading '%s' file from '%s' to '%s' with path '%s'",
             label,
             src,
@@ -460,7 +464,7 @@ class CloudUploadController(object):
         tar.add(src, arcname=path)
 
     def add_fileobj(self, label, fileobj, dst, path, mode=None, uid=None, gid=None):
-        logging.info(
+        _logger.info(
             "Uploading '%s' file to '%s' with path '%s'",
             label,
             self._build_dest_name(dst),
@@ -480,7 +484,7 @@ class CloudUploadController(object):
         tar.addfile(tarinfo, fileobj)
 
     def close(self):
-        logging.info("Marking all the uploaded archives as 'completed'")
+        _logger.info("Marking all the uploaded archives as 'completed'")
         for name in self.tar_list:
             if self.tar_list[name]:
                 # Tho only opened file is the last one, all the others
@@ -498,7 +502,7 @@ class CloudUploadController(object):
 
         :rtype: dict
         """
-        logging.info("Calculating backup statistics")
+        _logger.info("Calculating backup statistics")
 
         # This method can only run at the end of a non empty copy
         assert self.copy_end_time
@@ -524,7 +528,7 @@ class CloudUploadController(object):
             name_end = None
             total_time = datetime.timedelta(0)
             for index, data in enumerate(self.upload_stats[name]):
-                logging.debug(
+                _logger.debug(
                     "Calculating statistics for file %s, index %s, data: %s",
                     name,
                     index,
@@ -856,7 +860,7 @@ class CloudInterface(with_metaclass(ABCMeta)):
         except EmptyQueue:
             return
 
-        logging.error("Error received from upload worker: %s", self.error)
+        _logger.error("Error received from upload worker: %s", self.error)
         self._abort()
         raise CloudUploadingError(self.error)
 
@@ -867,7 +871,7 @@ class CloudInterface(with_metaclass(ABCMeta)):
 
         :param int process_number: the process number, used in the logging output
         """
-        logging.info("Upload process started (worker %s)", process_number)
+        _logger.info("Upload process started (worker %s)", process_number)
 
         # We create a new session instead of reusing the one
         # from the parent process to avoid any race condition
@@ -882,14 +886,14 @@ class CloudInterface(with_metaclass(ABCMeta)):
             try:
                 self._worker_process_execute_job(task, process_number)
             except Exception as exc:
-                logging.error(
+                _logger.error(
                     "Upload error: %s (worker %s)", force_str(exc), process_number
                 )
-                logging.debug("Exception details:", exc_info=exc)
+                _logger.debug("Exception details:", exc_info=exc)
                 self.errors_queue.put(force_str(exc))
             except KeyboardInterrupt:
                 if not self.abort_requested:
-                    logging.info(
+                    _logger.info(
                         "Got abort request: upload cancelled (worker %s)",
                         process_number,
                     )
@@ -897,7 +901,7 @@ class CloudInterface(with_metaclass(ABCMeta)):
             finally:
                 self.queue.task_done()
 
-        logging.info("Upload process stopped (worker %s)", process_number)
+        _logger.info("Upload process stopped (worker %s)", process_number)
 
     def _worker_process_execute_job(self, task, process_number):
         """
@@ -908,14 +912,14 @@ class CloudInterface(with_metaclass(ABCMeta)):
         """
         if task["job_type"] == "upload_part":
             if self.abort_requested:
-                logging.info(
+                _logger.info(
                     "Skipping '%s', part '%s' (worker %s)"
                     % (task["key"], task["part_number"], process_number)
                 )
                 os.unlink(task["body"])
                 return
             else:
-                logging.info(
+                _logger.info(
                     "Uploading '%s', part '%s' (worker %s)"
                     % (task["key"], task["part_number"], process_number)
                 )
@@ -934,7 +938,7 @@ class CloudInterface(with_metaclass(ABCMeta)):
                 )
         elif task["job_type"] == "complete_multipart_upload":
             if self.abort_requested:
-                logging.info("Aborting %s (worker %s)" % (task["key"], process_number))
+                _logger.info("Aborting %s (worker %s)" % (task["key"], process_number))
                 self._abort_multipart_upload(task["upload_metadata"], task["key"])
                 self.done_queue.put(
                     {
@@ -944,7 +948,7 @@ class CloudInterface(with_metaclass(ABCMeta)):
                     }
                 )
             else:
-                logging.info(
+                _logger.info(
                     "Completing '%s' (worker %s)" % (task["key"], process_number)
                 )
                 self._complete_multipart_upload(
@@ -1366,14 +1370,14 @@ class CloudBackup(with_metaclass(ABCMeta)):
         Start the backup via the PostgreSQL backup API.
         """
         self.strategy = ConcurrentBackupStrategy(self.postgres, self.server_name)
-        logging.info("Starting backup '%s'", self.backup_info.backup_id)
+        _logger.info("Starting backup '%s'", self.backup_info.backup_id)
         self.strategy.start_backup(self.backup_info)
 
     def _stop_backup(self):
         """
         Stop the backup via the PostgreSQL backup API.
         """
-        logging.info("Stopping backup '%s'", self.backup_info.backup_id)
+        _logger.info("Stopping backup '%s'", self.backup_info.backup_id)
         self.strategy.stop_backup(self.backup_info)
 
     def _create_restore_point(self):
@@ -1408,7 +1412,7 @@ class CloudBackup(with_metaclass(ABCMeta)):
             )
             self.backup_info.save(file_object=backup_info_file)
             backup_info_file.seek(0, os.SEEK_SET)
-            logging.info("Uploading '%s'", key)
+            _logger.info("Uploading '%s'", key)
             self.cloud_interface.upload_fileobj(backup_info_file, key)
 
     def _check_postgres_version(self):
@@ -1428,13 +1432,13 @@ class CloudBackup(with_metaclass(ABCMeta)):
         """
         Write log lines indicating end of backup.
         """
-        logging.info(
+        _logger.info(
             "Backup end at LSN: %s (%s, %08X)",
             self.backup_info.end_xlog,
             self.backup_info.end_wal,
             self.backup_info.end_offset,
         )
-        logging.info(
+        _logger.info(
             "Backup completed (start time: %s, elapsed time: %s)",
             self.copy_start_time,
             human_readable_timedelta(datetime.datetime.now() - self.copy_start_time),
@@ -1508,8 +1512,8 @@ class CloudBackup(with_metaclass(ABCMeta)):
             backup_info.set_attribute(
                 "error", "failure %s (%s)" % (action, msg_lines[0])
             )
-        logging.error("Backup failed %s (%s)", action, msg_lines[0])
-        logging.debug("Exception details:", exc_info=exc)
+        _logger.error("Backup failed %s (%s)", action, msg_lines[0])
+        _logger.debug("Exception details:", exc_info=exc)
 
 
 class CloudBackupUploader(CloudBackup):
@@ -1712,7 +1716,7 @@ class CloudBackupUploader(CloudBackup):
                 "Please manually backup the following files:\n"
                 "\t%s\n" % "\n\t".join(icf.path for icf in included_config_files)
             )
-            logging.warning(msg)
+            _logger.warning(msg)
 
     @property
     def _pgdata_dir(self):
@@ -1841,8 +1845,8 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
         # type name
         if len(msg_lines) == 0:
             msg_lines = [type(exc).__name__]
-        logging.error("Backup upload failed %s (%s)", action, msg_lines[0])
-        logging.debug("Exception details:", exc_info=exc)
+        _logger.error("Backup upload failed %s (%s)", action, msg_lines[0])
+        _logger.debug("Exception details:", exc_info=exc)
 
     def _get_tablespace_location(self, tablespace):
         """
@@ -1914,7 +1918,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
             self.handle_backup_errors("uploading data", exc)
             raise SystemExit(1)
 
-        logging.info(
+        _logger.info(
             "Upload of backup completed (start time: %s, elapsed time: %s)",
             self.copy_start_time,
             human_readable_timedelta(datetime.datetime.now() - self.copy_start_time),
@@ -2123,7 +2127,7 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
                 try:
                     backup_info = self.get_backup_info(backup_id)
                 except Exception as exc:
-                    logging.warning(
+                    _logger.warning(
                         "Unable to open backup.info file for %s: %s" % (backup_id, exc)
                     )
                     self.unreadable_backups.append(backup_id)
@@ -2305,7 +2309,7 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
                     suffix = item[len(backup_file.base) :]
                     # Avoid to match items that are prefix of other items
                     if not suffix or suffix[0] not in (".", "_"):
-                        logging.debug(
+                        _logger.debug(
                             "Skipping spurious prefix match: %s|%s",
                             backup_file.base,
                             suffix,
@@ -2332,10 +2336,10 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
                     elif ext == "tar.snappy":
                         info.compression = "snappy"
                     else:
-                        logging.warning("Skipping unknown extension: %s", ext)
+                        _logger.warning("Skipping unknown extension: %s", ext)
                         continue
                     info.path = item
-                    logging.info(
+                    _logger.info(
                         "Found file from backup '%s' of server '%s': %s",
                         backup_info.backup_id,
                         self.server_name,
@@ -2344,7 +2348,7 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
                     break
 
         for backup_file in backup_files.values():
-            logging_fun = logging.warning if allow_missing else logging.error
+            logging_fun = _logger.warning if allow_missing else _logger.error
             if backup_file.path is None and backup_info.snapshots_info is None:
                 logging_fun(
                     "Missing file %s.* for server %s",

@@ -1482,7 +1482,7 @@ class Config(object):
             return
 
         if not os.path.isdir(os.path.expanduser(config_files_directory)):
-            _logger.warn(
+            _logger.warning(
                 'Ignoring the "configuration_files_directory" option as "%s" '
                 "is not a directory",
                 config_files_directory,
@@ -1510,10 +1510,10 @@ class Config(object):
                     raise SystemExit("FATAL: %s" % msg)
             else:
                 # Add an warning message that a file has been discarded
-                _logger.warn("Discarding configuration file: %s (not a file)", filename)
+                _logger.warning("Discarding configuration file: %s (not a file)", filename)
         else:
             # Add an warning message that a file has been discarded
-            _logger.warn("Discarding configuration file: %s (not found)", filename)
+            _logger.warning("Discarding configuration file: %s (not found)", filename)
 
     def _is_model(self, name):
         """

@@ -32,6 +32,9 @@ from barman.infofile import BackupInfo
 from barman.utils import force_str
 
 
+_logger = logging.getLogger(__name__)
+
+
 def main(args=None):
     """
     The main script entry point.
@@ -53,7 +56,7 @@ def main(args=None):
                 raise SystemExit(0)
 
             if not cloud_interface.bucket_exists:
-                logging.error("Bucket %s does not exist", cloud_interface.bucket_name)
+                _logger.error("Bucket %s does not exist", cloud_interface.bucket_name)
                 raise OperationErrorExit()
 
             catalog = CloudBackupCatalog(cloud_interface, config.server_name)
@@ -71,7 +74,7 @@ def main(args=None):
                 if backup_info.status == BackupInfo.DONE:
                     catalog.keep_backup(backup_id, config.target)
                 else:
-                    logging.error(
+                    _logger.error(
                         "Cannot add keep to backup %s because it has status %s. "
                         "Only backups with status DONE can be kept.",
                         backup_id,
@@ -80,8 +83,8 @@ def main(args=None):
                     raise OperationErrorExit()
 
     except Exception as exc:
-        logging.error("Barman cloud keep exception: %s", force_str(exc))
-        logging.debug("Exception details:", exc_info=exc)
+        _logger.error("Barman cloud keep exception: %s", force_str(exc))
+        _logger.debug("Exception details:", exc_info=exc)
         raise GeneralErrorExit()
 
 
