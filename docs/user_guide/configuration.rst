@@ -1189,6 +1189,10 @@ Required for recovery from a block-level incremental backup.
 .. note::
   Applies only when ``backup_method = postgres``.
 
+.. deprecated:: 3.15
+    ``local_staging_path`` is deprecated and will be removed in a future release.
+    Use ``staging_path`` and ``staging_location`` instead.
+
 Scope: Global / Server / Model.
 
 **recovery_options**
@@ -1208,6 +1212,10 @@ location must have sufficient space to temporarily store the compressed backup.
 
 .. note::
   Applies only for commpressed backups.
+
+.. deprecated:: 3.15
+    ``recovery_staging_path`` is deprecated and will be removed in a future release.
+    Use ``staging_path`` and ``staging_location`` instead.
 
 Scope: Global / Server / Model.
 
@@ -1432,7 +1440,8 @@ Benefits
     create_slot = auto
     minimum_redundancy = 5
     retention_policy = RECOVERY WINDOW OF 7 DAYS
-    local_staging_path = /var/lib/barman/staging
+    staging_path = /var/lib/barman/staging
+    staging_location = local
     cluster = streaming
 
   **server2**
@@ -1447,8 +1456,10 @@ Benefits
       replication slot if not present.
     * Set the ``minimum_redundancy`` and the ``retention_policy`` for backups created
       from this server.
-    * Recovery for block-level incremental backups will use the ``local_staging_path``
-      as the intermediate location to combine the chain of backups.
+    * Recovery for block-level incremental backups will use the ``staging_path``
+      as the intermediate location to combine the chain of backups. This path is
+      considered to be a local path (same server as Barman), as ``staging_location``
+      is set to ``local``.
     * Group this server into the ``streaming`` cluster to be used by models.
 
   Model Configuration 1
@@ -1466,7 +1477,8 @@ Benefits
     wal_streaming_conninfo = host=pg3 user=streaming_barman port=5432 dbname=databasename
     compression = gzip
     backup_compression = gzip
-    recovery_staging_path = /var/lib/barman/recovery_staging
+    staging_path = /var/lib/barman/recovery_staging
+    staging_location = local
     retention_policy = RECOVERY WINDOW OF 14 DAYS
 
   **server2:switch_over_wal_streaming_conn_to_pg3**
@@ -1481,8 +1493,9 @@ Benefits
       with proper permissions.
     * WAL files will be compressed with ``gzip``.
     * All backups will be compressed with ``gzip``.
-    * Recovery for compressed backups will use the ``recovery_staging_path`` as the
-      intermediate location to decompress the backup.
+    * Recovery for compressed backups will use the ``staging_path`` as the
+      intermediate location to decompress the backup. This path is considered to be
+      a local path (same server as Barman), as ``staging_location`` is set to ``local``.
     * Set a ``retention_policy`` for backups that are grouped in the ``streaming``
       cluster.
 
@@ -1505,12 +1518,14 @@ Benefits
     create_slot = auto
     minimum_redundancy = 5
     retention_policy = RECOVERY WINDOW OF 14 DAYS
-    local_staging_path = /var/lib/barman/staging
+    staging_path = /var/lib/barman/staging
+    staging_location = local
     wal_conninfo = host=pg3 user=barman port=5433 dbname=databasename 
     wal_streaming_conninfo = host=pg3 user=streaming_barman port=5433 dbname=databasename
     compression = gzip
     backup_compression = gzip
-    recovery_staging_path = /var/lib/barman/recovery_staging
+    staging_path = /var/lib/barman/recovery_staging
+    staging_location = local
 
   Model Configuration 2
   """""""""""""""""""""
@@ -1552,7 +1567,8 @@ Benefits
     create_slot = auto
     minimum_redundancy = 5
     retention_policy = RECOVERY WINDOW OF 7 DAYS
-    local_staging_path = /var/lib/barman/staging
+    staging_path = /var/lib/barman/staging
+    staging_location = local
 
   .. important::
     You will not see any in place changes in the configuration file. The overrides are

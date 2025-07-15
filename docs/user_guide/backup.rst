@@ -147,8 +147,8 @@ RedHat, CentOS, and SLES systems.
 * ``lz4`` and ``zstd`` are supported with Postgres 15 or higher.
 
 .. important::
-    If using ``backup_compression``, you must also set ``recovery_staging_path`` to
-    enable recovery of compressed backups. Refer to the
+    If using ``backup_compression``, you must also set ``staging_path`` and
+    ``staging_location`` to enable recovery of compressed backups. Refer to the
     :ref:`Recovering Compressed backups <recovery-recovering-compressed-backups>`
     section for details.
 
@@ -562,8 +562,8 @@ to follow these suggestions:
 * The WAL file catalog should be stored on a regular storage path. This can be
   accomplished by configuring the :ref:`xlogdb_directory <configuration-options-wals-xlogdb-directory>`
   option to point to a regular storage.
-* Paths used for restoring incremental or compressed backups, like
-  ``recovery_staging_path`` and ``local_staging_path`` (see :ref:`restore configuration <configuration-options-restore>`
+* Paths used for restoring incremental or compressed or encrypted backups, defined by
+  the ``staging_path`` and ``staging_location`` options (see :ref:`restore configuration <configuration-options-restore>`
   for details), should also live in regular storage.
 * Retention policies should cover at least the full period in which the backed up files
   are immutable. This can be accomplished by setting the ``retention_policy`` option in

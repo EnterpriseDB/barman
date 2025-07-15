@@ -117,6 +117,10 @@ Parameters
     path will be removed upon completion of the restore process. This option is
     necessary for restoring from block-level incremental backups and has no effect
     otherwise.
+
+    .. deprecated:: 3.15
+        ``--local-staging-path`` is deprecated and will be removed in a future release.
+        Use ``--staging-path`` and ``--staging-location`` instead.
     
 ``--network-compression`` / ``--no-network-compression``
     Enable/disable network compression during remote restore. Default is based on
@@ -142,6 +146,10 @@ Parameters
     convention: ``barman-staging-SERVER_NAME-BACKUP_ID``. This staging directory will be
     removed after the restore process is complete. This option is mandatory for
     restoring from compressed backups and has no effect otherwise.
+
+    .. deprecated:: 3.15
+        ``--recovery-staging-path`` is deprecated and will be removed in a future release.
+        Use ``--staging-path`` and ``--staging-location`` instead.
 
 ``--staging-path``
     A path where intermediate files are staged during restore. When restoring a

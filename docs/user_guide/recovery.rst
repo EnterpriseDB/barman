@@ -301,7 +301,7 @@ These are some examples of how to set the passphrase command:
 The decryption of backups happens as follows:
 
 1. The backup is decrypted into a staging directory on the Barman server. This location
-   is defined by the ``local_staging_path`` option.
+   is defined by the ``staging_path`` and ``staging_location`` options.
 2. If any additional operations are required — such as decompression or combination
    (in the case of incremental backups) — they are performed using the staging
    directory's content as source. Otherwise, the decrypted files are copied directly
@@ -344,10 +344,11 @@ The process involves a few steps:
 4. The staging directory is removed after the restore is complete.
 
 Since Barman does not have knowledge of the deployment environment, it depends on the
-``recovery_staging_path`` option to determine an appropriate location for the staging
-directory. Set the option in the global/server configuration or use the
-``--recovery-staging-path`` option with the barman restore command. Failing to do so
-will result in an error, as Barman cannot guess a suitable location on its own.
+``staging_path`` and ``staging_location`` options to determine an appropriate location
+for the staging directory. Set the option in the global/server configuration or use the
+``--staging-path`` and ``staging-location`` options with the ``barman restore`` command.
+Failing to do so will result in an error, as Barman cannot guess a suitable location on
+its own.
 
 .. _recovery-recovering-block-level-incremental-backups:
 
@@ -359,10 +360,10 @@ chain using ``pg_combinebackup``. This chain consists of the root backup and all
 subsequent incremental backups up to the one being recovered. 
 
 To successfully recover from a block-level incremental backup, you must specify the
-``local_staging_path`` in the global/server configuration or use the
-``--local-staging-path`` option with the barman restore command. Failing to do so will
-result in an error, as Barman cannot automatically determine a suitable staging
-location.
+``staging_path`` and ``staging_location`` options in the global/server configuration or
+use the equivalent ``--staging-path`` and ``--staging-location`` options with the
+``barman restore`` command. Failing to do so will result in an error, as Barman cannot
+automatically determine a suitable staging location.
 
 The process involves the following steps:
 
