@@ -3567,6 +3567,8 @@ class TestRecoveryOperation(object):
 
         # Define a subclass of RecoveryOperation to be able to instantiate it
         class ImplementedOperation(RecoveryOperation):
+            NAME = "dummy-op"
+
             def _execute(self, *args, **kwargs):
                 pass
 
@@ -4017,6 +4019,96 @@ class TestRecoveryOperation(object):
             mock.ANY,
         )
         mock_output.close_and_exit.assert_called_once_with()
+
+    @mock.patch("os.getpid")
+    def test_staging_path_property(self, mock_pid):
+        """
+        Test that the :attr:`RecoveryOperation.staging_path`` property returns the
+        correct path.
+
+        This test verifies that the ``staging_path`` is constructed by joining the
+        configured staging path with the operation name and the current process ID.
+
+        Steps:
+            - Mocks a configuration object with a specified staging path.
+            - Builds a mocked server with the same staging path in its mai
+              configuration.
+            - Creates an `ImplementedOperation` instance using the mocked server, which
+              is a dummy operator.
+            - Asserts that the :attr:`RecoveryOperation.staging_path` property matches
+              the expected value.
+
+        :raises AssertionError: If the :attr:`RecoveryOperation.staging_path` property
+            does not match the expected path.
+        """
+        config = Mock()
+        config.staging_path = "/tmp/staging"
+        server = testing_helpers.build_mocked_server(
+            main_conf={"staging_path": "/tmp/staging"}
+        )
+        operation = self.get_recovery_operation(
+            config=server.config, server=server, backup_manager=server.backup_manager
+        )
+        mock_pid.return_value = "123456"
+        expected = os.path.join(config.staging_path, operation.NAME + "123456")
+        assert operation.staging_path == expected
+
+    @mock.patch("barman.recovery_executor.output")
+    def test_cleanup_staging_dir_success(self, mock_output):
+        """
+        Test that the :meth:`RecoveryOperation.cleanup_staging_dir` method successfully
+        deletes the staging directory without raising warnings.
+
+        This test mocks the output and verifies that:
+        - The :meth:`~UnixLocalCommand.delete_if_exists` method is called once with the
+          correct staging path.
+        - No warning is issued during the cleanup process.
+
+        :param _patch.patcher mock_output: Mocked output object to capture warnings.
+        """
+        config = Mock()
+        config.staging_path = "/tmp/staging"
+        server = testing_helpers.build_mocked_server(
+            main_conf={"staging_path": "/tmp/staging"}
+        )
+        operation = self.get_recovery_operation(
+            config=server.config, server=server, backup_manager=server.backup_manager
+        )
+        operation.cmd = mock.Mock()
+        operation.cleanup_staging_dir()
+        operation.cmd.delete_if_exists.assert_called_once_with(operation.staging_path)
+        mock_output.warning.assert_not_called()
+
+    @mock.patch("barman.recovery_executor.output")
+    def test_cleanup_staging_dir_failure(self, mock_output):
+        """
+        Test that :meth:`RecoveryOperation.cleanup_staging_dir` logs a warning when
+        deletion of the staging directory fails.
+
+        This test mocks the :meth:`~UnixLocalCommand.delete_if_exists` method to raise a
+            :exc:`CommandFailedException`, simulating a failure during the cleanup
+        operation. It verifies that a warning is logged and that the warning message
+        contains the expected text and staging path.
+
+        :param _patch.patcher mock_output: Mocked output module to capture warning logs.
+        :raises AssertionError: If the warning is not logged or does not contain the
+            expected message.
+        """
+        config = Mock()
+        config.staging_path = "/tmp/staging"
+        server = testing_helpers.build_mocked_server(
+            main_conf={"staging_path": "/tmp/staging"}
+        )
+        operation = self.get_recovery_operation(
+            config=server.config, server=server, backup_manager=server.backup_manager
+        )
+        operation.cmd = mock.Mock()
+        operation.cmd.delete_if_exists.side_effect = CommandFailedException("fail")
+        operation.cleanup_staging_dir()
+        mock_output.warning.assert_called_once()
+        args, kwargs = mock_output.warning.call_args
+        assert "Staging path cleanup operation failed to delete" in args[0]
+        assert operation.staging_path in args
 
 
 class TestRsyncCopyOperation(object):
@@ -5688,12 +5780,9 @@ class TestMainRecoveryExecutor(object):
 
         # THEN the pipeline operations are executed correctly
         # The first operation is executed with the staging directory as its destination
-        staging_dir = os.path.join(
-            backup_manager.server.config.staging_path, op1.NAME + str(os.getpid())
-        )
         op1.execute.assert_called_once_with(
             backup_info=backup_info,
-            destination=staging_dir,
+            destination=op1.staging_path,
             tablespaces=tablespaces,
             remote_command=remote_command,
             safe_horizon=safe_horizon,
@@ -5711,6 +5800,9 @@ class TestMainRecoveryExecutor(object):
             safe_horizon=safe_horizon,
             is_last_operation=True,
         )
+
+        op1.cleanup_staging_dir.assert_called_once_with()
+        op2.cleanup_staging_dir.assert_not_called()
 
 
 class TestDecompressOperation(object):
