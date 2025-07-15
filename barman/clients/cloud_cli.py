@@ -24,6 +24,9 @@ import barman
 from barman.utils import force_str
 
 
+_logger = logging.getLogger(__name__)
+
+
 class OperationErrorExit(SystemExit):
     """
     Dedicated exit code for errors where connectivity to the cloud provider was ok
@@ -81,14 +84,14 @@ def __parse_tag(tag):
     try:
         rows = list(csv.reader([tag], delimiter=","))
     except csv.Error as exc:
-        logging.error(
+        _logger.error(
             "Error parsing tag %s: %s",
             tag,
             force_str(exc),
         )
         raise CLIErrorExit()
     if len(rows) != 1 or len(rows[0]) != 2:
-        logging.error(
+        _logger.error(
             "Invalid tag format: %s",
             tag,
         )

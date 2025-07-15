@@ -34,6 +34,9 @@ from barman.output import ConsoleOutputWriter
 from barman.utils import force_str
 
 
+_logger = logging.getLogger(__name__)
+
+
 def main(args=None):
     """
     The main script entry point
@@ -59,14 +62,14 @@ def main(args=None):
                 raise SystemExit(0)
 
             if not cloud_interface.bucket_exists:
-                logging.error("Bucket %s does not exist", cloud_interface.bucket_name)
+                _logger.error("Bucket %s does not exist", cloud_interface.bucket_name)
                 raise OperationErrorExit()
 
             backup_id = catalog.parse_backup_id(config.backup_id)
             backup_info = catalog.get_backup_info(backup_id)
 
             if not backup_info:
-                logging.error(
+                _logger.error(
                     "Backup %s for server %s does not exist",
                     backup_id,
                     config.server_name,
@@ -82,8 +85,8 @@ def main(args=None):
                 print(json.dumps(json_output))
 
     except Exception as exc:
-        logging.error("Barman cloud backup show exception: %s", force_str(exc))
-        logging.debug("Exception details:", exc_info=exc)
+        _logger.error("Barman cloud backup show exception: %s", force_str(exc))
+        _logger.debug("Exception details:", exc_info=exc)
         raise GeneralErrorExit()
 
 

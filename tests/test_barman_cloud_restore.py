@@ -531,7 +531,7 @@ class TestCloudRestore(object):
 
         cloud_backup_catalog.get_backup_info.assert_called_once_with(expected_backup_id)
 
-    @mock.patch("logging.error")
+    @mock.patch("barman.clients.cloud_restore._logger.error")
     @mock.patch("barman.clients.cloud_restore.get_backup_id_from_target_time")
     @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_restore.get_cloud_interface")

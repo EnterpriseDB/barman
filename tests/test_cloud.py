@@ -2298,7 +2298,7 @@ class TestGoogleCloudInterface(TestCase):
         container_client_mock.exists.assert_called_once_with()
         service_client_mock.create_bucket.assert_called_once_with(container_client_mock)
 
-    @mock.patch("barman.cloud_providers.google_cloud_storage.logging")
+    @mock.patch("barman.cloud_providers.google_cloud_storage._logger")
     @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
     def test_setup_bucket_create_conflict_error(self, gcs_client_mock, logging_mock):
         """
@@ -2517,7 +2517,7 @@ class TestGoogleCloudInterface(TestCase):
         mock_calls = list(map(lambda x: mock.call(x), mock_keys))
         container_client_mock.blob.assert_has_calls(mock_calls, any_order=True)
 
-    @mock.patch("barman.cloud_providers.google_cloud_storage.logging")
+    @mock.patch("barman.cloud_providers.google_cloud_storage._logger")
     @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
     def test_delete_objects_with_error(self, gcs_client_mock, logging_mock):
         mock_blob1 = mock.MagicMock()
