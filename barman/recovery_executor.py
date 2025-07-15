@@ -2743,6 +2743,38 @@ class RecoveryOperation(ABC):
             if is_last_operation:
                 output.info("\t%s, %s, %s", tablespace.oid, tablespace.name, location)
 
+    @property
+    def staging_path(self):
+        """
+        Returns the staging path for the current process.
+
+        The staging path is constructed by joining the base staging path from the
+        configuration with the class name and the current process ID.
+
+        :returns: The full staging path as a string.
+        :rtype: str
+        """
+        return os.path.join(self.config.staging_path, self.NAME + str(os.getpid()))
+
+    def cleanup_staging_dir(self):
+        """
+        Cleans up the staging directory if exists.
+
+        Attempts to delete the staging directory specified by :attr:`self.staging_path`
+        using the operation command interface. If the deletion fails,
+        a warning is logged with the error details.
+
+        :raises CommandFailedException: If the deletion operation fails.
+        """
+        try:
+            self.cmd.delete_if_exists(self.staging_path)
+        except CommandFailedException as e:
+            output.warning(
+                "Staging path cleanup operation failed to delete %s: %s\n",
+                self.staging_path,
+                e,
+            )
+
 
 class RsyncCopyOperation(RecoveryOperation):
     """
@@ -3709,10 +3741,7 @@ class MainRecoveryExecutor(RemoteConfigRecoveryExecutor):
                 destination = dest
                 is_last_operation = n == len(operations)
                 if not is_last_operation:
-                    staging_path = os.path.join(
-                        operation.config.staging_path, operation.NAME + str(os.getpid())
-                    )
-                    destination = staging_path
+                    destination = operation.staging_path
                 # Execute the operation on the current backup. Each operation returns a
                 # VolatileBackupInfo that reflects all changes made by that operation.
                 # The output of one operation is passed as input to the next.
@@ -3729,6 +3758,12 @@ class MainRecoveryExecutor(RemoteConfigRecoveryExecutor):
                     safe_horizon=safe_horizon,
                     is_last_operation=is_last_operation,
                 )
+
+                # Cleanup staging directory of the previous operation, so skip the first
+                # operation.
+                if n > 1:
+                    previous_op = operations[n - 2]  # n is 1-based, but list is 0-based
+                    previous_op.cleanup_staging_dir()
 
 
 def recovery_executor_factory(backup_manager, command, backup_info):
