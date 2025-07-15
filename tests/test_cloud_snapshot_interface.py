@@ -317,7 +317,7 @@ class TestGetSnapshotInterface(object):
     ):
         """Verify supported and unsupported cloud providers with config args."""
         # GIVEN a cloud config with the specified snapshot provider
-        mock_config = mock.Mock(cloud_provider=cloud_provider)
+        mock_config = mock.Mock(cloud_provider=cloud_provider, tags=None)
 
         # WHEN get_snapshot_interface_from_server_config is called
         if interface_cls:

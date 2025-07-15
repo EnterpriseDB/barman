@@ -1530,3 +1530,120 @@ class TestEditConfig:
 
         # Clean up the temporary file
         os.remove(file_path)
+
+
+class TestAWSTags:
+    """
+    Unit tests for AWS tag related utility functions in `barman.utils`.
+
+    This test class verifies the behavior of the `check_tag` and
+    `has_duplicate_first_keys` function. The first parses and validates tag strings in
+    the format "key,value". It checks for correct parsing, validation of key and value
+    lengths, reserved prefixes, allowed characters, and proper error handling for
+    invalid inputs. The second ...TODO
+    """
+
+    def test_check_tag_valid_tag(self):
+        """
+        Test that valid tag strings are correctly parsed into key-value tuples.
+
+        - Checks parsing of simple and complex tag strings.
+        """
+        assert barman.utils.check_tag("owner,data-team") == ("owner", "data-team")
+        assert barman.utils.check_tag("key,value with spaces") == (
+            "key",
+            "value with spaces",
+        )
+        assert barman.utils.check_tag(
+            "key_with.allowed:chars@/+=-,value_with.allowed:chars@/+=-"
+        ) == ("key_with.allowed:chars@/+=-", "value_with.allowed:chars@/+=-")
+
+    def test_check_tag_none_or_empty(self):
+        """
+        Test that `None` or empty strings return `None` from `check_tag`.
+        """
+        assert barman.utils.check_tag("") is None
+        assert barman.utils.check_tag(None) is None
+
+    def test_check_tag_missing_comma(self):
+        """
+        Test that a tag string missing a comma raises a `ValueError`.
+
+        :raises ValueError: If the tag format is invalid.
+        """
+        with pytest.raises(
+            ValueError, match="Invalid tag format. Expected 'key,value'."
+        ):
+            barman.utils.check_tag("keyvalue")
+
+    def test_check_tag_key_too_short(self):
+        """
+        Test that a tag key with zero length raises a `ValueError`.
+
+        :raises ValueError: If the tag key is too short.
+        """
+        with pytest.raises(
+            ValueError, match="Tag key must be between 1 and 128 characters."
+        ):
+            barman.utils.check_tag(",value")
+
+    def test_check_tag_key_too_long(self):
+        """
+        Test that a tag key longer than 128 characters raises a `ValueError`.
+
+        :raises ValueError: If the tag key is too long.
+        """
+        long_key = "k" * 129
+        with pytest.raises(
+            ValueError, match="Tag key must be between 1 and 128 characters."
+        ):
+            barman.utils.check_tag(f"{long_key},value")
+
+    def test_check_tag_key_reserved_prefix(self):
+        """
+        Test that a tag key starting with the reserved prefix 'aws:' raises a
+        `ValueError`.
+
+        :raises ValueError: If the tag key starts with 'aws:'.
+        """
+        with pytest.raises(
+            ValueError, match="Tag key cannot start with the reserved prefix 'aws:'."
+        ):
+            barman.utils.check_tag("aws:owner,value")
+
+    def test_check_tag_key_invalid_characters(self):
+        """
+        Test that a tag key containing invalid characters raises a `ValueError`.
+
+        :raises ValueError: If the tag key contains invalid characters.
+        """
+        with pytest.raises(ValueError, match="Tag key contains invalid characters."):
+            barman.utils.check_tag("key$,value")
+
+    def test_check_tag_value_too_long(self):
+        """
+        Test that a tag value longer than 256 characters raises a `ValueError`.
+
+        :raises ValueError: If the tag value is too long.
+        """
+        long_val = "v" * 257
+        with pytest.raises(
+            ValueError, match="Tag value must be 256 characters or less."
+        ):
+            barman.utils.check_tag(f"key,{long_val}")
+
+    def test_check_tag_value_invalid_characters(self):
+        """
+        Test that a tag value containing invalid characters raises a `ValueError`.
+
+        :raises ValueError: If the tag value contains invalid characters.
+        """
+        with pytest.raises(ValueError, match="Tag value contains invalid characters."):
+            barman.utils.check_tag("key,value$")
+
+    def test_check_tag_strip_spaces(self):
+        """
+        Test that leading and trailing spaces in key and value are stripped before
+        validation and parsing.
+        """
+        assert barman.utils.check_tag("  key  ,  value  ") == ("key", "value")

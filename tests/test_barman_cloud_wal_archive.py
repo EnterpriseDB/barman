@@ -207,8 +207,6 @@ class TestMain(object):
             "expected_override_tags",
         ),
         [
-            # With a standard WAL file, the cloud interface should be created with tags
-            # and no override tags are expected
             (
                 "/tmp/000000080000ABFF000000C1",
                 ["--tags", "foo,bar", '"b,az",qux'],
@@ -216,14 +214,40 @@ class TestMain(object):
                 [("foo", "bar"), ("b,az", "qux")],
                 None,
             ),
-            # With a history WAL file, the cloud interface should be created with tags
-            # and override tags should be included on WAL upload
             (
                 "/tmp/00000008.history",
                 ["--tags", "foo,bar", "baz,qux"],
                 ["--history-tags", "historyfoo,historybar", '"historyb,az",historyqux'],
                 [("foo", "bar"), ("baz", "qux")],
                 [("historyfoo", "historybar"), ("historyb,az", "historyqux")],
+            ),
+            # With a standard WAL file, the cloud interface should be created with tags
+            # and no override tags are expected
+            (
+                "/tmp/000000080000ABFF000000C1",
+                ["--tag", "foo,bar", "--tag", "baz,qux"],
+                [
+                    "--history-tag",
+                    "historyfoo,historybar",
+                    "--history-tag",
+                    "historybaz,historyqux",
+                ],
+                [("foo", "bar"), ("baz", "qux")],
+                None,
+            ),
+            # With a history WAL file, the cloud interface should be created with tags
+            # and override tags should be included on WAL upload
+            (
+                "/tmp/00000008.history",
+                ["--tag", "foo,bar", "--tag", "baz,qux"],
+                [
+                    "--history-tag",
+                    "historyfoo,historybar",
+                    "--history-tag",
+                    "historyb,historyqux",
+                ],
+                [("foo", "bar"), ("baz", "qux")],
+                [("historyfoo", "historybar"), ("historyb", "historyqux")],
             ),
         ],
     )
@@ -274,7 +298,6 @@ class TestMain(object):
     @pytest.mark.parametrize(
         ("tags_args"),
         [
-            # Newline in tag
             ["--tags", "foo,bar\nbaz,qux"],
             # Newline in history_tag
             ["--history-tags", "foo,bar\nbaz,qux"],
@@ -286,6 +309,38 @@ class TestMain(object):
             ["--tags", "foo,bar,baz"],
             # Too many values in history tag
             ["--history-tags", "foo,bar,baz"],
+            # Newline in tag
+            ["--tag", "foo,bar\nbaz,qux"],
+            # Newline in history_tag
+            ["--history-tag", "foo,bar\nbaz,qux"],
+            # Carriage return in tag
+            ["--tag", "foo,bar\r\nbaz,qux"],
+            # Carriage return in history_tag
+            ["--history-tag", "foo,bar\r\nbaz,qux"],
+            # Too many values in tag
+            ["--tag", "foo,bar,baz"],
+            # Too many values in history tag
+            ["--history-tag", "foo,bar,baz"],
+            # Invalid ',' char in tag
+            ["--tag", "'fo,o',baz"],
+            # Invalid ',' char in history tag
+            ["--history-tag", "'fo,o',baz"],
+            # Invalid '$' char in tag
+            ["--tag", "'fo$o',baz"],
+            # Invalid '$' char in history tag
+            ["--history-tag", "'fo$o',baz"],
+            # Too long key in tag
+            ["--tag", "%s,baz" % "a" * 129],
+            # Too long key in history tag
+            ["--history-tag", "%s,baz" % "a" * 129],
+            # Too short key in tag
+            ["--tag", ",baz"],
+            # Too short key in history tag
+            ["--history-tag", ",baz"],
+            # Too long value in tag
+            ["--tag", "a,%s" % "a" * 257],
+            # Too long value in history tag
+            ["--history-tag", "a,%s" % "a" * 257],
         ],
     )
     @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
