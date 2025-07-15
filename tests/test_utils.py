@@ -269,7 +269,7 @@ class TestConfigureLogging(object):
         handler_mock.setFormatter.assert_called_with(mock.ANY)
 
         # check if a warning has been raised
-        mocks["_logger"].warn.assert_called_with(mock.ANY)
+        mocks["_logger"].warning.assert_called_with(mock.ANY)
 
     def test_file_error_file(self, **mocks):
         test_file = "/test/log/file.log"
@@ -291,7 +291,7 @@ class TestConfigureLogging(object):
         handler_mock.setFormatter.assert_called_with(mock.ANY)
 
         # check if a warning has been raised
-        mocks["_logger"].warn.assert_called_with(mock.ANY)
+        mocks["_logger"].warning.assert_called_with(mock.ANY)
 
 
 # noinspection PyMethodMayBeStatic

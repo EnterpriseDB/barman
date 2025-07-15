@@ -885,8 +885,8 @@ class RsyncCopyController(object):
         :param CommandFailedException exc: the exception which caused the
             failure
         """
-        _logger.warn("Failure executing rsync on %s (attempt %s)", item, attempt)
-        _logger.warn("Retrying in %s seconds", self.retry_sleep)
+        _logger.warning("Failure executing rsync on %s (attempt %s)", item, attempt)
+        _logger.warning("Retrying in %s seconds", self.retry_sleep)
 
     def _analyze_directory(self, item):
         """

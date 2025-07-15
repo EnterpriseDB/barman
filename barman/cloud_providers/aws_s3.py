@@ -41,6 +41,10 @@ from barman.exceptions import (
     SnapshotInstanceNotFoundException,
 )
 
+
+_logger = logging.getLogger(__name__)
+
+
 try:
     # Python 3.x
     from urllib.parse import urlencode, urlparse
@@ -201,7 +205,7 @@ class S3CloudInterface(CloudInterface):
             self.bucket_exists = self._check_bucket_existence()
             return True
         except EndpointConnectionError as exc:
-            logging.error("Can't connect to cloud provider: %s", exc)
+            _logger.error("Can't connect to cloud provider: %s", exc)
             return False
 
     def _check_bucket_existence(self):
@@ -232,7 +236,7 @@ class S3CloudInterface(CloudInterface):
         # Get the current region from client.
         # Do not use session.region_name here because it may be None
         region = self.s3.meta.client.meta.region_name
-        logging.info(
+        _logger.info(
             "Bucket '%s' does not exist, creating it on region '%s'",
             self.bucket_name,
             region,
@@ -430,7 +434,7 @@ class S3CloudInterface(CloudInterface):
         )
         if "Errors" in resp:
             for error_dict in resp["Errors"]:
-                logging.error(
+                _logger.error(
                     'Deletion of object %s failed with error code: "%s", message: "%s"'
                     % (error_dict["Key"], error_dict["Code"], error_dict["Message"])
                 )
@@ -464,7 +468,7 @@ class S3CloudInterface(CloudInterface):
         for resp in bucket.objects.filter(Prefix=prefix).delete():
             response_metadata = resp["ResponseMetadata"]
             if response_metadata["HTTPStatusCode"] != 200:
-                logging.error(
+                _logger.error(
                     'Deletion of objects under %s failed with error code: "%s"'
                     % (prefix, response_metadata["HTTPStatusCode"])
                 )
@@ -743,7 +747,7 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
             volume_name,
             backup_info.backup_id.lower(),
         )
-        logging.info(
+        _logger.info(
             "Taking snapshot '%s' of disk '%s' (%s)",
             snapshot_name,
             volume_name,
@@ -832,7 +836,7 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
         # successful state. If the successful state is not reached after the maximum
         # number of attempts (default: 40) then a WaiterError is raised.
         snapshot_ids = [snapshot.identifier for snapshot in snapshots]
-        logging.info("Waiting for completion of snapshots: %s", ", ".join(snapshot_ids))
+        _logger.info("Waiting for completion of snapshots: %s", ", ".join(snapshot_ids))
         waiter = self.ec2_client.get_waiter("snapshot_completed")
         waiter.wait(
             SnapshotIds=snapshot_ids,
@@ -874,7 +878,7 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
                     value = value.isoformat()
                 _output[key] = value
 
-        logging.info("Snapshot locked: \n%s" % json.dumps(_output, indent=4))
+        _logger.info("Snapshot locked: \n%s" % json.dumps(_output, indent=4))
 
     def _delete_snapshot(self, snapshot_id):
         """
@@ -889,7 +893,7 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
             # If the snapshot could not be found then deletion is considered successful
             # otherwise we raise a CloudProviderError
             if error_code == "InvalidSnapshot.NotFound":
-                logging.warning("Snapshot {} could not be found".format(snapshot_id))
+                _logger.warning("Snapshot {} could not be found".format(snapshot_id))
             elif error_code == "SnapshotLocked":
                 raise SystemExit(
                     "Locked snapshot: %s.\n"
@@ -901,7 +905,7 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
                     "Deletion of snapshot %s failed with error code %s: %s"
                     % (snapshot_id, error_code, exc.response["Error"])
                 )
-        logging.info("Snapshot %s deleted", snapshot_id)
+        _logger.info("Snapshot %s deleted", snapshot_id)
 
     def delete_snapshot_backup(self, backup_info):
         """
@@ -910,7 +914,7 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
         :param barman.infofile.LocalBackupInfo backup_info: Backup information.
         """
         for snapshot in backup_info.snapshots_info.snapshots:
-            logging.info(
+            _logger.info(
                 "Deleting snapshot '%s' for backup %s",
                 snapshot.identifier,
                 backup_info.backup_id,

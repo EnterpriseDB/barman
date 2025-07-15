@@ -55,6 +55,10 @@ from barman.utils import (
     force_str,
 )
 
+
+_logger = logging.getLogger(__name__)
+
+
 _find_space = re.compile(r"[\s]").search
 
 
@@ -212,8 +216,8 @@ def main(args=None):
                 try:
                     postgres.connect()
                 except PostgresConnectionError as exc:
-                    logging.error("Cannot connect to postgres: %s", force_str(exc))
-                    logging.debug("Exception details:", exc_info=exc)
+                    _logger.error("Cannot connect to postgres: %s", force_str(exc))
+                    _logger.debug("Exception details:", exc_info=exc)
                     raise OperationErrorExit()
 
                 with closing(postgres):
@@ -241,16 +245,16 @@ def main(args=None):
                         uploader.backup()
 
     except KeyboardInterrupt as exc:
-        logging.error("Barman cloud backup was interrupted by the user")
-        logging.debug("Exception details:", exc_info=exc)
+        _logger.error("Barman cloud backup was interrupted by the user")
+        _logger.debug("Exception details:", exc_info=exc)
         raise OperationErrorExit()
     except UnrecoverableHookScriptError as exc:
-        logging.error("Barman cloud backup exception: %s", force_str(exc))
-        logging.debug("Exception details:", exc_info=exc)
+        _logger.error("Barman cloud backup exception: %s", force_str(exc))
+        _logger.debug("Exception details:", exc_info=exc)
         raise SystemExit(63)
     except Exception as exc:
-        logging.error("Barman cloud backup exception: %s", force_str(exc))
-        logging.debug("Exception details:", exc_info=exc)
+        _logger.error("Barman cloud backup exception: %s", force_str(exc))
+        _logger.debug("Exception details:", exc_info=exc)
         raise GeneralErrorExit()
     finally:
         # Remove the temporary directory and all the contained files

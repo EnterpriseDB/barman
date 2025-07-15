@@ -132,7 +132,7 @@ def configure_logging(
     logging.root.addHandler(handler)
     if warn:
         # this will be always displayed because the default level is WARNING
-        _logger.warn(warn)
+        _logger.warning(warn)
     logging.root.setLevel(log_level)
 
 
