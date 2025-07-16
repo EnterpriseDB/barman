@@ -1,0 +1,10 @@
+- summary: Improve error message when `pg_combinebackup` is not found
+  description: |
+    Previously, when restoring an incremental backup and `pg_combinebackup` was
+    not available in the PATH, Barman did not handle the exception properly, which
+    made it difficult to understand and fix the error.
+    Now, a proper exception is raised with a clear message indicating that
+    `pg_combinebackup` could not found in the target server.
+  type: bugfix
+  jira_tickets:
+    - BAR-840
