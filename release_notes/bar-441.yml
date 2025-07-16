@@ -1,0 +1,23 @@
+- summary: Improve tag handling in cloud commands to fix parsing errors
+  description: |
+    The `--tags` command-line option in `barman-cloud-backup` and
+    `barman-cloud-wal-archive` has been replaced to improve parsing
+    reliability and align with standard CLI practices. The previous
+    space-separated format could cause parsing errors, especially when
+    placed before positional arguments.
+
+    The commands now accept multiple `--tag` flags, one for each key-value pair.
+
+    **Before:**
+    `barman-cloud-backup ... --tags key1,val1 key2,val2`
+
+    **After:**
+    `barman-cloud-backup ... --tag key1,val1 --tag key2,val2`
+
+    The ``--tags`` option is now deprecated. While existing scripts using the old
+    ``--tags`` format will continue to work, users are encouraged to update their
+    scripts to the new format. This change is backward compatible and does not introduce
+    a breaking change.
+  type: minor_change
+  jira_tickets:
+    - BAR-441
