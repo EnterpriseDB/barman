@@ -25,10 +25,10 @@
                   [ --min-chunk-size MIN_CHUNK_SIZE ]
                   [ --max-bandwidth MAX_BANDWIDTH ]
                   [ --snapshot-instance SNAPSHOT_INSTANCE ]
-                  [ --snapshot-disk NAME ]
+                  [ --snapshot-disk NAME [ --snapshot-disk NAME ... ] ]
                   [ --snapshot-zone GCP_ZONE ]
                   [ -snapshot-gcp-project GCP_PROJECT ]
-                  [ --tags TAG [ TAG ... ] ]
+                  [ --tag KEY,VALUE [ --tag KEY,VALUE ... ] ]
                   [ --endpoint-url ENDPOINT_URL ]
                   [ { -P | --aws-profile } AWS_PROFILE ]
                   [ --profile AWS_PROFILE ]
@@ -157,9 +157,22 @@ uploaded to the cloud.
 ``--snapshot-disk``
   Name of a disk from which snapshots should be taken.
 
+``--tag``
+  Tag to be added to all uploaded files in cloud storage, and/or to snapshots created,
+  if snapshots are used.
+
 ``--tags``
-  Tags to be added to all uploaded files in cloud storage, and/or to snapshots created, if
-  snapshots are used.
+  Tags to be added to all uploaded files in cloud storage, and/or to snapshots created,
+  if snapshots are used.
+
+.. note::
+  If you are using ``--tags`` before positional arguments, you must insert ``--`` after
+  it to indicate the end of optional arguments. This tells the parser to treat
+  everything after ``--`` as positional arguments. Without the ``--``, Barman may
+  misinterpret positional arguments as values for the last option.
+
+.. deprecated:: 3.15
+    ``--tags`` is deprecated. Use ``--tag`` instead.
 
 **Extra options for the AWS cloud provider**
 

@@ -15,8 +15,8 @@
                   [ --cloud-provider { aws-s3 | azure-blob-storage | google-cloud-storage } ]
                   [ { { -z | --gzip } | { -j | --bzip2 } | --xz | --snappy | --zstd | --lz4 } ]
                   [ --compression-level COMPRESSION_LEVEL ]
-                  [ --tags TAG [ TAG ... ] ]
-                  [ --history-tags HISTORY_TAG [ HISTORY_TAG ... ] ]
+                  [ --tag KEY,VALUE [ --tag KEY,VALUE ... ] ]
+                  [ --history-tag KEY,VALUE [ --history-tag KEY,VALUE ... ] ]
                   [ --endpoint-url ENDPOINT_URL ]
                   [ { -P | --aws-profile } AWS_PROFILE ]
                   [ --profile AWS_PROFILE ]
@@ -112,11 +112,35 @@ Barman server. Additionally, it can be utilized as a hook script for WAL archivi
   algorithm as well as what level each predefined label maps to can be found in
   :ref:`compression_level <configuration-options-compression-level>`.
 
+``--tag``
+  Tag to be added to archived WAL files in cloud storage.
+
 ``--tags``
-  Tags to be added to archived WAL files in cloud storage.
+  Tag to be added to archived WAL files in cloud storage.
+
+.. note::
+  If you are using ``--tags`` before positional arguments, you must insert ``--`` after
+  it to indicate the end of optional arguments. This tells the parser to treat
+  everything after ``--`` as positional arguments. Without the ``--``, Barman may
+  misinterpret positional arguments as values for the last option.
+
+.. deprecated:: 3.15
+    ``--tags`` is deprecated. Use ``--tag`` instead.
+
+``--history-tag``
+  Tag to be added to archived history files in cloud storage.
 
 ``--history-tags``
   Tags to be added to archived history files in cloud storage.
+
+.. note::
+  If you are using ``--history-tags`` before positional arguments, you must insert
+  ``--`` after it to indicate the end of optional arguments. This tells the parser to
+  treat everything after ``--`` as positional arguments. Without the ``--``, Barman may
+  misinterpret positional arguments as values for the last option.
+
+.. deprecated:: 3.15
+    ``--history-tags`` is deprecated. Use ``--history-tag`` instead.
 
 **Extra options for the AWS cloud provider**
 
