@@ -43,12 +43,6 @@ based on the recovery criteria:
     adjust the restore command accordingly. For example,
     ``--snapshot-recovery-instance`` is required when restoring a snapshot backup.
 
-.. danger::
-  Do not run the restore command with the destination directory set to a location where
-  a Postgres instance is actively running. If you intend to reuse that directory, ensure
-  that Postgres is fully stopped before initiating recovery, including recovery of
-  tablespace directories.
-
 .. _recovery-local-recovery:
 
 Local recovery
@@ -94,13 +88,6 @@ Tablespace Remapping
 
 Use ``--tablespace NAME:DIRECTORY`` to remap tablespaces to a new location. Barman will
 attempt to create the destination directory if it doesn't exist.
-
-.. danger::
-  By default, tablespaces are restored to the same path they had on the source server.
-  Be cautious when restoring a backup without any remapping to a destination where a
-  Postgres instance already exists, as it can end up overriding existing tablespace
-  directories.
-
 
 .. _recovery-point-in-time-recovery:
 
@@ -300,13 +287,16 @@ These are some examples of how to set the passphrase command:
 
 The decryption of backups happens as follows:
 
-1. The backup is decrypted into a staging directory on the Barman server. This location
-   is defined by the ``staging_path`` and ``staging_location`` options.
+1. The backup is decrypted into a staging directory on the Barman server, regardless of
+   whether ``staging_location=remote`` is set. This is because decryption is designed
+   to occur locally on the Barman node. The directory used for decrypting is also defined
+   by the ``staging_path`` option.
 2. If any additional operations are required — such as decompression or combination
    (in the case of incremental backups) — they are performed using the staging
    directory's content as source. Otherwise, the decrypted files are copied directly
    to the final destination.
-3. The staging directory is removed after the restore is complete.
+3. When additional operations are required, the staging directory is removed after the
+   subsequent operation have finished.
 
 Decryption of WAL files depends on how they are retrieved during recovery:
 
@@ -321,34 +311,46 @@ Decryption of WAL files depends on how they are retrieved during recovery:
    ``encrytion_passphrase_command`` is invoked once for each WAL file being fetched
    through the ``restore_command``.
 
+.. important::
+  When ``staging_location=remote`` is used, ``staging_path`` must point to a location
+  accessible for reading and writing on the local node as well. This is because decryption
+  always takes place on the local node.
+
 .. _recovery-recovering-compressed-backups:
 
 Recovering Compressed Backups
 -----------------------------
 
 If a backup is compressed using the ``backup_compression`` option, Barman can decompress
-it during restore. 
+it during restore.
 
 The process involves a few steps:
 
-1. The compressed backup files are copied to a staging directory on either the local or
-   remote server using Rsync. 
-2. These files are then decompressed to the restore destination directory.
-3. For remote recovery, configuration files requiring special handling are copied from the
-   restore destination directory to a local temporary directory in the barman node,
+1. If restoring locally, the compressed backup files are decompressed directly into the
+   restore destination directory. If restoring remotely, the behavior depends on the
+   ``staging_location`` setting:
+
+   * ``staging_location=local``: The compressed backup is decompressed in the
+     ``staging_path`` on the Barman server, then copied to the remote restore destination
+     using rsync.
+   * ``staging_location=remote``: The compressed backup is copied to the remote server's
+     ``staging_path`` using rsync and then decompressed in the remote restore destination.
+2. For remote recovery, configuration files requiring special handling are copied from
+   the restore destination directory to a local temporary directory in the barman node,
    edited and mangled as needed, and then returned to the restore directory using
    Rsync. For local recovery, the local temporary directory is the restore destination
    itself, so editing and mangling operations are done in place. This intermediate step
    is necessary because Barman can only access individual files in the restore
    directory, as the backup directory contains only a compressed tarball file.
-4. The staging directory is removed after the restore is complete.
+3. When additional operations are required, the staging directory is removed after the
+   subsequent operation have finished.
 
 Since Barman does not have knowledge of the deployment environment, it depends on the
 ``staging_path`` and ``staging_location`` options to determine an appropriate location
 for the staging directory. Set the option in the global/server configuration or use the
-``--staging-path`` and ``staging-location`` options with the ``barman restore`` command.
-Failing to do so will result in an error, as Barman cannot guess a suitable location on
-its own.
+``--staging-path`` and ``--staging-location`` options with the ``barman restore``
+command. Failing to do so will result in an error, as Barman cannot guess a suitable
+location on its own.
 
 .. _recovery-recovering-block-level-incremental-backups:
 
@@ -367,15 +369,17 @@ automatically determine a suitable staging location.
 
 The process involves the following steps:
 
-1. Barman creates a synthetic backup by combining the chain of backups. This is done in
-   a staging directory on the Barman server using ``pg_combinebackup``. Barman will
-   create a subfolder inside the staging directory with the ID of the backup.
-2. If the recovery is local, the synthetic backup is moved directly to the target
-   location. If it is a remote recovery, the synthetic backup is transferred to the
-   target location using Rsync.
-3. After the restore is complete, the temporary subfolder in the local staging
-   directory used for combining backups is removed. The local staging directory itself
-   is kept.
+1. Barman creates a synthetic backup by combining the chain of backups. If restoring
+   locally, the chain of backups are combined directly into the restore destination
+   directory. If restoring remotely, the behavior depends on the ``staging_location``
+   setting:
+
+   * ``staging_location=local``: The chain of backups is combined in the ``staging_path``
+     on the Barman server, then copied to the remote restore destination using rsync.
+   * ``staging_location=remote``: The chain of backups is copied to the remote server's
+     ``staging_path`` using rsync and then combined in the remote restore destination.
+2. When additional operations are required, the staging directory is removed after the
+   subsequent operation have finished.
 
 .. important::
   If any backups in the chain were taken with checksums disabled, but the final backup
@@ -383,6 +387,57 @@ The process involves the following steps:
   checksums. Please refer to the limitations in the
   `pg_combinebackup documentation <https://www.postgresql.org/docs/current/app-pgcombinebackup.html>`_
   for more details.
+
+.. _recovery-recovery-pipeline-for-multi-format-backups:
+
+Recovery Pipeline for multi-format backups
+------------------------------------------
+
+Backups can be compressed, encrypted, incremental or a combination of these. Barman
+streamlines the recovery process by automatically handling decompression, decryption,
+and incremental backup chain combination as needed during restore. When you issue the
+``barman restore`` command, Barman detects the backup type and performs all necessary
+operations in the correct order, removing any manual intervention.
+
+For example:
+
+* If the backup is encrypted, Barman decrypts it using the configured
+  ``encryption_passphrase_command``.
+* If the backup is compressed, Barman decompresses it before restoring the data files.
+* If the backup is a block-level incremental, Barman combines the backup chain using
+  ``pg_combinebackup`` to produce a full, restorable backup.
+* If the backup is both encrypted, compressed, and incremental, Barman will
+  automatically process it in the following order: decryption, decompression, and
+  incremental chain combination. For each step, Barman creates a temporary staging
+  directory in the selected location. After a step is completed, the staging directory
+  from the previous step is deleted. This means no more than two staging directories
+  will use disk space at the same time.
+
+You can control the location of these operations using the ``staging_path`` and
+``staging_location`` options, either in the configuration file or as command-line
+arguments. This flexibility allows you to optimize for available disk space and network
+bandwidth, especially in remote recovery scenarios.
+
+For example, if a backup is encrypted, compressed, and incremental and it is a remote
+recovery with ``staging_location=remote`` and ``staging_path=/tmp``:
+
+1. All backups in the chain are decrypted to a staging path in the Barman node, e.g.
+   ``/tmp/decrypt-staging-location``.
+2. Then they are copied with rsync to the staging directory in the remote node, e.g.
+   ``/tmp/rsync-staging-location`` on the remote node, and after the copy has finished,
+   the staging path ``/tmp/decrypt-staging-location`` on the Barman node is deleted.
+3. Next, the copied backups are decompressed into another remote staging directory, e.g.
+   ``/tmp/decompress-staging-location`` on the remote node, and after decompression,
+   the staging path ``/tmp/rsync-staging-location`` on the remote node is deleted.
+4. Finally, the decompressed files are combined into a synthetic backup with the restore 
+   destination as its output.
+5. After this, the decompression staging directory ``/tmp/decompress-staging-location``
+   is also deleted.
+
+When ``staging_location=local``, all operations are executed on the Barman server, but
+the order differs slightly: the rsync copy is deferred to the end. The combine operation
+uses its own ``staging_path``, and the final step is to transfer the synthetic backup to
+the restore destination on the remote node.
 
 .. _recovery-limitation-of-partial-wal-files:
 
