@@ -1133,7 +1133,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                     )
                     output.close_and_exit()
 
-        executor = recovery_executor_factory(self, command, backup_info)
+        executor = recovery_executor_factory(self, backup_info)
         # Run the pre_recovery_script if present.
         script = HookScriptRunner(self, "recovery_script", "pre")
         script.env_from_recover(
