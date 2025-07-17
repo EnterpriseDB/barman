@@ -49,7 +49,6 @@ from barman.infofile import (
     Field,
     FieldListFile,
     LocalBackupInfo,
-    SyntheticBackupInfo,
     VolatileBackupInfo,
     WalFileInfo,
     dump_backup_ids,
@@ -1602,78 +1601,6 @@ class TestLocalBackupInfo:
             dummy.load(infofile.strpath)
 
         assert "Unsupported field 'dummy' found in backup metadata" in caplog.text
-
-
-class TestSyntheticBackupInfo:
-    """
-    this class tests the methods of the SyntheticBackupInfo object
-    """
-
-    def test_init_synthetic_backup_info_with_backup_id(self):
-        """
-        Unit test for the __init__ method using backup_id.
-
-        Create mock server and a SyntheticBackupInfo object.
-
-        This unit tests checks:
-            * base_directory parameter
-            * backup_id parameter
-            * instance type
-        """
-        server = build_mocked_server()
-        base_directory = "fake/path/"
-        backup_id = "fake_name"
-        obj = SyntheticBackupInfo(
-            server=server,
-            base_directory=base_directory,
-            backup_id=backup_id,
-            info_file=None,
-        )
-        assert obj.base_directory == base_directory
-        assert obj.backup_id == backup_id
-        assert isinstance(obj, SyntheticBackupInfo)
-
-    def test_init_synthetic_backup_info_with_info_file(self, tmpdir):
-        """
-        Unit test for the __init__ method using info_file.
-
-        Create mock server and a SyntheticBackupInfo object.
-
-        This unit tests checks:
-            * base_directory parameter
-            * filename parameter
-            * instance type
-        """
-        server = build_mocked_server()
-        base_directory = "fake/path/"
-        backup_id = "fake_name"
-        infofile = tmpdir.mkdir(backup_id).join("backup.info")
-        infofile.write(BASE_BACKUP_INFO)
-        obj = SyntheticBackupInfo(
-            server=server,
-            base_directory=base_directory,
-            backup_id=None,
-            info_file=infofile.strpath,
-        )
-        assert obj.base_directory == base_directory
-        assert obj.filename == infofile.strpath
-        assert isinstance(obj, SyntheticBackupInfo)
-
-    def test_get_basebackup_directory(self):
-        """
-        Unit test for the get_basebackup_directory.
-
-        Create mock server and a SyntheticBackupInfo object.
-
-        This unit tests checks if the method returns the correct path based on
-        base_directory and backup_id.
-        """
-        server = build_mocked_server()
-        backup_info = SyntheticBackupInfo(
-            server=server, base_directory="/fake/path/", backup_id="fake_name"
-        )
-        directory = backup_info.get_basebackup_directory()
-        assert directory == "/fake/path/fake_name"
 
 
 class TestVolatileBackupInfo:
