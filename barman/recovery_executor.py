@@ -198,14 +198,6 @@ class RecoveryExecutor(object):
         # Retrieve the safe_horizon for smart copy
         self._retrieve_safe_horizon(recovery_info, backup_info, dest)
 
-        # TODO: analyze removing after MainRecoveryExecutor is ready
-        # check destination directory. If doesn't exist create it
-        try:
-            recovery_info["cmd"].create_dir_if_not_exists(dest, mode="700")
-        except FsOperationFailed as e:
-            output.error("unable to initialise destination directory '%s': %s", dest, e)
-            output.close_and_exit()
-
         # Copy the base backup
         self._start_backup_copy_message()
         try:
@@ -1837,6 +1829,12 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
         cmd = fs.unix_command_factory(remote_command, self.server.path)
         SnapshotRecoveryExecutor.check_mount_points(backup_info, attached_volumes, cmd)
         self.check_recovery_dir_exists(dest, cmd)
+
+        try:
+            cmd.create_dir_if_not_exists(dest, mode="700")
+        except FsOperationFailed as e:
+            output.error("unable to initialise destination directory '%s': %s", dest, e)
+            output.close_and_exit()
 
         return super(SnapshotRecoveryExecutor, self).recover(
             backup_info,

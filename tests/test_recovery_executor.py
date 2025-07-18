@@ -2048,6 +2048,8 @@ class TestSnapshotRecoveryExecutor(object):
         mock_get_snapshot_interface.return_value.get_attached_volumes.return_value = (
             attached_volumes
         )
+        cmd = mock.Mock()
+        _mock_fs.unix_command_factory.return_value = cmd
 
         # WHEN recover is called
         # THEN there are no errors
@@ -2056,6 +2058,7 @@ class TestSnapshotRecoveryExecutor(object):
             recovery_dest,
             recovery_instance=recovery_instance,
         )
+        cmd.create_dir_if_not_exists.assert_called_once_with(recovery_dest, mode="700")
 
         # AND the superclass recovery method was called with the expected args
         mock_superclass_recover.assert_called_once_with(
