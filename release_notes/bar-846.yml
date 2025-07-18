@@ -1,0 +1,76 @@
+- summary: Allow incremental backups to be taken with compression and encryption
+  description: |
+    Previously, Barman prevented incremental backups to be taken if compression was
+    enabled or if the parent backup was already compressed. Since encryption in Barman
+    requires compression, this also meant that incremental backups could not be taken
+    with encryption.
+
+    This limitation existed due to the complexity of restoring such backups, which
+    involves multiple staging phases for decryption, decompression, and combination of
+    backups.
+
+    After a significant refactoring effort, Barman now fully supports taking incremental
+    backups with both compression and/or encryption. This allows for more flexible backup
+    strategies, enabling users to take advantage of all available features without
+    restrictions.
+  type: notable_change
+  jira_tickets:
+    - BAR-764, BAR-801, BAR-841
+
+- summary: Improve flexibility and consistency of staging area configuration
+  description: |
+    Whenever restoring a compressed, encrypted or incremental backup, Barman needs a
+    staging area to handle intermediate files, such as decompressed or decrypted files,
+    or the combined incremental backup data.
+
+    Previously, Barman used to have different configuration options for each scenario:
+
+    - For incremental backups, the staging area was specified via the `local_staging_path`
+      in the Barman configuration, which could only be a path in the Barman host.
+
+    - For compressed backups, the staging area was specified via the `recovery_staging_path`,
+      which could be a path in the Barman host (in case of local recovery) or a path
+      in the target server (in case of remote recovery to a different server).
+
+    - For encrypted backups, the staging area was specified via the `local_staging_path`
+      in the Barman configuration, which could only be a path in the Barman host.
+      Note that, since encryption requires compression to be enabled, when restoring an
+      encrypted backup, users needed to specify both `recovery_staging_path` and
+      `local_staging_path`.
+
+    Barman now provides a single, unified and more flexible staging area configuration:
+
+    - The new `staging_path` configuration option can be used to specify an absolute path
+      for the staging area, where intermediate files will be stored.
+
+    - The new `staging_location` configuration option can be used to specify whether the
+      staging area is on the Barman host (`local`) or on the remote server (`remote`).
+
+    This means that, besides having a unified configuration for the staging path, users
+    are now also able to specify with more flexibility where the staging area should
+    be located, either on the Barman host or on the remote Postgres server.
+
+    Storage usage has also been optimized to reduce resource consumption whenever
+    possible. This includes:
+
+    - Removing intermediate files as soon as they are no longer needed.
+    - Avoid using the staging area when not necessary, e.g. when restoring a
+      compressed backup locally, no staging is needed and the backup is decompressed
+      directly to its final destination.
+
+    This change simplifies configuration and improves consistency and resource usage,
+    making the recovery management more transparent and predictable for end users.
+  type: notable_change
+  jira_tickets:
+    - BAR-764, BAR-765, BAR-801, BAR-841
+
+- summary: Deprecate `local_staging_path` and `recovery_staging_path` configuration options
+  description: |
+    The `local_staging_path` and `recovery_staging_path` configuration options have been
+    deprecated in favor of the new `staging_path` and `staging_location` options.
+    The old options will continue to work for backwards compatibility, but users are
+    encouraged to migrate to the new configuration options for better clarity and
+    flexibility.
+  type: notable_change
+  jira_tickets:
+    - BAR-571, BAR-801
