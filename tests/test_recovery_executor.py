@@ -1188,6 +1188,7 @@ class TestRecoveryExecutor(object):
             mock.call().copy(),
         ]
 
+    @mock.patch("barman.recovery_executor.get_passphrase_from_command")
     @mock.patch("shutil.rmtree")
     @mock.patch("os.unlink")
     @mock.patch("shutil.copy2")
@@ -1204,6 +1205,7 @@ class TestRecoveryExecutor(object):
         mock_copy,
         mock_unlink,
         mock_rmtree,
+        mock_passphrase,
         tmpdir,
     ):
         """
@@ -1269,7 +1271,8 @@ class TestRecoveryExecutor(object):
                 "000000000000000000000004\t42\t43\tNone\tgpg\n"
             ),
         )
-        executor._xlog_copy(required_wals, dest.strpath, None, b"passphrase")
+        mock_passphrase.return_value = b"passphrase"
+        executor._xlog_copy(required_wals, dest.strpath, None)
         # Check for a correct invocation of rsync using local paths
         rsync_pg_mock.assert_called_once_with(
             network_compression=False, bwlimit=None, path=None, ssh=None
@@ -1294,9 +1297,7 @@ class TestRecoveryExecutor(object):
         cm_mock.reset_mock()
         mock_copy.reset_mock()
         # Test: remote copy
-        executor._xlog_copy(
-            required_wals, dest.strpath, "remote_command", b"passphrase"
-        )
+        executor._xlog_copy(required_wals, dest.strpath, "remote_command")
         # Check for the invocation of rsync on a remote call
         rsync_pg_mock.assert_called_once_with(
             network_compression=False, bwlimit=None, path=mock.ANY, ssh="remote_command"
@@ -1333,6 +1334,7 @@ class TestRecoveryExecutor(object):
             ]
         )
 
+    @mock.patch("barman.recovery_executor.get_passphrase_from_command")
     @mock.patch("shutil.move")
     @mock.patch("tempfile.mkdtemp")
     @mock.patch("barman.backup.EncryptionManager")
@@ -1345,6 +1347,7 @@ class TestRecoveryExecutor(object):
         encr_mock,
         mock_tmp_file,
         mock_move,
+        mock_passphrase,
         tmpdir,
     ):
         """
@@ -1391,7 +1394,8 @@ class TestRecoveryExecutor(object):
                 "000000000000000000000004\t42\t43\tNone\tgpg\n"
             ),
         )
-        executor._xlog_copy(required_wals, dest.strpath, None, b"passphrase")
+        mock_passphrase.return_value = b"passphrase"
+        executor._xlog_copy(required_wals, dest.strpath, None)
         # Check for a correct invocation of rsync using local paths
         rsync_pg_mock.assert_called_once_with(
             network_compression=False, bwlimit=None, path=None, ssh=None
@@ -1417,9 +1421,7 @@ class TestRecoveryExecutor(object):
         mock_move.reset_mock()
         e["gpg"].decrypt.return_value = "/tmp/barman-wal-x/000000000000000000000004"
         # Test: remote copy
-        executor._xlog_copy(
-            required_wals, dest.strpath, "remote_command", b"passphrase"
-        )
+        executor._xlog_copy(required_wals, dest.strpath, "remote_command")
         # Check for the invocation of rsync on a remote call
         rsync_pg_mock.assert_called_once_with(
             network_compression=False, bwlimit=None, path=mock.ANY, ssh="remote_command"
@@ -1446,11 +1448,12 @@ class TestRecoveryExecutor(object):
             "/tmp/barman-wal-x/000000000000000000000004",
         )
 
+    @mock.patch("barman.recovery_executor.get_passphrase_from_command")
     @mock.patch("barman.backup.EncryptionManager")
     @mock.patch("barman.backup.CompressionManager")
     @mock.patch("barman.recovery_executor.RsyncPgData")
     def test_recover_xlog_encrypted_wals_with_no_passphrase_raises_exception(
-        self, rsync_pg_mock, cm_mock, encr_mock, tmpdir, caplog
+        self, rsync_pg_mock, cm_mock, encr_mock, mock_passphrase, tmpdir, caplog
     ):
         """
         Test that when there is an encrypted WAL and there is no passphrase, the restore
@@ -1481,41 +1484,14 @@ class TestRecoveryExecutor(object):
                 "000000000000000000000001\t42\t43\tNone\tgpg\n"
             ),
         )
+        mock_passphrase.return_value = None
         with pytest.raises(SystemExit):
-            executor._xlog_copy(required_wals, dest.strpath, None, None)
+            executor._xlog_copy(required_wals, dest.strpath, None)
 
         assert (
             "Encrypted WALs were found for server 'main', but "
-            "'encryption_passphrase_command' is not configured." in caplog.text
-        )
-
-    def test_prepare_tablespaces(self, tmpdir):
-        """
-        Test tablespaces preparation for recovery
-        """
-        # Prepare basic directory/files structure
-        dest = tmpdir.mkdir("destination")
-        wals = tmpdir.mkdir("wals")
-        backup_info = testing_helpers.build_test_backup_info(
-            tablespaces=[("tbs1", 16387, "/fake/location")]
-        )
-        # build an executor
-        server = testing_helpers.build_real_server(
-            main_conf={"wals_directory": wals.strpath}
-        )
-        executor = RecoveryExecutor(server.backup_manager)
-        # use a mock as cmd obj
-        cmd_mock = mock.Mock()
-        executor._prepare_tablespaces(backup_info, cmd_mock, dest.strpath, {})
-        cmd_mock.create_dir_if_not_exists.assert_any_call(
-            dest.join("pg_tblspc").strpath
-        )
-        cmd_mock.create_dir_if_not_exists.assert_any_call("/fake/location")
-        cmd_mock.delete_if_exists.assert_called_once_with(
-            dest.join("pg_tblspc").join("16387").strpath
-        )
-        cmd_mock.create_symbolic_link.assert_called_once_with(
-            "/fake/location", dest.join("pg_tblspc").join("16387").strpath
+            "'encryption_passphrase_command' is not configured correctly."
+            in caplog.text
         )
 
     @mock.patch("barman.recovery_executor.RsyncCopyController")
@@ -1657,145 +1633,6 @@ class TestRecoveryExecutor(object):
                     exclusive=True,
                     remote_command="remote@command",
                 )
-
-    @mock.patch("barman.recovery_executor.os.makedirs")
-    @mock.patch("barman.recovery_executor.get_passphrase_from_command")
-    @mock.patch("barman.recovery_executor.RecoveryExecutor._decrypt_backup")
-    def test_recovery_encrypted_backup(
-        self,
-        mock__decrypt_backup,
-        mock_get_pass_from_cmd,
-        mock_makedirs,
-        tmpdir,
-    ):
-        """
-        Test the execution of a recovery when there is an encrypted backup. There is no
-        point on testing both local and remote recovery because we are only interested
-        in the code block where we handle the decryption of the backup before restoring.
-        After that, there is already the :meth:`test_recovery` method that does the
-        aforementioned test.
-        """
-        # Prepare basic directory/files structure
-        dest = tmpdir.mkdir("destination")
-        base = tmpdir.mkdir("base")
-        wals = tmpdir.mkdir("wals")
-        backup_info = testing_helpers.build_test_backup_info(
-            encryption="gpg", tablespaces=[]
-        )
-        backup_info.config.basebackups_directory = base.strpath
-        backup_info.config.wals_directory = wals.strpath
-        backup_info.version = 90400
-        datadir = base.mkdir(backup_info.backup_id).mkdir("data")
-        backup_info.pgdata = datadir.strpath
-        postgresql_conf_local = datadir.join("postgresql.conf")
-        postgresql_auto_local = datadir.join("postgresql.auto.conf")
-        postgresql_conf_local.write(
-            "archive_command = something\n" "data_directory = something"
-        )
-        postgresql_auto_local.write(
-            "archive_command = something\n" "data_directory = something"
-        )
-        shutil.copy2(postgresql_conf_local.strpath, dest.strpath)
-        shutil.copy2(postgresql_auto_local.strpath, dest.strpath)
-        # Avoid triggering warning for missing config files
-        datadir.ensure("pg_hba.conf")
-        datadir.ensure("pg_ident.conf")
-        mock_makedirs.return_value = None
-
-        encryption_passphrase_command = "echo 'passphrase'"
-        # Build an executor
-        server = testing_helpers.build_real_server(
-            global_conf={"barman_lock_directory": tmpdir.mkdir("lock").strpath},
-            main_conf={
-                "wals_directory": wals.strpath,
-                "local_staging_path": "/tmp",
-                "encryption_passphrase_command": encryption_passphrase_command,
-            },
-        )
-        executor = RecoveryExecutor(server.backup_manager)
-        with closing(executor):
-            rec_info = executor.recover(backup_info, dest.strpath, exclusive=True)
-        # remove not useful keys from the result
-        del rec_info["cmd"]
-        sys_tempdir = rec_info["tempdir"]
-        assert rec_info == {
-            "rsync": None,
-            "tempdir": sys_tempdir,
-            "wal_dest": dest.join("pg_xlog").strpath,
-            "recovery_dest": "local",
-            "destination_path": dest.strpath,
-            "temporary_configuration_files": [
-                dest.join("postgresql.conf").strpath,
-                dest.join("postgresql.auto.conf").strpath,
-            ],
-            "results": {
-                "recovery_start_time": rec_info["results"]["recovery_start_time"],
-                "get_wal": False,
-                "changes": [
-                    Assertion._make(["postgresql.conf", 0, "archive_command", "false"]),
-                    Assertion._make(
-                        ["postgresql.auto.conf", 0, "archive_command", "false"]
-                    ),
-                ],
-                "missing_files": [],
-                "recovery_configuration_file": "recovery.conf",
-                "warnings": [
-                    Assertion._make(
-                        ["postgresql.conf", 2, "data_directory", "something"]
-                    ),
-                    Assertion._make(
-                        ["postgresql.auto.conf", 2, "data_directory", "something"]
-                    ),
-                ],
-            },
-            "configuration_files": ["postgresql.conf", "postgresql.auto.conf"],
-            "target_datetime": None,
-            "safe_horizon": None,
-            "is_pitr": False,
-            "get_wal": False,
-            # The change of decryption_dest key is tested in `test__decrypt_backup` as
-            # this is a side effect of that method.
-            "decryption_dest": None,
-        }
-        mock_makedirs.assert_any_call("/tmp", mode=0o700, exist_ok=True)
-        mock_get_pass_from_cmd.assert_called_with(encryption_passphrase_command)
-        passphrase = mock_get_pass_from_cmd.return_value
-
-        mock__decrypt_backup.assert_called_once_with(
-            backup_info=backup_info, passphrase=passphrase, recovery_info=rec_info
-        )
-
-    def test_recovery_encrypted_backup_no_passphrase_from_command(self, tmpdir, caplog):
-        """
-        Test the execution of a recovery when no passphrase is set in the server's
-        configuration.
-        """
-        # Prepare basic directory/files structure
-        dest = tmpdir.mkdir("destination")
-        wals = tmpdir.mkdir("wals")
-        backup_info = testing_helpers.build_test_backup_info(
-            encryption="gpg", tablespaces=[]
-        )
-
-        # Build an executor
-        server = testing_helpers.build_real_server(
-            global_conf={"barman_lock_directory": tmpdir.mkdir("lock").strpath},
-            main_conf={
-                "wals_directory": wals.strpath,
-                "encryption_passphrase_command": None,
-                "backup_options": "concurrent_backup",
-            },
-        )
-        executor = RecoveryExecutor(server.backup_manager)
-
-        with pytest.raises(SystemExit):
-            with closing(executor):
-                executor.recover(backup_info, dest.strpath)
-
-        assert (
-            "Encrypted backup '1234567890' was found for server 'main', but "
-            "'encryption_passphrase_command' is not configured." in caplog.text
-        )
 
     def test_recover_standby_mode(self, tmpdir):
         backup_info = testing_helpers.build_test_backup_info()
@@ -2008,69 +1845,6 @@ class TestRecoveryExecutor(object):
         recovery_info["rsync"].from_file_list.assert_called_once_with(
             expected_file_list, temp_dir, ":" + recovery_dir
         )
-
-    # TODO: REMOVE THIS AFTER RECOVERYOPERATIONS ARE COMPLETE.
-    @mock.patch("shutil.copy2")
-    @mock.patch("tempfile.mkdtemp")
-    def test__decrypt_backup(
-        self,
-        temp_staging_dir,
-        mock_cp,
-        tmpdir,
-    ):
-        server = testing_helpers.build_real_server(
-            main_conf={
-                "local_staging_path": "/tmp",
-                "encryption_key_id": "key_id",
-                "backup_compression_format": "tar",
-                "backup_compression": "none",
-            }
-        )
-        backup_manager = testing_helpers.build_backup_manager(server=server)
-        executor = RecoveryExecutor(backup_manager=backup_manager)
-
-        file = tmpdir.join("test_file")
-        file.write("")
-        mock_backup_info = Mock(
-            server=server, backup_id="backup_id", filename=file, encryption="gpg"
-        )
-
-        temp_staging_dir.return_value = "/tmp/barman-decryption-random"
-        mock_backup_info.get_data_directory.return_value = "default/backup_id/data"
-        mock_backup_info.get_directory_entries.return_value = [
-            "default/backup_id/data/data.tar.gpg",
-            "default/backup_id/data/11892.tar.gpg",
-            "default/backup_id/data/backup_manifest",
-        ]
-        recovery_info = {"decryption_dest": None}
-        passphrase = bytearray(b"test-passphrase")
-        backup_manager.encryption_manager.get_encryption = Mock()
-
-        decrypter = backup_manager.encryption_manager.get_encryption.return_value
-
-        # Call the method
-        executor._decrypt_backup(mock_backup_info, passphrase, recovery_info)
-
-        backup_manager.encryption_manager.get_encryption.assert_called_once_with(
-            mock_backup_info.encryption
-        )
-
-        mock_cp.assert_called_once_with(
-            "default/backup_id/data/backup_manifest", "/tmp/barman-decryption-random"
-        )
-
-        decrypter.decrypt.call_count == 2
-        decrypter.decrypt.assert_any_call(
-            file="default/backup_id/data/data.tar.gpg",
-            dest="/tmp/barman-decryption-random",
-            passphrase=passphrase,
-        )
-        decrypter.decrypt.assert_any_call(
-            file="default/backup_id/data/11892.tar.gpg",
-            dest="/tmp/barman-decryption-random",
-            passphrase=passphrase,
-        )
-        assert recovery_info["decryption_dest"] == "/tmp/barman-decryption-random"
 
 
 class TestRemoteConfigRecoveryExecutor(object):

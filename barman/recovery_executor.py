@@ -160,54 +160,6 @@ class RecoveryExecutor(object):
             backup_info, remote_command, dest, recovery_conf_filename
         )
 
-        # TODO: REMOVE THIS AFTER RECOVERYOPERATIONS ARE COMPLETE.
-        # get_passphrase_from_command is called inside DecryptOperation and _xlog_copy
-        passphrase = None
-        if self.config.encryption_passphrase_command:
-            output.info(
-                "The 'encryption_passphrase_command' setting is present in your "
-                "configuration. This implies that the catalog contains encrypted "
-                "backup or WAL files. The private key will be retrieved to perform "
-                "decryption as needed."
-            )
-
-            passphrase = get_passphrase_from_command(
-                self.config.encryption_passphrase_command
-            )
-
-        # TODO: REMOVE THIS AFTER RECOVERYOPERATIONS ARE COMPLETE.
-        # If the backup is encrypted, it consists of tarballs (Barman only supports
-        # encryption of tarball based backups for now).
-        # Decrypt as the first step to prepare the backup, then begin the recovery
-        # process.
-        if backup_info.encryption:
-            if passphrase is None:
-                output.error(
-                    "Encrypted backup '%s' was found for server '%s', but "
-                    "'encryption_passphrase_command' is not configured. Please "
-                    "configure it before attempting a restore.",
-                    backup_info.backup_id,
-                    self.server.config.name,
-                )
-                output.close_and_exit()
-
-            output.debug("Encrypted backup '%s' detected.", backup_info.backup_id)
-            output.info(
-                "Decrypting files from backup '%s' for server '%s'.",
-                backup_info.backup_id,
-                self.server.config.name,
-            )
-
-            # Create local staging path if not exist. Ignore if it does exist.
-            os.makedirs(self.config.local_staging_path, mode=0o700, exist_ok=True)
-
-            self._decrypt_backup(
-                backup_info=backup_info,
-                passphrase=passphrase,
-                recovery_info=recovery_info,
-            )
-            # TODO: REMOVE UNTIL HERE AFTER RECOVERYOPERATIONS ARE COMPLETE.
-
         output.info(
             "Starting %s restore for server %s using backup %s",
             recovery_info["recovery_dest"],
@@ -254,12 +206,6 @@ class RecoveryExecutor(object):
             output.error("unable to initialise destination directory '%s': %s", dest, e)
             output.close_and_exit()
 
-        # TODO: analyze removing after MainRecoveryExecutor is ready
-        # Initialize tablespace directories
-        if backup_info.tablespaces:
-            self._prepare_tablespaces(
-                backup_info, recovery_info["cmd"], dest, tablespaces
-            )
         # Copy the base backup
         self._start_backup_copy_message()
         try:
@@ -357,12 +303,8 @@ class RecoveryExecutor(object):
                 )
 
                 # Restore WAL segments into the wal_dest directory
-                # TODO: REMOVE passphrase arg AFTER RECOVERYOPERATIONS ARE COMPLETE.
                 self._xlog_copy(
-                    required_xlog_files,
-                    recovery_info["wal_dest"],
-                    remote_command,
-                    passphrase,
+                    required_xlog_files, recovery_info["wal_dest"], remote_command
                 )
             except DataTransferFailure as e:
                 output.error("Failure copying WAL files: %s", e)
@@ -386,16 +328,9 @@ class RecoveryExecutor(object):
                     recovery_info, remote_command, required_xlog_files
                 )
 
-        # get_passphrase_from_command.cache_clear()
-        # TODO: REMOVE THIS AFTER RECOVERYOPERATIONS ARE COMPLETE and uncomment code
-        # above. The scope of passphrase will be the methods of DecrypOpeartion and
-        # _xlog_copy.
-
-        # At this point, the encryption passphrase is not needed anymore, so we dispose
-        # it from memory to avoid lingering. See the security note in the GPG command
-        # class.
-        if passphrase:
-            passphrase[:] = b"\x00" * len(passphrase)
+        # At this point, the encryption passphrase is not needed anymore, so
+        # we clear the cache to avoid lingering.
+        get_passphrase_from_command.cache_clear()
 
         # Generate recovery.conf file (only if needed by PITR or get_wal)
         is_pitr = recovery_info["is_pitr"]
@@ -738,62 +673,6 @@ class RecoveryExecutor(object):
 
         recovery_info["safe_horizon"] = safe_horizon
 
-    # TODO: analyze removing after the MainRecoveryExecutor is ready
-    def _prepare_tablespaces(self, backup_info, cmd, dest, tablespaces):
-        """
-        Prepare the directory structure for required tablespaces,
-        taking care of tablespaces relocation, if requested.
-
-        :param barman.infofile.LocalBackupInfo backup_info: backup
-            representation
-        :param barman.fs.UnixLocalCommand cmd: Object for
-            filesystem interaction
-        :param str dest: destination dir for the recovery
-        :param dict tablespaces: dict of all the tablespaces and their location
-        """
-        tblspc_dir = os.path.join(dest, "pg_tblspc")
-        try:
-            # check for pg_tblspc dir into recovery destination folder.
-            # if it does not exists, create it
-            cmd.create_dir_if_not_exists(tblspc_dir)
-        except FsOperationFailed as e:
-            output.error(
-                "unable to initialise tablespace directory '%s': %s", tblspc_dir, e
-            )
-            output.close_and_exit()
-        for item in backup_info.tablespaces:
-            # build the filename of the link under pg_tblspc directory
-            pg_tblspc_file = os.path.join(tblspc_dir, str(item.oid))
-
-            # by default a tablespace goes in the same location where
-            # it was on the source server when the backup was taken
-            location = item.location
-
-            # if a relocation has been requested for this tablespace,
-            # use the target directory provided by the user
-            if tablespaces and item.name in tablespaces:
-                location = tablespaces[item.name]
-
-            try:
-                # remove the current link in pg_tblspc, if it exists
-                cmd.delete_if_exists(pg_tblspc_file)
-                # create tablespace location, if does not exist
-                # (raise an exception if it is not possible)
-                cmd.create_dir_if_not_exists(location)
-                # check for write permissions on destination directory
-                cmd.check_write_permission(location)
-                # create symlink between tablespace and recovery folder
-                cmd.create_symbolic_link(location, pg_tblspc_file)
-            except FsOperationFailed as e:
-                output.error(
-                    "unable to prepare '%s' tablespace (destination '%s'): %s",
-                    item.name,
-                    location,
-                    e,
-                )
-                output.close_and_exit()
-            output.info("\t%s, %s, %s", item.oid, item.name, location)
-
     def _start_backup_copy_message(self):
         """
         Write the start backup copy message to the output.
@@ -921,9 +800,7 @@ class RecoveryExecutor(object):
             msg = "data transfer failure"
             raise DataTransferFailure.from_command_error("rsync", e, msg)
 
-    # TODO: Implement get_passphrase_from_command inside here AFTER RECOVERYOPERATIONS
-    # ARE COMPLETE.
-    def _xlog_copy(self, required_xlog_files, wal_dest, remote_command, passphrase):
+    def _xlog_copy(self, required_xlog_files, wal_dest, remote_command):
         """
         Restore WAL segments
 
@@ -931,7 +808,6 @@ class RecoveryExecutor(object):
         :param wal_dest: the destination directory for xlog recover
         :param remote_command: default None. The remote command to recover
                the xlog, in case of remote backup.
-        :param bytearray passphrase: UTF-8 encoded version of passphrase.
         """
         # List of required WAL files partitioned by containing directory
         xlogs = collections.defaultdict(list)
@@ -967,14 +843,20 @@ class RecoveryExecutor(object):
                 compressors[wal_info.compression] = compression_manager.get_compressor(
                     compression=wal_info.compression
                 )
-        if passphrase is None and encryptions:
-            output.error(
-                "Encrypted WALs were found for server '%s', but "
-                "'encryption_passphrase_command' is not configured. Please configure "
-                "it before attempting a restore.",
-                self.server.config.name,
-            )
-            output.close_and_exit()
+        if encryptions:
+            passphrase = None
+            if self.config.encryption_passphrase_command:
+                passphrase = get_passphrase_from_command(
+                    self.config.encryption_passphrase_command
+                )
+            if not passphrase:
+                output.error(
+                    "Encrypted WALs were found for server '%s', but "
+                    "'encryption_passphrase_command' is not configured correctly."
+                    "Please configure it before attempting a restore.",
+                    self.server.config.name,
+                )
+                output.close_and_exit()
 
         rsync = RsyncPgData(
             path=self.server.path,
@@ -1512,35 +1394,6 @@ class RecoveryExecutor(object):
             temp_dir.delete()
         self.temp_dirs = []
 
-    # TODO: REMOVE THIS AFTER RECOVERYOPERATIONS ARE COMPLETE.
-    def _decrypt_backup(self, backup_info, passphrase, recovery_info):
-        """
-        Decrypt the given backup into the local staging path.
-        :param barman.infofile.LocalBackupInfo backup_info: the backup to be decrypted.
-        :param bytearray passphrase: the passphrase for decrypting the backup.
-        :param dict recovery_info: Dictionary of recovery information.
-        """
-        tempdir = tempfile.mkdtemp(
-            prefix="barman-decryption-", dir=self.config.local_staging_path
-        )
-        encryption_manager = self.backup_manager.encryption_manager
-        encryption_handler = encryption_manager.get_encryption(backup_info.encryption)
-
-        for backup_file in backup_info.get_directory_entries("data"):
-            # We "reconstruct" the "original backup" in the staging path. Encrypted
-            # files are decrypted, while unencrypted files are copied as-is.
-            if backup_file.endswith(".gpg"):
-                output.debug("Decrypting file %s at %s" % (backup_file, tempdir))
-                _ = encryption_handler.decrypt(
-                    file=backup_file, dest=tempdir, passphrase=passphrase
-                )
-            else:
-                shutil.copy2(backup_file, tempdir)
-        # Store `tempdir` in the recovery_info dict so that the `_backup_copy`
-        # method knows the backup was encrypted and where to copy the decrypted backup
-        # from.
-        recovery_info["decryption_dest"] = tempdir
-
 
 class RemoteConfigRecoveryExecutor(RecoveryExecutor):
     """
@@ -1627,7 +1480,6 @@ class TarballRecoveryExecutor(RemoteConfigRecoveryExecutor):
         super(TarballRecoveryExecutor, self).__init__(backup_manager)
         self.compression = compression
 
-    # TODO: REMOVE passphrase arg AFTER RECOVERYOPERATIONS ARE COMPLETE.
     def _backup_copy(
         self,
         backup_info,
