@@ -2989,7 +2989,8 @@ class TestRsyncCopyOperation(object):
     Tests for the :class:`RsyncCopyOperation` class.
     """
 
-    def test_execute(self):
+    @mock.patch("barman.recovery_executor.RsyncCopyOperation._get_command_interface")
+    def test_execute(self, _mock_cmd):
         """
         Test that :meth:`_execute` calls :meth:`_execute_on_chain` correctly.
         """
@@ -3360,6 +3361,26 @@ class TestRsyncCopyOperation(object):
 
         # # AND the copy is executed
         mock_copy_controller.copy.assert_called_once()
+
+    @pytest.mark.parametrize("remote_command", ["ssh user@host", None])
+    @mock.patch("barman.recovery_executor.fs.unix_command_factory")
+    @mock.patch("barman.recovery_executor.output")
+    def test__get_command_interface(
+        self, mock_output, mock_unix_command_factory, remote_command
+    ):
+        backup_manager = testing_helpers.build_backup_manager(
+            main_conf={
+                "backup_options": "concurrent_backup",
+            }
+        )
+        op = RsyncCopyOperation(
+            backup_manager.config, backup_manager.server, backup_manager
+        )
+        result = op._get_command_interface(remote_command)
+        mock_unix_command_factory.assert_called_once_with(
+            remote_command, backup_manager.server.path
+        )
+        assert result == mock_unix_command_factory.return_value
 
 
 class TestCombineOperation(object):

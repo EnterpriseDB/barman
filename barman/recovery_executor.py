@@ -2137,6 +2137,21 @@ class RsyncCopyOperation(RecoveryOperation):
 
     NAME = "barman-rsync-copy"
 
+    def _get_command_interface(self, remote_command):
+        """
+        Get the command interface for executing operations.
+
+        The command interface will be a :class:`barman.fs.UnixLocalCommand` or a
+        :class:`barman.fs.UnixRemoteCommand`, depending on whether the
+        *remote_command* is set or not.
+
+        :param str|None remote_command: The SSH remote command to use for the recovery,
+            in case of a remote recovery. If ``None``, it means the recovery is local
+        :return barman.fs.UnixLocalCommand: The command interface for executing
+            operations
+        """
+        return fs.unix_command_factory(remote_command, self.server.path)
+
     def _should_execute(self, backup_info):
         """
         Check if the rsync copy operation should be executed on the given backup.
