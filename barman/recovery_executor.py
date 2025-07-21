@@ -2489,6 +2489,18 @@ class DecryptOperation(RecoveryOperation):
             else:
                 shutil.copy2(backup_file, destination)
 
+        # We create the tablespace directories to maintain the standard basebackup
+        # directory structure. This is necessary to prevent failures in later
+        # operations, such as RsyncCopyOperation, which rely on the presence of these
+        # directories to create symlinks for tablespaces. During rsync, both PGDATA and
+        # tablespace directories are copied — the tablespaces will be empty, while
+        # PGDATA will contain tarballs for the base and tablespace OIDs.
+        if backup_info.tablespaces:
+            for tablespace in backup_info.tablespaces:
+                tablespace_dst_path = volatile_backup_info.get_data_directory(
+                    tablespace.oid
+                )
+                self._prepare_directory(tablespace_dst_path)
         return volatile_backup_info
 
 

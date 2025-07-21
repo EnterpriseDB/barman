@@ -43,7 +43,7 @@ from barman.exceptions import (
     SnapshotBackupException,
     UnsupportedCompressionFormat,
 )
-from barman.infofile import BackupInfo, VolatileBackupInfo, WalFileInfo
+from barman.infofile import BackupInfo, Tablespace, VolatileBackupInfo, WalFileInfo
 from barman.recovery_executor import (
     Assertion,
     CombineOperation,
@@ -4066,7 +4066,13 @@ class TestDecryptOperation(object):
                 is_last_operation=False,
             )
             output_mock.info.assert_called_once()
-        prep_dir_mock.assert_called_once_with("/tmp/dest/backup-id/data")
+        prep_dir_mock.assert_has_calls(
+            [
+                call("/tmp/dest/backup-id/data"),
+                call("/tmp/dest/backup-id/16387"),
+                call("/tmp/dest/backup-id/16405"),
+            ]
+        )
         assert isinstance(result, VolatileBackupInfo)
         assert result.get_base_directory() == "/tmp/dest"
 
@@ -4118,6 +4124,7 @@ class TestDecryptOperation(object):
         )
         assert result == "VOLATILE_BACKUP"
 
+    @mock.patch("barman.infofile.LocalBackupInfo.get_data_directory")
     @mock.patch("shutil.copy2")
     @mock.patch("barman.recovery_executor.get_passphrase_from_command")
     @mock.patch("barman.recovery_executor.DecryptOperation._prepare_directory")
@@ -4126,6 +4133,7 @@ class TestDecryptOperation(object):
         mock_prep_dir,
         mock_passphrase,
         mock_cp,
+        mock_get_data_dir,
         tmpdir,
     ):
         """
@@ -4162,7 +4170,13 @@ class TestDecryptOperation(object):
         file = tmpdir.join("test_file")
         file.write("")
         mock_backup_info = Mock(
-            server=server, backup_id="backup_id", filename=file, encryption="gpg"
+            server=server,
+            backup_id="backup_id",
+            filename=file,
+            encryption="gpg",
+            tablespaces=list(
+                Tablespace._make(item) for item in (("tbs1", 11892, "/fake/location"),)
+            ),
         )
 
         destination = "/tmp/barman-decryption-random"
@@ -4182,23 +4196,23 @@ class TestDecryptOperation(object):
         backup_manager.encryption_manager.get_encryption.assert_called_once_with(
             mock_backup_info.encryption
         )
-        mock_prep_dir.assert_called_once_with(
-            "/tmp/barman-decryption-random/backup_id/data"
+        mock_prep_dir.assert_has_calls(
+            [call(mock_get_data_dir.return_value), call(mock_get_data_dir.return_value)]
         )
         mock_cp.assert_called_once_with(
             "default/backup_id/data/backup_manifest",
-            "/tmp/barman-decryption-random/backup_id/data",
+            mock_get_data_dir.return_value,
         )
 
         decrypter.decrypt.call_count == 2
         decrypter.decrypt.assert_any_call(
             file="default/backup_id/data/data.tar.gpg",
-            dest="/tmp/barman-decryption-random/backup_id/data",
+            dest=mock_get_data_dir.return_value,
             passphrase=mock_passphrase.return_value,
         )
         decrypter.decrypt.assert_any_call(
             file="default/backup_id/data/11892.tar.gpg",
-            dest="/tmp/barman-decryption-random/backup_id/data",
+            dest=mock_get_data_dir.return_value,
             passphrase=mock_passphrase.return_value,
         )
 
