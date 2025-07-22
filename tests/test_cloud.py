@@ -534,9 +534,7 @@ class TestS3CloudInterface(object):
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
         client_mock = s3_mock.meta.client
-        client_mock.list_objects_v2.assert_called_once_with(
-            Bucket="bucket", MaxKeys=1, Prefix="path/to/dir"
-        )
+        client_mock.head_bucket.assert_called_once_with(Bucket="bucket")
 
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_connectivity_failure(self, boto_mock):
@@ -548,7 +546,7 @@ class TestS3CloudInterface(object):
         s3_mock = session_mock.resource.return_value
         client_mock = s3_mock.meta.client
         # Raise the exception for the "I'm unable to reach amazon" event
-        client_mock.list_objects_v2.side_effect = EndpointConnectionError(
+        client_mock.head_bucket.side_effect = EndpointConnectionError(
             endpoint_url="bucket"
         )
         assert cloud_interface.test_connectivity() is False
@@ -563,11 +561,9 @@ class TestS3CloudInterface(object):
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
         s3_client = s3_mock.meta.client
-        # Expect a call on the list_objects_v2 method of the s3 client.
-        s3_client.list_objects_v2.assert_called_once_with(
-            Bucket=cloud_interface.bucket_name,
-            MaxKeys=1,
-            Prefix=cloud_interface.path,
+        # Expect a call on the head_bucket method of the s3 client.
+        s3_client.head_bucket.assert_called_once_with(
+            Bucket=cloud_interface.bucket_name
         )
 
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
@@ -580,7 +576,7 @@ class TestS3CloudInterface(object):
         s3_mock = session_mock.resource.return_value
         s3_client = s3_mock.meta.client
         # Simulate a 404 error from amazon for 'bucket not found'
-        s3_client.list_objects_v2.side_effect = ClientError(
+        s3_client.head_bucket.side_effect = ClientError(
             error_response={"Error": {"Code": "404"}}, operation_name="load"
         )
         cloud_interface.setup_bucket()

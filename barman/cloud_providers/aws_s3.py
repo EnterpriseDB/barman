@@ -212,13 +212,8 @@ class S3CloudInterface(CloudInterface):
         :rtype: bool
         """
         try:
-            # Switched from `head_bucket` to `list_objects_v2` to support fine-grained
-            # S3 access policies. `head_bucket` requires `ListBucket` permission on the
-            # entire bucket, which conflicts with security models that restrict access
-            # only to specific prefixes.
-            self.s3.meta.client.list_objects_v2(
-                Bucket=self.bucket_name, MaxKeys=1, Prefix=self.path
-            )
+            # Search the bucket on s3
+            self.s3.meta.client.head_bucket(Bucket=self.bucket_name)
             return True
         except ClientError as exc:
             # If a client error is thrown, then check the error code.
