@@ -1,0 +1,9 @@
+- summary: Add option `--if-not-exists` to `barman receive-wal --create-slot`
+  description: |
+    A new `--if-not-exists` flag has been added to the `barman receive-wal --create-slot`
+    command. This prevents the command from failing when attempting to create a
+    replication slot that has already been created, making it more reliable for
+    use in scripts.
+  type: minor_change
+  jira_tickets:
+    - BAR-527
