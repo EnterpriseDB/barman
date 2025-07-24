@@ -826,6 +826,13 @@ class ServerConfig(BaseConfig):
         "recovery_options": "",
         "create_slot": "manual",
         "retention_policy_mode": "auto",
+        "staging_location": "local",
+        # TODO: uncomment `staging_path` after removing deprecated options
+        # `recovery_staging_path` and `local_staging_path`. We cannot make this change
+        # while we still support these options because of the override logic implemented
+        # in `MainRecoveryExecutor._handle_deprecated_staging_options`` and
+        # cli.restore().
+        # "staging_path": "/tmp",
         "streaming_archiver": "off",
         "streaming_archiver_batch_size": "0",
         "streaming_archiver_name": "barman_receive_wal",
