@@ -2033,6 +2033,10 @@ class RecoveryOperation(ABC):
         Each tablespace has a symlink created in the ``pg_tblspc`` directory
         pointing to the respective tablespace location after the recovery.
 
+        Note:
+            "pg_tblspc" directory is created even if there are no tablespaces to be
+            linked, so we comply with the structure created by Postgres.
+
         :param barman.infofile.VolatileBackupInfo backup_info: The volatile backup info
             representing the backup state
         :param str pgdata_dir: The ``PGDATA`` directory of the restored backup
@@ -2052,6 +2056,10 @@ class RecoveryOperation(ABC):
                 "unable to initialize tablespace directory '%s': %s", tblspc_dir, e
             )
             output.close_and_exit()
+
+        if not backup_info.tablespaces:
+            output.debug("There are no tablespaces to be linked. Skipping this step.")
+            return
 
         for tablespace in backup_info.tablespaces:
             # build the filename of the link under pg_tblspc directory

@@ -2893,6 +2893,28 @@ class TestRecoveryOperation(object):
         )
         mock_output.close_and_exit.assert_called_once_with()
 
+    @mock.patch("barman.recovery_executor.output", wraps=output)
+    def test_link_tablespaces_returns_with_no_tablespaces(self, mock_output):
+        """
+        Test that :meth:`_link_tablespaces` has no effect when there are no tablespaces
+        to be linked and outputs a debug message.
+        """
+        operation = self.get_recovery_operation()
+        operation.cmd = mock.Mock()
+        vol_backup_info = mock.Mock(
+            tablespaces=None,
+            get_data_directory=lambda oid: f"/path/to/backup_id/data/{oid}",
+        )
+        pgdata_dir = "/destination/pgdata"
+        pg_tblspc_dir = os.path.join(pgdata_dir, "pg_tblspc")
+        operation._link_tablespaces(vol_backup_info, pgdata_dir, None, True)
+        # call is made to create the pg_tblspc directory
+        operation.cmd.create_dir_if_not_exists.assert_called_once_with(pg_tblspc_dir)
+        # THEN it logs a debug message
+        mock_output.debug.assert_called_once_with(
+            "There are no tablespaces to be linked. Skipping this step."
+        )
+
     @mock.patch("os.getpid")
     def test_staging_path_property(self, mock_pid):
         """
