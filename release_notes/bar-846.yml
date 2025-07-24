@@ -41,10 +41,12 @@
     Barman now provides a single, unified and more flexible staging area configuration:
 
     - The new `staging_path` configuration option can be used to specify an absolute path
-      for the staging area, where intermediate files will be stored.
+      for the staging area, where intermediate files will be stored. The default value
+      is `/tmp`.
 
     - The new `staging_location` configuration option can be used to specify whether the
       staging area is on the Barman host (`local`) or on the remote server (`remote`).
+      The default value is `local`.
 
     This means that, besides having a unified configuration for the staging path, users
     are now also able to specify with more flexibility where the staging area should
