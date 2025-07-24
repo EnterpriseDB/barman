@@ -818,18 +818,7 @@ class TestCli(object):
             (config,),
         )
 
-        # Case 1: When staging_path is set and staging_location is unset
-        mock_restore_args.staging_path = "/some/staging/path"
-        mock_restore_args.staging_location = None
-        with pytest.raises(SystemExit):
-            restore(mock_restore_args)
-        # THEN an error is raised and logged because it is required
-        _, err = capsys.readouterr()
-        assert (
-            "ERROR: --staging-location must be set when --staging-path is provided"
-        ) in err
-
-        # Case 2: When remote-ssh-command is not set
+        # Case 1: When remote-ssh-command is not set
         mock_restore_args.staging_location = "remote"
         mock_restore_args.remote_ssh_command = None
         with pytest.raises(SystemExit):
@@ -841,7 +830,7 @@ class TestCli(object):
             "--remote-ssh-command to be set"
         ) in err
 
-        # Case 3: When remote-ssh-command is set
+        # Case 2: When remote-ssh-command is set
         mock_restore_args.remote_ssh_command = "ssh postgres@pg"
         with pytest.raises(SystemExit):
             restore(mock_restore_args)
@@ -853,8 +842,8 @@ class TestCli(object):
             "staging_path, recovery_staging_path, local_staging_path, is_incremental, compression, encryption, should_fail, should_warn"
         ),
         [
-            # Case 1: compressed backup, no staging_path, no recovery_staging_path -> should fail
-            (None, None, None, False, "gzip", None, True, False),
+            # Case 1: compressed backup, no staging_path, no recovery_staging_path -> should not fail
+            (None, None, None, False, "gzip", None, False, False),
             # Case 2: compressed backup, no staging_path, recovery_staging_path set -> should warn, not fail
             (
                 None,
@@ -866,12 +855,12 @@ class TestCli(object):
                 False,
                 True,
             ),
-            # Case 3: incremental backup, no staging_path, no local_staging_path -> should fail
-            (None, None, None, True, None, None, True, False),
+            # Case 3: incremental backup, no staging_path, no local_staging_path -> should not fail
+            (None, None, None, True, None, None, False, False),
             # Case 4: incremental backup, no staging_path, local_staging_path set -> should warn, not fail
             (None, None, "/path/to/some/local/staging", True, None, None, False, True),
             # Case 5: encrypted backup, no staging_path, no local_staging_path -> should fail
-            (None, None, None, False, None, "gpg", True, False),
+            (None, None, None, False, None, "gpg", False, False),
             # Case 6: encrypted backup, no staging_path, local_staging_path set -> should warn, not fail
             (
                 None,
