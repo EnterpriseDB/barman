@@ -33,7 +33,6 @@ import socket
 import tempfile
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from functools import partial
 from io import BytesIO
 
 import dateutil.parser
@@ -2743,7 +2742,7 @@ class CombineOperation(RecoveryOperation):
 
         # Do the actual combine
         self._run_pg_combinebackup(
-            backup_info, output_dest, tablespace_mapping, dest_dirs, remote_command
+            backup_info, output_dest, tablespace_mapping, remote_command
         )
 
         output.info(
@@ -2781,7 +2780,6 @@ class CombineOperation(RecoveryOperation):
         backup_info,
         output_dest,
         tablespace_mapping,
-        dest_dirs,
         remote_command,
     ):
         """
@@ -2796,8 +2794,6 @@ class CombineOperation(RecoveryOperation):
             will be placed
         :param dict[str,str] tablespace_mapping: A mapping of source tablespace
             directories to their destination directories
-        :param list[str] dest_dirs: A list of destination directories, useful for the
-            retry handler to remove already created directories in case of failure
         :param str|None remote_command: The SSH remote command to use for the recovery,
             in case of a remote recovery. If ``None``, it means the recovery is local
         :raises barman.exceptions.DataTransferFailure: If the combine operation fails
@@ -2815,9 +2811,6 @@ class CombineOperation(RecoveryOperation):
             version=remote_status["pg_combinebackup_version"],
             app_name=None,
             tbs_mapping=tablespace_mapping,
-            retry_times=self.config.basebackup_retry_times,
-            retry_sleep=self.config.basebackup_retry_sleep,
-            retry_handler=partial(self._retry_handler, dest_dirs),
             out_handler=PgCombineBackup.make_logging_handler(logging.INFO),
             args=backups_chain,
         )
@@ -2835,9 +2828,6 @@ class CombineOperation(RecoveryOperation):
                     shell=True,  # use the shell instead of an "execve" call
                     check=True,  # raise CommandFailedException on failure
                     path=self.server.path,
-                    retry_times=self.config.basebackup_retry_times,
-                    retry_sleep=self.config.basebackup_retry_sleep,
-                    retry_handler=partial(self._retry_handler, dest_dirs),
                     out_handler=Command.make_logging_handler(logging.INFO),
                 )
                 remote_cmd(
@@ -2943,27 +2933,6 @@ class CombineOperation(RecoveryOperation):
         remote_status["pg_combinebackup_path"] = full_path
         remote_status["pg_combinebackup_version"] = full_version
         return remote_status
-
-    def _retry_handler(self, dest_dirs, attempt):
-        """
-        Handler invoked during a combine backup in case of retry.
-
-        The method simply warn the user of the failure and
-        remove the already existing directories of the backup.
-
-        :param list[str] dest_dirs: destination directories
-        :param int attempt: attempt number (starting from 0)
-        """
-        output.warning(
-            "Failure combining backups using pg_combinebackup (attempt %s)", attempt
-        )
-        output.warning(
-            "The files created so far will be removed and "
-            "the combine process will restart in %s seconds",
-            "30",
-        )
-        for _dir in dest_dirs:
-            self._prepare_directory(_dir)
 
 
 class MainRecoveryExecutor(RemoteConfigRecoveryExecutor):

@@ -3530,7 +3530,6 @@ class TestCombineOperation(object):
             backup_info,
             output_dest,
             mock_get_tablespace_mapping.return_value,
-            dests,
             remote_command,
         )
 
@@ -3592,18 +3591,13 @@ class TestCombineOperation(object):
             "/path/to/backup_id/tbs1": "/path/to/relocation/tbs1",
             "/path/to/backup_id/tbs2": "/path/to/relocation/tbs2",
         }
-        dest_dirs = [
-            "/path/to/destination",
-            "/path/to/relocation/tbs1",
-            "/path/to/relocation/tbs2",
-        ]
         # remote_command is only relevant when the staging location is remote,
         # otherwise it is not used, so we can leave it as None
         remote_command = "ssh postgres@pg" if staging_location == "remote" else None
 
         # WHEN _run_pg_combinebackup is called
         operation._run_pg_combinebackup(
-            backup_info, destination, tablespace_mapping, dest_dirs, remote_command
+            backup_info, destination, tablespace_mapping, remote_command
         )
 
         # THEN _fetch_remote_status is called correctly
@@ -3621,9 +3615,6 @@ class TestCombineOperation(object):
             version=remote_status["pg_combinebackup_version"],
             app_name=None,
             tbs_mapping=tablespace_mapping,
-            retry_times=operation.config.basebackup_retry_times,
-            retry_sleep=operation.config.basebackup_retry_sleep,
-            retry_handler=mock.ANY,
             out_handler=mock.ANY,
             args=backups_chain,
         )
@@ -3639,9 +3630,6 @@ class TestCombineOperation(object):
                 shell=True,
                 check=True,
                 path=operation.server.path,
-                retry_times=operation.config.basebackup_retry_times,
-                retry_sleep=operation.config.basebackup_retry_sleep,
-                retry_handler=mock.ANY,
                 out_handler=mock.ANY,
             )
             # The full command should be quoted correctly
@@ -3696,11 +3684,6 @@ class TestCombineOperation(object):
             "/path/to/backup_id/tbs1": "/path/to/relocation/tbs1",
             "/path/to/backup_id/tbs2": "/path/to/relocation/tbs2",
         }
-        dest_dirs = [
-            "/path/to/destination",
-            "/path/to/relocation/tbs1",
-            "/path/to/relocation/tbs2",
-        ]
         remote_command = "ssh postgres@pg"
 
         # If staging is local then it is the PgCombineBackup instance that will
@@ -3717,7 +3700,7 @@ class TestCombineOperation(object):
         # WHEN _run_pg_combinebackup is called THEN a DataTransferFailure is raised
         with pytest.raises(DataTransferFailure):
             operation._run_pg_combinebackup(
-                backup_info, destination, tablespace_mapping, dest_dirs, remote_command
+                backup_info, destination, tablespace_mapping, remote_command
             )
 
         # AND the exception was raised by calling from_command_error correctly
@@ -3968,45 +3951,6 @@ class TestCombineOperation(object):
             operation.cmd.find_command.return_value = None
             with pytest.raises(CommandNotFoundException):
                 operation._fetch_remote_status()
-
-    @mock.patch("barman.recovery_executor.CombineOperation._prepare_directory")
-    @mock.patch("barman.recovery_executor.output")
-    def test_retry_handler(self, mock_output, mock_prepare_directory):
-        """
-        Test that :meth:`_retry_handler` logs the correct messages and
-        remove the destination directories correctly.
-        """
-        # GIVEN a CombineOperation instance
-        operation = CombineOperation(
-            config=mock.Mock(),
-            server=mock.Mock(),
-            backup_manager=mock.Mock(),
-        )
-
-        # WHEN _retry_handler is called
-        operation._retry_handler(["/path/to/backup", "/path/to/tbspc1"], attempt=3)
-
-        # THEN the correct messages are logged
-        mock_output.warning.assert_has_calls(
-            [
-                mock.call(
-                    "Failure combining backups using pg_combinebackup (attempt %s)", 3
-                ),
-                mock.call(
-                    "The files created so far will be removed and the combine process "
-                    "will restart in %s seconds",
-                    "30",
-                ),
-            ],
-        )
-
-        # AND the directories are removed
-        mock_prepare_directory.assert_has_calls(
-            [
-                mock.call("/path/to/backup"),
-                mock.call("/path/to/tbspc1"),
-            ],
-        )
 
 
 class TestDecryptOperation(object):
