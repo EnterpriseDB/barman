@@ -1225,14 +1225,14 @@ A path where intermediate files are staged during restore. When restoring a comp
 backup, it serves as a temporary location for decompression before copying to the final
 destination. When restoring an incremental backup, it is where backups are combined
 before copying to the final destination. This location must have enough space to store
-the decompressed/combined backup.
+the decompressed/combined backup. The default is ``/tmp``.
 
 Scope: Global / Server / Model.
 
 **staging_location**
 
 Specifies whether ``staging_path`` is a local or remote path. Valid values are
-``local`` and ``remote``.
+``local`` and ``remote``. The default is ``local``.
 
 Scope: Global / Server / Model.
 
