@@ -4718,6 +4718,7 @@ class TestDecompressOperation(object):
         server = mock_backup_manager.server
         # Arrange
         op = DecompressOperation(config, server, mock_backup_manager)
+        op.cmd = mock.Mock()
         backup_info = testing_helpers.build_test_backup_info(compression="gzip")
 
         # Test with no tbs relocation
@@ -4780,6 +4781,15 @@ class TestDecompressOperation(object):
             dest = result.get_data_directory()
         mock_prep_dir.call_count == 3
         mock_prep_dir.assert_has_calls(prep_calls)
+        # Should copy the backup manifest if not the last operation
+        if not is_last_op:
+            op.cmd.copy.assert_called_once_with(
+                backup_info.get_backup_manifest_path(),
+                result.get_backup_manifest_path(),
+            )
+        else:
+            op.cmd.copy.assert_not_called()
+        # Should link the tablespaces
         mock_link_tbs.assert_called_once_with(result, dest, tablespaces, is_last_op)
         # Should call decompress for each tablespace and for base tarball
         assert compressor.decompress.call_count == 3
