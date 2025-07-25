@@ -2446,7 +2446,7 @@ class TestRecoveryOperation(object):
                 pass
 
             def _should_execute(self, backup_info):
-                pass
+                return True
 
         return ImplementedOperation(config, server, backup_manager)
 
@@ -2473,28 +2473,12 @@ class TestRecoveryOperation(object):
             "is_last_operation",
         )
 
-        # Case 1: When _should_execute returns True
-        operation._should_execute = mock.Mock(return_value=True)
-
-        # THEN
         operation.execute(*args)
         # Assert that the command interface has been set
         operation._get_command_interface.assert_called_once_with("remote_command")
         assert operation.cmd == operation._get_command_interface.return_value
         # AND _execute is called with the arguments
         operation._execute.assert_called_once_with(*args)
-
-        # Case 2: When _should_execute returns False
-        operation._should_execute = mock.Mock(return_value=False)
-        operation._execute = mock.Mock()
-        operation._create_volatile_backup_info = mock.Mock()
-
-        # THEN _execute is not called
-        operation.execute(*args)
-        operation._execute.assert_not_called()
-        operation._create_volatile_backup_info.assert_called_once_with(
-            backup_info, backup_info.get_base_directory()
-        )
 
     def test_execute_on_chain_on_non_incremental_backup(self):
         """
@@ -2510,12 +2494,12 @@ class TestRecoveryOperation(object):
 
         # WHEN _execute_on_chain is called
         ret = operation._execute_on_chain(
-            backup_info, mock_method, "arg1", key="value", key2="value2"
+            backup_info, "/destination", mock_method, "arg1", key="value", key2="value2"
         )
 
         # THEN the method is called with the correct parameters
         mock_method.assert_called_once_with(
-            backup_info, "arg1", key="value", key2="value2"
+            backup_info, "/destination", "arg1", key="value", key2="value2"
         )
 
         # AND the equivalent volatile backup info of the backup info passed is returned
@@ -2552,14 +2536,22 @@ class TestRecoveryOperation(object):
 
         # WHEN _execute_on_chain is called
         ret = operation._execute_on_chain(
-            backup_info, mock_method, "arg1", key="value", key2="value2"
+            backup_info, "/destination", mock_method, "arg1", key="value", key2="value2"
         )
 
         # THEN the method is called with the correct parameters
         mock_method.assert_has_calls(
             [
-                mock.call(backup_info, "arg1", key="value", key2="value2"),
-                mock.call(parent_backup_info, "arg1", key="value", key2="value2"),
+                mock.call(
+                    backup_info, "/destination", "arg1", key="value", key2="value2"
+                ),
+                mock.call(
+                    parent_backup_info,
+                    "/destination",
+                    "arg1",
+                    key="value",
+                    key2="value2",
+                ),
             ]
         )
 
@@ -2615,6 +2607,28 @@ class TestRecoveryOperation(object):
 
         # THEN the correct calls are made to the command object
         operation.cmd.delete_if_exists.assert_called_once_with(dest_dir)
+        operation.cmd.create_dir_if_not_exists.assert_called_once_with(
+            dest_dir, mode="700"
+        )
+        operation.cmd.check_write_permission.assert_called_once_with(dest_dir)
+
+    def test_prepare_directory_skip_delete_if_exists(self):
+        """
+        Test that :meth:`_prepare_directory` prepares the directory correctly when
+        ``delete_if_exists``is ``True``.
+        """
+        # GIVEN a RecoveryOperation instance
+        operation = self.get_recovery_operation()
+        operation.cmd = mock.Mock()
+
+        # Mock directory and command
+        dest_dir = "/fake/directory"
+
+        # WHEN _prepare_directory is called
+        operation._prepare_directory(dest_dir, delete_if_exists=False)
+
+        # THEN the correct calls are made to the command object
+        operation.cmd.delete_if_exists.assert_not_called()
         operation.cmd.create_dir_if_not_exists.assert_called_once_with(
             dest_dir, mode="700"
         )
@@ -3044,8 +3058,8 @@ class TestRsyncCopyOperation(object):
         # THEN _rsync_backup_copy should be called with the correct arguments
         operation._execute_on_chain.assert_called_once_with(
             backup_info,
-            operation._rsync_backup_copy,
             "destination",
+            operation._rsync_backup_copy,
             "tablespaces",
             "remote_command",
             # "recovery_info", # not used in _rsync_backup_copy
@@ -3456,11 +3470,13 @@ class TestCombineOperation(object):
         )
         # Case 1: When the backup is incremental it returns True
         backup_info = mock.Mock(is_incremental=True)
-        assert operation._should_execute(backup_info) is True
+        with pytest.raises(NotImplementedError) as e:
+            operation._should_execute(backup_info)
 
-        # Case W: When the backup is not incremental it returns False
-        backup_info = mock.Mock(is_incremental=False)
-        assert operation._should_execute(backup_info) is False
+        assert (
+            "CombineOperation is executed only on the leaf backup of the chain"
+            in str(e)
+        )
 
     @pytest.mark.parametrize("is_last_operation", [True, False])
     @pytest.mark.parametrize("tablespaces", [None, {"tbs1": "/path/to/relocation"}])
@@ -4012,7 +4028,7 @@ class TestDecryptOperation(object):
         not as expected.
         """
         backup_info = testing_helpers.build_test_backup_info(
-            backup_id="backup-id", server_name="main"
+            backup_id="backup-id", server_name="main", encryption="gpg"
         )
         backup_manager = testing_helpers.build_backup_manager(
             main_conf={"backup_options": "concurrent_backup"}
@@ -4086,7 +4102,7 @@ class TestDecryptOperation(object):
         )
         # Assert
         mock_ex_on_chain.assert_called_once_with(
-            backup_info, decrypt_operation._decrypt_backup, "/tmp/dest"
+            backup_info, "/tmp/dest", decrypt_operation._decrypt_backup
         )
         assert result == "VOLATILE_BACKUP"
 
@@ -4900,9 +4916,206 @@ class TestDecompressOperation(object):
         )
         # Assert
         mock_ex_on_chain.assert_called_once_with(
-            backup_info, op._decompress_backup, "/dest", None, True
+            backup_info, "/dest", op._decompress_backup, None, True
         )
         assert result == "VOLATILE_BACKUP"
+
+    @pytest.mark.parametrize(
+        "base_directory",
+        ["/some/barman/home/main/base", "/custom/barman/home/main/base"],
+    )
+    @mock.patch("barman.recovery_executor.DecompressOperation._link_tablespaces")
+    @mock.patch("barman.recovery_executor.DecompressOperation._prepare_directory")
+    @mock.patch("barman.recovery_executor.output")
+    @mock.patch(
+        "barman.recovery_executor.DecompressOperation._create_volatile_backup_info"
+    )
+    @mock.patch("barman.infofile.LocalBackupInfo.walk_to_root")
+    def test_execute_on_chain_on_mixed_backups_compressed_and_uncompressed(
+        self,
+        mock_walk_to_root,
+        mock_create_vol_b_info,
+        mock_out,
+        mock_prep_dir,
+        mock_link_tbs,
+        base_directory,
+        monkeypatch,
+    ):
+        """
+        Test that :meth:`_execute_on_chain` is called with the correct parameters
+        when executing on an incremental backup chain with child compressed and parent
+        uncompressed.
+        """
+        mock_backup_manager = testing_helpers.build_backup_manager(
+            main_conf={"basebackups_directory": base_directory}
+        )
+        config = mock_backup_manager.config
+        server = mock_backup_manager.server
+        # GIVEN a DecompressOperation instance
+        operation = DecompressOperation(config, server, mock_backup_manager)
+        monkeypatch.setattr(operation, "cmd", mock.Mock())
+        # AND a backup info chain
+        # Parent uncompressed
+        parent_backup_info = testing_helpers.build_test_backup_info(
+            backup_id="parent_backup",
+        )
+        # Child compressed
+        backup_info = testing_helpers.build_test_backup_info(
+            backup_id="incremental_backup",
+            parent_backup_id=parent_backup_info.backup_id,
+            compression="gzip",
+        )
+        mock_walk_to_root.return_value = [backup_info, parent_backup_info]
+
+        # Mock the return values of mock_method as if it were a volatile backup info
+        # objects of the backups in the chain
+        mock_vol_parent_backup_info = mock.Mock(backup_id=parent_backup_info.backup_id)
+        mock_vol_backup_info = mock.Mock(
+            backup_id=backup_info.backup_id,
+            parent_backup_id=parent_backup_info.backup_id,
+        )
+        mock_method = mock.Mock()
+        mock_method.side_effect = [mock_vol_backup_info, mock_vol_parent_backup_info]
+        mock_create_vol_b_info.return_value = mock_vol_parent_backup_info
+        destination = "/destination"
+
+        # WHEN _execute_on_chain is called
+        ret = operation._execute_on_chain(
+            backup_info, destination, mock_method, "arg1", key="value", key2="value2"
+        )
+
+        # THEN the method is called only for the child with the correct parameters
+        mock_method.assert_called_once_with(
+            backup_info, destination, "arg1", key="value", key2="value2"
+        )
+        mock_prep_dir.assert_called_once_with(destination, delete_if_exists=False)
+
+        if base_directory == parent_backup_info.get_base_directory():
+            operation.cmd.copy.assert_called_once_with(
+                parent_backup_info.get_basebackup_directory(), destination
+            )
+        else:
+            operation.cmd.move.assert_called_once_with(
+                parent_backup_info.get_basebackup_directory(), destination
+            )
+        # THEN the method _create_volatile_backup_info is called only for the parent
+        # with the correct parameters
+        mock_create_vol_b_info.assert_called_once_with(parent_backup_info, destination)
+        mock_link_tbs.assert_called_once_with(
+            mock_create_vol_b_info.return_value,
+            mock_create_vol_b_info.return_value.get_data_directory(),
+            tablespaces=None,
+            is_last_operation=False,
+        )
+        mock_out.debug.call_count == 2
+        mock_out.debug.assert_has_calls(
+            [
+                call(
+                    "Executing %s operation for backup %s.",
+                    "barman-decompress",
+                    "incremental_backup",
+                ),
+                call(
+                    "Skipping %s operation for backup %s as it's not required",
+                    "barman-decompress",
+                    "parent_backup",
+                ),
+            ]
+        )
+        # AND the chain is correctly remounted on the volatile backup info objects
+        assert mock_vol_backup_info.parent_instance is mock_vol_parent_backup_info
+        # AND the equivalent volatile backup info of the backup info passed is returned
+        assert ret == mock_vol_backup_info
+
+    @pytest.mark.parametrize(
+        "failed_cmd, base_directory",
+        [
+            ["move", "/custom/barman/home/main/base"],
+            ["copy", "/some/barman/home/main/base"],
+            ["link", "/some/barman/home/main/base"],
+            ["prepare_dir", "/some/barman/home/main/base"],
+        ],
+    )
+    @mock.patch("barman.recovery_executor.DecompressOperation._link_tablespaces")
+    @mock.patch("barman.recovery_executor.DecompressOperation._prepare_directory")
+    @mock.patch("barman.recovery_executor.output", wraps=output)
+    @mock.patch(
+        "barman.recovery_executor.DecompressOperation._create_volatile_backup_info"
+    )
+    @mock.patch("barman.infofile.LocalBackupInfo.walk_to_root")
+    def test_execute_on_chain_on_mixed_backups_compressed_and_uncompressed_fs_exceptions(
+        self,
+        mock_walk_to_root,
+        mock_create_vol_b_info,
+        mock_out,
+        mock_prep_dir,
+        mock_link_tbs,
+        failed_cmd,
+        base_directory,
+        monkeypatch,
+    ):
+        """
+        Test that :meth:`_execute_on_chain` is called with the correct parameters
+        when executing on an incremental backup chain with child compressed and parent
+        uncompressed.
+        """
+        mock_backup_manager = testing_helpers.build_backup_manager(
+            main_conf={"basebackups_directory": base_directory}
+        )
+        config = mock_backup_manager.config
+        server = mock_backup_manager.server
+        # GIVEN a DecompressOperation instance
+        operation = DecompressOperation(config, server, mock_backup_manager)
+        monkeypatch.setattr(operation, "cmd", mock.Mock())
+        # AND a backup info chain
+        # Parent uncompressed
+        parent_backup_info = testing_helpers.build_test_backup_info(
+            backup_id="parent_backup",
+        )
+        # Child compressed
+        backup_info = testing_helpers.build_test_backup_info(
+            backup_id="incremental_backup",
+            parent_backup_id=parent_backup_info.backup_id,
+            compression="gzip",
+        )
+        mock_walk_to_root.return_value = [backup_info, parent_backup_info]
+
+        # Mock the return values of mock_method as if it were a volatile backup info
+        # objects of the backups in the chain
+        mock_vol_parent_backup_info = mock.Mock(backup_id=parent_backup_info.backup_id)
+        mock_vol_backup_info = mock.Mock(
+            backup_id=backup_info.backup_id,
+            parent_backup_id=parent_backup_info.backup_id,
+        )
+        mock_method = mock.Mock()
+        mock_method.side_effect = [mock_vol_backup_info, mock_vol_parent_backup_info]
+        mock_create_vol_b_info.return_valuwe = mock_vol_parent_backup_info
+        destination = "/destination"
+
+        msg = ""
+        if failed_cmd == "prepare_dir":
+            msg = "rm execution failed"
+            mock_prep_dir.side_effect = FsOperationFailed(msg)
+        if failed_cmd == "copy":
+            msg = "cp execution failed"
+            operation.cmd.copy.side_effect = FsOperationFailed(msg)
+        if failed_cmd == "move":
+            msg = "mv execution failed"
+            operation.cmd.move.side_effect = FsOperationFailed(msg)
+        if failed_cmd == "link":
+            msg = "unable to initialize tablespace directory"
+            mock_link_tbs.side_effect = FsOperationFailed(msg)
+        with pytest.raises(SystemExit):
+            _ = operation._execute_on_chain(
+                backup_info,
+                destination,
+                mock_method,
+                "arg1",
+                key="value",
+                key2="value2",
+            )
+
+        mock_out.error.assert_called_once_with("File system error: %s", msg)
 
 
 def test_recovery_executor_factory():

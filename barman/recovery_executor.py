@@ -1792,9 +1792,9 @@ class RecoveryOperation(ABC):
         Execute the operation.
 
         .. note::
-            This method is the entry point for executing operations. It checks if the
-            operation should be executed on the given backup and calls the
-            respective underlying :meth:`_execute` method of the actual class.
+            This method is the entry point for executing operations. It calls the
+            respective underlying :meth:`_execute` method of the class, which contains
+            the actual implementation for dealing with the operation.
 
         :param barman.infofile.LocalBackupInfo backup_info: An object representing the
             backup
@@ -1815,18 +1815,6 @@ class RecoveryOperation(ABC):
         :return barman.infofile.VolatileBackupInfo: The respective volatile backup info
             of *backup_info* which reflects all changes performed by the operation
         """
-        # If the operation should not be executed, we return a volatile backup info
-        # that is an exact copy of the original backup_info
-        if not self._should_execute(backup_info):
-            output.debug(
-                "Skipping %s operation for backup %s as it's not required",
-                self.NAME,
-                backup_info.backup_id,
-            )
-            return self._create_volatile_backup_info(
-                backup_info, backup_info.get_base_directory()
-            )
-
         # Set the appropriate command interface to run Unix commands
         self.cmd = self._get_command_interface(remote_command)
 
@@ -1880,6 +1868,9 @@ class RecoveryOperation(ABC):
         """
         Check if the operation should be executed on the given backup.
 
+        This is checked before the operation is executed against each backup in the
+        chain.
+
         This method must be overridden by subclasses to implement specific checks
         for whether the operation should be executed on the provided *backup_info*.
 
@@ -1887,7 +1878,7 @@ class RecoveryOperation(ABC):
         :return bool: ``True`` if the operation should be executed, ``False`` otherwise
         """
 
-    def _execute_on_chain(self, backup_info, method, *args, **kwargs):
+    def _execute_on_chain(self, backup_info, destination, method, *args, **kwargs):
         """
         Executes a given method iteratively on all backups in a chain. In case of
         a non-incremental backup, it executes the method only on the specified backup,
@@ -1903,8 +1894,16 @@ class RecoveryOperation(ABC):
         re-linked in memory so that tree-based operations like
         :meth:`~LocalBackupInfo.walk_to_root` continue to work.
 
+        .. note::
+            This method executes the operation only in the backups that need it. If the
+            chain contains backups that do not require the operation, it will skip the
+            operation for those backups, and will simply move (or copy) the backup to
+            the destination directory.
+
         :param barman.infofile.LocalBackupInfo backup_info: The backup in recovery.
             In case of an incremental backup, all its ascendants are also processed
+        :param str destination: The destination directory where the output of the
+            operation will be stored
         :param callable method: The method to execute on the backup. In case of an
             incremental backup, this method is also executed on all its ascendants
         :param args: Positional arguments to pass to the *method*
@@ -1917,7 +1916,87 @@ class RecoveryOperation(ABC):
 
         backups = {}
         for backup in backup_info.walk_to_root():
-            volatile_backup = method(backup, *args, **kwargs)
+            if self._should_execute(backup):
+                output.debug(
+                    "Executing %s operation for backup %s.",
+                    self.NAME,
+                    backup.backup_id,
+                )
+                volatile_backup = method(backup, destination, *args, **kwargs)
+            else:
+                # This block handles backups within an incremental chain that do not
+                # require the current operation (e.g., an uncompressed backup during a
+                # decompress operation, or an unencrypted backup during a decrypt
+                # operation).
+                #
+                # Instead of processing these backups, we pass them through to the
+                # destination directory, ensuring it contains the complete chain for the
+                # next operation in the pipeline. This allows each operation to clean up
+                # its source staging directory atomically, without having to care about
+                # the staging directory of other previous operations.
+                #
+                # The logic is as follows:
+                # - If the backup is from the main catalog (basebackups_directory),
+                #   it is COPIED to preserve the original backup.
+                # - If it's already in a staging path from a previous operation,
+                #   it is MOVED for efficiency.
+                #
+                # Note: The "_prepare_directory" method is called to ensure the
+                # destination directory exists and is ready to receive the backup. This
+                # is done to prevent errors, just in case the first backup of the chain
+                # is the one being skipped here. If it were the second onwards in the
+                # chain, the directory would already have been created by a previous
+                # call of *method*, and the "_prepare_directory" is a no-op in that
+                # case.
+                try:
+                    self._prepare_directory(destination, delete_if_exists=False)
+                    if backup.get_base_directory() == self.config.basebackups_directory:
+                        self.cmd.copy(backup.get_basebackup_directory(), destination)
+                    else:
+                        self.cmd.move(backup.get_basebackup_directory(), destination)
+                    volatile_backup = self._create_volatile_backup_info(
+                        backup, destination
+                    )
+                    # The `_link_tablespace` method ensures that proper symbolic links
+                    # are created for each tablespace that was moved or copied as part
+                    # of skipping the operation. These links are essential for the
+                    # restored cluster to correctly recognize and access the tablespaces
+                    # during the final step of the backup combination process.
+                    #
+                    # We can safely hardcode `tablespaces` as `None` and
+                    # `is_last_operation` as `False` because this "skip" logic can only
+                    # be executed during intermediate stages of the recovery pipeline
+                    # (e.g., decryption or decompression).
+                    #
+                    # The reasoning is as follows:
+                    # 1. Entering this `else` block implies a mixed incremental chain
+                    #    (e.g., some backups compressed, some not). Such a chain, by
+                    #    definition, requires at least a subsequent `CombineOperation`,
+                    #    and possibly yet a `RsyncOperation`, meaning this can't be the
+                    #    final operation.
+                    # 2. The `RsyncCopyOperation`, if required, is designed to always
+                    #    execute and will never enter this 'skip' block. The
+                    #    `CombineOperation`, on its turn, does not use this
+                    #    `_execute_on_chain` method at all.
+                    #
+                    # Since tablespace relocation as requested by the user is a concern
+                    # only for the final operation in the pipeline, i.e. intermediate
+                    # relocations are performed inside the staging area, we do not need
+                    # to care about such relocation here.
+                    self._link_tablespaces(
+                        volatile_backup,
+                        volatile_backup.get_data_directory(),
+                        tablespaces=None,
+                        is_last_operation=False,
+                    )
+                    output.debug(
+                        "Skipping %s operation for backup %s as it's not required",
+                        self.NAME,
+                        backup.backup_id,
+                    )
+                except FsOperationFailed as e:
+                    output.error("File system error: %s", str(e))
+                    output.close_and_exit()
             backups[volatile_backup.backup_id] = volatile_backup
             if main_vol_backup is None:
                 main_vol_backup = volatile_backup
@@ -1957,7 +2036,7 @@ class RecoveryOperation(ABC):
 
         return volatile_backup_info
 
-    def _prepare_directory(self, dest_dir):
+    def _prepare_directory(self, dest_dir, delete_if_exists=True):
         """
         Prepare a directory for receiving a backup operation's output.
 
@@ -1965,8 +2044,11 @@ class RecoveryOperation(ABC):
         exists, then (re)creating it and ensuring the correct permissions.
 
         :param str dest_dir: The destination directory
+        :param bool delete_if_exists: If *dest_dir* should be removed before we attempt
+            to create it.
         """
-        self.cmd.delete_if_exists(dest_dir)
+        if delete_if_exists:
+            self.cmd.delete_if_exists(dest_dir)
         self.cmd.create_dir_if_not_exists(dest_dir, mode="700")
         self.cmd.check_write_permission(dest_dir)
 
@@ -2187,8 +2269,8 @@ class RsyncCopyOperation(RecoveryOperation):
     ):
         return self._execute_on_chain(
             backup_info,
-            self._rsync_backup_copy,
             destination,
+            self._rsync_backup_copy,
             tablespaces,
             remote_command,
             safe_horizon,
@@ -2411,7 +2493,7 @@ class DecryptOperation(RecoveryOperation):
         safe_horizon,
         is_last_operation,
     ):
-        return self._execute_on_chain(backup_info, self._decrypt_backup, destination)
+        return self._execute_on_chain(backup_info, destination, self._decrypt_backup)
 
     def _get_command_interface(self, remote_command):
         """
@@ -2545,8 +2627,8 @@ class DecompressOperation(RecoveryOperation):
     ):
         return self._execute_on_chain(
             backup_info,
-            self._decompress_backup,
             destination,
+            self._decompress_backup,
             tablespaces,
             is_last_operation,
         )
@@ -2708,10 +2790,19 @@ class CombineOperation(RecoveryOperation):
         """
         Check if the combine operation should be executed on the given backup.
 
+        .. note::
+            This method is a no-op in the case of incremental backups as only the leaf
+            backup in the chain will execute this operation (i.e., this class does not
+            use :meth:`_execute_on_chain`). It's implemented only to satisfy the
+            interface of the base class :class:`RecoveryOperation`.
+
         :param barman.infofile.LocalBackupInfo backup_info: The backup info to check
-        :return bool: ``True`` if the operation should be executed, ``False`` otherwise
+        :raises NotImplementedError: This method is not applicable for incremental
+            backups.
         """
-        return backup_info.is_incremental
+        raise NotImplementedError(
+            "CombineOperation is executed only on the leaf backup of the chain"
+        )
 
     def _combine_backups(
         self,
