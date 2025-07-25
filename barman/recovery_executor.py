@@ -2565,8 +2565,6 @@ class DecompressOperation(RecoveryOperation):
             be placed.
         :param dict tablespaces: Optional mapping of tablespace names to their
             relocation paths.
-        :param dict recovery_info: Information required for recovery, including the
-            decompression command.
         :param bool is_last_operation: Indicates if this is the final operation in the
         recovery process, affecting tablespace relocation.
 
@@ -2638,9 +2636,29 @@ class DecompressOperation(RecoveryOperation):
             base_src_path, destination, exclude=["recovery.conf", "tablespace_map"]
         )
         output.debug("Decompression output for base tarball: %s", cmd_output)
+
+        # If it's not the last operation we also copy the backup manifest to the next
+        # staging area, as likely a combine operation is going to need it
+        if not is_last_operation:
+            try:
+                self.cmd.copy(
+                    backup_info.get_backup_manifest_path(),
+                    vol_backup_info.get_backup_manifest_path(),
+                )
+            except FsOperationFailed as ex:
+                output.error(
+                    "Failed to copy backup manifest from %s to %s: %s",
+                    backup_info.get_backup_manifest_path(),
+                    vol_backup_info.get_backup_manifest_path(),
+                    ex,
+                )
+                output.close_and_exit()
+
+        # Create the tablespaces symbolic links in the destination directory
         self._link_tablespaces(
             vol_backup_info, destination, tablespaces, is_last_operation
         )
+
         return vol_backup_info
 
 

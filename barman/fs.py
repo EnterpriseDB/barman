@@ -69,6 +69,22 @@ class UnixLocalCommand(object):
         else:
             raise FsOperationFailed("mv execution failed")
 
+    def copy(self, source_path, dest_path):
+        """
+        Copy a file from *source_path* to *dest_path*.
+
+        :param str source_path: full path to the source file
+        :param str dest_path: full path to the destination file
+        :returns bool: ``True`` if the copy completed successfully
+        :raises FsOperationFailed: if the copy operation fails
+        """
+        _logger.debug("Copying %s to %s" % (source_path, dest_path))
+        cp_ret = self.cmd("cp", args=["-a", source_path, dest_path])
+        if cp_ret == 0:
+            return True
+        else:
+            raise FsOperationFailed("cp execution failed")
+
     def create_dir_if_not_exists(self, dir_path, mode=None):
         """
         This method recursively creates a directory if not exists
