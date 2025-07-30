@@ -3036,8 +3036,9 @@ class MainRecoveryExecutor(RemoteConfigRecoveryExecutor):
         and ``recovery_staging_path``.
 
         This context manager temporarily maps ``local_staging_path`` and
-        ``recovery_staging_path`` to ``staging_path`` and ``staging_location``
-        accordingly, depending on the operation to be run.
+        ``recovery_staging_path`` to ``staging_path``. ``staging_location`` is always
+        set to "local" when using the deprecated options to guarantee a consistent
+        use of the staging area without adding extra complexity.
 
         This ensures that, even if using deprecated options, operations are still able
         to rely only on the new options, without having to handle multiple scenarios
@@ -3059,16 +3060,15 @@ class MainRecoveryExecutor(RemoteConfigRecoveryExecutor):
         original_staging_path = operation.config.staging_path
         original_staging_location = operation.config.staging_location
 
-        # Previous to the introduction of staging_path and staging_location,
-        # decompress was the only operation that could use remote staging,
-        # depending on the remote_command
+        # When using the deprecated options, we set staging_path according to the
+        # operation and staging_location to "local", as it is the safest way to guarantee
+        # a consistent behavior accross all operations
         if isinstance(operation, DecompressOperation):
             operation.config.staging_path = operation.config.recovery_staging_path
-            operation.config.staging_location = "remote" if remote_command else "local"
-        # Other than that, everything else was staged locally
         else:
             operation.config.staging_path = operation.config.local_staging_path
-            operation.config.staging_location = "local"
+
+        operation.config.staging_location = "local"
 
         yield
 

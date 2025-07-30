@@ -4530,8 +4530,7 @@ class TestMainRecoveryExecutor(object):
                 "local",
             ),
             # Case 3: staging_path and staging_location unset and operation is decompress -> maps
-            # recovery_staging_path to staging_path and staging_location to "remote"
-            # (because remote_command is set)
+            # recovery_staging_path to staging_path and staging_location is always "local"
             (
                 None,
                 None,
@@ -4540,11 +4539,10 @@ class TestMainRecoveryExecutor(object):
                 DecompressOperation,
                 "ssh postgres@pg",
                 "/some/recovery/staging/path",
-                "remote",
+                "local",
             ),
             # Case 4: staging_path and staging_location unset and operation is any other than decompress -> maps
             # local_staging_path to staging_path and staging_location is always "local"
-            # regardless of remote_command
             (
                 None,
                 None,
@@ -4557,8 +4555,8 @@ class TestMainRecoveryExecutor(object):
             ),
             # Case 5: staging_path and staging_location unset and operation is any other than decompress -> maps
             # local_staging_path to staging_path and staging_location is always "local"
-            # regardless of remote_command (this test is essentially the same as the
-            # previous one, but with remote_command set to assert the result is the same)
+            # (this test is essentially the same as the previous one, but with
+            # remote_command set to assert the result is the same)
             (
                 None,
                 None,
