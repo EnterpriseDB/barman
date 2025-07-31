@@ -70,7 +70,13 @@ from barman.exceptions import (
     UnsupportedCompressionFormat,
 )
 from barman.infofile import BackupInfo, LocalBackupInfo, VolatileBackupInfo
-from barman.utils import force_str, mkpath, parse_target_tli, total_seconds
+from barman.utils import (
+    force_str,
+    is_subdirectory,
+    mkpath,
+    parse_target_tli,
+    total_seconds,
+)
 
 # generic logger for this module
 _logger = logging.getLogger(__name__)
@@ -738,7 +744,7 @@ class RecoveryExecutor(object):
                 # If the tablespace location is inside the data directory,
                 # exclude and protect it from being deleted during
                 # the data directory copy
-                if location.startswith(dest):
+                if is_subdirectory(dest, location):
                     exclude_and_protect += [location[len(dest) :]]
 
                 # Exclude and protect the tablespace from being deleted during
@@ -2334,10 +2340,12 @@ class RsyncCopyOperation(RecoveryOperation):
                 # If the tablespace location is inside the data directory,
                 # exclude and protect it from being deleted during
                 # the data directory copy
-                if location.startswith(destination):
+                if is_subdirectory(destination, location):
                     exclude_and_protect += [location[len(destination) :]]
-                # Append it to the list of destination directories
-                dest_dirs.append(location)
+                else:
+                    # Else append it to the destination list so it is prepared
+                    # before the copy operation
+                    dest_dirs.append(location)
                 # Exclude and protect the tablespace from being deleted during
                 # the data directory copy
                 exclude_and_protect.append("/pg_tblspc/%s" % tablespace.oid)
@@ -2597,7 +2605,9 @@ class DecompressOperation(RecoveryOperation):
             raise UnsupportedCompressionFormat(
                 f"Unexpected compression format: {compression}"
             )
-        base_file = "%s.%s" % (self.BASE_TARBALL_NAME, compressor.file_extension)
+
+        self._prepare_directory(destination)
+
         # Untar the results files to their intended location
         if backup_info.tablespaces:
             for tablespace in backup_info.tablespaces:
@@ -2635,11 +2645,12 @@ class DecompressOperation(RecoveryOperation):
                     tablespace.name,
                     cmd_output,
                 )
+
+        base_file = "%s.%s" % (self.BASE_TARBALL_NAME, compressor.file_extension)
         base_src_path = "%s/%s" % (backup_info.get_data_directory(), base_file)
         output.debug(
             "Decompressing base tarball from %s to %s.", base_src_path, destination
         )
-        self._prepare_directory(destination)
         cmd_output = compressor.decompress(
             base_src_path, destination, exclude=["recovery.conf", "tablespace_map"]
         )
@@ -2756,9 +2767,12 @@ class CombineOperation(RecoveryOperation):
         )
 
         # Prepare the destination directories (PGDATA and tablespaces)
-        dest_dirs = [output_dest] + list(tablespace_mapping.values())
-        for _dir in dest_dirs:
-            self._prepare_directory(_dir)
+        # Only include tablespace directories that are not subdirectories of output_dest,
+        # to avoid preparing the same directory multiple times.
+        self._prepare_directory(output_dest)
+        for tbspc_dest in tablespace_mapping.values():
+            if not is_subdirectory(output_dest, tbspc_dest):
+                self._prepare_directory(tbspc_dest)
 
         output.info(
             "Start combining backup via pg_combinebackup for backup %s on %s",

@@ -4757,9 +4757,9 @@ class TestDecompressOperation(object):
         # Should create all destinations before decompressing
         if is_last_op:
             prep_calls = [
+                call("/dest"),
                 call(tbs1),
                 call(tbs2),
-                call("/dest"),
             ]
             decompress_calls = [
                 call(
@@ -4779,9 +4779,9 @@ class TestDecompressOperation(object):
             dest = "/dest"
         else:
             prep_calls = [
+                call("/dest/1234567890/data"),
                 call("/dest/1234567890/16387"),
                 call("/dest/1234567890/16405"),
-                call("/dest/1234567890/data"),
             ]
             decompress_calls = [
                 call(

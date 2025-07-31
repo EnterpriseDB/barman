@@ -1647,3 +1647,45 @@ class TestAWSTags:
         validation and parsing.
         """
         assert barman.utils.check_tag("  key  ,  value  ") == ("key", "value")
+
+
+class TestIsSubdirectory:
+    def test_direct_subdirectory(self, tmpdir):
+        parent = tmpdir.mkdir("parent")
+        child = parent.mkdir("child")
+        assert barman.utils.is_subdirectory(str(parent), str(child)) is True
+
+    def test_nested_subdirectory(self, tmpdir):
+        parent = tmpdir.mkdir("parent")
+        child = parent.mkdir("child").mkdir("grandchild")
+        assert barman.utils.is_subdirectory(str(parent), str(child)) is True
+
+    def test_same_directory(self, tmpdir):
+        parent = tmpdir.mkdir("parent")
+        assert barman.utils.is_subdirectory(str(parent), str(parent)) is True
+
+    def test_not_a_subdirectory(self, tmpdir):
+        parent = tmpdir.mkdir("parent")
+        sibling = tmpdir.mkdir("sibling")
+        assert barman.utils.is_subdirectory(str(parent), str(sibling)) is False
+
+    def test_relative_paths(self, tmpdir):
+        parent = tmpdir.mkdir("parent")
+        parent.mkdir("child")
+        cwd = os.getcwd()
+        try:
+            os.chdir(str(tmpdir))
+            assert barman.utils.is_subdirectory("parent", "parent/child") is True
+        finally:
+            os.chdir(cwd)
+
+    def test_root_and_subdirectory(self, tmpdir):
+        # On Unix, '/' is the root
+        child = tmpdir.mkdir("child")
+        assert barman.utils.is_subdirectory("/", str(child)) is True
+
+    def test_empty_paths(self):
+        # Empty path resolves to the current directory
+        assert barman.utils.is_subdirectory("", "") is True
+        assert barman.utils.is_subdirectory("/", "") is True
+        assert barman.utils.is_subdirectory("", "/tmp") is False

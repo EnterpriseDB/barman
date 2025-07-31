@@ -1278,3 +1278,16 @@ def muted(logger):
         logger.info = original_info
         logger.warning = original_warning
         logger.error = original_error
+
+
+def is_subdirectory(path1, path2):
+    """
+    Check if *path2* is a subdirectory of *path1*.
+
+    :param str path1: The parent directory path.
+    :param str path2: The child directory path.
+    :return bool: ``True`` if *path2* is a subdirectory of *path1, ``False`` otherwise
+    """
+    path1 = os.path.abspath(path1)
+    path2 = os.path.abspath(path2)
+    return os.path.commonpath([path1, path2]) == path1
