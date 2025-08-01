@@ -466,6 +466,16 @@ handle the ``.partial`` file.
 Moreover, ``get-wal`` will check the ``incoming`` directory for any WAL files that have
 been sent to Barman but not yet archived.
 
+If recovering with ``no-get-wal``, Barman will copy all archived WALs to the destination
+node. In this case, the partial WAL file will not be copied, with the eventual lost data
+from transactions recorded in the partial file.
+
+To avoid such limitation, you can copy the partial WAL file located in the
+``streaming_wals_directory`` to the
+:ref:`staging wal directory <commands-barman-restore-staging-wal-directory>` on the
+destination node, renaming it without the `.partial` suffix.
+
+
 .. _recovery-managing-external-configuration-files:
 
 Managing external configuration files

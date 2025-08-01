@@ -226,6 +226,8 @@ Parameters
 ``--target-xid``
     Recover to the specified transaction ID.
 
+.. _commands-barman-restore-staging-wal-directory:
+
 ``--staging-wal-directory``
     A staging directory on the destination host for WAL files when performing PITR. If
     unspecified, it uses a ``barman_wal`` directory inside the destination directory.
