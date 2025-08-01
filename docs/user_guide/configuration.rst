@@ -146,7 +146,9 @@ Scope: Global.
 Specifies the directory for lock files. The default is ``barman_home``.
 
 .. note::
-  The ``barman_lock_directory`` should be on a non-network local filesystem.
+  The ``barman_lock_directory`` should be on a non-network local filesystem. If using
+  NFS, or any other network filesystem to store the backups and WAL files, make sure
+  that the lock directory lives in a local filesystem.
 
 Scope: Global.
 
