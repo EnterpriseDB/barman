@@ -1,7 +1,0 @@
-- summary: Change "No of files" to "Number of files" in show-backup command
-  description: |
-    In the Wal Information section of the show-backup command, the output of
-    "No of files" was changed to "Number of files".
-  type: minor_change
-  jira_tickets:
-    - BAR-798

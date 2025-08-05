@@ -1,8 +1,0 @@
-- summary: Support shortcuts as backup IDs in Barman cloud scripts
-  description: |
-    It is now possible to specify the shortcuts `first`/`oldest`, `last`/`latest` and
-    `last-failed` when referencing backups in the Barman cloud commands. Barman now
-    automatically parses these shortcuts and returns their associated backup ID.
-  type: minor_change
-  jira_tickets:
-    - BAR-717

@@ -1,7 +1,0 @@
-- summary: Clarify `WAL Number` label in barman show-backup output
-  description: |
-    Rename misleading `WAL Number` label in `barman show-backup` output to
-    `Number of WALs`.
-  type: minor_change
-  jira_tickets:
-    - BAR-791
