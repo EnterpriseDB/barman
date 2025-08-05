@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CLOUD-WAL-ARCHIVE" "1" "May 15, 2024" "3.14" "Barman"
+.TH "BARMAN-CLOUD-WAL-ARCHIVE" "1" "Aug 05, 2025" "3.15" "Barman"
 .SH NAME
 barman-cloud-wal-archive \- Barman-cloud Commands
 .sp
@@ -44,8 +44,8 @@ barman\-cloud\-wal\-archive
                 [ \-\-cloud\-provider { aws\-s3 | azure\-blob\-storage | google\-cloud\-storage } ]
                 [ { { \-z | \-\-gzip } | { \-j | \-\-bzip2 } | \-\-xz | \-\-snappy | \-\-zstd | \-\-lz4 } ]
                 [ \-\-compression\-level COMPRESSION_LEVEL ]
-                [ \-\-tags TAG [ TAG ... ] ]
-                [ \-\-history\-tags HISTORY_TAG [ HISTORY_TAG ... ] ]
+                [ \-\-tag KEY,VALUE [ \-\-tag KEY,VALUE ... ] ]
+                [ \-\-history\-tag KEY,VALUE [ \-\-history\-tag KEY,VALUE ... ] ]
                 [ \-\-endpoint\-url ENDPOINT_URL ]
                 [ { \-P | \-\-aws\-profile } AWS_PROFILE ]
                 [ \-\-profile AWS_PROFILE ]
@@ -157,12 +157,46 @@ of the predefined labels: \fBlow\fP, \fBmedium\fP, and \fBhigh\fP\&. The range o
 algorithm as well as what level each predefined label maps to can be found in
 \fI\%compression_level\fP\&.
 .TP
+.B \fB\-\-tag\fP
+Tag to be added to archived WAL files in cloud storage.
+.TP
 .B \fB\-\-tags\fP
-Tags to be added to archived WAL files in cloud storage.
+Tag to be added to archived WAL files in cloud storage.
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+If you are using \fB\-\-tags\fP before positional arguments, you must insert \fB\-\-\fP after
+it to indicate the end of optional arguments. This tells the parser to treat
+everything after \fB\-\-\fP as positional arguments. Without the \fB\-\-\fP, Barman may
+misinterpret positional arguments as values for the last option.
+.UNINDENT
+.UNINDENT
+.sp
+Deprecated since version 3.15: \fB\-\-tags\fP is deprecated. Use \fB\-\-tag\fP instead.
+
+.INDENT 0.0
+.TP
+.B \fB\-\-history\-tag\fP
+Tag to be added to archived history files in cloud storage.
 .TP
 .B \fB\-\-history\-tags\fP
 Tags to be added to archived history files in cloud storage.
 .UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+If you are using \fB\-\-history\-tags\fP before positional arguments, you must insert
+\fB\-\-\fP after it to indicate the end of optional arguments. This tells the parser to
+treat everything after \fB\-\-\fP as positional arguments. Without the \fB\-\-\fP, Barman may
+misinterpret positional arguments as values for the last option.
+.UNINDENT
+.UNINDENT
+.sp
+Deprecated since version 3.15: \fB\-\-history\-tags\fP is deprecated. Use \fB\-\-history\-tag\fP instead.
+
 .sp
 \fBExtra options for the AWS cloud provider\fP
 .INDENT 0.0

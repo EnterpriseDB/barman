@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-RECEIVE-WAL" "1" "May 15, 2024" "3.14" "Barman"
+.TH "BARMAN-RECEIVE-WAL" "1" "Aug 05, 2025" "3.15" "Barman"
 .SH NAME
 barman-receive-wal \- Barman Sub-Commands
 .SH SYNOPSIS
@@ -37,6 +37,7 @@ barman-receive-wal \- Barman Sub-Commands
 .EX
 receive\-wal
     [ \-\-create\-slot ]
+    [ \-\-if\-not\-exists ]
     [ \-\-drop\-slot ]
     [ { \-h | \-\-help } ]
     [ \-\-reset ]
@@ -59,6 +60,10 @@ Name of the server in barman node.
 .B \fB\-\-create\-slot\fP
 Create the physical replication slot configured with the \fBslot_name\fP configuration
 parameter.
+.TP
+.B \fB\-\-if\-not\-exists\fP
+Do not error out when \fB\-\-create\-slot\fP is specified and a slot with the specified name
+already exists.
 .TP
 .B \fB\-\-drop\-slot\fP
 Drop the physical replication slot configured with the \fBslot_name\fP configuration

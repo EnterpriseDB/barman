@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CLOUD-BACKUP" "1" "May 15, 2024" "3.14" "Barman"
+.TH "BARMAN-CLOUD-BACKUP" "1" "Aug 05, 2025" "3.15" "Barman"
 .SH NAME
 barman-cloud-backup \- Barman-cloud Commands
 .sp
@@ -54,10 +54,10 @@ barman\-cloud\-backup
                 [ \-\-min\-chunk\-size MIN_CHUNK_SIZE ]
                 [ \-\-max\-bandwidth MAX_BANDWIDTH ]
                 [ \-\-snapshot\-instance SNAPSHOT_INSTANCE ]
-                [ \-\-snapshot\-disk NAME ]
+                [ \-\-snapshot\-disk NAME [ \-\-snapshot\-disk NAME ... ] ]
                 [ \-\-snapshot\-zone GCP_ZONE ]
                 [ \-snapshot\-gcp\-project GCP_PROJECT ]
-                [ \-\-tags TAG [ TAG ... ] ]
+                [ \-\-tag KEY,VALUE [ \-\-tag KEY,VALUE ... ] ]
                 [ \-\-endpoint\-url ENDPOINT_URL ]
                 [ { \-P | \-\-aws\-profile } AWS_PROFILE ]
                 [ \-\-profile AWS_PROFILE ]
@@ -202,10 +202,27 @@ Instance where the disks to be backed up as snapshots are attached.
 .B \fB\-\-snapshot\-disk\fP
 Name of a disk from which snapshots should be taken.
 .TP
+.B \fB\-\-tag\fP
+Tag to be added to all uploaded files in cloud storage, and/or to snapshots created,
+if snapshots are used.
+.TP
 .B \fB\-\-tags\fP
-Tags to be added to all uploaded files in cloud storage, and/or to snapshots created, if
-snapshots are used.
+Tags to be added to all uploaded files in cloud storage, and/or to snapshots created,
+if snapshots are used.
 .UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+If you are using \fB\-\-tags\fP before positional arguments, you must insert \fB\-\-\fP after
+it to indicate the end of optional arguments. This tells the parser to treat
+everything after \fB\-\-\fP as positional arguments. Without the \fB\-\-\fP, Barman may
+misinterpret positional arguments as values for the last option.
+.UNINDENT
+.UNINDENT
+.sp
+Deprecated since version 3.15: \fB\-\-tags\fP is deprecated. Use \fB\-\-tag\fP instead.
+
 .sp
 \fBExtra options for the AWS cloud provider\fP
 .INDENT 0.0

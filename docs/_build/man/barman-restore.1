@@ -28,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-RESTORE" "1" "May 15, 2024" "3.14" "Barman"
+.TH "BARMAN-RESTORE" "1" "Aug 05, 2025" "3.15" "Barman"
 .SH NAME
 barman-restore \- Barman Sub-Commands
 .SH SYNOPSIS
@@ -52,6 +52,8 @@ restore
     [ \-\-no\-retry ]
     [ \-\-recovery\-conf\-filename FILENAME ]
     [ \-\-recovery\-staging\-path PATH ]
+    [ \-\-staging\-path STAGING_PATH ]
+    [ \-\-staging\-location STAGING_LOCATION ]
     [ \-\-remote\-ssh\-command STRING ]
     [ \-\-retry\-sleep SECONDS ]
     [ \-\-retry\-times NUMBER ]
@@ -143,6 +145,10 @@ being copied to the destination directory. The contents created within the stagi
 path will be removed upon completion of the restore process. This option is
 necessary for restoring from block\-level incremental backups and has no effect
 otherwise.
+.sp
+Deprecated since version 3.15: \fB\-\-local\-staging\-path\fP is deprecated and will be removed in a future release.
+Use \fB\-\-staging\-path\fP and \fB\-\-staging\-location\fP instead.
+
 .TP
 .B \fB\-\-network\-compression\fP / \fB\-\-no\-network\-compression\fP
 Enable/disable network compression during remote restore. Default is based on
@@ -163,11 +169,26 @@ mechanism (for example, if \fBpostgresql.auto.conf\fP is symlinked to \fB/dev/nu
 .TP
 .B \fB\-\-recovery\-staging\-path\fP
 Specify a path on the recovery host where files for a compressed backup will be
-staged before being uncompressed to the destination directory. Backups will be
+staged before being decompressed to the destination directory. Backups will be
 staged in their own directory within the staging path, following the naming
 convention: \fBbarman\-staging\-SERVER_NAME\-BACKUP_ID\fP\&. This staging directory will be
 removed after the restore process is complete. This option is mandatory for
 restoring from compressed backups and has no effect otherwise.
+.sp
+Deprecated since version 3.15: \fB\-\-recovery\-staging\-path\fP is deprecated and will be removed in a future release.
+Use \fB\-\-staging\-path\fP and \fB\-\-staging\-location\fP instead.
+
+.TP
+.B \fB\-\-staging\-path\fP
+A path where intermediate files are staged during restore. When restoring a
+compressed backup, it serves as a temporary location for decompression before
+copying to the final destination. When restoring an incremental backup, it is where
+backups are combined before copying to the final destination. This location must
+have enough space to store the decompressed/combined backup.
+.TP
+.B \fB\-\-staging\-location\fP
+Specifies whether \fB\-\-staging\-path\fP is a local or remote path. Valid values are
+\fBlocal\fP and \fBremote\fP\&.
 .TP
 .B \fB\-\-remote\-ssh\-command\fP
 This option enables remote restore by specifying the secure shell command to
@@ -236,6 +257,8 @@ time the backup was taken.
 .TP
 .B \fB\-\-target\-xid\fP
 Recover to the specified transaction ID.
+.UNINDENT
+.INDENT 0.0
 .TP
 .B \fB\-\-staging\-wal\-directory\fP
 A staging directory on the destination host for WAL files when performing PITR. If

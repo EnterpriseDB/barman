@@ -28,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-LIST-FILES" "1" "May 15, 2024" "3.14" "Barman"
+.TH "BARMAN-LIST-FILES" "1" "Aug 05, 2025" "3.15" "Barman"
 .SH NAME
 barman-list-files \- Barman Sub-Commands
 .SH SYNOPSIS
@@ -39,6 +39,7 @@ barman-list-files \- Barman Sub-Commands
 list\-files
     [ { \-h | \-\-help } ]
     [ \-\-target { data | full | standalone | wal } ]
+    [ \-\-list\-empty\-directories ]
     SERVER_NAME BACKUP_ID
 .EE
 .UNINDENT
@@ -72,6 +73,9 @@ specified base backup is the most recent one available).
 .IP \(bu 2
 \fBfull\fP: same as \fBdata\fP + \fBwal\fP\&.
 .UNINDENT
+.TP
+.B \fB\-\-list\-empty\-directories\fP
+Add empty directories to the listing.
 .UNINDENT
 .SH SHORTCUTS
 .sp

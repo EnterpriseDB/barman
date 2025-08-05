@@ -28,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN" "5" "May 15, 2024" "3.14" "Barman"
+.TH "BARMAN" "5" "Aug 05, 2025" "3.15" "Barman"
 .SH NAME
 barman \- Barman Configurations
 .sp
@@ -187,7 +187,9 @@ Specifies the directory for lock files. The default is \fBbarman_home\fP\&.
 \fBNOTE:\fP
 .INDENT 0.0
 .INDENT 3.5
-The \fBbarman_lock_directory\fP should be on a non\-network local filesystem.
+The \fBbarman_lock_directory\fP should be on a non\-network local filesystem. If using
+NFS, or any other network filesystem to store the backups and WAL files, make sure
+that the lock directory lives in a local filesystem.
 .UNINDENT
 .UNINDENT
 .sp
@@ -237,8 +239,8 @@ Scope: Global.
 Specifies the connection string used by Barman to connect to the Postgres server.
 This is a libpq connection string. Commonly used keys include: \fBhost\fP, \fBhostaddr\fP,
 \fBport\fP, \fBdbname\fP, \fBuser\fP and \fBpassword\fP\&. See the
-\X'tty: link https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING'\fI\%PostgreSQL documentation\fP\X'tty: link'
-for details.
+\X'tty: link https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING'\fI\%libpq\-connstring\fP\X'tty: link'
+PostgreSQL documentation for details.
 .sp
 Scope: Server / Model.
 .sp
@@ -518,8 +520,8 @@ This is a boolean option that allows for the automatic creation of backup manife
 files. The manifest file, which is a JSON document, lists all files included in the
 backup. It is generated upon completion of the backup and saved in the backup
 directory. The format of the manifest file adheres to the specifications outlined in the
-\X'tty: link https://www.postgresql.org/docs/current/backup-manifest-format.html'\fI\%PostgreSQL documentation\fP\X'tty: link'
-and is compatible with the \fBpg_verifybackup\fP tool. Default is \fBfalse\fP\&.
+\X'tty: link https://www.postgresql.org/docs/current/backup-manifest-format.html'\fI\%backup manifest format\fP\X'tty: link'
+PostgreSQL documentation and is compatible with the \fBpg_verifybackup\fP tool. Default is \fBfalse\fP\&.
 .sp
 \fBNOTE:\fP
 .INDENT 0.0
@@ -1418,6 +1420,10 @@ Applies only when \fBbackup_method = postgres\fP\&.
 .UNINDENT
 .UNINDENT
 .sp
+Deprecated since version 3.15: \fBlocal_staging_path\fP is deprecated and will be removed in a future release.
+Use \fBstaging_path\fP and \fBstaging_location\fP instead.
+
+.sp
 Scope: Global / Server / Model.
 .sp
 \fBrecovery_options\fP
@@ -1441,6 +1447,27 @@ location must have sufficient space to temporarily store the compressed backup.
 Applies only for commpressed backups.
 .UNINDENT
 .UNINDENT
+.sp
+Deprecated since version 3.15: \fBrecovery_staging_path\fP is deprecated and will be removed in a future release.
+Use \fBstaging_path\fP and \fBstaging_location\fP instead.
+
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBstaging_path\fP
+.sp
+A path where intermediate files are staged during restore. When restoring a compressed
+backup, it serves as a temporary location for decompression before copying to the final
+destination. When restoring an incremental backup, it is where backups are combined
+before copying to the final destination. This location must have enough space to store
+the decompressed/combined backup. The default is \fB/tmp\fP\&.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBstaging_location\fP
+.sp
+Specifies whether \fBstaging_path\fP is a local or remote path. Valid values are
+\fBlocal\fP and \fBremote\fP\&. The default is \fBlocal\fP\&.
 .sp
 Scope: Global / Server / Model.
 .SS Retention Policies
