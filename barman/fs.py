@@ -466,7 +466,7 @@ def unix_command_factory(remote_command=None, path=None):
     if remote_command:
         try:
             cmd = UnixRemoteCommand(remote_command, path=path)
-            logging.debug("Created a UnixRemoteCommand")
+            _logger.debug("Created a UnixRemoteCommand")
             return cmd
         except FsOperationFailed:
             output.error(
@@ -476,7 +476,7 @@ def unix_command_factory(remote_command=None, path=None):
             output.close_and_exit()
     else:
         cmd = UnixLocalCommand()
-        logging.debug("Created a UnixLocalCommand")
+        _logger.debug("Created a UnixLocalCommand")
         return cmd
 
 

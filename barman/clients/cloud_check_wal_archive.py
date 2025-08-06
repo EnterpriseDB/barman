@@ -32,6 +32,9 @@ from barman.utils import check_positive, force_str
 from barman.xlog import check_archive_usable
 
 
+_logger = logging.getLogger(__name__)
+
+
 def main(args=None):
     """
     The main script entry point
@@ -60,15 +63,15 @@ def main(args=None):
             timeline=config.timeline,
         )
     except WalArchiveContentError as err:
-        logging.error(
+        _logger.error(
             "WAL archive check failed for server %s: %s",
             config.server_name,
             force_str(err),
         )
         raise OperationErrorExit()
     except Exception as exc:
-        logging.error("Barman cloud WAL archive check exception: %s", force_str(exc))
-        logging.debug("Exception details:", exc_info=exc)
+        _logger.error("Barman cloud WAL archive check exception: %s", force_str(exc))
+        _logger.debug("Exception details:", exc_info=exc)
         raise GeneralErrorExit()
 
 

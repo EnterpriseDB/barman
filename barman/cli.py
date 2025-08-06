@@ -2125,7 +2125,7 @@ def check_wal_archive(args):
                 server.config.name,
                 force_str(err),
             )
-            logging.error(msg)
+            _logger.error(msg)
             output.error(msg)
             output.close_and_exit()
 

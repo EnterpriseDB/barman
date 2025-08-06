@@ -38,6 +38,9 @@ from barman.utils import check_positive, check_size, check_tag, force_str
 from barman.xlog import hash_dir, is_any_xlog_file, is_history_file
 
 
+_logger = logging.getLogger(__name__)
+
+
 def __is_hook_script():
     """Check the environment and determine if we are running as a hook script"""
     if "BARMAN_HOOK" in os.environ and "BARMAN_PHASE" in os.environ:
@@ -76,7 +79,7 @@ def main(args=None):
 
     # Validate the WAL file name before uploading it
     if not is_any_xlog_file(config.wal_path):
-        logging.error("%s is an invalid name for a WAL file" % config.wal_path)
+        _logger.error("%s is an invalid name for a WAL file" % config.wal_path)
         raise CLIErrorExit()
 
     try:
@@ -106,8 +109,8 @@ def main(args=None):
             uploader.upload_wal(config.wal_path, **upload_kwargs)
 
     except Exception as exc:
-        logging.error("Barman cloud WAL archiver exception: %s", force_str(exc))
-        logging.debug("Exception details:", exc_info=exc)
+        _logger.error("Barman cloud WAL archiver exception: %s", force_str(exc))
+        _logger.debug("Exception details:", exc_info=exc)
         raise GeneralErrorExit()
 
 

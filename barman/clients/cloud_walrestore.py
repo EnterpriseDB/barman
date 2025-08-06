@@ -35,6 +35,9 @@ from barman.utils import force_str
 from barman.xlog import hash_dir, is_any_xlog_file, is_backup_file, is_partial_file
 
 
+_logger = logging.getLogger(__name__)
+
+
 def main(args=None):
     """
     The main script entry point
@@ -47,7 +50,7 @@ def main(args=None):
 
     # Validate the WAL file name before downloading it
     if not is_any_xlog_file(config.wal_name):
-        logging.error("%s is an invalid name for a WAL file" % config.wal_name)
+        _logger.error("%s is an invalid name for a WAL file" % config.wal_name)
         raise CLIErrorExit()
 
     try:
@@ -65,14 +68,14 @@ def main(args=None):
                 raise SystemExit(0)
 
             if not cloud_interface.bucket_exists:
-                logging.error("Bucket %s does not exist", cloud_interface.bucket_name)
+                _logger.error("Bucket %s does not exist", cloud_interface.bucket_name)
                 raise OperationErrorExit()
 
             downloader.download_wal(config.wal_name, config.wal_dest, config.no_partial)
 
     except Exception as exc:
-        logging.error("Barman cloud WAL restore exception: %s", force_str(exc))
-        logging.debug("Exception details:", exc_info=exc)
+        _logger.error("Barman cloud WAL restore exception: %s", force_str(exc))
+        _logger.debug("Exception details:", exc_info=exc)
         raise GeneralErrorExit()
 
 
@@ -164,20 +167,20 @@ class CloudWalDownloader(object):
 
             # Check basename is a known xlog file (.partial?)
             if not is_any_xlog_file(basename):
-                logging.warning("Unknown WAL file: %s", item)
+                _logger.warning("Unknown WAL file: %s", item)
                 continue
             # Exclude backup informative files (not needed in recovery)
             elif is_backup_file(basename):
-                logging.info("Skipping backup file: %s", item)
+                _logger.info("Skipping backup file: %s", item)
                 continue
             # Exclude partial files if required
             elif no_partial and is_partial_file(basename):
-                logging.info("Skipping partial file: %s", item)
+                _logger.info("Skipping partial file: %s", item)
                 continue
 
             # Found candidate
             remote_name = item
-            logging.info(
+            _logger.info(
                 "Found WAL %s for server %s as %s",
                 wal_name,
                 self.server_name,
@@ -186,7 +189,7 @@ class CloudWalDownloader(object):
             break
 
         if not remote_name:
-            logging.info(
+            _logger.info(
                 "WAL file %s for server %s does not exists", wal_name, self.server_name
             )
             raise OperationErrorExit()
@@ -198,7 +201,7 @@ class CloudWalDownloader(object):
             )
 
         # Download the file
-        logging.debug(
+        _logger.debug(
             "Downloading %s to %s (%s)",
             remote_name,
             wal_dest,

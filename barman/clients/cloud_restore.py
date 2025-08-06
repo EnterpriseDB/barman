@@ -47,6 +47,9 @@ from barman.utils import (
 )
 
 
+_logger = logging.getLogger(__name__)
+
+
 def _validate_config(config, backup_info):
     """
     Additional validation for config such as mutually inclusive options.
@@ -85,7 +88,7 @@ def main(args=None):
                 raise SystemExit(0)
 
             if not cloud_interface.bucket_exists:
-                logging.error("Bucket %s does not exist", cloud_interface.bucket_name)
+                _logger.error("Bucket %s does not exist", cloud_interface.bucket_name)
                 raise OperationErrorExit()
 
             catalog = CloudBackupCatalog(cloud_interface, config.server_name)
@@ -123,13 +126,13 @@ def main(args=None):
                     )
                 # If no candidate backup_id is found, error out.
                 if backup_id is None:
-                    logging.error("Cannot find any candidate backup for recovery.")
+                    _logger.error("Cannot find any candidate backup for recovery.")
                     raise OperationErrorExit()
 
             backup_info = catalog.get_backup_info(backup_id)
-            logging.info("Restoring from backup_id: %s" % backup_id)
+            _logger.info("Restoring from backup_id: %s" % backup_id)
             if not backup_info:
-                logging.error(
+                _logger.error(
                     "Backup %s for server %s does not exists",
                     backup_id,
                     config.server_name,
@@ -160,12 +163,12 @@ def main(args=None):
                 )
 
     except KeyboardInterrupt as exc:
-        logging.error("Barman cloud restore was interrupted by the user")
-        logging.debug("Exception details:", exc_info=exc)
+        _logger.error("Barman cloud restore was interrupted by the user")
+        _logger.debug("Exception details:", exc_info=exc)
         raise OperationErrorExit()
     except Exception as exc:
-        logging.error("Barman cloud restore exception: %s", force_str(exc))
-        logging.debug("Exception details:", exc_info=exc)
+        _logger.error("Barman cloud restore exception: %s", force_str(exc))
+        _logger.debug("Exception details:", exc_info=exc)
         raise GeneralErrorExit()
 
 
@@ -241,7 +244,7 @@ def tablespace_map(rules):
         try:
             tablespaces.update([rule.split(":", 1)])
         except ValueError:
-            logging.error(
+            _logger.error(
                 "Invalid tablespace relocation rule '%s'\n"
                 "HINT: The valid syntax for a relocation rule is "
                 "NAME:LOCATION",
@@ -292,7 +295,7 @@ class CloudBackupDownloaderObjectStore(CloudBackupDownloader):
         """
         # Validate the destination directory before starting recovery
         if os.path.exists(destination_dir) and os.listdir(destination_dir):
-            logging.error(
+            _logger.error(
                 "Destination %s already exists and it is not empty", destination_dir
             )
             raise OperationErrorExit()
@@ -320,7 +323,7 @@ class CloudBackupDownloaderObjectStore(CloudBackupDownloader):
                         target_dir = tblspc.location
                         if tblspc.name in tablespaces:
                             target_dir = os.path.realpath(tablespaces[tblspc.name])
-                        logging.debug(
+                        _logger.debug(
                             "Tablespace %s (oid=%s) will be located at %s",
                             tblspc.name,
                             oid,
@@ -338,7 +341,7 @@ class CloudBackupDownloaderObjectStore(CloudBackupDownloader):
 
             # Validate the destination directory before starting recovery
             if os.path.exists(target_dir) and os.listdir(target_dir):
-                logging.error(
+                _logger.error(
                     "Destination %s already exists and it is not empty", target_dir
                 )
                 raise OperationErrorExit()
@@ -349,7 +352,7 @@ class CloudBackupDownloaderObjectStore(CloudBackupDownloader):
         # Now it's time to download the files
         for file_info, target_dir in copy_jobs:
             # Download the file
-            logging.debug(
+            _logger.debug(
                 "Extracting %s to %s (%s)",
                 file_info.path,
                 target_dir,
