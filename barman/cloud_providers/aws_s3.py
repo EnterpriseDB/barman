@@ -178,21 +178,23 @@ class S3CloudInterface(CloudInterface):
         config = Config(**config_kwargs)
 
         if self.aws_irsa:
-            client = boto3.client('sts')
-            with open(os.getenv("AWS_WEB_IDENTITY_TOKEN_FILE"), 'r') as content_file:
+            client = boto3.client("sts")
+            with open(os.getenv("AWS_WEB_IDENTITY_TOKEN_FILE"), "r") as content_file:
                 web_identity_token = content_file.read()
 
             response = client.assume_role_with_web_identity(
-                    RoleArn=os.environ['AWS_ROLE_ARN'],
-                    RoleSessionName='barman',
-                    WebIdentityToken=web_identity_token,
-                    # DurationSeconds=3600 # defaults to an hour, must not be greater than 
-                    # the iam role max duration session (this is also default 1 hour)
-                )
-            credentials = response['Credentials']
-            session = boto3.Session(  aws_access_key_id=credentials['AccessKeyId'],
-                                        aws_secret_access_key=credentials['SecretAccessKey'],
-                                        aws_session_token=credentials['SessionToken'])
+                RoleArn=os.environ["AWS_ROLE_ARN"],
+                RoleSessionName="barman",
+                WebIdentityToken=web_identity_token,
+                # DurationSeconds=3600 # defaults to an hour, must not be greater than
+                # the iam role max duration session (this is also default 1 hour)
+            )
+            credentials = response["Credentials"]
+            session = boto3.Session(
+                aws_access_key_id=credentials["AccessKeyId"],
+                aws_secret_access_key=credentials["SecretAccessKey"],
+                aws_session_token=credentials["SessionToken"],
+            )
         else:
             session = boto3.Session(profile_name=self.profile_name)
         self.s3 = session.resource("s3", endpoint_url=self.endpoint_url, config=config)
@@ -530,21 +532,23 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
             should be used instead of profile_name if running from eks pod
         """
         if aws_irsa:
-            client = boto3.client('sts')
-            with open(os.getenv("AWS_WEB_IDENTITY_TOKEN_FILE"), 'r') as content_file:
+            client = boto3.client("sts")
+            with open(os.getenv("AWS_WEB_IDENTITY_TOKEN_FILE"), "r") as content_file:
                 web_identity_token = content_file.read()
 
             response = client.assume_role_with_web_identity(
-                    RoleArn=os.environ['AWS_ROLE_ARN'],
-                    RoleSessionName='barman',
-                    WebIdentityToken=web_identity_token,
-                    # DurationSeconds=3600 # defaults to an hour, must not be greater than 
-                    # the iam role max duration session (this is also default 1 hour)
-                )
-            credentials = response['Credentials']
-            self.session = boto3.Session(  aws_access_key_id=credentials['AccessKeyId'],
-                                        aws_secret_access_key=credentials['SecretAccessKey'],
-                                        aws_session_token=credentials['SessionToken'])
+                RoleArn=os.environ["AWS_ROLE_ARN"],
+                RoleSessionName="barman",
+                WebIdentityToken=web_identity_token,
+                # DurationSeconds=3600 # defaults to an hour, must not be greater than
+                # the iam role max duration session (this is also default 1 hour)
+            )
+            credentials = response["Credentials"]
+            self.session = boto3.Session(
+                aws_access_key_id=credentials["AccessKeyId"],
+                aws_secret_access_key=credentials["SecretAccessKey"],
+                aws_session_token=credentials["SessionToken"],
+            )
         else:
             self.session = boto3.Session(profile_name=profile_name)
 

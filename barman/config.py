@@ -803,6 +803,7 @@ class ServerConfig(BaseConfig):
         "archiver_batch_size": "0",
         "autogenerate_manifest": "false",
         "aws_await_snapshots_timeout": "3600",
+        "aws_irsa": "false",
         "backup_directory": "%(barman_home)s/%(name)s",
         "backup_method": "rsync",
         "backup_options": "",

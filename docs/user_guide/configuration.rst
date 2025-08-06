@@ -640,6 +640,8 @@ Scope: Global / Server / Model.
 **aws_irsa**
 
 Uses the AWS IAM Role Service Account for authentication instead of AWS Profile.
+`AWS_WEB_IDENTITY_TOKEN_FILE` and `AWS_ROLE_ARN` environment variables must be set so
+the STS service can fetch the credentials.
 
 .. note::
   Only supported when ``backup_method = snapshot`` and ``snapshot_provider = aws``.

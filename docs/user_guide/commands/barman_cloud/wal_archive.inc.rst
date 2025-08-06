@@ -150,6 +150,8 @@ Barman server. Additionally, it can be utilized as a hook script for WAL archivi
 
 ``--aws-irsa``
   Uses IAM Role Service Account in AWS instead of Profile (running from an eks pod).
+  `AWS_WEB_IDENTITY_TOKEN_FILE` and `AWS_ROLE_ARN` environment variables must be set so
+  the STS service can fetch the credentials.
 
 ``-P`` / ``--aws-profile``
   Profile name (e.g. ``INI`` section in AWS credentials file).

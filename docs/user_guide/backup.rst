@@ -848,11 +848,13 @@ For provider specific credentials configurations, refer to the
 
 4. **Specific Configuration**
 
-The fields ``aws_region``, ``aws_irsa``, ``aws_profile`` and ``aws_await_snapshots_timeout`` are
-configuration options specific to AWS.
+The fields ``aws_region``, ``aws_irsa``, ``aws_profile`` and
+``aws_await_snapshots_timeout`` are configuration options specific to AWS.
 
-``aws_irsa`` if set to true, overrides the ``aws_profile`` field and uses the IAM Role of the AWS Service
-account. This is the recommended method when authenticating using an EKS pod.
+``aws_irsa`` if set to true, overrides the ``aws_profile`` field and uses the IAM Role
+of the AWS Service account. This is the recommended method when authenticating using an
+EKS pod. `AWS_WEB_IDENTITY_TOKEN_FILE` and `AWS_ROLE_ARN` environment variables must be
+set so the STS service can fetch the credentials.
 
 ``aws_profile`` is the name of the AWS profile in the credentials file. If not used, the
 default profile will be applied. If no credentials file exists, credentials will come from

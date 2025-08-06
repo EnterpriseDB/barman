@@ -83,7 +83,7 @@ class TestGetSnapshotInterface(object):
     ):
         """Verify supported and unsupported cloud providers with server config."""
         # GIVEN a server config with the specified snapshot provider
-        mock_config = mock.Mock(snapshot_provider=snapshot_provider)
+        mock_config = mock.Mock(snapshot_provider=snapshot_provider, aws_irsa=False)
 
         # WHEN get_snapshot_interface_from_server_config is called
         if interface_cls:
@@ -142,8 +142,9 @@ class TestGetSnapshotInterface(object):
         # parameters
         mock_config = mock.Mock(
             snapshot_provider="aws",
-            aws_region="us-east-2",
             aws_profile="default",
+            aws_irsa=False,
+            aws_region="us-east-2",
             aws_await_snapshots_timeout=7200,
             aws_snapshot_lock_mode="compliance",
             aws_snapshot_lock_duration=1,
@@ -194,7 +195,7 @@ class TestGetSnapshotInterface(object):
             snapshots_info=mock.Mock(provider=snapshot_provider)
         )
         # AND a mock server config
-        mock_config = mock.Mock()
+        mock_config = mock.Mock(aws_irsa=False)
 
         # WHEN get_snapshot_interface_from_server_config is called
         if interface_cls:
@@ -273,7 +274,9 @@ class TestGetSnapshotInterface(object):
         the config.
         """
         # GIVEN a server config with the aws snapshot provider and the specified region
-        mock_config = mock.Mock(snapshot_provider="aws", aws_region=config_region)
+        mock_config = mock.Mock(
+            snapshot_provider="aws", aws_region=config_region, aws_irsa=False
+        )
         # AND a backup info with the specified region
         mock_backup_info = mock.Mock(
             snapshots_info=mock.Mock(provider="aws", region=backup_info_region)
@@ -317,7 +320,11 @@ class TestGetSnapshotInterface(object):
     ):
         """Verify supported and unsupported cloud providers with config args."""
         # GIVEN a cloud config with the specified snapshot provider
-        mock_config = mock.Mock(cloud_provider=cloud_provider, tags=None)
+        mock_config = mock.Mock(
+            cloud_provider=cloud_provider,
+            tags=None,
+            aws_irsa=False,
+        )
 
         # WHEN get_snapshot_interface_from_server_config is called
         if interface_cls:
@@ -382,8 +389,9 @@ class TestGetSnapshotInterface(object):
         # parameters
         mock_config = mock.Mock(
             cloud_provider="aws-s3",
-            aws_region="us-east-2",
             aws_profile="default",
+            aws_irsa=False,
+            aws_region="us-east-2",
             aws_await_snapshots_timeout=7200,
             aws_snapshot_lock_mode="compliance",
             aws_snapshot_lock_duration=1,
@@ -2706,13 +2714,15 @@ class TestAwsCloudSnapshotInterface(object):
             ),
             # GIVEN a region in the args, we expect that region to be used
             (
-                ("test_profile", "eu-west-1"),
+                ("test_profile", False, "eu-west-1"),
                 {"profile_name": "test_profile"},
                 "eu-west-1",
             ),
         ),
     )
-    def test_init(self, init_args, expected_session_args, expected_region):
+    def test_init_with_profile(
+        self, init_args, expected_session_args, expected_region, monkeypatch, tmp_path
+    ):
         """
         Verify creating AwsCloudSnapshotInterface creates the necessary EC2 client.
         """
@@ -2738,6 +2748,62 @@ class TestAwsCloudSnapshotInterface(object):
             )
             # AND the default region is set on the snapshot interface
             assert snapshot_interface.region == mock_session.region_name
+
+    @pytest.mark.parametrize(
+        "init_args",
+        (
+            # GIVEN no profile and aws_irsa ``True``, session should be created using
+            # aws_irsa
+            (None, True),
+            # GIVEN a profile and aws_irsa ``True``, session should be created using
+            # aws_irsa
+            ("test_profile", True),
+        ),
+    )
+    @mock.patch("barman.cloud_providers.aws_s3.boto3.client")
+    def test_init_with_aws_irsa(
+        self,
+        mock_boto_cli,
+        init_args,
+        monkeypatch,
+        tmp_path,
+    ):
+        """
+        Verify creating AwsCloudSnapshotInterface creates the necessary EC2 client.
+        """
+        token_file = tmp_path / "mock-token-file"
+        token_file.write_text("fake-token")
+        monkeypatch.setenv("AWS_WEB_IDENTITY_TOKEN_FILE", str(token_file))
+        monkeypatch.setenv("AWS_ROLE_ARN", "fake_ARN_role")
+        credentials = {
+            "Credentials": {
+                "AccessKeyId": "fake-access-key-id",
+                "SecretAccessKey": "fake-secret-access-key",
+                "SessionToken": "fake-session-tkn",
+            }
+        }
+        mock_boto_cli.return_value.assume_role_with_web_identity.return_value = (
+            credentials
+        )
+        # WHEN an AwsCloudSnapshotInterface is created with the specified arguments
+        snapshot_interface = AwsCloudSnapshotInterface(*init_args)
+        # THEN a boto3.Session is created with the expected arguments
+        self._mock_boto3.Session.assert_called_once_with(
+            aws_access_key_id=credentials["Credentials"]["AccessKeyId"],
+            aws_secret_access_key=credentials["Credentials"]["SecretAccessKey"],
+            aws_session_token=credentials["Credentials"]["SessionToken"],
+        )
+        mock_session = self._mock_boto3.Session.return_value
+        assert snapshot_interface.session == mock_session
+        # AND an ec2 client was created
+        snapshot_interface.ec2_client = mock_session.client.return_value
+        # AND if we expected a region, it was used when creating the ec2 client
+
+        mock_session.client.assert_called_once_with(
+            "ec2", region_name=mock_session.region_name
+        )
+        # AND the default region is set on the snapshot interface
+        assert snapshot_interface.region == mock_session.region_name
 
     @pytest.mark.parametrize(
         "tags", (None, [("environment", "production"), ("project", "my-project")])

@@ -474,7 +474,7 @@ class TestS3CloudInterface(object):
         # AND no profile name is passed to the boto3 Session
         boto_mock.Session.assert_called_once_with(profile_name=None)
         # AND no irsa (iam role service account) is passed to the boto3 Session
-        boto_mock.Session.assert_called_once_with(aws_irsa=False)
+        boto_mock.Session.assert_called_once_with(profile_name=None)
         # AND a Config is created with empty arguments
         config_mock.assert_called_once_with()
         # AND the boto3 resource is created with no specified endpoint_url
