@@ -33,13 +33,11 @@ import zstandard
 from testing_helpers import build_mocked_server, get_compression_config
 
 from barman.compression import (
-    BZip2Compressor,
     CommandCompressor,
     CompressionManager,
     Compressor,
     CustomCompressor,
     GZipCompression,
-    GZipCompressor,
     GZipPgBaseBackupCompressionOption,
     LZ4Compression,
     LZ4Compressor,
@@ -281,19 +279,19 @@ class TestCompressor(object):
         "compression_level, expected, issue_log",
         [
             # Case 1: a level greater than LEVEL_MAX defaults to LEVEL_MAX
-            (10, GZipCompressor.LEVEL_MAX, True),
+            (10, PyGZipCompressor.LEVEL_MAX, True),
             # Case 2: a level lower than LEVEL_MIN defaults to LEVEL_MIN
-            (0, GZipCompressor.LEVEL_MIN, True),
+            (0, PyGZipCompressor.LEVEL_MIN, True),
             # Case 3: a level in the range is correctly set
             (7, 7, False),
             # Case 4: literal value of `low` is set as defined in LEVEL_LOW
-            ("low", GZipCompressor.LEVEL_LOW, False),
+            ("low", PyGZipCompressor.LEVEL_LOW, False),
             # Case 5: literal value of `high` is set as defined in LEVEL_HIGH
-            ("high", GZipCompressor.LEVEL_HIGH, False),
+            ("high", PyGZipCompressor.LEVEL_HIGH, False),
             # Case 6: literal value of `medium` is set as defined in LEVEL_MEDIUM
-            ("medium", GZipCompressor.LEVEL_MEDIUM, False),
+            ("medium", PyGZipCompressor.LEVEL_MEDIUM, False),
             # Case 7: any value that is not recognized also defaults to LEVEL_MEDIUM
-            ("nonsense", GZipCompressor.LEVEL_MEDIUM, False),
+            ("nonsense", PyGZipCompressor.LEVEL_MEDIUM, False),
         ],
     )
     def test_compression_level_is_set_correctly(
@@ -304,13 +302,13 @@ class TestCompressor(object):
         compressor.
 
         .. note::
-            ``GZipCompressor`` is used in this test because we cannot instantiate
+            ``PyGZipCompressor`` is used in this test because we cannot instantiate
             the abstract ``Compressor`` class. However, the tested logic resides in
             the ``Compressor`` class and applies to all its subclasses.
         """
         caplog.set_level(logging.DEBUG)
         mock_config = mock.Mock(compression="gzip", compression_level=compression_level)
-        compressor = GZipCompressor(mock_config, "gzip")
+        compressor = PyGZipCompressor(mock_config, "gzip")
         assert compressor is not None
         assert compressor.level == expected
         if issue_log:
@@ -350,56 +348,6 @@ class TestCommandCompressors(object):
             command.cmd == "barman_command()"
             '{ dummy_command > "$2" < "$1";}; barman_command'
         )
-
-    def test_gzip(self, tmpdir):
-        config_mock = mock.Mock()
-
-        compression_manager = CompressionManager(config_mock, tmpdir.strpath)
-
-        compressor = GZipCompressor(config=config_mock, compression="gzip")
-
-        src = tmpdir.join("sourcefile")
-        src.write("content")
-
-        compressor.compress(src.strpath, ZIP_FILE % tmpdir.strpath)
-        assert os.path.exists(ZIP_FILE % tmpdir.strpath)
-        compression_zip = compression_manager.identify_compression(
-            ZIP_FILE % tmpdir.strpath
-        )
-        assert compression_zip == "gzip"
-
-        compressor.decompress(
-            ZIP_FILE % tmpdir.strpath,
-            ZIP_FILE_UNCOMPRESSED % tmpdir.strpath,
-        )
-
-        f = open(ZIP_FILE_UNCOMPRESSED % tmpdir.strpath).read()
-        assert f == "content"
-
-    def test_bzip2(self, tmpdir):
-        config_mock = mock.Mock()
-
-        compression_manager = CompressionManager(config_mock, tmpdir.strpath)
-
-        compressor = BZip2Compressor(config=config_mock, compression="bzip2")
-
-        src = tmpdir.join("sourcefile")
-        src.write("content")
-
-        compressor.compress(src.strpath, BZIP2_FILE % tmpdir.strpath)
-        assert os.path.exists(BZIP2_FILE % tmpdir.strpath)
-        compression_zip = compression_manager.identify_compression(
-            BZIP2_FILE % tmpdir.strpath
-        )
-        assert compression_zip == "bzip2"
-
-        compressor.decompress(
-            BZIP2_FILE % tmpdir.strpath,
-            BZIP2_FILE_UNCOMPRESSED % tmpdir.strpath,
-        )
-
-        f = open(BZIP2_FILE_UNCOMPRESSED % tmpdir.strpath).read()
-        assert f == "content"
 
 
 # noinspection PyMethodMayBeStatic
