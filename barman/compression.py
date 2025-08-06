@@ -113,12 +113,14 @@ class CompressionManager(object):
         """
         Try to guess the compression algorithm of a file
 
+        .. note::
+            For compression methods which share the same magic number, such as ``gzip``
+            and ``pigz``, the first one alphabetically in :data:`compression_registry`
+            will be returned.
+
         :param str filename: the path of the file to identify
         :rtype: str
         """
-        # TODO: manage multiple decompression methods for the same
-        # compression algorithm (e.g. what to do when gzip is detected?
-        # should we use gzip or pigz?)
         with open(filename, "rb") as f:
             file_start = f.read(self.MAGIC_MAX_LENGTH)
         for file_type, cls in sorted(compression_registry.items()):
@@ -347,30 +349,6 @@ class InternalCompressor(Compressor):
         shutil.copyfileobj(decompressed_fileobj, dest_fileobj)
 
 
-class GZipCompressor(CommandCompressor):
-    """
-    Predefined compressor with GZip
-    """
-
-    MAGIC = b"\x1f\x8b\x08"
-    LEVEL_MIN = 1
-    LEVEL_MAX = 9
-    LEVEL_LOW = 1
-    LEVEL_MEDIUM = 6
-    LEVEL_HIGH = 9
-
-    def __init__(self, config, compression, path=None):
-        """
-
-        :param config: barman.config.ServerConfig
-        :param compression: str compression name
-        :param path: str|None
-        """
-        super(GZipCompressor, self).__init__(config, compression, path)
-        self._compress = self._build_command("gzip -c -%s" % self.level)
-        self._decompress = self._build_command("gzip -c -d")
-
-
 class PyGZipCompressor(InternalCompressor):
     """
     Predefined compressor that uses GZip Python libraries
@@ -436,30 +414,6 @@ class PigzCompressor(CommandCompressor):
         super(PigzCompressor, self).__init__(config, compression, path)
         self._compress = self._build_command("pigz -c -%s" % self.level)
         self._decompress = self._build_command("pigz -c -d")
-
-
-class BZip2Compressor(CommandCompressor):
-    """
-    Predefined compressor with BZip2
-    """
-
-    MAGIC = b"\x42\x5a\x68"
-    LEVEL_MIN = 1
-    LEVEL_MAX = 9
-    LEVEL_LOW = 1
-    LEVEL_MEDIUM = 5
-    LEVEL_HIGH = 9
-
-    def __init__(self, config, compression, path=None):
-        """
-
-        :param config: barman.config.ServerConfig
-        :param compression: str compression name
-        :param path: str|None
-        """
-        super(BZip2Compressor, self).__init__(config, compression, path)
-        self._compress = self._build_command("bzip2 -c -%s" % self.level)
-        self._decompress = self._build_command("bzip2 -c -d")
 
 
 class PyBZip2Compressor(InternalCompressor):
@@ -744,16 +698,19 @@ class CustomCompressor(CommandCompressor):
         self._decompress = self._build_command(config.custom_decompression_filter)
 
 
-# a dictionary mapping all supported compression schema
-# to the class implementing it
-# WARNING: items in this dictionary are extracted using alphabetical order
-# It's important that gzip and bzip2 are positioned before their variants
+# Maps supported compression methods to their corresponding classes
+# NOTE:
+# - Entries are sorted alphabetically, so if multiple methods share the same magic number
+#   (e.g., 'gzip' and 'pigz'), the first one alphabetically ('gzip') will be chosen.
+# - gzip maps to the same class as pygzip, and bzip2 maps to the same class as pybzip2.
+#   Previously, they mapped to their own CommandCompressor classes, but invoking
+#   subprocesses for compression is something that we want to get away from Barman.
 compression_registry = {
-    "gzip": GZipCompressor,
-    "pigz": PigzCompressor,
-    "bzip2": BZip2Compressor,
+    "gzip": PyGZipCompressor,
+    "bzip2": PyBZip2Compressor,
     "pygzip": PyGZipCompressor,
     "pybzip2": PyBZip2Compressor,
+    "pigz": PigzCompressor,
     "xz": XZCompressor,
     "zstd": ZSTDCompressor,
     "lz4": LZ4Compressor,
