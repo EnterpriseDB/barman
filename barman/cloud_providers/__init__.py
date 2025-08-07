@@ -16,7 +16,11 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>
 
+import logging
+
 from barman.exceptions import BarmanException, ConfigurationException
+
+_logger = logging.getLogger(__name__)
 
 
 class CloudProviderUnsupported(BarmanException):
@@ -47,6 +51,7 @@ def _make_s3_cloud_interface(config, cloud_interface_kwargs):
 
     cloud_interface_kwargs.update(
         {
+            "aws_irsa": config.aws_irsa,
             "profile_name": config.aws_profile,
             "endpoint_url": config.endpoint_url,
             "read_timeout": config.read_timeout,
@@ -204,6 +209,7 @@ def get_snapshot_interface(config):
 
         args = [
             config.aws_profile,
+            config.aws_irsa,
             config.aws_region,
             config.aws_await_snapshots_timeout,
             config.aws_snapshot_lock_mode,
@@ -261,6 +267,7 @@ def get_snapshot_interface_from_server_config(server_config):
 
         return AwsCloudSnapshotInterface(
             server_config.aws_profile,
+            server_config.aws_irsa,
             server_config.aws_region,
             server_config.aws_await_snapshots_timeout,
             server_config.aws_snapshot_lock_mode,
@@ -335,15 +342,26 @@ def get_snapshot_interface_from_backup_info(backup_info, config=None):
         # from the backup_info, unless a region is set in the config in which case the
         # config region takes precedence.
         region = None
+        aws_irsa = None
         profile = None
         if config is not None:
             if hasattr(config, "aws_region"):
                 region = config.aws_region
-            if hasattr(config, "aws_profile"):
-                profile = config.aws_profile
+
+            aws_irsa = getattr(config, "aws_irsa", False)
+            profile = getattr(config, "aws_profile", None)
+
+            if not aws_irsa and not profile:
+                raise SystemExit(
+                    "Unable to locate credentials. You should configure an AWS IAM "
+                    "role or an AWS profile."
+                )
+            if not aws_irsa:
+                _logger.warning("Unable to locate IAM role. Trying AWS profile.")
+
         if region is None:
             region = backup_info.snapshots_info.region
-        return AwsCloudSnapshotInterface(profile, region)
+        return AwsCloudSnapshotInterface(profile, aws_irsa, region)
     else:
         raise CloudProviderUnsupported(
             "Unsupported snapshot provider in backup info: %s"
