@@ -539,6 +539,8 @@ def parse_recovery_conf(recovery_conf_file):
     recovery_conf = {}
 
     for line in recovery_conf_file.readlines():
+        if "=" not in line:
+            continue
         key, value = (s.strip() for s in line.strip().split("=", 1))
         recovery_conf[key] = value
 

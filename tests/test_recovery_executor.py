@@ -744,11 +744,13 @@ class TestRecoveryExecutor(object):
             # AND if we did not expect to enable pitr, is_pitr is not set
             assert not recovery_info["is_pitr"]
 
+    @mock.patch("barman.recovery_executor.socket.getfqdn")
     @mock.patch("barman.recovery_executor.RsyncPgData")
-    def test_generate_recovery_conf_pre12(self, rsync_pg_mock, tmpdir):
+    def test_generate_recovery_conf_pre12(self, rsync_pg_mock, mock_get_fqdn, tmpdir):
         """
         Test the generation of recovery.conf file
         """
+        mock_get_fqdn.return_value = "BARMAN_SERVER"
         # Build basic folder/files structure
         dest = tmpdir.mkdir("destination")
         wal_dest = os.path.join(dest, "barman_wal")
@@ -902,6 +904,59 @@ class TestRecoveryExecutor(object):
         assert recovery_conf_file.check()
         recovery_conf = testing_helpers.parse_recovery_conf(recovery_conf_file)
         assert "standby_mode" not in recovery_conf
+
+        recovery_info["get_wal"] = True
+
+        # Test when `--get-wal` is ``True`` and `-p` is not used.
+        executor._generate_recovery_conf(
+            recovery_info,
+            backup_info,
+            dest.strpath,
+            True,
+            True,
+            "remote@command",
+            "",
+            "",
+            "",
+            "",
+            "",
+            None,
+        )
+        recovery_conf_file = tmpdir.join("recovery.conf")
+        assert recovery_conf_file.check()
+        recovery_conf = testing_helpers.parse_recovery_conf(recovery_conf_file)
+
+        assert (
+            recovery_conf["restore_command"]
+            == "'barman-wal-restore -P -U {USER} BARMAN_SERVER main %f %p'"
+        )
+
+        # Build a recovery executor using a real server
+        server = testing_helpers.build_real_server(main_conf={"parallel_jobs": 2})
+        executor = RecoveryExecutor(server.backup_manager)
+        # Test when `--get-wal` is ``True`` and `-p` is ``2``.
+        executor._generate_recovery_conf(
+            recovery_info,
+            backup_info,
+            dest.strpath,
+            True,
+            True,
+            "remote@command",
+            "",
+            "",
+            "",
+            "",
+            "",
+            None,
+        )
+        recovery_conf_file = tmpdir.join("recovery.conf")
+        assert recovery_conf_file.check()
+        recovery_conf = testing_helpers.parse_recovery_conf(recovery_conf_file)
+
+        assert (
+            recovery_conf["restore_command"]
+            == "'barman-wal-restore -P -U {USER} BARMAN_SERVER main %f %p -p 2'"
+        )
 
     @mock.patch("barman.recovery_executor.RsyncPgData")
     def test_generate_recovery_conf(self, rsync_pg_mock, tmpdir):

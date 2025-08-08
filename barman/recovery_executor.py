@@ -1106,11 +1106,16 @@ class RecoveryExecutor(object):
                     "# The 'barman-wal-restore' command "
                     "is provided in the 'barman-cli' package"
                 )
-                recovery_conf_lines.append(
-                    "restore_command = 'barman-wal-restore %s -U %s "
-                    "%s %s %%f %%p'"
+                restore_command = (
+                    "restore_command = 'barman-wal-restore %s -U %s %s %s %%f %%p'"
                     % (partial_option, self.config.config.user, fqdn, self.config.name)
                 )
+                if self.config.parallel_jobs > 1:
+                    # Remove the last 'tick' if we are appending a `-p jobs'`.
+                    restore_command = (
+                        restore_command[:-1] + " -p %s'" % self.config.parallel_jobs
+                    )
+                recovery_conf_lines.append(restore_command)
             else:
                 recovery_conf_lines.append(
                     "# The 'barman get-wal' command "
