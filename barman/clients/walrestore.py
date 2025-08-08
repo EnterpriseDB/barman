@@ -31,14 +31,11 @@ import shutil
 import subprocess
 import sys
 import time
-from tempfile import NamedTemporaryFile
+from io import BytesIO
+from multiprocessing import Process
 
 import barman
-from barman.compression import (
-    CompressionManager,
-    InternalCompressor,
-    get_server_config_minimal,
-)
+from barman.compression import CompressionManager, get_server_config_minimal
 from barman.utils import force_str
 
 DEFAULT_USER = "barman"
@@ -78,7 +75,7 @@ def main(args=None):
 
     # Open the destination file
     try:
-        dest_file = open(config.wal_dest, "wb")
+        dest_file = open(config.wal_dest, "wb+")
     except EnvironmentError as e:
         exit_with_error(
             "Cannot open '%s' (WAL_DEST) for writing: %s" % (config.wal_dest, e),
@@ -89,30 +86,35 @@ def main(args=None):
     # If the file is present in SPOOL_DIR use it and terminate
     try_deliver_from_spool(config, dest_file.name)
 
-    # If required load the list of files to download in parallel
+    # If requested, load the list of files to fetch in parallel
     additional_files = peek_additional_files(config)
 
     try:
-        # Execute barman get-wal through the ssh connection
-        ssh_process = RemoteGetWal(config, config.wal_name, dest_file)
-    except EnvironmentError as e:
-        exit_with_error('Error executing "ssh": %s' % e, sleep=config.sleep)
-        return  # never reached
+        # Spawn a process for each additional file to fetch in parallel
+        parallel_ssh_processes = spawn_additional_process(config, additional_files)
 
-    # Spawn a process for every additional file
-    parallel_ssh_processes = spawn_additional_process(config, additional_files)
+        try:
+            # Execute the main barman get-wal through the ssh connection
+            ssh_process = RemoteGetWal(config, config.wal_name, dest_file)
+        except EnvironmentError as e:
+            exit_with_error('Error executing "ssh": %s' % e, sleep=config.sleep)
+            return  # never reached
 
-    # Wait for termination of every subprocess. If CTRL+C is pressed,
-    # terminate all of them
-    try:
-        RemoteGetWal.wait_for_all()
-    finally:
-        # Cleanup failed spool files in case of errors
+        # Wait for termination of every parallel process
         for process in parallel_ssh_processes:
-            if process.returncode != 0:
-                os.unlink(process.dest_file)
+            process.join()
+    except KeyboardInterrupt:
+        # If CTRL+C is pressed, make sure all processes are killed
+        for process in parallel_ssh_processes:
+            process.kill()
+        exit_with_error("SIGINT received! Terminating.")
 
-    # If the command succeeded exit here
+    # Cleanup failed spool files in case of errors in any of the parallel processes
+    for process in parallel_ssh_processes:
+        if process.exitcode != 0:
+            os.unlink(process.spool_file_name)
+
+    # If the main command succeeded exit here
     if ssh_process.returncode == 0:
         sys.exit(0)
 
@@ -127,6 +129,20 @@ def main(args=None):
         )
 
 
+class WorkerProcess(Process):
+    """
+    Class representing a parallel process.
+
+    In essense, this class is the same as ``multiprocessing.Process``,
+    but it also keeps track of the spool file name used by the process.
+    This is useful for cleaning failed files later in case of errors.
+    """
+
+    def __init__(self, spool_file_name, *args, **kwargs):
+        super(WorkerProcess, self).__init__(*args, **kwargs)
+        self.spool_file_name = spool_file_name
+
+
 def spawn_additional_process(config, additional_files):
     """
     Execute additional barman get-wal processes
@@ -138,17 +154,15 @@ def spawn_additional_process(config, additional_files):
     processes = []
     for wal_name in additional_files:
         spool_file_name = os.path.join(config.spool_dir, wal_name)
-        try:
-            # Spawn a process and write the output in the spool dir
-            process = RemoteGetWal(config, wal_name, spool_file_name)
-            processes.append(process)
-        except EnvironmentError:
-            # If execution has failed make sure the spool file is unlinked
-            try:
-                os.unlink(spool_file_name)
-            except EnvironmentError:
-                # Suppress unlink errors
-                pass
+        process = WorkerProcess(
+            target=RemoteGetWal,
+            name="RemoteGetWal-%s" % wal_name,
+            args=(config, wal_name, spool_file_name),
+            kwargs={"is_worker_process": True},
+            spool_file_name=spool_file_name,
+        )
+        process.start()
+        processes.append(process)
 
     return processes
 
@@ -430,12 +444,16 @@ def parse_arguments(args=None):
 
 
 class RemoteGetWal(object):
-    processes = set()
     """
-    The list of processes that has been spawned by RemoteGetWal
+    Class responsible for fetching requested WAL file from the
+    remote Barman server via a ``get-wal`` command over ssh.
+
+    If ``--keep-compression`` or one of the compression flags are used,
+    the file arrives compressed and is decompressed before being written
+    to the destination.
     """
 
-    def __init__(self, config, wal_name, dest_file):
+    def __init__(self, config, wal_name, dest_file, is_worker_process=False):
         """
         Spawn a process that download a WAL from remote.
 
@@ -444,97 +462,58 @@ class RemoteGetWal(object):
         :param argparse.Namespace config: the configuration from command line
         :param wal_name: The name of WAL to download
         :param dest_file: The destination file name or a writable file object
+        :param bool is_worker_process: Whether this is a parallel worker process
         """
         self.config = config
         self.wal_name = wal_name
-        self.source_file = None
         self.dest_file = None
-        self.decompressor_process = None
+        self.ssh_process = None
 
         # If a string has been passed, it's the name of the destination file
         # We convert it in a writable binary file object
         if isinstance(dest_file, string_types):
             self.dest_file = dest_file
-            dest_file = open(dest_file, "wb")
+            dest_file = open(dest_file, "wb+")
 
-        # Spawn a remote get-wal process
+        # Spawn a remote get-wal process and direct its output to the destination file
         self.ssh_process = subprocess.Popen(
-            build_ssh_command(config, wal_name), stdout=subprocess.PIPE
+            build_ssh_command(config, wal_name), stdout=dest_file
         )
-
-        # Create a temporary file with the WAL content received
-        self.source_file = NamedTemporaryFile(
-            mode="r+b", prefix=".%s." % os.path.basename(wal_name)
-        )
-        shutil.copyfileobj(self.ssh_process.stdout, self.source_file)
-        self.source_file.seek(0)
-
-        # Close the pipe descriptor, letting the ssh process receive the SIGPIPE
-        self.ssh_process.stdout.close()
+        self.ssh_process.wait()
+        dest_file.seek(0)
 
         # Identify the WAL compression, if any
         server_config = get_server_config_minimal(config.compression, None)
         compression_manager = CompressionManager(server_config, None)
-        compression = compression_manager.identify_compression(self.source_file.name)
+        compression = compression_manager.identify_compression(dest_file)
 
-        # If there's no compression then just copy the content to the destination file
-        if compression is None:
-            shutil.copyfileobj(self.source_file, dest_file)
-        else:
-            # If compression is present we proceed differently depending on the compressor
+        # If compressed, decompress and overwrite the contents of the destination file
+        # Note: we are able to use decompress_in_mem here because it's sure that
+        # compressor can only be an InternalCompressor
+        if compression is not None:
             compressor = compression_manager.get_compressor(compression)
-            # If InternalCompressor, we can decompress directly to the destination file
-            if isinstance(compressor, InternalCompressor):
-                compressor.decompress(self.source_file.name, dest_file.name)
-            else:
-                # Otherwise it's a CommandCompressor so we spawn the local decompressor
-                self.decompressor_process = subprocess.Popen(
-                    [compression, "-d"],
-                    stdin=self.source_file,
-                    stdout=dest_file,
-                )
+            dec_fileobj = compressor.decompress_in_mem(dest_file)
+            dec_fileobj = BytesIO(dec_fileobj.read())  # avoid lazy-decompressors
+            dest_file.truncate(0)
+            dest_file.seek(0)
+            shutil.copyfileobj(dec_fileobj, dest_file)
 
         # close the opened file
         dest_file.close()
-        # Register the spawned processes in the class registry
-        self.processes.add(self.ssh_process)
-        if self.decompressor_process:
-            self.processes.add(self.decompressor_process)
 
-    @classmethod
-    def wait_for_all(cls):
-        """
-        Wait for the termination of all the registered spawned processes.
-        """
-        try:
-            while len(cls.processes):
-                time.sleep(0.1)
-                for process in cls.processes.copy():
-                    if process.poll() is not None:
-                        cls.processes.remove(process)
-        except KeyboardInterrupt:
-            # If a SIGINT has been received, make sure that every subprocess
-            # terminate
-            for process in cls.processes:
-                process.kill()
-            exit_with_error("SIGINT received! Terminating.")
+        # If a worker process, exit directly with its return code, allowing the
+        # main process to access it via the exitcode attr of the process object
+        if is_worker_process:
+            sys.exit(self.returncode)
 
     @property
     def returncode(self):
         """
         Return the exit code of the RemoteGetWal processes.
 
-        A remote get-wal process return code is 0 only if both the remote
-        get-wal process and the eventual decompressor return 0
-
-        :return: exit code of the RemoteGetWal processes
+        :returns: exit code of the RemoteGetWal processe
         """
-        if self.ssh_process.returncode != 0:
-            return self.ssh_process.returncode
-        if self.decompressor_process:
-            if self.decompressor_process.returncode != 0:
-                return self.decompressor_process.returncode
-        return 0
+        return self.ssh_process.returncode
 
 
 if __name__ == "__main__":

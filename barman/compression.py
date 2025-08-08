@@ -109,20 +109,25 @@ class CompressionManager(object):
             )
         return None
 
-    def identify_compression(self, filename):
+    def identify_compression(self, file_or_fileobj):
         """
-        Try to guess the compression algorithm of a file
+        Try to guess the compression algorithm of the given file or file-like object.
 
         .. note::
             For compression methods which share the same magic number, such as ``gzip``
             and ``pigz``, the first one alphabetically in :data:`compression_registry`
             will be returned.
 
-        :param str filename: the path of the file to identify
+        :param str|file file_or_fileobj: The file path or a file-like object to check.
         :rtype: str
         """
-        with open(filename, "rb") as f:
-            file_start = f.read(self.MAGIC_MAX_LENGTH)
+        if not hasattr(file_or_fileobj, "read"):
+            with open(file_or_fileobj, "rb") as fileobj:
+                file_start = fileobj.read(self.MAGIC_MAX_LENGTH)
+        else:
+            file_start = file_or_fileobj.read(self.MAGIC_MAX_LENGTH)
+            file_or_fileobj.seek(0)
+
         for file_type, cls in sorted(compression_registry.items()):
             if cls.validate(file_start):
                 return file_type
