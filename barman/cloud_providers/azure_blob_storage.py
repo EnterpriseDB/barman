@@ -36,7 +36,6 @@ from barman.cloud import (
 )
 from barman.exceptions import CommandException, SnapshotBackupException
 
-
 _logger = logging.getLogger(__name__)
 
 

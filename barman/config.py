@@ -1525,7 +1525,9 @@ class Config(object):
                     raise SystemExit("FATAL: %s" % msg)
             else:
                 # Add an warning message that a file has been discarded
-                _logger.warning("Discarding configuration file: %s (not a file)", filename)
+                _logger.warning(
+                    "Discarding configuration file: %s (not a file)", filename
+                )
         else:
             # Add an warning message that a file has been discarded
             _logger.warning("Discarding configuration file: %s (not found)", filename)

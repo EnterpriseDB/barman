@@ -31,7 +31,6 @@ from barman.cloud_providers import get_cloud_interface
 from barman.infofile import BackupInfo
 from barman.utils import force_str
 
-
 _logger = logging.getLogger(__name__)
 
 

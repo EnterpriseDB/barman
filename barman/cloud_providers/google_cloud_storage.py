@@ -33,7 +33,6 @@ from barman.cloud import (
 )
 from barman.exceptions import CommandException, SnapshotBackupException
 
-
 _logger = logging.getLogger(__name__)
 
 
@@ -50,7 +49,6 @@ try:
 except ImportError:
     raise SystemExit("Missing required python module: google-cloud-storage")
 
-_logger = logging.getLogger(__name__)
 
 BASE_URL = "https://console.cloud.google.com/storage/browser/"
 

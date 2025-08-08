@@ -41,7 +41,6 @@ from barman.exceptions import (
     SnapshotInstanceNotFoundException,
 )
 
-
 _logger = logging.getLogger(__name__)
 
 

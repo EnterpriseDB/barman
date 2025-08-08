@@ -31,7 +31,6 @@ from barman.exceptions import WalArchiveContentError
 from barman.utils import check_positive, force_str
 from barman.xlog import check_archive_usable
 
-
 _logger = logging.getLogger(__name__)
 
 

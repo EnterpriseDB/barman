@@ -33,7 +33,6 @@ from barman.cloud_providers import get_cloud_interface
 from barman.output import ConsoleOutputWriter
 from barman.utils import force_str
 
-
 _logger = logging.getLogger(__name__)
 
 

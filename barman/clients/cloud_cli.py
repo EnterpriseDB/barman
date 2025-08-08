@@ -23,7 +23,6 @@ import logging
 import barman
 from barman.utils import force_str
 
-
 _logger = logging.getLogger(__name__)
 
 

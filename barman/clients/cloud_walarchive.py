@@ -37,7 +37,6 @@ from barman.exceptions import BarmanException
 from barman.utils import check_positive, check_size, check_tag, force_str
 from barman.xlog import hash_dir, is_any_xlog_file, is_history_file
 
-
 _logger = logging.getLogger(__name__)
 
 

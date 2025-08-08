@@ -34,7 +34,6 @@ from barman.exceptions import BarmanException
 from barman.utils import force_str
 from barman.xlog import hash_dir, is_any_xlog_file, is_backup_file, is_partial_file
 
-
 _logger = logging.getLogger(__name__)
 
 

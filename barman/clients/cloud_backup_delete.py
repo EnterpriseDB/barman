@@ -39,7 +39,6 @@ from barman.exceptions import BadXlogPrefix, InvalidRetentionPolicy
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import check_non_negative, force_str
 
-
 _logger = logging.getLogger(__name__)
 
 

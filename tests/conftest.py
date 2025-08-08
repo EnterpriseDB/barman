@@ -22,6 +22,8 @@ import mock
 import psycopg2
 import pytest
 
+_logger = logging.getLogger(__name__)
+
 
 @pytest.fixture(scope="session", autouse=True)
 def default_session_fixture(request):
@@ -31,13 +33,13 @@ def default_session_fixture(request):
     :type request: _pytest.python.SubRequest
     :return:
     """
-    logging.info("Patching barman.postgres.psycopg2.connect")
+    _logger.info("Patching barman.postgres.psycopg2.connect")
     connect_patch = mock.patch("barman.postgres.psycopg2.connect")
     connect_mock = connect_patch.__enter__()
     connect_mock.side_effect = psycopg2.DatabaseError
 
     def unpatch():
         connect_patch.__exit__(None, None)
-        logging.info("Unpatching barman.postgres.psycopg2.connect")
+        _logger.info("Unpatching barman.postgres.psycopg2.connect")
 
     request.addfinalizer(unpatch)

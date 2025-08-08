@@ -46,7 +46,6 @@ from barman.utils import (
     with_metaclass,
 )
 
-
 _logger = logging.getLogger(__name__)
 
 

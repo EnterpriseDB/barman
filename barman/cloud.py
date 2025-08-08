@@ -60,7 +60,6 @@ from barman.utils import (
     with_metaclass,
 )
 
-
 _logger = logging.getLogger(__name__)
 
 
@@ -439,7 +438,7 @@ class CloudUploadController(object):
                 tar_item = os.path.join(tar_root, item)
                 if not path_allowed(exclude, include, tar_item, False):
                     continue
-                logging._logger("Uploading %s", tar_item)
+                logging.debug("Uploading %s", tar_item)
                 try:
                     self._get_tar(dst).add(os.path.join(root, item), arcname=tar_item)
                 except EnvironmentError as e:
