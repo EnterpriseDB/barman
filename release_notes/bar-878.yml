@@ -1,0 +1,14 @@
+- summary: Deprecate `pygzip` and `pybzip2` compression options
+  description: |
+    The `pygzip` and `pybzip2` compression options are now deprecated and will be
+    removed in a future release. Users should migrate to the `gzip` and `bzip2` options,
+    which now use Python's internal libraries.
+
+    This change was made to improve performance and code consistency. Previously, the
+    `gzip` and `bzip2` options relied on external subprocesses, while their `py`
+    counterparts used native Python libraries. The core compression logic for `gzip` and
+    `bzip2` has been updated to also use Python's built-in libraries, making the
+    `pygzip` and `pybzip2` options redundant.
+  type: notable_change
+  jira_tickets:
+    - BAR-878
