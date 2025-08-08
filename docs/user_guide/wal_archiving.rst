@@ -21,18 +21,21 @@ The option can use one of the following values:
 * ``xz``: for XZ compression (uses Python's internal compression library);
 * ``zstd``: for Zstandard compression (requires the ``zstandard`` library to be
   installed);
-* ``gzip``: for Gzip compression (requires the ``gzip`` utility);
-* ``pygzip``: for Gzip compression (uses Python's internal compression library);
+* ``gzip``: for Gzip compression (uses Python's internal compression library);
+* ``pygzip``: for Gzip compression (currently the same as ``gzip``)(Deprecated);
 * ``pigz``: for Pigz compression (requires the ``pigz`` utility);
-* ``bzip2``: for Bzip2 compression (requires the ``bzip2`` utility);
-* ``pybzip2``: for Bzip2 compression (uses Python's internal compression library);
+* ``bzip2``: for Bzip2 compression (uses Python's internal compression library);
+* ``pybzip2``: for Bzip2 compression (currently the same as ``bzip2``)(Deprecated);
 * ``custom``: for custom compression, which requires you to set the following options
   as well: ``custom_compression_filter``, ``custom_decompression_filter``,
   ``custom_compression_magic``. Check :ref:`configuration-options-wals` for details.
 
+.. deprecated:: 3.16
+    The ``pygzip`` and ``pybzip2`` compression options are deprecated and will be
+    removed in a future release. Use their equivalents ``gzip`` and ``bzip2`` instead.
+
 .. note::
-    When using options such as ``bzip2``, ``gzip`` and ``pigz`` Barman will fork a new
-    process for compression.
+    When using ``pigz`` Barman forks a new process for compression.
 
 .. important::
     Barman does not store metadata on how each WAL file was compressed, nor on how to

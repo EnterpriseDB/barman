@@ -964,7 +964,11 @@ These configuration options are related to how Barman will manage the Write-Ahea
 Specifies the standard compression algorithm for WAL files. Options include: ``lz4``,
 ``xz``, ``zstd``, ``gzip``, ``pygzip``, ``pigz``, ``bzip2``, ``pybzip2``, ``snappy``
 and ``custom``. 
-  
+
+.. deprecated:: 3.16
+    The ``pygzip`` and ``pybzip2`` compression options are deprecated and will be
+    removed in a future release. Use their equivalents ``gzip`` and ``bzip2`` instead.
+
 .. note::
   All of these options require the module to be installed in the location where the
   compression will occur.
