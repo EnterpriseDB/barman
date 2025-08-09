@@ -33,6 +33,7 @@ import socket
 import tempfile
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
+from distutils.version import LooseVersion as Version
 from io import BytesIO
 
 import dateutil.parser
@@ -73,6 +74,7 @@ from barman.infofile import BackupInfo, LocalBackupInfo, VolatileBackupInfo
 from barman.utils import (
     force_str,
     get_major_version,
+    get_path_device_number,
     is_subdirectory,
     mkpath,
     parse_target_tli,
@@ -2950,6 +2952,10 @@ class CombineOperation(RecoveryOperation):
             )
             output.close_and_exit()
 
+        if self.config.combine_mode == "link":
+            self.config.combine_mode = self._fallback_to_copy_if_link_is_not_supported(
+                backup_info, output_dest, remote_command, remote_status
+            )
         # Prepare the pg_combinebackup command
         pg_combinebackup = PgCombineBackup(
             destination=output_dest,
@@ -3080,6 +3086,78 @@ class CombineOperation(RecoveryOperation):
         remote_status["pg_combinebackup_path"] = full_path
         remote_status["pg_combinebackup_version"] = full_version
         return remote_status
+
+    def _fallback_to_copy_if_link_is_not_supported(
+        self, backup_info, output_dest, remote_command, remote_status
+    ):
+        """
+        Fallback method to ``copy`` if link mode cannot be used for restoring a backup.
+
+        This function will fall back to the `copy` mode if any of the following
+        conditions are met:
+
+        * The restore is performed locally (not a remote command), which can corrupt
+          the backup(s) in the catalog.
+        * The remote ``pg_combinebackup`` version is older than 18, where ``--link`` is
+          not available.
+        * The backup source and restore destination are on different filesystems, in
+          which case hard-links cannot be created.
+
+        .. note::
+            A non-fatal warning is issued if the restore involves a local staging area
+            that is linked to the backup catalog, as this still carries a risk of
+            backup corruption if the staging area is not cleaned up properly. Barman
+            does not modify those files, but unexpected situations can happen:
+
+            * The user somehow modifies the files before Barman is able to copy them to
+              the remote and delete from the staging area.
+            * Barman faces an unexpected error and quits execution before cleaning up
+              the staging area. The user would be able to modify the files in that case.
+
+        :param barman.infofile.BackupInfo backup_info: The backup being checked.
+        :param str output_dest: The destination path where the backup will be restored.
+        :param str|None remote_command:  The remote command used for restore, or None if
+            the restore is local.
+        :param dict remote_status: A dictionary containing status information from the
+            remote, including 'pg_combinebackup_version'.
+        :returns: ``link`` if link mode can be used, ``copy`` otherwise.
+        :rtype: str
+        """
+        copy_mode = "link"
+        if not remote_command:
+            output.warning(
+                "'link' mode is not supported for local restore. Falling back to "
+                "'copy' mode to prevent modification of original backup files through "
+                "hard-links."
+            )
+            copy_mode = "copy"
+        elif remote_status["pg_combinebackup_version"] < Version("18"):
+            output.warning(
+                "'link' mode is not supported on Postgres 17 or older. Falling back "
+                "to 'copy' mode."
+            )
+            copy_mode = "copy"
+        elif get_path_device_number(output_dest) != get_path_device_number(
+            backup_info.get_data_directory()
+        ):
+            output.warning(
+                "'link' mode is not supported with files across different file "
+                "systems. Falling back to 'copy' mode."
+            )
+            copy_mode = "copy"
+        elif self.config.staging_location == "local" and any(
+            [
+                b.get_base_directory() == self.config.basebackups_directory
+                for b in backup_info.walk_to_root()
+            ]
+        ):
+            output.warning(
+                "CAUTION: Using 'link' mode with a local staging area. Files in the "
+                "staging path may be hard-linked to files from your Barman backup "
+                "catalog. Modifying these files, by any means, can lead to permanent "
+                "backup(s) corruption."
+            )
+        return copy_mode
 
 
 class MainRecoveryExecutor(RemoteConfigRecoveryExecutor):

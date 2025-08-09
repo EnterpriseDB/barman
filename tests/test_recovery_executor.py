@@ -20,6 +20,7 @@ import os
 import shutil
 from contextlib import closing
 from datetime import datetime
+from distutils.version import LooseVersion as Version
 from functools import partial
 
 import dateutil
@@ -4097,6 +4098,130 @@ class TestCombineOperation(object):
             operation.cmd.find_command.return_value = None
             with pytest.raises(CommandNotFoundException):
                 operation._fetch_remote_status()
+
+    @mock.patch("barman.recovery_executor.get_path_device_number")
+    @mock.patch("barman.recovery_executor.output", wraps=output)
+    def test__fallback_to_copy_if_link_is_not_supported(
+        self, mock_out, mock_get_dev_num
+    ):
+        """
+        Test the `_fallback_to_copy_if_link_is_not_supported` method of
+        `CombineOperation` under various scenarios.
+        This test verifies the behavior of link mode eligibility for backup restoration
+        depending on the version of `pg_combinebackup`, the file system configuration,
+        the location of the backup, and whether the restore is local or remote.
+        Scenarios tested:
+            1. `pg_combinebackup` version < 18: Should warn and return ``copy``.
+            2. Version >= 18, input and output on different filesystems: Should warn and
+               return ``copy``.
+            3. Version >= 18, input and output on same filesystem, input in backup
+               catalog, local restore: Should warn and return ``copy``.
+            4. Version >= 18, input and output on same filesystem, input in backup
+               catalog, remote restore with local staging: Should warn and return ``link``.
+            5. Version >= 18, input and output on same filesystem, input not in backup
+               catalog: Should not warn and return ``link``.
+            6. Version >= 18, input and output on same filesystem, input in backup
+               catalog, remote restore with remote staging: Should not warn and return
+               ``link``.
+        :param unittest.mock.Mock mock_out: Mock object for capturing warning messages.
+        """
+
+        # Create a backup info.
+        backup_info = testing_helpers.build_test_backup_info()
+        # Local Restore.
+        remote_command = None
+        operation = CombineOperation(
+            config=mock.Mock(staging_location="local"),
+            server=mock.Mock(),
+            backup_manager=mock.Mock(),
+        )
+        operation.cmd = mock.Mock()
+        destination = "/anywhere"
+        # Mock version of pg_combinebackup = 17.
+        remote_status = {"pg_combinebackup_version": Version("17")}
+
+        # 1. Test local restore. Warning and return `copy`.
+        copy_mode = operation._fallback_to_copy_if_link_is_not_supported(
+            backup_info, destination, remote_command, remote_status
+        )
+        mock_out.warning.assert_called_once_with(
+            "'link' mode is not supported for local restore. Falling back to 'copy' "
+            "mode to prevent modification of original backup files through hard-links."
+        )
+        assert copy_mode == "copy"
+
+        # 2. Test pg_combinebackup version < 18. Warning and return `copy`.
+        mock_out.reset_mock()
+        remote_command = "ssh pghost"
+        copy_mode = operation._fallback_to_copy_if_link_is_not_supported(
+            backup_info, destination, remote_command, remote_status
+        )
+        mock_out.warning.assert_called_once_with(
+            "'link' mode is not supported on Postgres 17 or older. Falling back to "
+            "'copy' mode."
+        )
+        assert copy_mode == "copy"
+
+        # 3. Test pg_combinebackup version = 18 and input and output in different fs.
+        # Warning and return `copy`.
+        mock_out.reset_mock()
+        # Mock different file systems for input and output.
+        mock_get_dev_num.side_effect = lambda x: x
+        remote_status = {"pg_combinebackup_version": Version("18")}
+        copy_mode = operation._fallback_to_copy_if_link_is_not_supported(
+            backup_info, destination, remote_command, remote_status
+        )
+        mock_out.warning.assert_called_once_with(
+            "'link' mode is not supported with files across different file systems. "
+            "Falling back to 'copy' mode."
+        )
+        assert copy_mode == "copy"
+
+        # 4. Test pg_combinebackup version = 18, input and output in same fs, input is
+        # in backup catalog, restore is remote and staging_location is local. Warning
+        # and return `link`.
+        mock_out.reset_mock()
+        # Mock same file systems for input and output.
+        mock_get_dev_num.side_effect = lambda _: "same_filesystem"
+        # Set basebackups_directory to mock input backup is in backup catalog.
+        operation.config.basebackups_directory = "/some/barman/home/main/base"
+        copy_mode = operation._fallback_to_copy_if_link_is_not_supported(
+            backup_info, destination, remote_command, remote_status
+        )
+        mock_out.warning.assert_called_once_with(
+            "CAUTION: Using 'link' mode with a local staging area. Files in the "
+            "staging path may be hard-linked to files from your Barman backup catalog. "
+            "Modifying these files, by any means, can lead to permanent backup(s) "
+            "corruption."
+        )
+        assert copy_mode == "link"
+
+        # 5. Test pg_combinebackup version = 18, input and output in same fs, input is
+        # not in backup catalog. No Warning and return `link`
+        operation.config.basebackups_directory = "/some/other/home/main/base"
+        mock_out.reset_mock()
+        copy_mode = operation._fallback_to_copy_if_link_is_not_supported(
+            backup_info, destination, remote_command, remote_status
+        )
+        mock_out.warning.assert_not_called()
+        assert copy_mode == "link"
+
+        # 6. Test pg_combinebackup version = 18, input and output in same fs, input is
+        # in backup catalog, restore is remote and staging_location is remote. No
+        # Warning and return `link`.
+        operation = CombineOperation(
+            config=mock.Mock(staging_location="remote"),
+            server=mock.Mock(),
+            backup_manager=mock.Mock(),
+        )
+        operation.cmd = mock.Mock()
+        operation.config.basebackups_directory = "/some/other/home/main/base"
+        mock_out.reset_mock()
+        copy_mode = operation._fallback_to_copy_if_link_is_not_supported(
+            backup_info, destination, remote_command, remote_status
+        )
+        mock_out.warning.assert_not_called()
+        assert copy_mode == "link"
 
 
 class TestDecryptOperation(object):
