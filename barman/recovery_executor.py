@@ -75,6 +75,7 @@ from barman.utils import (
     is_subdirectory,
     mkpath,
     parse_target_tli,
+    simplify_version,
     total_seconds,
 )
 
@@ -2931,6 +2932,26 @@ class CombineOperation(RecoveryOperation):
 
         # Get the backup chain data paths to be passed to pg_combinebackup
         backups_chain = self._get_backup_chain_paths(backup_info)
+
+        # Get only the major number of pg_combinebackup.
+        pg_combinebackup_major_version = simplify_version(
+            str(remote_status["pg_combinebackup_version"])
+        ).split(".")[0]
+
+        backup_pg_major_version = backup_info.pg_major_version()
+
+        if pg_combinebackup_major_version != backup_pg_major_version:
+            output.error(
+                "Postgres version mismatch: The backup '%s' was taken from Postgres "
+                "version '%s', but pg_combinebackup version is '%s'. To restore "
+                "successfully is necessary to use pg_combinebackup with the same "
+                "version used when the backup was taken (%s).",
+                backup_info.backup_id,
+                backup_pg_major_version,
+                pg_combinebackup_major_version,
+                backup_pg_major_version,
+            )
+            output.close_and_exit()
 
         # Prepare the pg_combinebackup command
         pg_combinebackup = PgCombineBackup(

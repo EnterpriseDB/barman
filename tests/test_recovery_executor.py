@@ -3677,6 +3677,7 @@ class TestCombineOperation(object):
 
         # Build the method parameters
         backup_info = mock.Mock()
+        backup_info.pg_major_version.return_value = "17"
         destination = "/path/to/destination"
         tablespace_mapping = {
             "/path/to/backup_id/tbs1": "/path/to/relocation/tbs1",
@@ -3770,6 +3771,7 @@ class TestCombineOperation(object):
 
         # Build the method parameters
         backup_info = mock.Mock()
+        backup_info.pg_major_version.return_value = "17"
         destination = "/path/to/destination"
         tablespace_mapping = {
             "/path/to/backup_id/tbs1": "/path/to/relocation/tbs1",
@@ -3800,6 +3802,58 @@ class TestCombineOperation(object):
             "pg_combinebackup",
             mock.ANY,  # The exception object will vary
             msg,
+        )
+
+    @mock.patch(
+        "barman.recovery_executor.CombineOperation._fetch_remote_status",
+        return_value={
+            "pg_combinebackup_path": "/path/to/pg_combinebackup",
+            "pg_combinebackup_version": "17.0.0",
+        },
+    )
+    @mock.patch(
+        "barman.recovery_executor.CombineOperation._get_backup_chain_paths",
+        return_value=["/path/to/backup_id/data", "/path/to/backup_id/parent/data"],
+    )
+    @mock.patch("barman.recovery_executor.PgCombineBackup")
+    @mock.patch("barman.recovery_executor.Command")
+    @mock.patch(
+        "barman.recovery_executor.DataTransferFailure", wraps=DataTransferFailure
+    )
+    def test_run_pg_combinebackup_error_out_when_client_differs_backup_pg_version(
+        self,
+        mock_data_transfer_failure,
+        mock_command,
+        mock_pg_combine_backup,
+        mock_get_backup_chain_paths,
+        mock_fetch_remote_status,
+        caplog,
+    ):
+        """
+        Test that :meth:`_run_pg_combinebackup` handles failures correctly.
+        """
+        # GIVEN a CombineOperation instance
+        operation = CombineOperation(
+            config=mock.Mock(staging_location="remote"),
+            server=mock.Mock(),
+            backup_manager=mock.Mock(),
+        )
+
+        # Build the method parameters
+        backup_info = testing_helpers.build_test_backup_info(version=180000)
+        destination = "/path/to/destination"
+        remote_command = "ssh postgres@pg"
+
+        # WHEN _run_pg_combinebackup is called THEN a DataTransferFailure is raised
+        with pytest.raises(SystemExit):
+            operation._run_pg_combinebackup(
+                backup_info, destination, None, remote_command
+            )
+        assert (
+            "Postgres version mismatch: The backup '1234567890' was taken from "
+            "Postgres version '18', but pg_combinebackup version is '17'. To restore "
+            "successfully is necessary to use pg_combinebackup with the same version "
+            "used when the backup was taken (18)." in caplog.text
         )
 
     @pytest.mark.parametrize(
