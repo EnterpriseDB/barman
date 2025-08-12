@@ -209,19 +209,28 @@ restore`` command.
 Using ``get-wal`` for local recovery
 """"""""""""""""""""""""""""""""""""
 
-Here's an example of a ``restore_command`` for local recovery:
+The :ref:`barman get-wal <commands-barman-get-wal>` command must always run as the
+``barman`` user on local recovery, as it requires access to the WAL catalog managed by Barman.
 
 .. code-block:: text
 
-  restore_command = 'sudo -u barman barman get-wal SERVER %f > %p'
+  restore_command = 'barman get-wal SERVER_NAME %f > %p'
 
-Remember that the :ref:`barman get-wal <commands-barman-get-wal>` command should always
-be executed as the ``barman`` user, with the necessary permissions to access WAL files
-from the catalog, which is why ``sudo -u barman`` is used in this example.
+This assumes that the PostgreSQL server will also run as the ``barman`` user.
 
-To allow the ``postgres`` user to run the ``get-wal`` command as the ``barman`` user, 
-you can add the following line to the ``/etc/sudoers`` file (replace SERVER with the
-actual server name):
+If you choose to run PostgreSQL with another user (for example, ``postgres``), you are
+responsible for:
+
+- Updating the ownership of ``PGDATA`` and all tablespaces to match the user who will run the server.
+- Adjusting the ``restore_command`` so that it can still invoke ``barman get-wal`` as
+  the ``barman`` user (e.g. by configuring ``sudo``  or other mechanisms to become that user).
+
+In other words, when using a user different from ``barman`` to run PostgreSQL on a local recovery, extra
+configuration is required to ensure that WAL files can still be retrieved from Barman, and that the server will be able to start up.
+
+For example, to allow the ``postgres`` user to run the ``get-wal`` command as the
+``barman`` user, you can add the following line to the ``/etc/sudoers`` file (replace
+SERVER with the actual server name):
 
 .. code-block:: text
 

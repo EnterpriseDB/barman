@@ -1115,9 +1115,8 @@ class RecoveryExecutor(object):
                     "must run as '%s' user" % self.config.config.user
                 )
                 recovery_conf_lines.append(
-                    "restore_command = 'sudo -u %s "
-                    "barman get-wal %s %s %%f > %%p'"
-                    % (self.config.config.user, partial_option, self.config.name)
+                    "restore_command = 'barman get-wal %s %s %%f > %%p'"
+                    % (partial_option, self.config.name)
                 )
             recovery_info["results"]["get_wal"] = True
         elif not standby_mode:
