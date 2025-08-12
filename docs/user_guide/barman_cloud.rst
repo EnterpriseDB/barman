@@ -81,7 +81,7 @@ differ.
 .. important::
    Starting with AWS boto3 1.36, the behavior of **Data Integrity Protection checks**
    has changed. Some methods used by Barman no longer require the ``Content-MD5``
-   header. This can create problems if you have your setup in a FIPS environment.
+   header.
 
    This means that **S3-compatible storage providers that have not updated their
    server-side code may fail** when used with newer boto3 versions. For example, MinIO
