@@ -78,6 +78,19 @@ differ.
       AWS_REQUEST_CHECKSUM_CALCULATION=when_required
       AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
 
+.. important::
+   Starting with AWS boto3 1.36, the behavior of **Data Integrity Protection checks**
+   has changed. Some methods used by Barman no longer require the ``Content-MD5``
+   header. This can create problems if you have your setup in a FIPS environment.
+
+   This means that **S3-compatible storage providers that have not updated their
+   server-side code may fail** when used with newer boto3 versions. For example, MinIO
+   addressed this change shortly after the boto3 1.36 announcement.
+
+   If you are using MinIO, you **must upgrade** to the latest release (or at least
+   ``RELEASE.2025-02-03T21-03-04Z`` or newer) to ensure compatibility and avoid failures
+   when deleting backups or releasing a keep annotation.
+
 .. _barman-cloud-installation:
 
 Installation

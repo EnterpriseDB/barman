@@ -51,6 +51,19 @@ WALs are considered unused if:
   Deleting by retention policy may result in a high volume of delete requests if a
   large number of backups are accumulated in cloud storage.
 
+.. important::
+  Starting with AWS boto3 1.36, the behavior of **Data Integrity Protection checks**
+  has changed. Some methods used by Barman no longer require the ``Content-MD5``
+  header. This can create problems if you have your setup in a FIPS environment.
+
+  This means that **S3-compatible storage providers that have not updated their
+  server-side code may fail** when used with newer boto3 versions. For example, MinIO
+  addressed this change shortly after the boto3 1.36 announcement.
+
+  If you are using MinIO, you **must upgrade** to the latest release (or at least
+  ``RELEASE.2025-02-03T21-03-04Z`` or newer) to ensure compatibility and avoid
+  failures.
+
 **Parameters**
 
 ``SERVER_NAME``
