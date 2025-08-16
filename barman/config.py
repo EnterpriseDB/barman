@@ -1023,16 +1023,11 @@ class ServerConfig(BaseConfig):
               * ``source``: the file which provides the effective value, if
                 the option has been configured by the user, otherwise ``None``.
         """
-        json_dict = dict(vars(self))
-
-        # remove references that should not go inside the
-        # `servers -> SERVER -> config` key in the barman diagnose output
-        # ideally we should change this later so we only consider configuration
-        # options, as things like `msg_list` are going to the `config` key,
-        # i.e. we might be interested in considering only `ServerConfig.KEYS`
-        # here instead of `vars(self)`
-        for key in ["config", "_active_model_file", "active_model"]:
-            del json_dict[key]
+        json_dict = {
+            key: getattr(self, key)
+            for key in self.KEYS
+            if key not in {"config", "_active_model_file", "active_model"}
+        }
 
         # options that are override by the model
         override_options = set()
@@ -1464,6 +1459,14 @@ class Config(object):
         """
         json_dict = dict(self._global_config)
 
+        # Add missing global configuration to output of diagnose.
+        json_dict.update(
+            dict(
+                barman_lock_directory=self.barman_lock_directory,
+                lock_directory_cleanup=self.lock_directory_cleanup,
+                config_changes_queue=self.config_changes_queue,
+            )
+        )
         if with_source:
             for option, value in json_dict.items():
                 json_dict[option] = {

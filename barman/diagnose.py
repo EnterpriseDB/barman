@@ -74,6 +74,7 @@ def exec_diagnose(servers, models, errors_list, show_config_source):
         # server configuration
         diagnosis["servers"][name] = {}
         diagnosis["servers"][name]["config"] = server.config.to_json(show_config_source)
+        diagnosis["servers"][name]["msg_list"] = server.config.msg_list
         # server model
         active_model = (
             server.config.active_model.name

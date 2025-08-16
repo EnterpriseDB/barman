@@ -786,6 +786,9 @@ class TestConfig(object):
             "log_level": "INFO",
             "retention_policy": "redundancy 2",
             "wal_retention_policy": "base",
+            "barman_lock_directory": "/some/barman/home",
+            "config_changes_queue": "/some/barman/home/cfg_changes.queue",
+            "lock_directory_cleanup": "true",
         }
         c = testing_helpers.build_config_from_dicts(global_conf=global_conf)
 
@@ -800,6 +803,9 @@ class TestConfig(object):
             "barman_user": "barman",
             "log_file": "/some/barman/home/log/barman.log",
             "archiver": "True",
+            "barman_lock_directory": "/some/barman/home",
+            "config_changes_queue": "/some/barman/home/cfg_changes.queue",
+            "lock_directory_cleanup": True,
         }
         assert c.global_config_to_json(False) == expected
 
@@ -1052,6 +1058,9 @@ class TestServerConfig(object):
             "log_level": "INFO",
             "retention_policy": "redundancy 2",
             "wal_retention_policy": "base",
+            "barman_lock_directory": "some",
+            "config_changes_queue": "some",
+            "lock_directory_cleanup": "true",
         }
         main_conf = {
             "active": "true",
@@ -1103,6 +1112,17 @@ class TestServerConfig(object):
         expected = testing_helpers.build_config_dictionary(expected_override)
         for key in ["config", "_active_model_file", "active_model"]:
             del expected[key]
+        # Remove field that is not needed or is not part of a server specific config.
+        for key in [
+            "barman_home",
+            "barman_lock_directory",
+            "config_changes_queue",
+            "lock_directory_cleanup",
+            "msg_list",
+            "name",
+        ]:
+            del expected[key]
+
         assert main.to_json(False) == expected
 
         # Check `to_json(with_source=True)` works as expected
