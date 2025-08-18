@@ -935,7 +935,7 @@ class Server(RemoteStatusMixin):
         """
         # If we have wal-specific conninfo then we must use those to get
         # the remote status information for the check
-        streaming_conninfo, conninfo = self.config.get_wal_conninfo()
+        streaming_conninfo, conninfo = self.config.get_wal_conninfo(check_strategy)
         if conninfo != self.config.conninfo:
             with closing(StreamingConnection(streaming_conninfo)) as streaming, closing(
                 PostgreSQLConnection(conninfo, slot_name=self.config.slot_name)

@@ -1088,7 +1088,7 @@ class ServerConfig(BaseConfig):
         self.msg_list.extend(msg_list)
         self.disabled = True
 
-    def get_wal_conninfo(self):
+    def get_wal_conninfo(self, check_strategy=False):
         """
         Return WAL-specific conninfo strings for this server.
 
@@ -1101,17 +1101,31 @@ class ServerConfig(BaseConfig):
         :return: Tuple consisting of the ``wal_streaming_conninfo`` and
             ``wal_conninfo``.
         """
-        # If `wal_streaming_conninfo` is not set, fall back to `streaming_conninfo`
-        wal_streaming_conninfo = self.wal_streaming_conninfo or self.streaming_conninfo
+        overrides = {}
+        if self.wal_streaming_conninfo is not None:
+            overrides["streaming_conninfo"] = self.wal_streaming_conninfo
+        # If `wal_streaming_conninfo` is not set, fall back to `streaming_conninfo`.
+        wal_streaming_conninfo = overrides.get(
+            "streaming_conninfo", self.streaming_conninfo
+        )
 
         # If `wal_conninfo` is not set, fall back to `wal_streaming_conninfo`. If
         # `wal_streaming_conninfo` is not set, fall back to `conninfo`.
         if self.wal_conninfo is not None:
-            wal_conninfo = self.wal_conninfo
+            overrides["conninfo"] = self.wal_conninfo
         elif self.wal_streaming_conninfo is not None:
-            wal_conninfo = self.wal_streaming_conninfo
-        else:
-            wal_conninfo = self.conninfo
+            overrides["conninfo"] = self.wal_streaming_conninfo
+        wal_conninfo = overrides.get("conninfo", self.conninfo)
+
+        if overrides:
+            message_parts = [
+                f"'{key}' overridden with '{value}'" for key, value in overrides.items()
+            ]
+            # Only display message if its not a check command!
+            if not check_strategy:
+                output.info(
+                    "Configuration overrides applied: %s", " and ".join(message_parts)
+                )
         return wal_streaming_conninfo, wal_conninfo
 
 
