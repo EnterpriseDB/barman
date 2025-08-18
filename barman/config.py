@@ -1023,6 +1023,10 @@ class ServerConfig(BaseConfig):
               * ``source``: the file which provides the effective value, if
                 the option has been configured by the user, otherwise ``None``.
         """
+        # remove references that should not go inside the
+        # `servers -> SERVER -> config` key in the barman diagnose output.
+        # Consider only configuration options, from `ServerConfig.KEYS`. Things like
+        # `msg_list` is going to be a sibling of `config` key.
         json_dict = {
             key: getattr(self, key)
             for key in self.KEYS
@@ -1459,7 +1463,8 @@ class Config(object):
         """
         json_dict = dict(self._global_config)
 
-        # Add missing global configuration to output of diagnose.
+        # Add global configuration to output of diagnose that are not present in
+        # `_global_config`.
         json_dict.update(
             dict(
                 barman_lock_directory=self.barman_lock_directory,
