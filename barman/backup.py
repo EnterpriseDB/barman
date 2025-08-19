@@ -45,7 +45,7 @@ from barman.backup_manifest import BackupManifest
 from barman.cloud_providers import get_snapshot_interface_from_backup_info
 from barman.command_wrappers import PgVerifyBackup
 from barman.compression import CompressionManager
-from barman.config import BackupOptions
+from barman.config import BackupOptions, RecoveryOptions
 from barman.encryption import EncryptionManager
 from barman.exceptions import (
     AbortedRetryHookScript,
@@ -1105,33 +1105,41 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         # Delegate the recovery operation to a RecoveryExecutor object
 
         command = unix_command_factory(remote_command, self.server.path)
-        # Ensure the PGDATA destination directory is empty.
-        dest_dir = command.list_dir_content(dest)
-        if dest_dir:
-            output.error(
-                "The restore operation cannot proceed because the destination folder "
-                "'%s' is not empty. To prevent accidental data loss, the destination "
-                "must be empty. Please choose a different location or manually empty "
-                "the folder.",
-                dest,
-            )
-            output.close_and_exit()
+
+        delta_restore = RecoveryOptions.DELTA_RESTORE in self.config.recovery_options
+
+        # Avoid overwriting PGDATA files when restoring a backup without delta restore.
+        if not delta_restore:
+            # Ensure the PGDATA destination directory is empty.
+            dest_dir = command.list_dir_content(dest)
+            if dest_dir:
+                output.error(
+                    "The restore operation cannot proceed because the destination folder "
+                    "'%s' is not empty. To prevent accidental data loss, the destination "
+                    "must be empty. Please choose a different location or manually empty "
+                    "the folder.",
+                    dest,
+                )
+                output.close_and_exit()
 
         if backup_info.tablespaces:
             for tablespace in backup_info.tablespaces:
                 location = tablespace.location
                 if tablespaces and tablespace.name in tablespaces:
                     location = tablespaces[tablespace.name]
-                tbs_dir = command.list_dir_content(location)
-                if tbs_dir:
-                    output.error(
-                        "The restore operation cannot proceed. The destination path "
-                        "'%s' for the tablespace '%s' is not empty. To prevent "
-                        "accidental data loss, the tablespace destination must be "
-                        "empty. Please choose a different location or manually empty "
-                        "the folder." % (location, tablespace.name)
-                    )
-                    output.close_and_exit()
+                # Avoid overwriting TABLESPACE files when restoring a backup without
+                # delta restore.
+                if not delta_restore:
+                    tbs_dir = command.list_dir_content(location)
+                    if tbs_dir:
+                        output.error(
+                            "The restore operation cannot proceed. The destination path "
+                            "'%s' for the tablespace '%s' is not empty. To prevent "
+                            "accidental data loss, the tablespace destination must be "
+                            "empty. Please choose a different location or manually empty "
+                            "the folder." % (location, tablespace.name)
+                        )
+                        output.close_and_exit()
 
         executor = recovery_executor_factory(self, backup_info)
         # Run the pre_recovery_script if present.

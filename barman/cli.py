@@ -951,6 +951,20 @@ def rebuild_xlogdb(args):
             ),
         ),
         argument(
+            "--delta-restore",
+            dest="delta_restore",
+            help="Enable delta restore mode.",
+            action="store_true",
+            default=SUPPRESS,
+        ),
+        argument(
+            "--no-delta-restore",
+            help="Disable delta restore mode.",
+            dest="delta_restore",
+            action="store_false",
+            default=SUPPRESS,
+        ),
+        argument(
             "--snapshot-recovery-instance",
             help="Instance where the disks recovered from the snapshots are attached",
         ),
@@ -1245,6 +1259,36 @@ def restore(args):
             )
             output.close_and_exit()
         server.config.network_compression = args.network_compression
+
+    if hasattr(args, "delta_restore"):
+        if args.delta_restore:
+            server.config.recovery_options.add(RecoveryOptions.DELTA_RESTORE)
+        elif RecoveryOptions.DELTA_RESTORE in server.config.recovery_options:
+            server.config.recovery_options.remove(RecoveryOptions.DELTA_RESTORE)
+
+    delta_restore = RecoveryOptions.DELTA_RESTORE in server.config.recovery_options
+    if delta_restore:
+        # Local restore does not support delta for non-plain backups.
+        if not args.remote_ssh_command:
+            if any(
+                [
+                    backup_info.is_incremental,
+                    backup_info.compression,
+                    backup_info.encryption,
+                ]
+            ):
+                output.error(
+                    "Cannot restore a backup locally with delta mode when the backup is "
+                    "not plain."
+                )
+                output.close_and_exit()
+        # Remote restore does not support delta when staging_location is remote.
+        elif server.config.staging_location == "remote":
+            output.error(
+                "Cannot restore a backup remotely with delta mode when "
+                "'staging_location=remote'."
+            )
+            output.close_and_exit()
 
     if backup_info.snapshots_info is not None:
         missing_args = []

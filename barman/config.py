@@ -195,9 +195,10 @@ class RecoveryOptions(CsvOption):
 
     # constants containing labels for allowed values
     GET_WAL = "get-wal"
+    DELTA_RESTORE = "delta-restore"
 
     # list holding all the allowed values for the RecoveryOptions class
-    value_list = [GET_WAL]
+    value_list = [GET_WAL, DELTA_RESTORE]
 
 
 def parse_boolean(value):
