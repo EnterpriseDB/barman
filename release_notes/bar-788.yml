@@ -1,0 +1,12 @@
+- summary: Add delta-restore flag and recovery option to barman restore
+  description: |
+    Introduces the --delta-restore flag for barman restore, enabling delta
+    restore mode. This mode restores a backup by reusing identical data already present
+    in the destination directory, which drastically reduces restore time and network
+    traffic.
+
+    This feature is also configurable per-server via 'recovery_options' as a new field
+    called delta-restore in the server configuration file.
+  type: minor_change
+  jira_tickets:
+    - BAR-788
