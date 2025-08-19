@@ -1836,6 +1836,14 @@ class TestCsvParsing(object):
         test case
         global value: recovery_options = 'get-wal'
         expected: recovery_options = empty RecoveryOptions obj
+
+        test case
+        global value: recovery_options = 'delta-restore'
+        expected: recovery_options = empty RecoveryOptions obj
+
+        test case
+        global value: recovery_options = 'delta-restore,get-wal'
+        expected: recovery_options = empty RecoveryOptions obj
         """
         # Build configuration with empty recovery_options
         c = testing_helpers.build_config_from_dicts(
@@ -1866,18 +1874,51 @@ class TestCsvParsing(object):
         )
         assert main.__dict__ == expected
 
+        # Build configuration with recovery_options set to get-wal
+        c = testing_helpers.build_config_from_dicts(
+            global_conf={"archiver": "on", "recovery_options": "delta-restore"},
+            main_conf=None,
+        )
+        main = c.get_server("main")
+
+        expected = testing_helpers.build_config_dictionary(
+            {
+                "config": c,
+                "recovery_options": RecoveryOptions("delta-restore", "", ""),
+            }
+        )
+        assert main.__dict__ == expected
+
+        # Build configuration with recovery_options set to get-wal
+        c = testing_helpers.build_config_from_dicts(
+            global_conf={"archiver": "on", "recovery_options": "delta-restore,get-wal"},
+            main_conf=None,
+        )
+        main = c.get_server("main")
+
+        expected = testing_helpers.build_config_dictionary(
+            {
+                "config": c,
+                "recovery_options": RecoveryOptions("delta-restore,get-wal", "", ""),
+            }
+        )
+        assert main.__dict__ == expected
+
     def test_recovery_option_parser(self):
         """
         Test of the RecoveryOptions class.
 
         Builds the class using '', then using
-        'get-wal' as values.
+        'get-wal' and 'delta-restore' as values.
         Tests for ValueError conditions
         """
         # Builds using the two allowed values
         assert set([]) == RecoveryOptions("", "", "")
         assert set([RecoveryOptions.GET_WAL]) == RecoveryOptions(
             RecoveryOptions.GET_WAL, "", ""
+        )
+        assert set([RecoveryOptions.DELTA_RESTORE]) == RecoveryOptions(
+            RecoveryOptions.DELTA_RESTORE, "", ""
         )
         # build using a not allowed value
         with pytest.raises(ValueError):

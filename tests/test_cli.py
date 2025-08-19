@@ -761,6 +761,181 @@ class TestCli(object):
         _out, err = capsys.readouterr()
         assert "" == err
 
+    @pytest.mark.parametrize(
+        (
+            "recovery_options",
+            "delta_restore_arg",
+            "no_delta_restore_arg",
+            "expect_delta_restore",
+        ),
+        [
+            # WHEN there are no recovery options set
+            # AND neither --delta-restore nor --no-delta-restore are used
+            # THEN no get_wal option is expected
+            ("", False, False, False),
+            # OR --delta-restore is not used and --no-delta-restore is used
+            # THEN no get_wal option is expected
+            ("", False, True, False),
+            # OR --delta-restore is used and --no-delta-restore is not used
+            # THEN the get_wal option is expected
+            ("", True, False, True),
+            # WHEN --delta-restore is set in recovery options
+            # AND neither --delta-restore nor --no-delta-restore are used
+            # THEN the get_wal option is expected
+            ("delta-restore", False, False, True),
+            # OR --delta-restore is not used and --no-delta-restore is used
+            # THEN no get_wal option is expected
+            ("delta-restore", False, True, False),
+            # OR --delta-restore is used and --no-delta-restore is not used
+            # THEN the get_wal option is expected
+            ("delta-restore", True, False, True),
+        ],
+    )
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_restore_delta_restore(
+        self,
+        get_server_mock,
+        parse_backup_id_mock,
+        mock_backup_info,
+        mock_restore_args,
+        recovery_options,
+        delta_restore_arg,
+        no_delta_restore_arg,
+        expect_delta_restore,
+        monkeypatch,
+        capsys,
+    ):
+        # GIVEN a backup
+        parse_backup_id_mock.return_value = mock_backup_info
+        mock_backup_info.is_incremental = False
+        # AND the backup is not encrypted
+        mock_backup_info.encryption = None
+        # AND a configuration with the specified recovery options
+        config = build_config_from_dicts(
+            global_conf={"recovery_options": recovery_options}
+        )
+        server = config.get_server("main")
+        get_server_mock.return_value.config = server
+        monkeypatch.setattr(
+            barman,
+            "__config__",
+            (config,),
+        )
+
+        # WHEN the specified --delta-restore / --no-delta-restore combinations are used
+        if delta_restore_arg:
+            mock_restore_args.delta_restore = True
+        elif no_delta_restore_arg:
+            mock_restore_args.delta_restore = False
+        else:
+            del mock_restore_args.delta_restore
+
+        # WITH a barman recover command
+        with pytest.raises(SystemExit):
+            restore(mock_restore_args)
+
+        # THEN then the presence of the delta_restore recovery option matches expectations
+        if expect_delta_restore:
+            assert (
+                barman.config.RecoveryOptions.DELTA_RESTORE in server.recovery_options
+            )
+        else:
+            assert (
+                barman.config.RecoveryOptions.DELTA_RESTORE
+                not in server.recovery_options
+            )
+
+        # AND there are no errors
+        _out, err = capsys.readouterr()
+        assert "" == err
+
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_restore_no_delta_restore_will_error_out(
+        self,
+        get_server_mock,
+        parse_backup_id_mock,
+        mock_backup_info,
+        mock_restore_args,
+        monkeypatch,
+        capsys,
+    ):
+        # GIVEN a backup
+        parse_backup_id_mock.return_value = mock_backup_info
+        # AND the backup is not encrypted
+        mock_backup_info.encryption = None
+        # AND a configuration with the specified recovery options
+        config = build_config_from_dicts(
+            global_conf={"recovery_options": "delta-restore"}
+        )
+        server = config.get_server("main")
+        get_server_mock.return_value.config = server
+        monkeypatch.setattr(
+            barman,
+            "__config__",
+            (config,),
+        )
+        # 1. Local restore with incremental backup
+        mock_backup_info.is_incremental = True
+        mock_restore_args.remote_ssh_command = False
+        # WITH a barman recover command
+        with pytest.raises(SystemExit):
+            restore(mock_restore_args)
+
+        # AND there are no errors
+        _out, err = capsys.readouterr()
+        assert (
+            "Cannot restore a backup locally with delta mode when the backup is not "
+            "plain." in err
+        )
+
+        # 2. Local restore with compressed backup
+        mock_backup_info.is_incremental = False
+        mock_backup_info.compression = "gzip"
+        # WITH a barman recover command
+        with pytest.raises(SystemExit):
+            restore(mock_restore_args)
+
+        # AND there are no errors
+        _out, err = capsys.readouterr()
+        assert (
+            "Cannot restore a backup locally with delta mode when the backup is not "
+            "plain." in err
+        )
+
+        # 3. Local restore with encrypted backup
+        mock_backup_info.is_incremental = False
+        mock_backup_info.compression = False
+        mock_backup_info.encryption = "gpg"
+        # WITH a barman recover command
+        with pytest.raises(SystemExit):
+            restore(mock_restore_args)
+
+        # AND there are no errors
+        _out, err = capsys.readouterr()
+        assert (
+            "Cannot restore a backup locally with delta mode when the backup is not "
+            "plain." in err
+        )
+
+        # 4. Remote restore with any backup and staging_location="remote"
+        mock_backup_info.is_incremental = False
+        mock_backup_info.compression = False
+        mock_backup_info.encryption = "gpg"
+        mock_restore_args.remote_ssh_command = "ssh pghost"
+        mock_restore_args.staging_location = "remote"
+        # WITH a barman recover command
+        with pytest.raises(SystemExit):
+            restore(mock_restore_args)
+
+        # AND there are no errors
+        _out, err = capsys.readouterr()
+        assert (
+            "Cannot restore a backup remotely with delta mode when "
+            "'staging_location=remote" in err
+        )
+
     @patch("barman.cli.get_server")
     @patch("barman.cli.parse_staging_path")
     def test_restore_staging_path(

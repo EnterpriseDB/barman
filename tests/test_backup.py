@@ -1699,6 +1699,49 @@ class TestBackup(object):
             in caplog.text
         )
 
+    @mock.patch("barman.backup.recovery_executor_factory")
+    @mock.patch("barman.backup.unix_command_factory")
+    def test_recover_with_delta_restore_recovery_option(
+        self, remote_cmd_mock, rec_exec_fac_mock, tmpdir
+    ):
+        """
+        Test that delta_restore will call executor.recover and will not halt the
+        execution because of non-empty files.
+        """
+        command = remote_cmd_mock.return_value
+        backup_manager = build_backup_manager(
+            main_conf={
+                "backup_options": "concurrent_backup",
+                "recovery_options": "delta-restore",
+            }
+        )
+        destination = tmpdir.mkdir("data").strpath
+
+        # destination for pgdata is non-empty.
+        command.list_dir_content.side_effect = ["non-empty"]
+
+        backup_info = build_test_backup_info()
+
+        executor = mock.Mock()
+        rec_exec_fac_mock.return_value = executor
+        executor.recover.return_value = {
+            "configuration_files": ["postgresql.conf", "postgresql.auto.conf"],
+            "tempdir": tmpdir.strpath,
+            "results": {
+                "changes": [],
+                "warnings": [],
+                "missing_files": [],
+                "get_wal": False,
+                "recovery_start_time": datetime.now(dateutil.tz.tzlocal()),
+            },
+            "target_datetime": "2015-06-03 16:11:03.71038+02",
+            "wal_dest": "/wherever",
+        }
+        # No tablespaces
+        backup_manager.recover(backup_info, destination)
+
+        executor.recover.assert_called()
+
 
 class TestWalCleanup(object):
     """Test cleanup of WALs by BackupManager"""
