@@ -1203,10 +1203,12 @@ Scope: Global / Server / Model.
 
 **recovery_options**
 
-Options for recovery operations. Currently, only ``get-wal`` is supported. This option
-enables the creation of a basic ``restore_command`` in the recovery configuration,
-which uses the barman ``get-wal`` command to retrieve WAL files directly from Barman's
-WAL archive. This setting accepts a comma-separated list of values and defaults to
+Options for recovery operations. Currently, only ``get-wal`` and ``delta-restore`` are
+supported. ``get-wal`` enables the creation of a basic ``restore_command`` in the
+recovery configuration, which uses the barman ``get-wal`` command to retrieve WAL files
+directly from Barman's WAL archive. ``delta-restore`` allows barman to restore a backup
+into a pre-existing destination directory along with existing custom tablespaces by
+overwriting it. This setting accepts a comma-separated list of values and defaults to
 empty.
 
 Scope: Global / Server / Model.

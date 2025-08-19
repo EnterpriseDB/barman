@@ -83,6 +83,36 @@ It's recommended to use the postgres user on the target node for remote recovery
 
 .. _recovery-tablespace-remapping:
 
+Delta Recovery
+--------------
+
+Use ``--delta-restore`` to allow barman to restore a backup into a pre-existing
+destination directory along with any custom tablespace by overwriting it.
+
+Another option is to include ``delta-restore`` inside the ``recovery_options``
+configuration at the global/server level prior to a recovery operation to perform a
+delta recovery without the need to specify the ``--delta-restore`` flag.
+
+.. code-block:: text
+
+  recovery_options = 'delta-restore'
+
+If ``delta-restore`` is specified in ``recovery_options`` but not needed during a
+specific recovery, you can disable it using the ``--no-delta-restore`` option with the
+``barman restore`` command.
+
+.. note::
+  In case you are doing a delta recovery with ``get-wal`` enabled, you can add both in
+  the configuration as ``recovery_options = get-wal,delta-restore``.
+
+.. important::
+  The ``delta-restore`` option is supported **only** in the following scenarios:
+
+  * **Local restore of plain backups** - incremental, compressed, encrypted, or
+    multi-format backups are *not* supported.
+  * **Remote restore with** ``staging_location=local`` - using
+    ``staging_location=remote`` is *not* supported.
+
 Tablespace Remapping
 --------------------
 
@@ -171,6 +201,10 @@ files, depending on whether the recovery is local or remote.
 If ``get-wal`` is specified in ``recovery_options`` but not needed during a specific
 recovery, you can disable it using the ``--no-get-wal`` option with the ``barman
 restore`` command.
+
+.. note::
+  In case you are doing a delta recovery with ``get-wal`` enabled, you can add both in
+  the configuration as ``recovery_options = get-wal,delta-restore``.
 
 Using ``get-wal`` for local recovery
 """"""""""""""""""""""""""""""""""""

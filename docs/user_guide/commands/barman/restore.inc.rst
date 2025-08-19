@@ -81,6 +81,10 @@ Parameters
     indicates no limit. This setting overrides the ``bandwidth_limit`` configuration
     option.
 
+``--delta-restore`` / ``--no-delta-restore``
+    Enable/disable usage of ``delta-restore`` for a delta recovery. Default is based on
+    ``recovery_options`` setting.
+
 ``--exclusive``
     Set target (time, XID or LSN) to be non inclusive.
 
