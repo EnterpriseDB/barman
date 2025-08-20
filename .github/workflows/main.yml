@@ -23,7 +23,15 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "${{ matrix.python-version }}"
-      - name: Step 3 - Install system deps for extras
+      - name: Step 3 - Do some caching for python packages
+        uses: actions/cache@v4
+        id: cache-python-packages
+        with:
+          path: ${{ env.pythonLocation }}
+          key: ${{matrix.python-version}}-${{ hashFiles('requirements-tox.txt') }}-${{ env.pythonLocation }}
+          restore-keys: |
+            ${{matrix.python-version}}-${{ hashFiles('requirements-tox.txt') }}-
+      - name: Step 3.5 - Install system deps for extras
         run: |
           sudo apt update && sudo apt-get install libsnappy-dev
 
@@ -32,13 +40,11 @@ jobs:
           # available. This is a workaround to install the libffi7 package.
           sudo apt-get install libffi7
       - name: Step 4 - Install dependencies to run tox
+        if: steps.cache-python-packages.outputs.cache-hit != 'true'
         run: |
-          # We need to pin pip to 25.0.1 because of the following pip issue:
-          # https://github.com/jazzband/pip-tools/issues/2176
-          python -m pip install 'pip<=25.0.1'
-          python -m pip install setuptools wheel
+          python -m pip install --upgrade pip setuptools wheel
           python -m pip install -r requirements-tox.txt
-          python -m pip install tox-gh-actions
+          python -m pip install --upgrade tox-gh-actions
 
       - name: Step 5 - Run tox targets for ${{ matrix.python-version }} ${{matrix.tox-env}}
         run: |
