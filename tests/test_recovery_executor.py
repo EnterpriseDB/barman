@@ -1621,7 +1621,6 @@ class TestRecoveryExecutor(object):
             "safe_horizon": None,
             "is_pitr": False,
             "get_wal": False,
-            "decryption_dest": None,
         }
         # test remote recovery
         with closing(executor):
@@ -1669,7 +1668,6 @@ class TestRecoveryExecutor(object):
             "safe_horizon": None,
             "is_pitr": False,
             "get_wal": False,
-            "decryption_dest": None,
         }
         # test failed rsync
         rsync_pg_mock.side_effect = CommandFailedException()

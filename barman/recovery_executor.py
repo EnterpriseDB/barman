@@ -213,13 +213,6 @@ class RecoveryExecutor(object):
             self._backup_copy_failure_message(e)
             output.close_and_exit()
 
-        # We are not using the default interface for deletion of temporary
-        # files (AKA self.tmp_dirs) because we want to perform an early
-        # cleanup of the decryped backups, thus do not hold it using disk
-        # space for longer than necessary.
-        if recovery_info.get("decryption_dest") is not None:
-            fs.LocalLibPathDeletionCommand(recovery_info["decryption_dest"]).delete()
-
         # Copy the backup.info file in the destination as
         # ".barman-recover.info"
         if remote_command:
@@ -404,7 +397,6 @@ class RecoveryExecutor(object):
             "is_pitr": False,
             "wal_dest": wal_dest,
             "get_wal": RecoveryOptions.GET_WAL in self.config.recovery_options,
-            "decryption_dest": None,
         }
         # A map that will keep track of the results of the recovery.
         # Used for output generation
