@@ -1496,6 +1496,28 @@ class TestConsoleWriter(object):
         out, _err = capsys.readouterr()
         assert "    Encryption           : %s" % ext_info["encryption"] in out
 
+    def test_result_show_backup_with_compression(self, capsys):
+        """
+        Test that compression is displayed in the output of the show-backup command whe
+        the backup is compressed.
+        """
+        ext_info = mock_backup_ext_info(
+            status=BackupInfo.DONE,
+            wals_per_second=0.1,
+            est_dedup_size=1024,
+            deduplication_ratio=0.5,
+            compression="gzip",
+        )
+
+        console_writer = output.ConsoleOutputWriter()
+
+        console_writer.init_list_backup(ext_info["server_name"], False)
+        console_writer.result_show_backup(ext_info)
+        console_writer.close()
+
+        out, _err = capsys.readouterr()
+        assert "    Backup Compression   : %s" % ext_info["compression"] in out
+
     def test_result_show_backup_with_snapshots_info_gcp(self, capsys):
         # GIVEN a backup info with snapshots_info
         snapshots_info = GcpSnapshotsInfo(
@@ -2357,6 +2379,7 @@ class TestJsonWriter(object):
         assert ext_info["begin_xlog"] == base_information["begin_lsn"]
         assert ext_info["end_xlog"] == base_information["end_lsn"]
         assert ext_info["encryption"] == base_information["encryption"]
+        assert ext_info["compression"] == base_information["compression"]
 
         for name, _, location in ext_info["tablespaces"]:
             tablespace = find_by_attr(

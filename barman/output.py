@@ -849,6 +849,9 @@ class ConsoleOutputWriter(object):
                     pretty_size(backup_size + wal_size),
                 )
             output_fun(nested_row.format("Backup Size", backup_size_output))
+        compression = backup_info.get("compression")
+        if compression and compression != "none":
+            output_fun(nested_row.format("Backup Compression", compression))
         if wal_size:
             output_fun(nested_row.format("WAL Size", pretty_size(wal_size)))
 
@@ -1675,6 +1678,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
             output["base_backup_information"] = dict(
                 backup_method=data["mode"],
                 encryption=data["encryption"],
+                compression=data["compression"],
                 backup_size=pretty_size(data["deduplicated_size"]),
                 backup_size_bytes=data["deduplicated_size"],
                 backup_size_with_wals=pretty_size(
