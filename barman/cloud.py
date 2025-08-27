@@ -175,8 +175,10 @@ class CloudTarUploader(object):
     # This is the method we use to create new buffers
     # We use named temporary files, so we can pass them by name to
     # other processes
-    _buffer = partial(
-        NamedTemporaryFile, delete=False, prefix="barman-upload-", suffix=".part"
+    _buffer = staticmethod(
+        partial(
+            NamedTemporaryFile, delete=False, prefix="barman-upload-", suffix=".part"
+        )
     )
 
     def __init__(
