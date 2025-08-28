@@ -1165,6 +1165,7 @@ class PgCombineBackup(PostgreSQLClient):
         destination,
         command,
         tbs_mapping=None,
+        copy_mode=None,
         connection=None,
         version=None,
         app_name=None,
@@ -1178,6 +1179,8 @@ class PgCombineBackup(PostgreSQLClient):
         :param str destination: destination directory path
         :param str command: the command to use
         :param None|Dict[str, str] tbs_mapping: used for tablespace
+        :param None|str copy_mode: the copy mode to use, valid options are
+            `copy`, `link`, `clone` or `copy-file-range`
         :param PostgreSQL connection: an object representing
           a database connection
         :param Version version: the command version
@@ -1205,6 +1208,9 @@ class PgCombineBackup(PostgreSQLClient):
                 self.args.append(
                     "--tablespace-mapping=%s=%s" % (tbs_source, tbs_destination)
                 )
+
+        if copy_mode:
+            self.args.append("--" + copy_mode)
 
         # Manage additional args
         if args:

@@ -2953,6 +2953,7 @@ class CombineOperation(RecoveryOperation):
         # Prepare the pg_combinebackup command
         pg_combinebackup = PgCombineBackup(
             destination=output_dest,
+            copy_mode=self.config.combine_mode,
             command=remote_status["pg_combinebackup_path"],
             version=remote_status["pg_combinebackup_version"],
             app_name=None,
