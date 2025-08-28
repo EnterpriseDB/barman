@@ -26,6 +26,7 @@ Synopsis
         [ --recovery-staging-path PATH ]
         [ --staging-path STAGING_PATH ]
         [ --staging-location STAGING_LOCATION ]
+        [ --combine-mode COMBINE_MODE ]
         [ --remote-ssh-command STRING ]
         [ --retry-sleep SECONDS ]
         [ --retry-times NUMBER ]
@@ -165,6 +166,25 @@ Parameters
 ``--staging-location``
     Specifies whether ``--staging-path`` is a local or remote path. Valid values are
     ``local`` and ``remote``.
+
+``--combine-mode``
+    Specifies a copy mode for ``pg_combinebackup`` when combining incremental backups
+    during a restore.
+
+    Options include:
+
+    * ``copy`` (default): Use standard file copying when combining incremental backups.
+    * ``link``: Use hard links when combining incremental backups. Reconstruction of the
+      synthetic backup might be faster (no file copying) and use less disk space.
+    * ``clone``: Use efficient file cloning (also known as “reflinks” on some systems)
+      instead of copying files to the new data directory, which can result in
+      near-instantaneous copying of the data files.
+    * ``copy-file-range``: Use the ``copy_file_range`` system call for efficient copying.
+      On some file systems this gives results similar to ``clone``, sharing physical disk
+      blocks, while on others it may still copy blocks, but do so via an optimized path.
+
+    Refer to the `pg_combinebackup documentation <https://www.postgresql.org/docs/current/app-pgcombinebackup.html>`_
+    for more details and restrictions of each mode.
 
 ``--remote-ssh-command``
     This option enables remote restore by specifying the secure shell command to
