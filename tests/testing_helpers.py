@@ -326,6 +326,7 @@ def build_config_dictionary(config_keys=None):
         "immediate_checkpoint": False,
         "incoming_wals_directory": "/some/barman/home/main/incoming",
         "keepalive_interval": 60,
+        "combine_mode": "copy",
         "local_staging_path": None,
         "max_incoming_wals_queue": None,
         "minimum_redundancy": "0",
