@@ -35,7 +35,12 @@ import barman.utils
 from barman import output
 from barman.annotations import KeepManager
 from barman.backup_manifest import BackupManifest
-from barman.config import ConfigChangesProcessor, RecoveryOptions, parse_staging_path
+from barman.config import (
+    ConfigChangesProcessor,
+    RecoveryOptions,
+    parse_combine_mode,
+    parse_staging_path,
+)
 from barman.exceptions import (
     BadXlogSegmentName,
     LockFileBusy,
@@ -943,6 +948,16 @@ def rebuild_xlogdb(args):
             ),
         ),
         argument(
+            "--combine-mode",
+            help=(
+                "Specifies a copy mode for `pg_combinebackup` when combining "
+                "incremental backups during a restore."
+            ),
+            type=parse_combine_mode,
+            dest="combine_mode",
+            choices=["copy", "link", "clone", "copy-file-range"],
+        ),
+        argument(
             "--recovery-conf-filename",
             dest="recovery_conf_filename",
             help=(
@@ -1248,6 +1263,8 @@ def restore(args):
         server.config.parallel_jobs_start_batch_period = args.jobs_start_batch_period
     if hasattr(args, "bwlimit"):
         server.config.bandwidth_limit = args.bwlimit
+    if args.combine_mode is not None:
+        server.config.combine_mode = args.combine_mode
 
     if hasattr(args, "network_compression"):
         if args.network_compression and args.remote_ssh_command is None:

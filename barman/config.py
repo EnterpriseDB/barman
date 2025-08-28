@@ -93,6 +93,8 @@ ENCRYPTION_VALUES = ["none", "gpg"]
 # Staging location options. Indicates whether staging_path is a local or remote path
 STAGING_LOCATIONS = ["local", "remote"]
 
+COMBINE_MODES = ["copy", "link", "clone", "copy-file-range"]
+
 
 class CsvOption(set):
     """
@@ -532,6 +534,22 @@ def parse_create_slot(value):
     )
 
 
+def parse_combine_mode(value):
+    """
+    Parse a string to a valid ``combine_mode`` value.
+
+    Valid values are defined in :data:`COMBINE_MODES`.
+    """
+    if value is None:
+        return None
+    value = value.lower()
+    if value not in COMBINE_MODES:
+        raise ValueError(
+            "Invalid value: %s (options are: %s)" % (value, ", ".join(COMBINE_MODES))
+        )
+    return value
+
+
 class BaseConfig(object):
     """
     Contains basic methods for handling configuration of Servers and Models.
@@ -644,6 +662,7 @@ class ServerConfig(BaseConfig):
         "last_backup_maximum_age",
         "last_backup_minimum_size",
         "last_wal_maximum_age",
+        "combine_mode",
         "local_staging_path",  # Deprecated, replaced by staging_path and staging_location
         "max_incoming_wals_queue",
         "minimum_redundancy",
@@ -747,6 +766,7 @@ class ServerConfig(BaseConfig):
         "last_backup_maximum_age",
         "last_backup_minimum_size",
         "last_wal_maximum_age",
+        "combine_mode",
         "local_staging_path",
         "max_incoming_wals_queue",
         "minimum_redundancy",
@@ -818,6 +838,7 @@ class ServerConfig(BaseConfig):
         "immediate_checkpoint": "false",
         "incoming_wals_directory": "%(backup_directory)s/incoming",
         "keepalive_interval": "60",
+        "combine_mode": "copy",
         "minimum_redundancy": "0",
         "network_compression": "false",
         "parallel_jobs": "1",
@@ -878,6 +899,7 @@ class ServerConfig(BaseConfig):
         "last_backup_maximum_age": parse_time_interval,
         "last_backup_minimum_size": parse_si_suffix,
         "last_wal_maximum_age": parse_time_interval,
+        "combine_mode": parse_combine_mode,
         "local_staging_path": parse_staging_path,
         "max_incoming_wals_queue": int,
         "network_compression": parse_boolean,
