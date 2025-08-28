@@ -1924,6 +1924,28 @@ class TestPgCombineBackup(object):
         for expected_arg in expected_args:
             assert expected_arg in cmd.args
 
+    @pytest.mark.parametrize(
+        "copy_mode", [None, "copy", "link", "clone", "copy-file-range"]
+    )
+    def test_combine_mode(self, copy_mode):
+        """
+        Test copy modes of ``pg_combinebackup`` are correctly passed.
+        """
+        connection_mock = mock.MagicMock()
+        connection_mock.get_connection_string.return_value = "fake_connstring"
+        cmd = command_wrappers.PgCombineBackup(
+            destination="/fake/target",
+            copy_mode=copy_mode,
+            command=self.pg_combinebackup_path,
+            connection=connection_mock,
+            version="18",
+            app_name="fake_app_name",
+        )
+
+        # Assert that the expected arguments are present
+        if copy_mode:
+            assert ("--" + copy_mode) in cmd.args
+
 
 # noinspection PyMethodMayBeStatic
 class TestBarmanSubProcess(object):

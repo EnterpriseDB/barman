@@ -3703,6 +3703,7 @@ class TestCombineOperation(object):
         # AND PgCombineBackup is instantiated with the correct parameters
         mock_pg_combine_backup.assert_called_once_with(
             destination=destination,
+            copy_mode=operation.config.combine_mode,
             command=remote_status["pg_combinebackup_path"],
             version=remote_status["pg_combinebackup_version"],
             app_name=None,
