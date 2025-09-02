@@ -30,6 +30,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from tempfile import NamedTemporaryFile
 
@@ -430,14 +431,15 @@ def parse_arguments(args=None):
 
 
 class RemoteGetWal(object):
-    processes = set()
+    threads = set()
+    instances = set()
     """
-    The list of processes that has been spawned by RemoteGetWal
+    The list of threads and instances that have been spawned by RemoteGetWal
     """
 
     def __init__(self, config, wal_name, dest_file):
         """
-        Spawn a process that download a WAL from remote.
+        Spawn a thread that downloads a WAL from remote.
 
         If needed decompress the remote stream on the fly.
 
@@ -447,76 +449,153 @@ class RemoteGetWal(object):
         """
         self.config = config
         self.wal_name = wal_name
-        self.source_file = None
-        self.dest_file = None
+        self.dest_file_path = None
+        self.dest_file_obj = None
+        self.ssh_process = None
         self.decompressor_process = None
+        self.thread = None
+        self.error = None
+        self._returncode = None
+        self._lock = threading.Lock()
 
         # If a string has been passed, it's the name of the destination file
-        # We convert it in a writable binary file object
         if isinstance(dest_file, string_types):
-            self.dest_file = dest_file
-            dest_file = open(dest_file, "wb")
-
-        # Spawn a remote get-wal process
-        self.ssh_process = subprocess.Popen(
-            build_ssh_command(config, wal_name), stdout=subprocess.PIPE
-        )
-
-        # Create a temporary file with the WAL content received
-        self.source_file = NamedTemporaryFile(
-            mode="r+b", prefix=".%s." % os.path.basename(wal_name)
-        )
-        shutil.copyfileobj(self.ssh_process.stdout, self.source_file)
-        self.source_file.seek(0)
-
-        # Close the pipe descriptor, letting the ssh process receive the SIGPIPE
-        self.ssh_process.stdout.close()
-
-        # Identify the WAL compression, if any
-        server_config = get_server_config_minimal(config.compression, None)
-        compression_manager = CompressionManager(server_config, None)
-        compression = compression_manager.identify_compression(self.source_file.name)
-
-        # If there's no compression then just copy the content to the destination file
-        if compression is None:
-            shutil.copyfileobj(self.source_file, dest_file)
+            self.dest_file_path = dest_file
+            self.dest_file_obj = None
         else:
-            # If compression is present we proceed differently depending on the compressor
-            compressor = compression_manager.get_compressor(compression)
-            # If InternalCompressor, we can decompress directly to the destination file
-            if isinstance(compressor, InternalCompressor):
-                compressor.decompress(self.source_file.name, dest_file.name)
-            else:
-                # Otherwise it's a CommandCompressor so we spawn the local decompressor
-                self.decompressor_process = subprocess.Popen(
-                    [compression, "-d"],
-                    stdin=self.source_file,
-                    stdout=dest_file,
-                )
+            self.dest_file_obj = dest_file
+            self.dest_file_path = None
 
-        # close the opened file
-        dest_file.close()
-        # Register the spawned processes in the class registry
-        self.processes.add(self.ssh_process)
-        if self.decompressor_process:
-            self.processes.add(self.decompressor_process)
+        # Start the worker thread
+        self.thread = threading.Thread(target=self._worker_thread)
+        self.thread.daemon = True
+        self.thread.start()
+
+        # Register this instance and thread
+        self.threads.add(self.thread)
+        self.instances.add(self)
+
+    def _worker_thread(self):
+        """
+        Worker thread that handles SSH process and decompression.
+        This runs in the background and properly waits for process completion.
+        """
+        source_file = None
+        dest_file = None
+
+        try:
+            # Create temporary file for SSH output
+            source_file = NamedTemporaryFile(mode="r+b", prefix=".%s." % os.path.basename(self.wal_name))
+
+            # Open destination file if we have a path
+            if self.dest_file_path:
+                dest_file = open(self.dest_file_path, "wb")
+            else:
+                dest_file = self.dest_file_obj
+
+            # Start SSH process
+            self.ssh_process = subprocess.Popen(
+                build_ssh_command(self.config, self.wal_name),
+                stdout=source_file
+            )
+
+            # Wait for SSH process to complete
+            self.ssh_process.wait()
+
+            # Reset file pointer to beginning
+            source_file.seek(0)
+
+            # Identify WAL compression, if any
+            server_config = get_server_config_minimal(self.config.compression, None)
+            compression_manager = CompressionManager(server_config, None)
+            compression = compression_manager.identify_compression(source_file.name)
+
+            # Process the file based on compression
+            if compression is None:
+                # No compression - direct copy
+                shutil.copyfileobj(source_file, dest_file)
+            else:
+                # Handle compression
+                compressor = compression_manager.get_compressor(compression)
+                if isinstance(compressor, InternalCompressor):
+                    # Use internal decompressor
+                    compressor.decompress(source_file.name, dest_file.name)
+                else:
+                    # Use external decompressor
+                    source_file.seek(0)  # Reset for decompressor input
+                    self.decompressor_process = subprocess.Popen(
+                        [compression, "-d"],
+                        stdin=source_file,
+                        stdout=dest_file,
+                    )
+                    # Wait for decompressor to complete
+                    self.decompressor_process.wait()
+
+            # Set successful return code
+            with self._lock:
+                self._returncode = self._calculate_return_code()
+
+        except Exception as e:
+            # Store error for later retrieval
+            self.error = e
+            with self._lock:
+                self._returncode = 1
+
+        finally:
+            # Clean up file handles
+            if dest_file and self.dest_file_path:
+                dest_file.close()
+            if source_file:
+                source_file.close()
+
+    def _calculate_return_code(self):
+        """Calculate the overall return code based on subprocess return codes."""
+        if self.ssh_process and self.ssh_process.returncode != 0:
+            return self.ssh_process.returncode
+        if self.decompressor_process and self.decompressor_process.returncode != 0:
+            return self.decompressor_process.returncode
+        return 0
+
+    def _wait_for_header_bytes(self, source_file, min_bytes=20, timeout=5.0):
+        """
+        Wait for minimum bytes to be available in source file.
+        This can be used for early compression detection.
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                size = os.path.getsize(source_file.name)
+                if size >= min_bytes:
+                    return True
+                if self.ssh_process and self.ssh_process.poll() is not None:
+                    return size > 0  # Process finished, return True if we got any data
+            except OSError:
+                pass  # File might not exist yet
+            time.sleep(0.01)
+        return False  # Timeout
 
     @classmethod
     def wait_for_all(cls):
         """
-        Wait for the termination of all the registered spawned processes.
+        Wait for the termination of all the registered threads.
         """
         try:
-            while len(cls.processes):
-                time.sleep(0.1)
-                for process in cls.processes.copy():
-                    if process.poll() is not None:
-                        cls.processes.remove(process)
+            # Wait for all threads to complete
+            for thread in cls.threads.copy():
+                if thread.is_alive():
+                    thread.join()
+
+            # Clear the collections after all threads are done
+            cls.threads.clear()
+            cls.instances.clear()
+
         except KeyboardInterrupt:
-            # If a SIGINT has been received, make sure that every subprocess
-            # terminate
-            for process in cls.processes:
-                process.kill()
+            # If a SIGINT has been received, make sure that every subprocess terminates
+            for instance in cls.instances:
+                if instance.ssh_process:
+                    instance.ssh_process.kill()
+                if instance.decompressor_process:
+                    instance.decompressor_process.kill()
             exit_with_error("SIGINT received! Terminating.")
 
     @property
@@ -529,12 +608,27 @@ class RemoteGetWal(object):
 
         :return: exit code of the RemoteGetWal processes
         """
-        if self.ssh_process.returncode != 0:
-            return self.ssh_process.returncode
-        if self.decompressor_process:
-            if self.decompressor_process.returncode != 0:
-                return self.decompressor_process.returncode
-        return 0
+        # Wait for thread to complete if still running
+        if self.thread and self.thread.is_alive():
+            self.thread.join()
+
+        # Return the calculated return code
+        with self._lock:
+            if self._returncode is not None:
+                return self._returncode
+            elif self.error:
+                return 1
+            else:
+                # Thread hasn't finished yet or no return code set
+                return None
+
+    def get_error(self):
+        """
+        Return any error that occurred during execution.
+
+        :return: Exception object if an error occurred, None otherwise
+        """
+        return self.error
 
 
 if __name__ == "__main__":
