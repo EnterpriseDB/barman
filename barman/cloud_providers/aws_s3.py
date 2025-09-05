@@ -16,6 +16,8 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>
 
+import base64
+import hashlib
 import json
 import logging
 import math
@@ -175,6 +177,19 @@ class S3CloudInterface(CloudInterface):
 
         session = boto3.Session(profile_name=self.profile_name)
         self.s3 = session.resource("s3", endpoint_url=self.endpoint_url, config=config)
+        self.s3.meta.client.meta.events.register("before-sign.s3.DeleteObjects", self._add_md5_header)
+
+    @staticmethod
+    def _add_md5_header(request, **kwargs):
+        """
+        Calculates and adds a content-md5 header to a request.
+        """
+        if request.body:
+            body = request.body
+            if isinstance(body, str):
+                body = body.encode("utf-8")
+            md5_digest = hashlib.md5(body).digest()
+            request.headers["Content-MD5"] = base64.b64encode(md5_digest).decode("utf-8")
 
     @property
     def _extra_upload_args(self):
