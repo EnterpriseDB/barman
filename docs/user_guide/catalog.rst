@@ -161,6 +161,8 @@ backup:
       Postgres 17.
     * The field ``Resource Saved`` is available for rsync and incremental
       backups, and ``Snapshot Information`` is only available for snapshot backups.
+    * If the backup is compressed, the ``Backup Compression`` field is shown in the
+      output, containing the compression algorithm that was used.
     * If the backup is encrypted, the ``Encryption`` field is shown in the output,
       containing the encryption method that was used.
     * The possible values for the field ``Backup Type`` are:
