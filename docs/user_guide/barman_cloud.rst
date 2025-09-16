@@ -62,6 +62,55 @@ differ.
   Barman supports AWS S3 (and S3 compatible object stores), Azure Blob Storage
   and Google Cloud Storage.
 
+For AWS S3 Policy definition is following (based on boto3 API calls).
+
+.. code-block:: json
+
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Sid": "BucketOperations",
+         "Effect": "Allow",
+         "Action": [
+           "s3:HeadBucket",
+           "s3:CreateBucket",
+           "s3:ListBucket"
+         ],
+         "Resource": "arn:aws:s3:::${bucket_name}"
+       },
+       {
+         "Sid": "ObjectOperations",
+         "Effect": "Allow",
+         "Action": [
+           "s3:GetObject",
+           "s3:PutObject",
+           "s3:DeleteObject"
+         ],
+         "Resource": "arn:aws:s3:::${bucket_name}/*"
+       },
+       {
+         "Sid": "MultipartUploadOperations",
+         "Effect": "Allow",
+         "Action": [
+           "s3:CreateMultipartUpload",
+           "s3:UploadPart",
+           "s3:CompleteMultipartUpload",
+           "s3:AbortMultipartUpload"
+         ],
+         "Resource": "arn:aws:s3:::${bucket_name}/*"
+       },
+       {
+         "Sid": "BatchDeleteOperations",
+         "Effect": "Allow",
+         "Action": [
+           "s3:DeleteObject"
+         ],
+         "Resource": "arn:aws:s3:::${bucket_name}/*"
+       }
+     ]
+   }
+
 .. _barman-cloud-installation:
 
 Installation
