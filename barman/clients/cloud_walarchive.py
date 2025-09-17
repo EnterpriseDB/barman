@@ -92,14 +92,10 @@ def main(args=None):
                 compression_level=config.compression_level,
             )
 
-            if not cloud_interface.test_connectivity():
-                raise NetworkErrorExit()
-            # If test is requested, just exit after connectivity test
-            elif config.test:
+            if config.test:
+                if not cloud_interface.test_connectivity():
+                    raise NetworkErrorExit()
                 raise SystemExit(0)
-
-            # TODO: Should the setup be optional?
-            cloud_interface.setup_bucket()
 
             upload_kwargs = {}
             if is_history_file(config.wal_path):

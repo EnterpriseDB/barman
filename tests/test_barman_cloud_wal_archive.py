@@ -29,6 +29,7 @@ import snappy
 import zstandard
 
 from barman.clients import cloud_walarchive
+from barman.clients.cloud_cli import NetworkErrorExit
 from barman.clients.cloud_walarchive import CloudWalUploader
 from barman.cloud_providers.aws_s3 import S3CloudInterface
 from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
@@ -64,7 +65,7 @@ class TestMain(object):
             compression=None,
             compression_level=None,
         )
-        cloud_object_interface_mock.setup_bucket.assert_called_once_with()
+        cloud_object_interface_mock.setup_bucket.assert_not_called()
         uploader_object_mock.upload_wal.assert_called_once_with(
             "/tmp/000000080000ABFF000000C1"
         )
@@ -88,7 +89,7 @@ class TestMain(object):
             compression=None,
             compression_level=None,
         )
-        cloud_object_interface_mock.setup_bucket.assert_called_once_with()
+        cloud_object_interface_mock.setup_bucket.assert_not_called()
         uploader_object_mock.upload_wal.assert_called_once_with(
             "/tmp/000000080000ABFF000000C1"
         )
@@ -112,7 +113,7 @@ class TestMain(object):
             compression=None,
             compression_level=None,
         )
-        cloud_object_interface_mock.setup_bucket.assert_called_once_with()
+        cloud_object_interface_mock.setup_bucket.assert_not_called()
         uploader_object_mock.upload_wal.assert_called_once_with(
             "/tmp/000000080000ABFF000000C1"
         )
@@ -158,7 +159,7 @@ class TestMain(object):
         uploader_mock.reset_mock()
         cloud_interface_mock.reset_mock()
         cloud_object_interface_mock.test_connectivity.return_value = False
-        with pytest.raises(SystemExit) as excinfo:
+        with pytest.raises(NetworkErrorExit) as excinfo:
             cloud_walarchive.main(
                 [
                     "-t",
