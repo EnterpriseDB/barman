@@ -1,0 +1,16 @@
+- summary: Refactor test_connectivity check for barman-cloud-wal-archive
+  description: |
+    We refactored the way barman-cloud-wal-archive handles bucket creation and
+    connectivity checks.
+
+    Barman will no longer attempt to automatically create the target bucket, which means
+    that users are now responsible for ensuring that the bucket exists before running
+    the command.
+
+    Additionaly, the connectivity check using head_bucket to confirm the bucket's
+    existence now runs only when the -t/--test flag is specified. This lets users
+    perform connectivity tests on demand while avoiding unnecessary head_bucket requests
+    by default, which can significantly reduce cloud costs.
+  type: minor_change
+  jira_tickets:
+    - BAR-895
