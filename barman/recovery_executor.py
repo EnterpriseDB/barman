@@ -72,10 +72,10 @@ from barman.exceptions import (
 from barman.infofile import BackupInfo, LocalBackupInfo, VolatileBackupInfo
 from barman.utils import (
     force_str,
+    get_major_version,
     is_subdirectory,
     mkpath,
     parse_target_tli,
-    simplify_version,
     total_seconds,
 )
 
@@ -2932,11 +2932,9 @@ class CombineOperation(RecoveryOperation):
         # Get the backup chain data paths to be passed to pg_combinebackup
         backups_chain = self._get_backup_chain_paths(backup_info)
 
-        # Get only the major number of pg_combinebackup.
-        pg_combinebackup_major_version = simplify_version(
+        pg_combinebackup_major_version = get_major_version(
             str(remote_status["pg_combinebackup_version"])
-        ).split(".")[0]
-
+        )
         backup_pg_major_version = backup_info.pg_major_version()
 
         if pg_combinebackup_major_version != backup_pg_major_version:

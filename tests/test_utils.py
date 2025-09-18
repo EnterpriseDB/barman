@@ -1689,3 +1689,48 @@ class TestIsSubdirectory:
         assert barman.utils.is_subdirectory("", "") is True
         assert barman.utils.is_subdirectory("/", "") is True
         assert barman.utils.is_subdirectory("", "/tmp") is False
+
+
+class TestGetMajorVersion:
+    def test_none_input(self):
+        assert barman.utils.get_major_version(None) is None
+
+    def test_no_version_in_string(self):
+        assert barman.utils.get_major_version("no version here") is None
+
+    def test_integer_version(self):
+        assert barman.utils.get_major_version("PostgreSQL 17") == "17"
+        assert barman.utils.get_major_version("version: 42") == "42"
+        assert barman.utils.get_major_version("v1") == "1"
+
+    def test_decimal_version(self):
+        assert barman.utils.get_major_version("PostgreSQL 17.5") == "17"
+        assert barman.utils.get_major_version("version: 42.0") == "42"
+        assert barman.utils.get_major_version("v1.2") == "1"
+
+    def test_version_embedded_in_text(self):
+        assert barman.utils.get_major_version("abc 9.6devel") == "9"
+        assert barman.utils.get_major_version("release 10rc1") == "10"
+        assert barman.utils.get_major_version("foo 11.2beta") == "11"
+
+    def test_multiple_numbers(self):
+        # Only the first number should be considered
+        assert barman.utils.get_major_version("version 12.3 and 13.4") == "12"
+        assert barman.utils.get_major_version("foo 8 bar 9.1") == "8"
+
+    def test_leading_text(self):
+        assert barman.utils.get_major_version("v17.5.3") == "17"
+        assert barman.utils.get_major_version("release-20.1") == "20"
+
+    def test_trailing_text(self):
+        assert barman.utils.get_major_version("17.5beta") == "17"
+        assert barman.utils.get_major_version("10devel") == "10"
+
+    def test_leading_client_name_text(self):
+        assert (
+            barman.utils.get_major_version("pg_combinebackup (PostgreSQL) 17.5") == "17"
+        )
+        assert barman.utils.get_major_version("pg_basebackup (PostgreSQL) 17.5") == "17"
+        assert (
+            barman.utils.get_major_version("pg_verifybackup (PostgreSQL) 17.5") == "17"
+        )

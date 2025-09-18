@@ -514,6 +514,32 @@ def simplify_version(version_string):
     return ".".join(version[:-1])
 
 
+def get_major_version(text_string):
+    """
+    Finds a version number in a string and returns its major component.
+
+    :param text_string: The string containing the version number.
+    :return: The major version number as a string, or ``None`` if not found.
+    """
+    if text_string is None:
+        return None
+
+    # Step 1: Find the first number (integer or decimal) in the string.
+    # The pattern r'\d+\.?\d*' finds sequences of digits like "17" or "17.5".
+    match = re.search(r"\d+\.?\d*", text_string)
+
+    if not match:
+        return None  # No version number found in the string
+
+    # Step 2: Extract the matched version string (e.g., "17.5").
+    version_string = match.group(0)
+
+    # Step 3: Simplify it by taking the part before the first period.
+    major_version = version_string.split(".")[0]
+
+    return major_version
+
+
 def with_metaclass(meta, *bases):
     """
     Function from jinja2/_compat.py. License: BSD.
