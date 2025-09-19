@@ -147,18 +147,20 @@ class TestMain(object):
                 ]
             )
         assert excinfo.value.code == 0
-        uploader_mock.assert_called_once_with(
-            cloud_interface=cloud_object_interface_mock,
-            server_name="test-server",
-            compression=None,
-            compression_level=None,
-        )
-        cloud_object_interface_mock.test_connectivity.assert_called_once_with()
+        uploader_mock.assert_not_called()
+        cloud_object_interface_mock.verify_cloud_connectivity_and_bucket_existence.assert_called_once_with()
 
         # Failing connectivity test
         uploader_mock.reset_mock()
         cloud_interface_mock.reset_mock()
         cloud_object_interface_mock.test_connectivity.return_value = False
+
+        def raise_error(error):
+            return error
+
+        cloud_object_interface_mock.verify_cloud_connectivity_and_bucket_existence.side_effect = raise_error(
+            NetworkErrorExit
+        )
         with pytest.raises(NetworkErrorExit) as excinfo:
             cloud_walarchive.main(
                 [
@@ -169,13 +171,8 @@ class TestMain(object):
                 ]
             )
         assert excinfo.value.code == 2
-        uploader_mock.assert_called_once_with(
-            cloud_interface=cloud_object_interface_mock,
-            server_name="test-server",
-            compression=None,
-            compression_level=None,
-        )
-        cloud_object_interface_mock.test_connectivity.assert_called_once_with()
+        uploader_mock.assert_not_called()
+        cloud_object_interface_mock.verify_cloud_connectivity_and_bucket_existence.assert_called_once_with()
 
     @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
     def test_ko(self, uploader_mock, caplog):

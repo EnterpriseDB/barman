@@ -73,7 +73,7 @@ class TestCloudBackupKeepArguments(object):
                 ]
             )
         assert exc.value.code == 0
-        cloud_interface_mock.test_connectivity.assert_called_once()
+        cloud_interface_mock.verify_cloud_connectivity_and_bucket_existence.assert_called_once()
 
     @mock.patch("barman.clients.cloud_backup_keep.get_cloud_interface")
     def test_exits_on_unsupported_target(self, get_cloud_interface_mock, capsys):
@@ -112,13 +112,15 @@ class TestCloudBackupKeep(object):
     """Test the interaction of barman-cloud-backup-delete with the cloud provider."""
 
     @mock.patch("barman.clients.cloud_backup_keep.get_cloud_interface")
-    def test_fails_on_connectivity_test_failure(self, get_cloud_interface_mock):
+    def test_exits_on_connectivity_test_with_code_error_0_when_test_flag_is_passed(
+        self, get_cloud_interface_mock
+    ):
         """If connectivity test fails we exit."""
         cloud_interface_mock = get_cloud_interface_mock.return_value
-        cloud_interface_mock.test_connectivity.return_value = False
         with pytest.raises(SystemExit) as exc:
             cloud_backup_keep.main(
                 [
+                    "--test",
                     "cloud_storage_url",
                     "test_server",
                     "test_backup_id",
@@ -126,27 +128,8 @@ class TestCloudBackupKeep(object):
                     "standalone",
                 ]
             )
-        assert exc.value.code == 2
-        cloud_interface_mock.test_connectivity.assert_called_once()
-
-    @mock.patch("barman.clients.cloud_backup_keep.get_cloud_interface")
-    def test_fails_if_bucket_not_found(self, get_cloud_interface_mock, caplog):
-        """If the bucket does not exist we exit with status 1."""
-        cloud_interface_mock = get_cloud_interface_mock.return_value
-        cloud_interface_mock.bucket_name = "no_bucket_here"
-        cloud_interface_mock.bucket_exists = False
-        with pytest.raises(SystemExit) as exc:
-            cloud_backup_keep.main(
-                [
-                    "s3://cloud_storage_url/no_bucket_here",
-                    "test_server",
-                    "test_backup_id",
-                    "--target",
-                    "standalone",
-                ]
-            )
-        assert exc.value.code == 1
-        assert "Bucket no_bucket_here does not exist" in caplog.text
+        assert exc.value.code == 0
+        cloud_interface_mock.verify_cloud_connectivity_and_bucket_existence.assert_called_once()
 
     @pytest.fixture
     def cloud_backup_catalog(self):

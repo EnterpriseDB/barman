@@ -30,10 +30,9 @@ class TestMain(object):
     """
 
     @mock.patch("barman.clients.cloud_walrestore.get_cloud_interface")
-    def test_fails_on_connectivity_test_failure(self, get_cloud_interface_mock):
+    def test_exits_on_connectivity_test(self, get_cloud_interface_mock):
         """If connectivity test fails we exit with status 2."""
         cloud_interface_mock = get_cloud_interface_mock.return_value
-        cloud_interface_mock.test_connectivity.return_value = False
         with pytest.raises(SystemExit) as exc:
             cloud_walrestore.main(
                 [
@@ -41,10 +40,11 @@ class TestMain(object):
                     "test-server",
                     "000000080000ABFF000000C1",
                     "/tmp/000000080000ABFF000000C1",
+                    "-t",
                 ]
             )
-        assert exc.value.code == 2
-        cloud_interface_mock.test_connectivity.assert_called_once()
+        assert exc.value.code == 0
+        cloud_interface_mock.verify_cloud_connectivity_and_bucket_existence.assert_called_once()
 
     @mock.patch("barman.clients.cloud_walrestore.get_cloud_interface")
     def test_succeeds_if_wal_is_found(self, get_cloud_interface_mock, caplog):
@@ -132,24 +132,6 @@ class TestMain(object):
             "WAL file 000000080000ABFF000000C0 for server test-server does not exists\n"
             in caplog.text
         )
-
-    @mock.patch("barman.clients.cloud_walrestore.get_cloud_interface")
-    def test_fails_if_bucket_not_found(self, get_cloud_interface_mock, caplog):
-        """If the bucket does not exist we exit with status 1."""
-        cloud_interface_mock = get_cloud_interface_mock.return_value
-        cloud_interface_mock.bucket_name = "no_bucket_here"
-        cloud_interface_mock.bucket_exists = False
-        with pytest.raises(SystemExit) as exc:
-            cloud_walrestore.main(
-                [
-                    "s3://test-bucket/testfolder/",
-                    "test-server",
-                    "000000080000ABFF000000C1",
-                    "/tmp/000000080000ABFF000000C1",
-                ]
-            )
-        assert exc.value.code == 1
-        assert "Bucket no_bucket_here does not exist" in caplog.text
 
     @mock.patch("barman.clients.cloud_walrestore.get_cloud_interface")
     def test_fails_on_invalid_wal_name(self, _get_cloud_interface_mock, caplog):

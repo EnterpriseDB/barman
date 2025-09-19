@@ -71,7 +71,7 @@ class TestCloudCheckWalArchive(object):
     ):
         """Verify a missing bucket passes the check"""
         mock_cloud_interface.return_value.bucket_exists = False
-        cloud_check_wal_archive.main(["cloud_storage_url", "test_server"])
+        cloud_check_wal_archive.main(["cloud_storage_url", "test_server", "-t"])
         mock_cloud_backup_catalog.assert_not_called()
 
     @mock.patch("barman.clients.cloud_check_wal_archive.check_archive_usable")
@@ -145,6 +145,6 @@ class TestCloudCheckWalArchive(object):
         """Verify the check errors if we cannot connect to the cloud provider"""
         mock_cloud_interface.return_value.test_connectivity.return_value = False
         with pytest.raises(SystemExit) as exc:
-            cloud_check_wal_archive.main(["cloud_storage_url", "test_server"])
+            cloud_check_wal_archive.main(["cloud_storage_url", "test_server", "-t"])
         assert 2 == exc.value.code
         mock_cloud_interface.return_value.test_connectivity.assert_called_once_with()

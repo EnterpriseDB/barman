@@ -46,49 +46,20 @@ class TestCloudBackupDeleteArguments(object):
 
     @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
     def test_exits_on_connectivity_test(self, get_cloud_interface_mock):
-        """If the -t option is used we check connectivity and exit."""
+        """If connectivity test fails we exit."""
         cloud_interface_mock = get_cloud_interface_mock.return_value
-        cloud_interface_mock.test_connectivity.return_value = True
+
+        get_cloud_interface_mock.reset_mock()
         with pytest.raises(SystemExit) as exc:
             cloud_backup_delete.main(
                 ["cloud_storage_url", "test_server", "--backup-id", "backup_id", "-t"]
             )
         assert exc.value.code == 0
-        cloud_interface_mock.test_connectivity.assert_called_once()
+        cloud_interface_mock.verify_cloud_connectivity_and_bucket_existence.assert_called_once()
 
 
 class TestCloudBackupDelete(object):
     """Test the interaction of barman-cloud-backup-delete with the cloud provider."""
-
-    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
-    def test_fails_on_connectivity_test_failure(self, get_cloud_interface_mock):
-        """If connectivity test fails we exit."""
-        cloud_interface_mock = get_cloud_interface_mock.return_value
-        cloud_interface_mock.test_connectivity.return_value = False
-        with pytest.raises(SystemExit) as exc:
-            cloud_backup_delete.main(
-                ["cloud_storage_url", "test_server", "--backup-id", "backup_id"]
-            )
-        assert exc.value.code == 2
-        cloud_interface_mock.test_connectivity.assert_called_once()
-
-    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
-    def test_fails_if_bucket_not_found(self, get_cloud_interface_mock, caplog):
-        """If the bucket does not exist we exit with status 1."""
-        cloud_interface_mock = get_cloud_interface_mock.return_value
-        cloud_interface_mock.bucket_name = "no_bucket_here"
-        cloud_interface_mock.bucket_exists = False
-        with pytest.raises(SystemExit) as exc:
-            cloud_backup_delete.main(
-                [
-                    "s3://cloud_storage_url/no_bucket_here",
-                    "test_server",
-                    "--backup-id",
-                    "backup_id",
-                ]
-            )
-        assert exc.value.code == 1
-        assert "Bucket no_bucket_here does not exist" in caplog.text
 
     def _create_mock_file_info(self, path):
         file_info = mock.MagicMock()
@@ -2867,6 +2838,10 @@ class TestCloudBackupDelete(object):
         )
 
         # AND the expected warning is logged
+        assert (
+            "Ignoring malformed WAL object prefix: {}".format(bad_wal_prefix)
+            in caplog.text
+        )
         assert (
             "Ignoring malformed WAL object prefix: {}".format(bad_wal_prefix)
             in caplog.text

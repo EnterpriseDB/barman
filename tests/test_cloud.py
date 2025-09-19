@@ -47,6 +47,7 @@ from google.api_core.exceptions import Conflict, GoogleAPIError
 from mock.mock import MagicMock
 
 from barman.annotations import KeepManager
+from barman.clients.cloud_cli import NetworkErrorExit, OperationErrorExit
 from barman.cloud import (
     DEFAULT_DELIMITER,
     CloudBackupCatalog,
@@ -451,6 +452,36 @@ class TestCloudInterface(object):
                 "parts_metadata": ["part", "list", "complete"],
             }
         )
+
+    @pytest.mark.parametrize(
+        "test_connectivity, bucket_exists, expected_error, exit_code, err_msg",
+        [
+            (False, None, NetworkErrorExit, 2, ""),
+            (True, None, OperationErrorExit, 1, "Bucket bucket does not exist"),
+        ],
+    )
+    @mock.patch("barman.cloud.CloudInterface")
+    def test_verify_cloud_connectivity_and_bucket_existence(
+        self,
+        mock_cloud_interface,
+        test_connectivity,
+        bucket_exists,
+        expected_error,
+        exit_code,
+        err_msg,
+        caplog,
+    ):
+        interface = S3CloudInterface(url="s3://bucket/path/to/dir")
+        interface.test_connectivity = mock.MagicMock()
+        interface.test_connectivity.return_value = test_connectivity
+        interface.bucket_exists = bucket_exists
+
+        with pytest.raises(expected_error) as exc:
+            interface.verify_cloud_connectivity_and_bucket_existence()
+
+        assert exc.value.code == exit_code
+        assert err_msg in caplog.text
+        interface.test_connectivity.assert_called_once_with()
 
 
 class TestS3CloudInterface(object):
