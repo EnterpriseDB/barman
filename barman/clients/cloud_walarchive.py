@@ -24,7 +24,6 @@ from contextlib import closing
 from barman.clients.cloud_cli import (
     CLIErrorExit,
     GeneralErrorExit,
-    NetworkErrorExit,
     UrlArgumentType,
     add_tag_argument,
     create_argument_parser,
@@ -85,17 +84,16 @@ def main(args=None):
         cloud_interface = get_cloud_interface(config)
 
         with closing(cloud_interface):
+            if config.test:
+                cloud_interface.verify_cloud_connectivity_and_bucket_existence()
+                raise SystemExit(0)
+
             uploader = CloudWalUploader(
                 cloud_interface=cloud_interface,
                 server_name=config.server_name,
                 compression=config.compression,
                 compression_level=config.compression_level,
             )
-
-            if config.test:
-                if not cloud_interface.test_connectivity():
-                    raise NetworkErrorExit()
-                raise SystemExit(0)
 
             upload_kwargs = {}
             if is_history_file(config.wal_path):

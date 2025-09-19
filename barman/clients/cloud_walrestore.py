@@ -24,7 +24,6 @@ from contextlib import closing
 from barman.clients.cloud_cli import (
     CLIErrorExit,
     GeneralErrorExit,
-    NetworkErrorExit,
     OperationErrorExit,
     create_argument_parser,
 )
@@ -56,19 +55,14 @@ def main(args=None):
         cloud_interface = get_cloud_interface(config)
 
         with closing(cloud_interface):
+            # Do connectivity test if requested
+            if config.test:
+                cloud_interface.verify_cloud_connectivity_and_bucket_existence()
+                raise SystemExit(0)
+
             downloader = CloudWalDownloader(
                 cloud_interface=cloud_interface, server_name=config.server_name
             )
-
-            if not cloud_interface.test_connectivity():
-                raise NetworkErrorExit()
-            # If test is requested, just exit after connectivity test
-            elif config.test:
-                raise SystemExit(0)
-
-            if not cloud_interface.bucket_exists:
-                _logger.error("Bucket %s does not exist", cloud_interface.bucket_name)
-                raise OperationErrorExit()
 
             downloader.download_wal(config.wal_name, config.wal_dest, config.no_partial)
 

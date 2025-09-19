@@ -25,7 +25,6 @@ from shutil import rmtree
 
 from barman.clients.cloud_cli import (
     GeneralErrorExit,
-    NetworkErrorExit,
     OperationErrorExit,
     UrlArgumentType,
     add_tag_argument,
@@ -176,15 +175,11 @@ def main(args=None):
 
         cloud_interface = get_cloud_interface(config)
 
-        if not cloud_interface.test_connectivity():
-            raise NetworkErrorExit()
-        # If test is requested, just exit after connectivity test
-        elif config.test:
-            raise SystemExit(0)
-
         with closing(cloud_interface):
-            # TODO: Should the setup be optional?
-            cloud_interface.setup_bucket()
+            # Do connectivity test if requested
+            if config.test:
+                cloud_interface.verify_cloud_connectivity_and_bucket_existence()
+                raise SystemExit(0)
 
             # Perform the backup
             uploader_kwargs = {

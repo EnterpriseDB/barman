@@ -38,7 +38,11 @@ from barman import xlog
 from barman.annotations import KeepManagerMixinCloud
 from barman.backup_executor import ConcurrentBackupStrategy, SnapshotBackupExecutor
 from barman.clients import cloud_compression
-from barman.clients.cloud_cli import get_missing_attrs
+from barman.clients.cloud_cli import (
+    NetworkErrorExit,
+    OperationErrorExit,
+    get_missing_attrs,
+)
 from barman.exceptions import (
     BackupException,
     BackupPreconditionException,
@@ -1280,6 +1284,13 @@ class CloudInterface(with_metaclass(ABCMeta)):
         :param str prefix: The object key prefix under which all objects should be
             deleted.
         """
+
+    def verify_cloud_connectivity_and_bucket_existence(self):
+        if not self.test_connectivity():
+            raise NetworkErrorExit()
+        if not self.bucket_exists:
+            _logger.error("Bucket %s does not exist", self.bucket_name)
+            raise OperationErrorExit()
 
 
 class CloudBackup(with_metaclass(ABCMeta)):
