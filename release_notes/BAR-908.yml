@@ -1,0 +1,13 @@
+- summary: Cloud connectivity checks are now only performed with the -t/--test flag.
+  description: |
+    Previously, Barman used to always test cloud connectivity and bucket existence
+    for most of the commands, raising errors if connectivity failed or if the bucket
+    did not exist.
+
+    Both checks are now executed only when the -t/--test flag is specified.
+    Buckets are no longer created automatically — Barman assumes the target bucket
+    already exists, making it the user's responsibility to provision the bucket in
+    advance.
+  type: notable_change
+  jira_tickets:
+    - BAR-908
