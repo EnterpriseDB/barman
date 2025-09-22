@@ -50,10 +50,10 @@ def main(args=None):
         if config.test:
             if not cloud_interface.test_connectivity():
                 raise NetworkErrorExit()
-            if not cloud_interface.bucket_exists:
-                # If the bucket does not exist then the check should pass
-                return
             raise SystemExit(0)
+        if not cloud_interface.bucket_exists:
+            # If the bucket does not exist then the check should pass
+            return
 
         catalog = CloudBackupCatalog(cloud_interface, config.server_name)
         wals = list(catalog.get_wal_paths().keys())
