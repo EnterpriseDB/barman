@@ -1717,6 +1717,7 @@ class TestGetMajorVersion:
         # Only the first number should be considered
         assert barman.utils.get_major_version("version 12.3 and 13.4") == "12"
         assert barman.utils.get_major_version("foo 8 bar 9.1") == "8"
+        assert barman.utils.get_major_version("18beta2") == "18"
 
     def test_leading_text(self):
         assert barman.utils.get_major_version("v17.5.3") == "17"
@@ -1733,6 +1734,10 @@ class TestGetMajorVersion:
         assert barman.utils.get_major_version("pg_basebackup (PostgreSQL) 17.5") == "17"
         assert (
             barman.utils.get_major_version("pg_verifybackup (PostgreSQL) 17.5") == "17"
+        )
+        assert (
+            barman.utils.get_major_version("pg_combinebackup (PostgreSQL) 18beta2")
+            == "18"
         )
 
 

@@ -20,7 +20,6 @@ import os
 import shutil
 from contextlib import closing
 from datetime import datetime
-from distutils.version import LooseVersion as Version
 from functools import partial
 
 import dateutil
@@ -4138,12 +4137,12 @@ class TestCombineOperation(object):
         )
         operation.cmd = mock.Mock()
         destination = "/anywhere"
-        # Mock version of pg_combinebackup = 17.
-        remote_status = {"pg_combinebackup_version": Version("17")}
+        # Mock version of pg_combinebackup
+        pg_combinebackup_major_version = "17"
 
         # 1. Test local restore. Warning and return `copy`.
         copy_mode = operation._fallback_to_copy_if_link_is_not_supported(
-            backup_info, destination, remote_command, remote_status
+            backup_info, destination, remote_command, pg_combinebackup_major_version
         )
         mock_out.warning.assert_called_once_with(
             "'link' mode is not supported for local restore. Falling back to 'copy' "
@@ -4155,7 +4154,7 @@ class TestCombineOperation(object):
         mock_out.reset_mock()
         remote_command = "ssh pghost"
         copy_mode = operation._fallback_to_copy_if_link_is_not_supported(
-            backup_info, destination, remote_command, remote_status
+            backup_info, destination, remote_command, pg_combinebackup_major_version
         )
         mock_out.warning.assert_called_once_with(
             "'link' mode is not supported on Postgres 17 or older. Falling back to "
@@ -4168,9 +4167,9 @@ class TestCombineOperation(object):
         mock_out.reset_mock()
         # Mock different file systems for input and output.
         mock_get_dev_num.side_effect = lambda x: x
-        remote_status = {"pg_combinebackup_version": Version("18")}
+        pg_combinebackup_major_version = "18"
         copy_mode = operation._fallback_to_copy_if_link_is_not_supported(
-            backup_info, destination, remote_command, remote_status
+            backup_info, destination, remote_command, pg_combinebackup_major_version
         )
         mock_out.warning.assert_called_once_with(
             "'link' mode is not supported with files across different file systems. "
@@ -4187,7 +4186,7 @@ class TestCombineOperation(object):
         # Set basebackups_directory to mock input backup is in backup catalog.
         operation.config.basebackups_directory = "/some/barman/home/main/base"
         copy_mode = operation._fallback_to_copy_if_link_is_not_supported(
-            backup_info, destination, remote_command, remote_status
+            backup_info, destination, remote_command, pg_combinebackup_major_version
         )
         mock_out.warning.assert_called_once_with(
             "CAUTION: Using 'link' mode with a local staging area. Files in the "
@@ -4202,7 +4201,7 @@ class TestCombineOperation(object):
         operation.config.basebackups_directory = "/some/other/home/main/base"
         mock_out.reset_mock()
         copy_mode = operation._fallback_to_copy_if_link_is_not_supported(
-            backup_info, destination, remote_command, remote_status
+            backup_info, destination, remote_command, pg_combinebackup_major_version
         )
         mock_out.warning.assert_not_called()
         assert copy_mode == "link"
@@ -4219,7 +4218,7 @@ class TestCombineOperation(object):
         operation.config.basebackups_directory = "/some/other/home/main/base"
         mock_out.reset_mock()
         copy_mode = operation._fallback_to_copy_if_link_is_not_supported(
-            backup_info, destination, remote_command, remote_status
+            backup_info, destination, remote_command, pg_combinebackup_major_version
         )
         mock_out.warning.assert_not_called()
         assert copy_mode == "link"

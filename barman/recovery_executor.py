@@ -2954,7 +2954,7 @@ class CombineOperation(RecoveryOperation):
 
         if self.config.combine_mode == "link":
             self.config.combine_mode = self._fallback_to_copy_if_link_is_not_supported(
-                backup_info, output_dest, remote_command, remote_status
+                backup_info, output_dest, remote_command, pg_combinebackup_major_version
             )
         # Prepare the pg_combinebackup command
         # We skip checking paths as we already did it in _fetch_remote_status(). Also,
@@ -3091,7 +3091,7 @@ class CombineOperation(RecoveryOperation):
         return remote_status
 
     def _fallback_to_copy_if_link_is_not_supported(
-        self, backup_info, output_dest, remote_command, remote_status
+        self, backup_info, output_dest, remote_command, pg_combinebackup_major_version
     ):
         """
         Fallback method to ``copy`` if link mode cannot be used for restoring a backup.
@@ -3121,8 +3121,7 @@ class CombineOperation(RecoveryOperation):
         :param str output_dest: The destination path where the backup will be restored.
         :param str|None remote_command:  The remote command used for restore, or None if
             the restore is local.
-        :param dict remote_status: A dictionary containing status information from the
-            remote, including 'pg_combinebackup_version'.
+        :param str pg_combinebackup_major_version: 'pg_combinebackup' client major version.
         :returns: ``link`` if link mode can be used, ``copy`` otherwise.
         :rtype: str
         """
@@ -3134,7 +3133,7 @@ class CombineOperation(RecoveryOperation):
                 "hard-links."
             )
             copy_mode = "copy"
-        elif remote_status["pg_combinebackup_version"] < Version("18"):
+        elif Version(pg_combinebackup_major_version) < Version("18"):
             output.warning(
                 "'link' mode is not supported on Postgres 17 or older. Falling back "
                 "to 'copy' mode."
