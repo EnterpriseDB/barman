@@ -458,6 +458,7 @@ class TestCloudInterface(object):
         [
             (False, None, NetworkErrorExit, 2, ""),
             (True, None, OperationErrorExit, 1, "Bucket bucket does not exist"),
+            (True, True, None, 0, ""),
         ],
     )
     @mock.patch("barman.cloud.CloudInterface")
@@ -476,10 +477,12 @@ class TestCloudInterface(object):
         interface.test_connectivity.return_value = test_connectivity
         interface.bucket_exists = bucket_exists
 
-        with pytest.raises(expected_error) as exc:
+        if expected_error:
+            with pytest.raises(expected_error) as exc:
+                interface.verify_cloud_connectivity_and_bucket_existence()
+            assert exc.value.code == exit_code
+        else:
             interface.verify_cloud_connectivity_and_bucket_existence()
-
-        assert exc.value.code == exit_code
         assert err_msg in caplog.text
         interface.test_connectivity.assert_called_once_with()
 
