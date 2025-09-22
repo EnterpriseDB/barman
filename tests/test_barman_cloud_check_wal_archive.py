@@ -71,7 +71,7 @@ class TestCloudCheckWalArchive(object):
     ):
         """Verify a missing bucket passes the check"""
         mock_cloud_interface.return_value.bucket_exists = False
-        cloud_check_wal_archive.main(["cloud_storage_url", "test_server", "-t"])
+        cloud_check_wal_archive.main(["cloud_storage_url", "test_server"])
         mock_cloud_backup_catalog.assert_not_called()
 
     @mock.patch("barman.clients.cloud_check_wal_archive.check_archive_usable")
