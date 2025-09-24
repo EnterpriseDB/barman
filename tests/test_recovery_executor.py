@@ -3711,6 +3711,7 @@ class TestCombineOperation(object):
             tbs_mapping=tablespace_mapping,
             out_handler=mock.ANY,
             args=backups_chain,
+            skip_path_check=True,
         )
 
         # AND if the staging location is local, just executes the prepared command
