@@ -1,0 +1,11 @@
+- summary: Fix `pg_combinebackup` not being found in `PATH` when `staging_location` is `remote`
+  description: |
+    When recovering an incremental backup to a remote server with `staging_location`
+    set to `remote`, Barman checks if `pg_combinebackup` is available in the remote `PATH`.
+    However, a previous issue was making it incorrectly check the local `PATH` as well,
+    leading to errors if `pg_combinebackup` was not installed locally.
+    The problem has been fixed by ensuring that the check is only performed on the
+    server where `pg_combinebackup` is actually executed.
+  type: bugfix
+  jira_tickets:
+    - BAR-903
