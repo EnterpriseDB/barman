@@ -2957,6 +2957,8 @@ class CombineOperation(RecoveryOperation):
                 backup_info, output_dest, remote_command, remote_status
             )
         # Prepare the pg_combinebackup command
+        # We skip checking paths as we already did it in _fetch_remote_status(). Also,
+        # it can cause errors if staging_location = remote, as it only checks locally
         pg_combinebackup = PgCombineBackup(
             destination=output_dest,
             copy_mode=self.config.combine_mode,
@@ -2966,6 +2968,7 @@ class CombineOperation(RecoveryOperation):
             tbs_mapping=tablespace_mapping,
             out_handler=PgCombineBackup.make_logging_handler(logging.INFO),
             args=backups_chain,
+            skip_path_check=True,
         )
 
         try:

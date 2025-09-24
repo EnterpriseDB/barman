@@ -126,6 +126,7 @@ class Command(object):
         args=None,
         env_append=None,
         path=None,
+        skip_path_check=False,
         shell=False,
         check=False,
         allowed_retval=(0,),
@@ -142,6 +143,10 @@ class Command(object):
 
         If the `env_append` argument is present its content will be appended to
         the environment of every invocation.
+
+        If *skip_path_check* is ``True`` the command existence will not be checked
+        during the object construction. This is useful if the path is checked
+        earlier/later or in different ways e.g. on a remote host instead of locally.
 
         The subprocess output and error stream will be processed through
         the output and error handler, respectively defined through the
@@ -211,6 +216,7 @@ class Command(object):
         self.retry_sleep = retry_sleep
         self.retry_handler = retry_handler
         self.path = path
+        self.skip_path_check = skip_path_check
         self.ret = None
         self.out = None
         self.err = None
@@ -219,8 +225,8 @@ class Command(object):
         # If path has been provided, replace it in the environment
         if path:
             env_append["PATH"] = path
-        # Find the absolute path to the command to execute
-        if not self.shell:
+        # Find the absolute path to the command to execute if necessary
+        if not self.shell and not self.skip_path_check:
             full_path = barman.utils.which(self.cmd, self.path)
             if not full_path:
                 raise CommandFailedException("%s not in PATH" % self.cmd)
