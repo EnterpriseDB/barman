@@ -24,6 +24,8 @@ import shutil
 from datetime import datetime
 from io import RawIOBase
 
+import botocore
+
 from barman.clients.cloud_compression import decompress_to_file
 from barman.cloud import (
     DEFAULT_DELIMITER,
@@ -418,25 +420,92 @@ class S3CloudInterface(CloudInterface):
 
     def _delete_objects_batch(self, paths):
         """
-        Delete the objects at the specified paths
+        Deletes multiple objects from the S3 bucket at the specified paths.
 
-        :param List[str] paths:
+        Attempts to delete objects in batch using the `delete_objects()` API. If a
+        :exc:`ClientError` with the :exc:``MissingContentMD5` code is raised (common with older or
+        non-compliant object storage systems), falls back to deleting each object
+        individually using `delete_object()`.
+
+        Logs errors for any objects that fail to be deleted in bulk. Raises
+        :exc:`CloudProviderError` if any bulk deletion errors occur.
+
+        :param paths: List of object paths (keys) to delete from the S3 bucket.
+        :raises CloudProviderError:
+            If bulk deletion fails for any object.
+        :raises botocore.exceptions.ClientError:
+            If an AWS client error occurs that is not handled by the fallback logic.
         """
         super(S3CloudInterface, self)._delete_objects_batch(paths)
 
-        resp = self.s3.meta.client.delete_objects(
-            Bucket=self.bucket_name,
-            Delete={
-                "Objects": [{"Key": path} for path in paths],
-                "Quiet": True,
-            },
-        )
-        if "Errors" in resp:
-            for error_dict in resp["Errors"]:
-                _logger.error(
-                    'Deletion of object %s failed with error code: "%s", message: "%s"'
-                    % (error_dict["Key"], error_dict["Code"], error_dict["Message"])
+        try:
+            resp = self.s3.meta.client.delete_objects(
+                Bucket=self.bucket_name,
+                Delete={
+                    "Objects": [{"Key": path} for path in paths],
+                    "Quiet": True,
+                },
+            )
+            if "Errors" in resp:
+                for error_dict in resp["Errors"]:
+                    _logger.error(
+                        'Bulk deletion of object %s failed with error code: "%s", '
+                        'message: "%s"'
+                        % (
+                            error_dict["Key"],
+                            error_dict["Code"],
+                            error_dict["Message"],
+                        )
+                    )
+                raise CloudProviderError()
+        except botocore.exceptions.ClientError as e:
+            if e.response["Error"]["Code"] == "MissingContentMD5":
+                for path in paths:
+                    self._delete_object(path)
+            else:
+                raise e
+
+    def _delete_object(self, path):
+        """
+        Delete an object from AWS S3 and use it as a fallback method.
+
+        Attempts to delete an object individually. If a deletion fails due to a client
+        error, logs the error details and raises a :exc:`CloudProviderError`.
+        Any other exceptions are also logged and re-raised as :exc:`CloudProviderError`.
+
+        .. note::
+            This method should not be called as the "primary deletion" method. Its use
+            is strictly for fallback purposes, when users are using older or
+            non-compliant S3-like object storage systems.
+
+        :param str path: S3 object key (path) to delete.
+        :type path: str
+        :raises CloudProviderError: If deletion of any object fails.
+        """
+        try:
+            _logger.warning(
+                "Bulk delete failed with 'MissingContentMD5'. Falling back "
+                "to deleting this file individually: %s." % path
+            )
+            self.s3.meta.client.delete_object(
+                Bucket=self.bucket_name,
+                Key=path,
+            )
+        except botocore.exceptions.ClientError as e:
+            error_code = e.response["Error"]["Code"]
+            error_message = e.response["Error"]["Message"]
+            _logger.error(
+                "Deletion of object %s failed with error code: "
+                '"%s", message: "%s"'
+                % (
+                    path,
+                    error_code,
+                    error_message,
                 )
+            )
+            raise CloudProviderError()
+        except Exception as e:
+            _logger.error("Deletion of object %s failed with error: %s" % (path, e))
             raise CloudProviderError()
 
     def get_prefixes(self, prefix):
@@ -459,19 +528,34 @@ class S3CloudInterface(CloudInterface):
         :param str prefix: The object key prefix under which all objects should be
             deleted.
         """
+        # Variable to control if Barman encountered a `MissingContentMd5` error. If so,
+        # we do not need to try again the deletion with `obj.delete`, just skip and
+        # use `_delete_object` for every call.
+        missing_content_md5_code_found = False
         if len(prefix) == 0 or prefix == "/" or not prefix.endswith("/"):
             raise ValueError(
                 "Deleting all objects under prefix %s is not allowed" % prefix
             )
+
         bucket = self.s3.Bucket(self.bucket_name)
-        for resp in bucket.objects.filter(Prefix=prefix).delete():
-            response_metadata = resp["ResponseMetadata"]
-            if response_metadata["HTTPStatusCode"] != 200:
-                _logger.error(
-                    'Deletion of objects under %s failed with error code: "%s"'
-                    % (prefix, response_metadata["HTTPStatusCode"])
-                )
-                raise CloudProviderError()
+        for obj in bucket.objects.filter(Prefix=prefix):
+            if not missing_content_md5_code_found:
+                try:
+                    resp = obj.delete()
+                    response_metadata = resp["ResponseMetadata"]
+                    if response_metadata["HTTPStatusCode"] != 200:
+                        _logger.error(
+                            'Deletion of objects under %s failed with error code: "%s"'
+                            % (prefix, response_metadata["HTTPStatusCode"])
+                        )
+                        raise CloudProviderError()
+                except botocore.exceptions.ClientError as e:
+                    if e.response["Error"]["Code"] == "MissingContentMD5":
+                        missing_content_md5_code_found = True
+                    else:
+                        raise e
+            if missing_content_md5_code_found:
+                self._delete_object(obj.key)
 
 
 class AwsCloudSnapshotInterface(CloudSnapshotInterface):

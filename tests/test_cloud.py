@@ -31,6 +31,7 @@ from tarfile import open as open_tar
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
+import botocore
 import mock
 import pytest
 import snappy
@@ -491,6 +492,28 @@ class TestS3CloudInterface(object):
     """
     Tests which verify backend-specific behaviour of S3CloudInterface.
     """
+
+    @pytest.fixture
+    def client_error_factory(self):
+        """A factory fixture that creates botocore.exceptions.ClientError objects."""
+
+        def _make_client_error(code, message):
+            error_response = {
+                "Error": {
+                    "Code": code,  # The specific error code
+                    "Message": message,
+                },
+                "ResponseMetadata": {
+                    "RequestId": "18688D37F129A2F5",
+                    "HTTPStatusCode": 400,
+                },
+            }
+            operation_name = "DeleteObjects"
+            return botocore.exceptions.ClientError(
+                error_response=error_response, operation_name=operation_name
+            )
+
+        return _make_client_error
 
     @mock.patch("barman.cloud_providers.aws_s3.Config")
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
@@ -989,6 +1012,7 @@ class TestS3CloudInterface(object):
 
         mock_keys = ["path/to/object/1", "path/to/object/2"]
 
+        # Test AccessDenied error
         s3_client.delete_objects.return_value = {
             "Errors": [
                 {
@@ -1008,9 +1032,335 @@ class TestS3CloudInterface(object):
         )
 
         assert (
-            "Deletion of object path/to/object/1 failed with error code: "
+            "Bulk deletion of object path/to/object/1 failed with error code: "
             '"AccessDenied", message: "Access Denied"'
         ) in caplog.text
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test__delete_object_partial_failure(
+        self, boto_mock, client_error_factory, caplog
+    ):
+        """
+        Test partial failure scenarios when deleting objects from S3 using
+        `S3CloudInterface`.
+        This test verifies that the `_delete_object` method of `S3CloudInterface`
+        correctly handles and logs errors when deletion fails due to various exceptions,
+        such as AWS client errors and generic exceptions. It ensures that the
+        appropriate exceptions are raised and that error messages are logged for each
+        failed deletion attempt.
+
+        Parameters
+        ----------
+        self : object
+            The test class instance.
+        boto_mock : unittest.mock.Mock
+            Mocked boto3 session and resource.
+        client_error_factory : Callable
+            Factory function to create AWS client errors.
+        caplog : pytest.LogCaptureFixture
+            Pytest fixture to capture log output.
+
+        Raises
+        ------
+        `CloudProviderError`
+            If deletion of an object fails due to an AWS client error or a generic
+            exception.
+
+        Asserts
+        -------
+        - The `delete_object` method is called for each key.
+        - The correct calls are made to `delete_object` with expected parameters.
+        - Error messages are logged for each failed deletion attempt.
+        """
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir")
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_keys = ["path/to/object/1", "path/to/object/2"]
+
+        # Test AccessDenied error
+        s3_client.delete_object.side_effect = client_error_factory(
+            code="AnyOtherError", message="Any other error message"
+        )
+
+        for key in mock_keys:
+            with pytest.raises(CloudProviderError):
+                cloud_interface._delete_object(key)
+
+        s3_client.delete_object.call_count == 2
+        s3_client.delete_object.assert_has_calls(
+            [
+                mock.call(Bucket="bucket", Key="path/to/object/1"),
+                mock.call(Bucket="bucket", Key="path/to/object/2"),
+            ]
+        )
+        assert (
+            "Deletion of object path/to/object/1 failed with error code: "
+            '"AnyOtherError", message: "Any other error message'
+        ) in caplog.text
+        assert (
+            "Deletion of object path/to/object/2 failed with error code: "
+            '"AnyOtherError", message: "Any other error message'
+        ) in caplog.text
+        s3_client.delete_object.reset_mock()
+        # Test AccessDenied error
+        s3_client.delete_object.side_effect = Exception
+
+        for key in mock_keys:
+            with pytest.raises(CloudProviderError):
+                cloud_interface._delete_object(key)
+
+        s3_client.delete_object.call_count == 2
+        s3_client.delete_object.assert_has_calls(
+            [
+                mock.call(Bucket="bucket", Key="path/to/object/1"),
+                mock.call(Bucket="bucket", Key="path/to/object/2"),
+            ]
+        )
+
+        assert ("Deletion of object path/to/object/1 failed with error:") in caplog.text
+        assert ("Deletion of object path/to/object/2 failed with error:") in caplog.text
+
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface._delete_object")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_objects_botocore_exceptions_ClientError(
+        self, boto_mock, mock_delete_obj, client_error_factory, caplog
+    ):
+        """
+        Test `S3CloudInterface.delete_objects` handling of `botocore.exceptions.ClientError`.
+        This test verifies that when a bulk delete operation fails with a specific
+        `ClientError` (e.g., 'MissingContentMD5'), the interface falls back to deleting
+        objects individually and logs the appropriate message. It also checks that for
+        other errors, the exception is propagated and no individual deletions are
+        attempted.
+
+        Parameters
+        ----------
+        boto_mock : unittest.mock.Mock
+            Mocked boto3 session and resource.
+        mock_delete_obj : unittest.mock.Mock
+            Mock for the individual object deletion method.
+        client_error_factory : Callable
+            Factory to generate botocore.exceptions.ClientError instances.
+        caplog : _pytest.logging.LogCaptureFixture
+            Pytest fixture to capture log output.
+
+        Raises
+        ------
+        botocore.exceptions.ClientError
+            If the error code is not 'MissingContentMD5', the exception is propagated.
+
+        Asserts
+        -------
+        - The fallback to individual deletion occurs for 'MissingContentMD5'.
+        - The appropriate log message is present.
+        - Individual deletions are called for 'MissingContentMD5' error.
+        - No individual deletions are called for other errors.
+        - The correct exception message is raised for other errors.
+        """
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_keys = ["path/to/object/1", "path/to/object/2"]
+
+        s3_client.delete_objects.side_effect = client_error_factory(
+            code="MissingContentMD5",
+            message="Missing required header for this request: Content-Md5.",
+        )
+
+        cloud_interface.delete_objects(mock_keys)
+
+        assert "Bulk delete failed with 'MissingContentMD5'. Falling back to deleting "
+        "files individually." in caplog.text
+
+        mock_delete_obj.call_count == 2
+        mock_delete_obj.assert_has_calls(
+            [mock.call("path/to/object/1"), mock.call("path/to/object/2")]
+        )
+
+        mock_delete_obj.reset_mock()
+        s3_client.delete_objects.side_effect = client_error_factory(
+            code="AnyOtherError", message="Any other error message"
+        )
+
+        with pytest.raises(botocore.exceptions.ClientError) as exc:
+            cloud_interface.delete_objects(mock_keys)
+
+        assert str(exc.value) == (
+            "An error occurred (AnyOtherError) when calling the DeleteObjects "
+            "operation: Any other error message"
+        )
+
+        mock_delete_obj.assert_not_called()
+
+    @pytest.mark.parametrize("prefix", ["/", "", "/something/prefix"])
+    def test_delete_under_prefix_raise_ValueError(self, prefix, caplog):
+        """
+        Test that attempting to delete all objects under a given prefix raises a
+        `ValueError`.
+        This test verifies that the `delete_under_prefix` method of `S3CloudInterface`
+        raises a `ValueError` when called with a specific prefix, and that the exception
+        message matches the expected format.
+
+        Parameters
+        ----------
+        prefix : str
+            The prefix under which deletion is attempted.
+        caplog : pytest.LogCaptureFixture
+            Pytest fixture for capturing log messages.
+
+        Raises
+        ------
+        `ValueError`
+            If deletion under the specified prefix is not allowed.
+        """
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+
+        with pytest.raises(ValueError) as exc:
+            cloud_interface.delete_under_prefix(prefix)
+
+        assert str(exc.value) == (
+            "Deleting all objects under prefix %s is not allowed" % prefix
+        )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_under_prefix_with_s3_bucket_delete(self, boto_mock, caplog):
+        """
+        Test the `delete_under_prefix` method of `S3CloudInterface` for object deletion
+        under a given prefix.
+
+        This test covers two scenarios:
+        1. When deletion of an object fails with HTTP status code 400,
+           it asserts that a `CloudProviderError` is raised and the appropriate error
+           message is logged.
+        2. When all objects are deleted successfully (HTTP status code 200),
+           it asserts that no error messages are logged.
+
+        Parameters
+        ----------
+        boto_mock : unittest.mock.Mock
+            Mocked boto3 session and resource for simulating S3 interactions.
+        caplog : _pytest.logging.LogCaptureFixture
+            Pytest fixture for capturing log output.
+
+        Raises
+        ------
+        `CloudProviderError`
+            If any object deletion under the prefix fails with an error code.
+        """
+        prefix = "/prefix/"
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        bucket = s3_mock.Bucket.return_value
+
+        # --- Case 1: one object fails with 400 ---
+        mock_obj_fail = mock.MagicMock()
+        mock_obj_fail.delete.return_value = {
+            "ResponseMetadata": {"HTTPStatusCode": 400}
+        }
+        bucket.objects.filter.return_value = [mock_obj_fail]
+
+        with pytest.raises(CloudProviderError):
+            cloud_interface.delete_under_prefix(prefix)
+
+        assert (
+            'Deletion of objects under %s failed with error code: "400"' % prefix
+        ) in caplog.text
+
+        # --- Case 2: all objects succeed ---
+        caplog.clear()
+        mock_obj_ok = mock.MagicMock()
+        mock_obj_ok.delete.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
+        bucket.objects.filter.return_value = [mock_obj_ok]
+
+        cloud_interface.delete_under_prefix(prefix)
+
+        # no error logs expected
+        assert "failed with error code" not in caplog.text
+
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface._delete_object")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_under_prefix_botocore_exceptions_ClientError(
+        self, boto_mock, mock_delete_obj, client_error_factory, caplog
+    ):
+        """
+        Test the `delete_under_prefix` method of `S3CloudInterface` for handling
+        `botocore.exceptions.ClientError`.
+
+        This test covers two scenarios:
+
+        1. When a `ClientError` with code "MissingContentMD5" is raised during object
+           deletion, the method should fallback to calling `_delete_object` for the
+           affected key.
+        2. When a `ClientError` with any other error code is raised, the exception
+           should be propagated.
+
+        Mocks:
+            - `barman.cloud_providers.aws_s3.boto3`: Mocks AWS S3 interactions.
+            - `barman.cloud_providers.aws_s3.S3CloudInterface._delete_object`: Mocks the
+              fallback deletion method.
+
+        Parameters
+        ----------
+        boto_mock : MagicMock
+            Mocked boto3 module.
+        mock_delete_obj : MagicMock
+            Mocked `_delete_object` method.
+        client_error_factory : Callable
+            Factory function to create `ClientError` exceptions.
+        caplog : pytest.LogCaptureFixture
+            Pytest fixture for capturing log output.
+
+        Asserts
+        -------
+        - `_delete_object` is called once with the correct key when "MissingContentMD5"
+          error occurs.
+        - For other error codes, the `ClientError` is raised and `_delete_object` is not
+          called.
+        """
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        bucket = s3_mock.Bucket.return_value
+
+        # --- Case 1: ClientError with MissingContentMD5 (fallback path) ---
+        mock_obj = mock.MagicMock()
+        mock_obj.key = "some-key"
+        mock_obj.delete.side_effect = client_error_factory(
+            code="MissingContentMD5",
+            message="Missing required header for this request: Content-Md5.",
+        )
+        bucket.objects.filter.return_value = [mock_obj]
+
+        cloud_interface.delete_under_prefix("/prefix1/")
+
+        # verify fallback call to _delete_object
+        mock_delete_obj.assert_called_once_with("some-key")
+
+        # --- Case 2: ClientError with other error (should propagate) ---
+        caplog.clear()
+        mock_delete_obj.reset_mock()
+
+        mock_obj = mock.MagicMock()
+        mock_obj.key = "another-key"
+        mock_obj.delete.side_effect = client_error_factory(
+            code="AnyOtherError", message="Any other error message"
+        )
+        bucket.objects.filter.return_value = [mock_obj]
+
+        with pytest.raises(botocore.exceptions.ClientError) as exc:
+            cloud_interface.delete_under_prefix("/prefix1/")
+
+        assert str(exc.value) == (
+            "An error occurred (AnyOtherError) when calling the DeleteObjects "
+            "operation: Any other error message"
+        )
+
+        mock_delete_obj.assert_not_called()
 
     @pytest.mark.skipif(sys.version_info < (3, 0), reason="Requires Python 3 or higher")
     @pytest.mark.parametrize("compression", (None, "bzip2", "gzip", "snappy"))
@@ -1235,12 +1585,24 @@ class TestS3CloudInterface(object):
         # GIVEN a mock s3 bucket which responds successfully to all deletions
         s3_mock = boto_mock.Session.return_value.resource.return_value
         bucket_mock = s3_mock.Bucket.return_value
-        mock_responses = [
-            {"ResponseMetadata": {"HTTPStatusCode": 200}},
-            {"ResponseMetadata": {"HTTPStatusCode": 500}},
-            {"ResponseMetadata": {"HTTPStatusCode": 200}},
+        # Create mock objects that simulate different delete responses
+        mock_obj_ok = mock.MagicMock()
+        mock_obj_ok.delete.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
+
+        mock_obj_fail = mock.MagicMock()
+        mock_obj_fail.delete.return_value = {
+            "ResponseMetadata": {"HTTPStatusCode": 500}
+        }
+
+        mock_obj_ok2 = mock.MagicMock()
+        mock_obj_ok2.delete.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
+
+        # objects.filter should return a list of mock objects
+        bucket_mock.objects.filter.return_value = [
+            mock_obj_ok,
+            mock_obj_fail,
+            mock_obj_ok2,
         ]
-        bucket_mock.objects.filter.return_value.delete.return_value = mock_responses
 
         # AND an S3CloudInterface to that bucket
         cloud_interface = S3CloudInterface("s3://bucket/test", encryption=None)
