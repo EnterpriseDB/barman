@@ -145,6 +145,6 @@ class TestCloudCheckWalArchive(object):
         """Verify the check errors if we cannot connect to the cloud provider"""
         mock_cloud_interface.return_value.test_connectivity.return_value = False
         with pytest.raises(SystemExit) as exc:
-            cloud_check_wal_archive.main(["cloud_storage_url", "test_server", "-t"])
+            cloud_check_wal_archive.main(["cloud_storage_url", "test_server"])
         assert 2 == exc.value.code
         mock_cloud_interface.return_value.test_connectivity.assert_called_once_with()
