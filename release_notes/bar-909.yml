@@ -1,0 +1,23 @@
+- summary: S3 Object Deletion Fallback for Object Stores non-compliant with boto3 >=1.36
+  description: |
+    When using `delete_objects()` with some non-compliant S3-compatible object
+    stores, users could encounter a `MissingContentMD5` `ClientError` due to a breaking
+    change in boto3 1.36 that Botocore will no longer automatically compute and populate
+    the `Content-MD5` header.
+
+    To address this, Barman now implements a fallback mechanism:
+
+    - Bulk deletion via `delete_objects()` is still attempted first.
+    - If `delete_objects()` fails with `MissingContentMD5`, Barman automatically falls back
+      to deleting objects individually using `delete_object()`, which does not require a
+      `Content-MD5` header.
+    - Other errors continue to raise exceptions as before.
+
+    This change ensures Barman remains compatible with non-compliant object
+    stores without requiring changes on the user's side.
+
+    Users with older S3-compatible storage can continue performing backup cleanups
+    without failures, while newer object stores are unaffected.
+  type: notable_change
+  jira_tickets:
+    - BAR-909
