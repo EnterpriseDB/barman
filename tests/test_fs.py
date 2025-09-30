@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import sys
 
 import mock
@@ -258,6 +259,13 @@ class TestUnixLocalCommand(object):
         cm = UnixLocalCommand()
         print(cm.get_file_mode(incoming_dir.strpath))
         assert "755" == cm.get_file_mode(incoming_dir.strpath)
+
+    def test_get_path_device_number(self, tmpdir):
+        incoming_dir = tmpdir.mkdir("some_dir")
+        cm = UnixLocalCommand()
+        expected = str(os.stat(incoming_dir.strpath).st_dev)
+        actual = cm.get_path_device_number(incoming_dir.strpath)
+        assert expected == actual
 
     @patch("barman.fs.Command")
     def test_check_write_permission(self, command_mock):

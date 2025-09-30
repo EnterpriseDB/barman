@@ -74,7 +74,6 @@ from barman.infofile import BackupInfo, LocalBackupInfo, VolatileBackupInfo
 from barman.utils import (
     force_str,
     get_major_version,
-    get_path_device_number,
     is_subdirectory,
     mkpath,
     parse_target_tli,
@@ -3139,9 +3138,9 @@ class CombineOperation(RecoveryOperation):
                 "to 'copy' mode."
             )
             copy_mode = "copy"
-        elif get_path_device_number(output_dest) != get_path_device_number(
-            backup_info.get_data_directory()
-        ):
+        elif self.cmd.get_path_device_number(
+            output_dest
+        ) != self.cmd.get_path_device_number(backup_info.get_data_directory()):
             output.warning(
                 "'link' mode is not supported with files across different file "
                 "systems. Falling back to 'copy' mode."

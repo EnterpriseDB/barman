@@ -1317,20 +1317,3 @@ def is_subdirectory(path1, path2):
     path1 = os.path.abspath(path1)
     path2 = os.path.abspath(path2)
     return os.path.commonpath([path1, path2]) == path1
-
-
-def get_path_device_number(path):
-    """
-    Get the device number of the filesystem containing the given path.
-
-    This method checks if the specified path exists and retrieves the device number
-    using the `stat.st_dev` property.
-
-    :param str path: The filesystem path for which to retrieve the device number.
-    :returns: The device number of the filesystem containing the given path.
-    :rtype: int
-    """
-    if not os.path.exists(path):
-        raise ValueError("Following path does not exist: %s" % path)
-
-    return os.stat(path).st_dev

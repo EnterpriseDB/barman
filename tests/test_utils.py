@@ -1739,12 +1739,3 @@ class TestGetMajorVersion:
             barman.utils.get_major_version("pg_combinebackup (PostgreSQL) 18beta2")
             == "18"
         )
-
-
-class TestUtils:
-    def test_get_path_device_number(self, tmpdir):
-        incoming_dir = tmpdir.mkdir("some_dir")
-        expected_dev_number = os.stat(incoming_dir.strpath).st_dev
-        assert expected_dev_number == barman.utils.get_path_device_number(
-            incoming_dir.strpath
-        )

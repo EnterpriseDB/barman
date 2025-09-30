@@ -417,6 +417,33 @@ class UnixLocalCommand(object):
             return self.internal_cmd.out.strip()
         return None
 
+    def get_path_device_number(self, path):
+        """
+        Get the device number of the filesystem containing the given path.
+
+        This method checks if the specified path exists and retrieves the device number
+        using the `stat` command. It handles platform-specific differences between
+        macOS (darwin) and other Unix-like systems.
+
+        :param str path: The filesystem path for which to retrieve the device number.
+        :raises `FsOperationFailed`: If the path does not exist or the stat command
+            fails.
+        :returns: The device number of the filesystem containing the given path as a
+            string.
+        :rtype: str
+        """
+        if not self.exists(path):
+            raise FsOperationFailed("Following path does not exist: %s" % path)
+        args = ["-c", "%d", path]
+        if self.is_osx():
+            args = ["-f", "%d", path]
+        cmd_ret = self.cmd("stat", args=args)
+        if cmd_ret != 0:
+            raise FsOperationFailed(
+                "Failed to get file mode for %s: %s" % (path, self.internal_cmd.err)
+            )
+        return self.internal_cmd.out.strip()
+
 
 class UnixRemoteCommand(UnixLocalCommand):
     """

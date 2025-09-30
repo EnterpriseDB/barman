@@ -4099,11 +4099,8 @@ class TestCombineOperation(object):
             with pytest.raises(CommandNotFoundException):
                 operation._fetch_remote_status()
 
-    @mock.patch("barman.recovery_executor.get_path_device_number")
     @mock.patch("barman.recovery_executor.output", wraps=output)
-    def test__fallback_to_copy_if_link_is_not_supported(
-        self, mock_out, mock_get_dev_num
-    ):
+    def test__fallback_to_copy_if_link_is_not_supported(self, mock_out):
         """
         Test the `_fallback_to_copy_if_link_is_not_supported` method of
         `CombineOperation` under various scenarios.
@@ -4166,7 +4163,7 @@ class TestCombineOperation(object):
         # Warning and return `copy`.
         mock_out.reset_mock()
         # Mock different file systems for input and output.
-        mock_get_dev_num.side_effect = lambda x: x
+        operation.cmd.get_path_device_number.side_effect = lambda x: x
         pg_combinebackup_major_version = "18"
         copy_mode = operation._fallback_to_copy_if_link_is_not_supported(
             backup_info, destination, remote_command, pg_combinebackup_major_version
@@ -4182,7 +4179,7 @@ class TestCombineOperation(object):
         # and return `link`.
         mock_out.reset_mock()
         # Mock same file systems for input and output.
-        mock_get_dev_num.side_effect = lambda _: "same_filesystem"
+        operation.cmd.get_path_device_number.side_effect = lambda _: "same_filesystem"
         # Set basebackups_directory to mock input backup is in backup catalog.
         operation.config.basebackups_directory = "/some/barman/home/main/base"
         copy_mode = operation._fallback_to_copy_if_link_is_not_supported(
