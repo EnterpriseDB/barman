@@ -1,8 +1,0 @@
-- summary: Add '-p JOBS' to barman-wal-restore command when `--get-wal` is `True`
-  description: |
-    Adds '-p JOBS' to barman-wal-restore command when `--get-wal` or `get_wal`
-    configuration option is ``True``, `JOBS` being the number of jobs chosen by the user
-    via `-p` flag or `parallel_jobs` configuration option.
-  type: minor_change
-  jira_tickets:
-    - BAR-857

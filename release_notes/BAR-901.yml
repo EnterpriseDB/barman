@@ -1,9 +1,0 @@
-- summary: The `barman show-backup`` command now displays the backup compression method
-  description: |
-    The output of the `barman show-backup` command has been enhanced to include a new
-    `Backup Compression` field. If a backup was taken with compression enabled, this
-    field will now display the compression algorithm that was used (e.g., `zstd`). This
-    makes it easier to quickly verify the compression status of a backup.
-  type: minor_change
-  jira_tickets:
-    - BAR-901

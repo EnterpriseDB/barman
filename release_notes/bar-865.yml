@@ -1,8 +1,0 @@
-- summary: Fix parallelism (--parallel option) in barman-wal-restore
-  description: |
-    There has been a regression in `barman-wal-restore` when introducing the
-    `--keep-compression` option in Barman 3.12.0, which made the `--parallel` option
-    not invoke processes as expected. This issue has now been fixed.
-  type: bugfix
-  jira_tickets:
-    - BAR-865
