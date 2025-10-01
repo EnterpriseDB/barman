@@ -528,34 +528,34 @@ class S3CloudInterface(CloudInterface):
         :param str prefix: The object key prefix under which all objects should be
             deleted.
         """
-        # Variable to control if Barman encountered a `MissingContentMd5` error. If so,
-        # we do not need to try again the deletion with `obj.delete`, just skip and
-        # use `_delete_object` for every call.
-        missing_content_md5_code_found = False
         if len(prefix) == 0 or prefix == "/" or not prefix.endswith("/"):
             raise ValueError(
                 "Deleting all objects under prefix %s is not allowed" % prefix
             )
 
         bucket = self.s3.Bucket(self.bucket_name)
-        for obj in bucket.objects.filter(Prefix=prefix):
-            if not missing_content_md5_code_found:
-                try:
-                    resp = obj.delete()
-                    response_metadata = resp["ResponseMetadata"]
-                    if response_metadata["HTTPStatusCode"] != 200:
-                        _logger.error(
-                            'Deletion of objects under %s failed with error code: "%s"'
-                            % (prefix, response_metadata["HTTPStatusCode"])
-                        )
-                        raise CloudProviderError()
-                except botocore.exceptions.ClientError as e:
-                    if e.response["Error"]["Code"] == "MissingContentMD5":
-                        missing_content_md5_code_found = True
-                    else:
-                        raise e
-            if missing_content_md5_code_found:
-                self._delete_object(obj.key)
+        try:
+            # Although this is written as a `for` loop, the `.delete()` call on the
+            # filtered objects performs a **bulk delete** in AWS S3 in a single API
+            # request. Each `resp` is the metadata for a deleted object returned by the
+            # bulk delete operation.
+            for resp in bucket.objects.filter(Prefix=prefix).delete():
+                response_metadata = resp["ResponseMetadata"]
+                if response_metadata["HTTPStatusCode"] != 200:
+                    _logger.error(
+                        'Deletion of objects under %s failed with error code: "%s"'
+                        % (prefix, response_metadata["HTTPStatusCode"])
+                    )
+                    raise CloudProviderError()
+        except botocore.exceptions.ClientError as e:
+            # Fallback for MissingContentMD5 errors: `_delete_object` deletes a single
+            # object at a time using `.delete()` for the given key. This is necessary
+            # because bulk delete may fail when Content-MD5 headers are missing.
+            if e.response["Error"]["Code"] == "MissingContentMD5":
+                for obj in bucket.objects.filter(Prefix=prefix):
+                    self._delete_object(obj.key)
+            else:
+                raise e
 
 
 class AwsCloudSnapshotInterface(CloudSnapshotInterface):

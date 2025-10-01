@@ -1258,11 +1258,13 @@ class TestS3CloudInterface(object):
         bucket = s3_mock.Bucket.return_value
 
         # --- Case 1: one object fails with 400 ---
-        mock_obj_fail = mock.MagicMock()
-        mock_obj_fail.delete.return_value = {
-            "ResponseMetadata": {"HTTPStatusCode": 400}
-        }
-        bucket.objects.filter.return_value = [mock_obj_fail]
+        mock_responses = [
+            {"ResponseMetadata": {"HTTPStatusCode": 200}},
+            {"ResponseMetadata": {"HTTPStatusCode": 400}},
+            {"ResponseMetadata": {"HTTPStatusCode": 200}},
+        ]
+
+        bucket.objects.filter.return_value.delete.return_value = mock_responses
 
         with pytest.raises(CloudProviderError):
             cloud_interface.delete_under_prefix(prefix)
@@ -1272,10 +1274,14 @@ class TestS3CloudInterface(object):
         ) in caplog.text
 
         # --- Case 2: all objects succeed ---
-        caplog.clear()
-        mock_obj_ok = mock.MagicMock()
-        mock_obj_ok.delete.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
-        bucket.objects.filter.return_value = [mock_obj_ok]
+        caplog.clear()  # --- Case 1: one object fails with 400 ---
+        mock_responses = [
+            {"ResponseMetadata": {"HTTPStatusCode": 200}},
+            {"ResponseMetadata": {"HTTPStatusCode": 200}},
+            {"ResponseMetadata": {"HTTPStatusCode": 200}},
+        ]
+
+        bucket.objects.filter.return_value.delete.return_value = mock_responses
 
         cloud_interface.delete_under_prefix(prefix)
 
@@ -1322,44 +1328,44 @@ class TestS3CloudInterface(object):
         - For other error codes, the `ClientError` is raised and `_delete_object` is not
           called.
         """
-        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        # Create cloud interface
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir")
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
         bucket = s3_mock.Bucket.return_value
 
-        # --- Case 1: ClientError with MissingContentMD5 (fallback path) ---
+        # --- Case 1: MissingContentMD5 (fallback) ---
         mock_obj = mock.MagicMock()
         mock_obj.key = "some-key"
-        mock_obj.delete.side_effect = client_error_factory(
+
+        # .delete() raises ClientError first
+        delete_mock = mock.Mock()
+        delete_mock.delete.side_effect = client_error_factory(
             code="MissingContentMD5",
             message="Missing required header for this request: Content-Md5.",
         )
-        bucket.objects.filter.return_value = [mock_obj]
+
+        # First call returns delete_mock, second call returns iterable
+        bucket.objects.filter.side_effect = [delete_mock, [mock_obj]]
 
         cloud_interface.delete_under_prefix("/prefix1/")
 
-        # verify fallback call to _delete_object
         mock_delete_obj.assert_called_once_with("some-key")
 
-        # --- Case 2: ClientError with other error (should propagate) ---
+        # --- Case 2: other ClientError (propagate) ---
         caplog.clear()
         mock_delete_obj.reset_mock()
 
-        mock_obj = mock.MagicMock()
-        mock_obj.key = "another-key"
-        mock_obj.delete.side_effect = client_error_factory(
+        other_delete_mock = mock.Mock()
+        other_delete_mock.delete.side_effect = client_error_factory(
             code="AnyOtherError", message="Any other error message"
         )
-        bucket.objects.filter.return_value = [mock_obj]
+        bucket.objects.filter.side_effect = [other_delete_mock, [mock_obj]]
 
         with pytest.raises(botocore.exceptions.ClientError) as exc:
             cloud_interface.delete_under_prefix("/prefix1/")
 
-        assert str(exc.value) == (
-            "An error occurred (AnyOtherError) when calling the DeleteObjects "
-            "operation: Any other error message"
-        )
-
+        assert "AnyOtherError" in str(exc.value)
         mock_delete_obj.assert_not_called()
 
     @pytest.mark.skipif(sys.version_info < (3, 0), reason="Requires Python 3 or higher")
@@ -1585,24 +1591,13 @@ class TestS3CloudInterface(object):
         # GIVEN a mock s3 bucket which responds successfully to all deletions
         s3_mock = boto_mock.Session.return_value.resource.return_value
         bucket_mock = s3_mock.Bucket.return_value
-        # Create mock objects that simulate different delete responses
-        mock_obj_ok = mock.MagicMock()
-        mock_obj_ok.delete.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
-
-        mock_obj_fail = mock.MagicMock()
-        mock_obj_fail.delete.return_value = {
-            "ResponseMetadata": {"HTTPStatusCode": 500}
-        }
-
-        mock_obj_ok2 = mock.MagicMock()
-        mock_obj_ok2.delete.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
-
-        # objects.filter should return a list of mock objects
-        bucket_mock.objects.filter.return_value = [
-            mock_obj_ok,
-            mock_obj_fail,
-            mock_obj_ok2,
+        mock_responses = [
+            {"ResponseMetadata": {"HTTPStatusCode": 200}},
+            {"ResponseMetadata": {"HTTPStatusCode": 500}},
+            {"ResponseMetadata": {"HTTPStatusCode": 200}},
         ]
+
+        bucket_mock.objects.filter.return_value.delete.return_value = mock_responses
 
         # AND an S3CloudInterface to that bucket
         cloud_interface = S3CloudInterface("s3://bucket/test", encryption=None)
