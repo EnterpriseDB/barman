@@ -28,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-RESTORE" "1" "Aug 05, 2025" "3.15" "Barman"
+.TH "BARMAN-RESTORE" "1" "Oct 02, 2025" "3.16" "Barman"
 .SH NAME
 barman-restore \- Barman Sub-Commands
 .SH SYNOPSIS
@@ -54,6 +54,7 @@ restore
     [ \-\-recovery\-staging\-path PATH ]
     [ \-\-staging\-path STAGING_PATH ]
     [ \-\-staging\-location STAGING_LOCATION ]
+    [ \-\-combine\-mode COMBINE_MODE ]
     [ \-\-remote\-ssh\-command STRING ]
     [ \-\-retry\-sleep SECONDS ]
     [ \-\-retry\-times NUMBER ]
@@ -108,6 +109,10 @@ the Barman configuration.
 Specify the maximum transfer rate in kilobytes per second. A value of \fB0\fP
 indicates no limit. This setting overrides the \fBbandwidth_limit\fP configuration
 option.
+.TP
+.B \fB\-\-delta\-restore\fP / \fB\-\-no\-delta\-restore\fP
+Enable/disable usage of \fBdelta\-restore\fP for a delta recovery. Default is based on
+\fBrecovery_options\fP setting.
 .TP
 .B \fB\-\-exclusive\fP
 Set target (time, XID or LSN) to be non inclusive.
@@ -189,6 +194,30 @@ have enough space to store the decompressed/combined backup.
 .B \fB\-\-staging\-location\fP
 Specifies whether \fB\-\-staging\-path\fP is a local or remote path. Valid values are
 \fBlocal\fP and \fBremote\fP\&.
+.TP
+.B \fB\-\-combine\-mode\fP
+Specifies a copy mode for \fBpg_combinebackup\fP when combining incremental backups
+during a restore.
+.sp
+Options include:
+.INDENT 7.0
+.IP \(bu 2
+\fBcopy\fP (default): Use standard file copying when combining incremental backups.
+.IP \(bu 2
+\fBlink\fP: Use hard links when combining incremental backups. Reconstruction of the
+synthetic backup might be faster (no file copying) and use less disk space.
+.IP \(bu 2
+\fBclone\fP: Use efficient file cloning (also known as “reflinks” on some systems)
+instead of copying files to the new data directory, which can result in
+near\-instantaneous copying of the data files.
+.IP \(bu 2
+\fBcopy\-file\-range\fP: Use the \fBcopy_file_range\fP system call for efficient copying.
+On some file systems this gives results similar to \fBclone\fP, sharing physical disk
+blocks, while on others it may still copy blocks, but do so via an optimized path.
+.UNINDENT
+.sp
+Refer to the \X'tty: link https://www.postgresql.org/docs/current/app-pgcombinebackup.html'\fI\%pg_combinebackup documentation\fP\X'tty: link'
+for more details and restrictions of each mode.
 .TP
 .B \fB\-\-remote\-ssh\-command\fP
 This option enables remote restore by specifying the secure shell command to

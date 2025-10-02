@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CLOUD-BACKUP-DELETE" "1" "Aug 05, 2025" "3.15" "Barman"
+.TH "BARMAN-CLOUD-BACKUP-DELETE" "1" "Oct 02, 2025" "3.16" "Barman"
 .SH NAME
 barman-cloud-backup-delete \- Barman-cloud Commands
 .sp
@@ -91,6 +91,23 @@ Each backup deletion involves three separate requests to the cloud provider: one
 the backup files, one for the \fBbackup.info\fP file, and one for the associated WALs.
 Deleting by retention policy may result in a high volume of delete requests if a
 large number of backups are accumulated in cloud storage.
+.UNINDENT
+.UNINDENT
+.sp
+\fBIMPORTANT:\fP
+.INDENT 0.0
+.INDENT 3.5
+Starting with AWS boto3 1.36, the behavior of \fBData Integrity Protection checks\fP
+has changed. Some methods used by Barman no longer require the \fBContent\-MD5\fP
+header.
+.sp
+This means that \fBS3\-compatible storage providers that have not updated their
+server\-side code may fail\fP when used with newer boto3 versions. For example, MinIO
+addressed this change shortly after the boto3 1.36 announcement.
+.sp
+If you are using MinIO, you \fBmust upgrade\fP to the latest release (or at least
+\fBRELEASE.2025\-02\-03T21\-03\-04Z\fP or newer) to ensure compatibility and avoid
+failures.
 .UNINDENT
 .UNINDENT
 .sp

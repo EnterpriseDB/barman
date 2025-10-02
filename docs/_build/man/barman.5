@@ -28,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN" "5" "Aug 05, 2025" "3.15" "Barman"
+.TH "BARMAN" "5" "Oct 02, 2025" "3.16" "Barman"
 .SH NAME
 barman \- Barman Configurations
 .sp
@@ -1125,6 +1125,10 @@ Specifies the standard compression algorithm for WAL files. Options include: \fB
 \fBxz\fP, \fBzstd\fP, \fBgzip\fP, \fBpygzip\fP, \fBpigz\fP, \fBbzip2\fP, \fBpybzip2\fP, \fBsnappy\fP
 and \fBcustom\fP\&.
 .sp
+Deprecated since version 3.16: The \fBpygzip\fP and \fBpybzip2\fP compression options are deprecated and will be
+removed in a future release. Use their equivalents \fBgzip\fP and \fBbzip2\fP instead.
+
+.sp
 \fBNOTE:\fP
 .INDENT 0.0
 .INDENT 3.5
@@ -1428,10 +1432,12 @@ Scope: Global / Server / Model.
 .sp
 \fBrecovery_options\fP
 .sp
-Options for recovery operations. Currently, only \fBget\-wal\fP is supported. This option
-enables the creation of a basic \fBrestore_command\fP in the recovery configuration,
-which uses the barman \fBget\-wal\fP command to retrieve WAL files directly from Barman\(aqs
-WAL archive. This setting accepts a comma\-separated list of values and defaults to
+Options for recovery operations. Currently, only \fBget\-wal\fP and \fBdelta\-restore\fP are
+supported. \fBget\-wal\fP enables the creation of a basic \fBrestore_command\fP in the
+recovery configuration, which uses the barman \fBget\-wal\fP command to retrieve WAL files
+directly from Barman\(aqs WAL archive. \fBdelta\-restore\fP allows barman to restore a backup
+into a pre\-existing destination directory along with existing custom tablespaces by
+overwriting it. This setting accepts a comma\-separated list of values and defaults to
 empty.
 .sp
 Scope: Global / Server / Model.
@@ -1468,6 +1474,33 @@ Scope: Global / Server / Model.
 .sp
 Specifies whether \fBstaging_path\fP is a local or remote path. Valid values are
 \fBlocal\fP and \fBremote\fP\&. The default is \fBlocal\fP\&.
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBcombine_mode\fP
+.sp
+Specifies a copy mode for \fBpg_combinebackup\fP when combining incremental backups
+during a restore.
+.sp
+Options include:
+.INDENT 0.0
+.IP \(bu 2
+\fBcopy\fP (default): Use standard file copying when combining incremental backups.
+.IP \(bu 2
+\fBlink\fP: Use hard links when combining incremental backups. Reconstruction of the
+synthetic backup might be faster (no file copying) and use less disk space.
+.IP \(bu 2
+\fBclone\fP: Use efficient file cloning (also known as “reflinks” on some systems)
+instead of copying files to the new data directory, which can result in
+near\-instantaneous copying of the data files.
+.IP \(bu 2
+\fBcopy\-file\-range\fP: Use the \fBcopy_file_range\fP system call for efficient copying.
+On some file systems this gives results similar to \fBclone\fP, sharing physical disk
+blocks, while on others it may still copy blocks, but do so via an optimized path.
+.UNINDENT
+.sp
+Refer to the \X'tty: link https://www.postgresql.org/docs/current/app-pgcombinebackup.html'\fI\%pg_combinebackup documentation\fP\X'tty: link'
+for more details and restrictions of each mode.
 .sp
 Scope: Global / Server / Model.
 .SS Retention Policies
