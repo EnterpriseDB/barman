@@ -200,3 +200,53 @@ To install the ``barman-cli`` package, run as **root** in the Postgres server:
    If you want to use the barman-cloud utilities as
    :ref:`hook scripts <hook-scripts-using-barman-cloud-scripts-as-hooks-in-barman>`, you
    will need to install this package in the Barman server.
+
+.. _extra-requirements:
+
+Additional Requirements
+-----------------------
+
+Some Barman features — such as cloud storage integration and data compression — depend
+on optional Python libraries. These dependencies are not included by default when
+installing Barman through your system's package manager.
+
+To enable functionalities such as ``barman-cloud``, Snapshot Backups, or certain
+compression algorithms, you must install the appropriate extra dependencies listed in
+the table below. Make sure that these dependencies are installed for the same Python
+interpreter used by Barman.
+
+**Optional Libraries**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Feature / Provider
+     - Required Libraries
+   * - AWS S3
+     - boto3
+   * - AWS EC2 Snapshots
+     - boto3
+   * - Azure Blob Storage
+     - azure-identity, azure-storage-blob
+   * - Azure VM Snapshots
+     - azure-identity, azure-storage-blob, azure-mgmt-compute
+   * - Google Cloud Storage
+     - google-cloud-storage
+   * - GCP Compute Snapshots
+     - grpcio, google-cloud-storage, google-cloud-compute
+   * - Snappy Compression
+     - python-snappy, cramjam >= 2.7.0
+   * - Zstandard Compression
+     - zstandard
+   * - LZ4 Compression
+     - lz4
+   * - Autocompletion
+     - argcomplete
+
+.. tip::
+
+   If you encounter ``ModuleNotFoundError`` when using ``barman-cloud``, verify that:
+
+   1. You installed the libraries with the same Python interpreter used by Barman.
+   2. The installation completed successfully without permission or network errors.
