@@ -29,6 +29,14 @@ Postgres cluster. By default, the check will succeed if the WAL archive is empty
 the target bucket is not found. Any other conditions will result in a failure.
 
 .. note::
+  The ``barman-cloud-check-wal-archive`` command performs an initial ``HeadBucket`` call
+  to verify whether the target bucket already exists in the S3 storage. If the bucket
+  does not exist, the command will attempt to automatically create it.
+
+  This is the only Barman command that performs these operations (bucket existence check
+  and automatic creation).
+
+.. note::
   For GCP, only authentication with ``GOOGLE_APPLICATION_CREDENTIALS`` env is supported.
 
 **Parameters**
