@@ -17,6 +17,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+from contextlib import closing
 
 from barman.clients.cloud_cli import (
     GeneralErrorExit,
@@ -52,15 +53,16 @@ def main(args=None):
         # If test is requested, just exit after connectivity test
         elif config.test:
             raise SystemExit(0)
-        if not cloud_interface.bucket_exists:
-            # If the bucket does not exist then the check should pass
-            return
-        catalog = CloudBackupCatalog(cloud_interface, config.server_name)
-        wals = list(catalog.get_wal_paths().keys())
-        check_archive_usable(
-            wals,
-            timeline=config.timeline,
-        )
+
+        with closing(cloud_interface):
+            cloud_interface.setup_bucket()
+
+            catalog = CloudBackupCatalog(cloud_interface, config.server_name)
+            wals = list(catalog.get_wal_paths().keys())
+            check_archive_usable(
+                wals,
+                timeline=config.timeline,
+            )
     except WalArchiveContentError as err:
         _logger.error(
             "WAL archive check failed for server %s: %s",
