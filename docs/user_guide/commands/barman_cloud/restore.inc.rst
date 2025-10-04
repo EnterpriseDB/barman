@@ -14,6 +14,7 @@
                   [ { -t | --test } ]
                   [ --cloud-provider { aws-s3 | azure-blob-storage | google-cloud-storage } ]
                   [ --endpoint-url ENDPOINT_URL ]
+                  [ --aws-irsa ]
                   [ { -P | --aws-profile } AWS_PROFILE ]
                   [ --profile AWS_PROFILE ]
                   [ --read-timeout READ_TIMEOUT ]
@@ -103,6 +104,11 @@ required WAL files to ensure Postgres starts, either manually or using external 
 
 ``--endpoint-url``
   Override default S3 endpoint URL with the given one.
+
+``--aws-irsa``
+  Uses IAM Role Service Account in AWS instead of Profile (running from an eks pod).
+  `AWS_WEB_IDENTITY_TOKEN_FILE` and `AWS_ROLE_ARN` environment variables must be set so
+  the STS service can fetch the credentials.
 
 ``-P`` / ``--aws-profile``
   Profile name (e.g. ``INI`` section in AWS credentials file).
