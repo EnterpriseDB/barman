@@ -2,6 +2,27 @@
 
 © Copyright EnterpriseDB UK Limited 2025 - All rights reserved.
 
+## 3.16.1 (2025-10-14)
+
+### Notable changes
+
+- Automatic bucket creation added to barman-cloud-check-wal-archive
+
+  The `barman-cloud-check-wal-archive` command now verifies whether the target bucket
+  exists in the configured cloud storage (e.g., AWS S3) and automatically creates it
+  if it does not.
+
+  Previously, automatic bucket creation was handled by `barman-cloud-backup`. This
+  change restores compatibility with CloudNativePG (CNPG) automations that depend on
+  this behavior, which were affected after the release of Barman 3.16.0.
+
+  In collaboration with the CloudNativePG team, we have reintroduced this
+  functionality specifically in `barman-cloud-check-wal-archive` to ensure seamless
+  operation of CNPG workflows and internal tests — all while preserving the intended
+  behavior and simplicity for regular Barman users.
+
+  References: BAR-931.
+
 ## 3.16.0 (2025-10-02)
 
 ### Notable changes
