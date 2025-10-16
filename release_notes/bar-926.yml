@@ -1,0 +1,17 @@
+- summary: Handle non-UTF8 output when checking for file encryption
+  description: |
+    In certain scenarios, such as when recovering WALs via `barman-wal-restore` or
+    running `barman rebuild-xlogdb`, Barman executes the `file` command to check
+    whether a file is encrypted.
+
+    On macOS systems (which are not officially supported), this command was reported
+    to be raising a `UnicodeDecodeError` exception if its output contained bytes that
+    could not be decoded using UTF-8.
+
+    To prevent this, Barman now handles undecodable bytes gracefully, allowing the
+    process to continue without interruption.
+
+    Github issue: #1117
+  type: minor_change
+  jira_tickets:
+    - BAR-926
