@@ -24,6 +24,13 @@ options. Default location is ``/etc/barman.conf`` and it can be overridden on a 
 level by ``~/.barman.conf`` or by specifying a ``.conf`` file using the ``-c`` /
 ``--config`` with the :ref:`barman command <commands-barman>` directly in the CLI.
 
+Barman searches for its configuration file in a predefined order and uses the first one
+it finds. The search order is as follows:
+
+* ``~/.barman.conf`` - per-user configuration file.
+* ``/etc/barman.conf`` - main global configuration file.
+* ``/etc/barman/barman.conf`` - alternative global configuration file.
+
 2. **Server Configuration**: It comprises one or more files with a set of
 configurations for a Postgres server that you want to keep track and interact for
 backup, recovery and/or replication. Default location is ``/etc/barman.d`` and must use
