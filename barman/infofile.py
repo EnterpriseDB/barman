@@ -584,6 +584,15 @@ class BackupInfo(FieldListFile):
     encryption = Field("encryption")
 
     __slots__ = "backup_id", "backup_version"
+    #: "backup_version": Indicates the internal backup directory layout version.
+    #:
+    #: * ``1`` – "Legacy" layout with ``pgdata``.
+    #: * ``2`` – New layout (introduced in commit f4729f3...), where ``pgdata`` was
+    #:           renamed to ``data``. Tablespaces are stored alongside ``data`` and
+    #:           copied via dedicated rsync commands.
+    #:
+    #: Barman detects the "backup_version" based on directory structure:
+    #: ``pgdata`` -> 1, ``data`` -> 2 (default).
 
     _hide_if_null = ("backup_name", "snapshots_info")
 
