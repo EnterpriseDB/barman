@@ -22,6 +22,18 @@ indefinitely, overriding any active retention policies. You can also check the k
 ``status`` of a backup and ``release`` the keep mark from a backup. You can use a
 shortcut instead of ``BACKUP_ID``.
 
+.. note::
+  Incremental backups are not eligible for the ``keep`` command. This restriction exists
+  because incremental backups rely on their parent backups and cannot be used on their
+  own for recovery. Keeping an incremental without its base would serve no purpose, as
+  it is unusable independently.
+  
+  If you attempt to apply keep to an incremental backup, Barman will return an error
+  indicating that incremental backups cannot be kept.
+  
+  **Only the full base backup —the one that starts the backup chain— can be marked with
+  keep.**
+
 Parameters
 ^^^^^^^^^^
 

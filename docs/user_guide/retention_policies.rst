@@ -151,6 +151,18 @@ This overrides the retention policy explained earlier for that backup. You can f
 more information on the ``keep`` command in the
 :ref:`Barman keep command documentation <commands-barman-keep>`.
 
+.. note::
+  Incremental backups are not eligible for the ``keep`` command. This restriction exists
+  because incremental backups rely on their parent backups and cannot be used on their
+  own for recovery. Keeping an incremental without its base would serve no purpose, as
+  it is unusable independently.
+  
+  If you attempt to apply keep to an incremental backup, Barman will return an error
+  indicating that incremental backups cannot be kept.
+  
+  **Only the full base backup —the one that starts the backup chain— can be marked with
+  keep.**
+
 .. _retention-policies-use-cases:
 
 Use cases
