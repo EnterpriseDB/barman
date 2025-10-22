@@ -459,7 +459,17 @@ class S3CloudInterface(CloudInterface):
                     )
                 raise CloudProviderError()
         except botocore.exceptions.ClientError as e:
-            if e.response["Error"]["Code"] == "MissingContentMD5":
+            # Fallback for MissingContentMD5 errors: `_delete_object` deletes a single
+            # object at a time using `.delete()` for the given key. This is necessary
+            # because bulk delete may fail when Content-MD5 headers are missing.
+            # Note: The S3 protocol returns a 'MissingContentMD5' error code in that
+            # situation. Some "S3-compatible" storage systems are not fully compatible,
+            # and return "InvalidRequest" instead, so we also check the message in that.
+            if (
+                e.response["Error"]["Code"] == "MissingContentMD5"
+                or "missing required header for this request: content-md5"
+                in e.response["Error"]["Message"].lower()
+            ):
                 for path in paths:
                     self._delete_object(path)
             else:
@@ -551,7 +561,14 @@ class S3CloudInterface(CloudInterface):
             # Fallback for MissingContentMD5 errors: `_delete_object` deletes a single
             # object at a time using `.delete()` for the given key. This is necessary
             # because bulk delete may fail when Content-MD5 headers are missing.
-            if e.response["Error"]["Code"] == "MissingContentMD5":
+            # Note: The S3 protocol returns a 'MissingContentMD5' error code in that
+            # situation. Some "S3-compatible" storage systems are not fully compatible,
+            # and return "InvalidRequest" instead, so we also check the message in that.
+            if (
+                e.response["Error"]["Code"] == "MissingContentMD5"
+                or "missing required header for this request: content-md5"
+                in e.response["Error"]["Message"].lower()
+            ):
                 for obj in bucket.objects.filter(Prefix=prefix):
                     self._delete_object(obj.key)
             else:
