@@ -14,6 +14,10 @@ guidelines for how long backups are kept, when they should be archived or delete
 how they are organized. Implementing a well-defined retention policy is essential for
 ensuring data protection, optimizing storage use, and meeting compliance requirements.
 
+.. note::
+  Retention policies apply only to backups with status ``DONE``. Incomplete or failed
+  backups are not managed by retention rules.
+
 .. _retention-policies-key-components:
 
 Key Components of Retention Policies
