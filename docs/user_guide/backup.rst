@@ -470,6 +470,42 @@ the Barman backup command. For example, to run a one-off incremental backup, use
 
 .. _backup-concurrent-backup-of-a-standby:
 
+Backup with Rsync locally
+-------------------------
+
+Under special circumstances, Barman can be installed on the same server where the
+Postgres instance resides, with backed up data stored on a separate volume from
+``PGDATA`` and, where applicable, tablespaces. Usually, these backup volumes reside on
+network storage appliances, with filesystems like NFS.
+
+This architecture is not endorsed by the Barman team. For an enhanced business
+continuity experience of Postgres, with better results in terms of :term:`RPO` and
+:term:`RTO`, we still recommend the shared-nothing architecture with a remote
+installation of Barman, capable of acting like a witness server for replication and
+monitoring purposes.
+
+The only requirement for local backups is that Barman runs with the same user as the
+Postgres server, which is normally ``postgres``. Given that the community packages by
+default install Barman under the ``barman`` user, this use case requires manual
+installation procedures that include:
+
+* cron configurations
+* log configurations, including logrotate
+
+.. hint::
+
+  Use the ``barman_user`` option in the ``barman.conf`` file to set a different
+  user for Barman. To avoid permissions issues, also remember to change its home, log,
+  and lock directories accordingly to paths accesible by the new user. Refer to
+  :ref:`Configuration options <configuration-options-general>` for more details.
+
+In order to use local backup for a given server in Barman, you need to set
+``backup_method`` to ``local-rsync``. The feature is essentially identical to its
+``rsync`` equivalent, which relies on SSH instead and operates remotely. With
+``local-rsync`` file copy is performed issuing rsync commands locally (for this
+reason it is required that Barman runs with the same user as Postgres).
+
+
 Concurrent Backup of a Standby
 ------------------------------
 
