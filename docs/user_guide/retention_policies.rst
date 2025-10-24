@@ -15,8 +15,10 @@ how they are organized. Implementing a well-defined retention policy is essentia
 ensuring data protection, optimizing storage use, and meeting compliance requirements.
 
 .. note::
-  Retention policies apply only to backups with status ``DONE``. Incomplete or failed
-  backups are not managed by retention rules.
+  Retention policies apply only to backups with status ``DONE``. Backups that are
+  incomplete (for example, those in the ``WAITING_FOR_WALS`` state) or ``FAILED`` are
+  not accounted by retention rules.
+
 
 .. _retention-policies-key-components:
 
