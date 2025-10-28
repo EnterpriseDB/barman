@@ -966,6 +966,14 @@ def rebuild_xlogdb(args):
             ),
         ),
         argument(
+            "--recovery-option-port",
+            dest="recovery_option_port",
+            help=(
+                "Port number to use in the restore command when invoking "
+                "barman-wal-restore."
+            ),
+        ),
+        argument(
             "--delta-restore",
             dest="delta_restore",
             help="Enable delta restore mode.",
@@ -1376,6 +1384,7 @@ def restore(args):
                 target_action=getattr(args, "target_action", None),
                 standby_mode=getattr(args, "standby_mode", None),
                 recovery_conf_filename=args.recovery_conf_filename,
+                recovery_option_port=args.recovery_option_port,
                 **snapshot_kwargs,
             )
         except RecoveryException as exc:
