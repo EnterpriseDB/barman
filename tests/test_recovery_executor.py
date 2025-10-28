@@ -292,31 +292,31 @@ class TestRecoveryExecutor(object):
 
         # setup should create a temporary directory
         # and teardown should delete it
-        ret = executor._setup(backup_info, None, recovery_dir, None)
+        ret = executor._setup(backup_info, None, recovery_dir, None, None)
         assert os.path.exists(ret["tempdir"])
         executor.close()
         assert not os.path.exists(ret["tempdir"])
         assert ret["wal_dest"].endswith("/pg_xlog")
 
         # no postgresql.auto.conf on version 9.3
-        ret = executor._setup(backup_info, None, recovery_dir, None)
+        ret = executor._setup(backup_info, None, recovery_dir, None, None)
         executor.close()
         assert "postgresql.auto.conf" not in ret["configuration_files"]
 
         # Check the present for postgresql.auto.conf on version 9.4
         backup_info.version = 90400
-        ret = executor._setup(backup_info, None, recovery_dir, None)
+        ret = executor._setup(backup_info, None, recovery_dir, None, None)
         executor.close()
         assert "postgresql.auto.conf" in ret["configuration_files"]
 
         # Receive a error if the remote command is invalid
         with pytest.raises(SystemExit):
             executor.server.path = None
-            executor._setup(backup_info, "invalid", recovery_dir, None)
+            executor._setup(backup_info, "invalid", recovery_dir, None, None)
 
         # Test for PostgreSQL 10
         backup_info.version = 100000
-        ret = executor._setup(backup_info, None, recovery_dir, None)
+        ret = executor._setup(backup_info, None, recovery_dir, None, None)
         executor.close()
         assert ret["wal_dest"].endswith("/pg_wal")
 
@@ -355,7 +355,7 @@ class TestRecoveryExecutor(object):
 
         # WHEN _setup is called on the recovery executor
         recovery_info = executor._setup(
-            backup_info, None, "/path/to/recovery/dir", recovery_conf_filename
+            backup_info, None, "/path/to/recovery/dir", recovery_conf_filename, None
         )
         executor.close()
 
@@ -759,6 +759,7 @@ class TestRecoveryExecutor(object):
             "tempdir": tmpdir.strpath,
             "results": {"changes": [], "warnings": []},
             "get_wal": False,
+            "recovery_option_port": None,
             "target_datetime": "2015-06-03 16:11:03.71038+02",
             "wal_dest": wal_dest,
         }
@@ -1621,6 +1622,7 @@ class TestRecoveryExecutor(object):
             "safe_horizon": None,
             "is_pitr": False,
             "get_wal": False,
+            "recovery_option_port": None,
         }
         # test remote recovery
         with closing(executor):
@@ -1668,6 +1670,7 @@ class TestRecoveryExecutor(object):
             "safe_horizon": None,
             "is_pitr": False,
             "get_wal": False,
+            "recovery_option_port": None,
         }
         # test failed rsync
         rsync_pg_mock.side_effect = CommandFailedException()
@@ -2018,6 +2021,7 @@ class TestSnapshotRecoveryExecutor(object):
             target_action=None,
             standby_mode=None,
             recovery_conf_filename=None,
+            recovery_option_port=None,
         )
 
     @pytest.mark.parametrize(
