@@ -2,6 +2,19 @@
 
 © Copyright EnterpriseDB UK Limited 2025 - All rights reserved.
 
+## 3.16.2 (2025-11-04)
+
+### Bugfixes
+
+- Improve barman-cloud delete workaround to inspect error message content
+
+  Some S3-compatible storages return an "InvalidRequest" error instead of
+  "MissingContentMD5" during delete operations. Since we cannot rely on the error code
+  alone, this updates the logic to also inspect the error message text to detect
+  MissingContentMD5-like issues and apply the appropriate fallback.
+
+  References: BAR-947.
+
 ## 3.16.1 (2025-10-14)
 
 ### Notable changes
