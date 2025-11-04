@@ -1,9 +1,0 @@
-- summary: Improve barman-cloud delete workaround to inspect error message content
-  description: |
-    Some S3-compatible storages return an "InvalidRequest" error instead of
-    "MissingContentMD5" during delete operations. Since we cannot rely on the error code
-    alone, this updates the logic to also inspect the error message text to detect
-    MissingContentMD5-like issues and apply the appropriate fallback.
-  type: bugfix
-  jira_tickets:
-    - BAR-947
