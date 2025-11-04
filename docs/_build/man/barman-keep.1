@@ -28,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-KEEP" "1" "Oct 14, 2025" "3.16" "Barman"
+.TH "BARMAN-KEEP" "1" "Nov 04, 2025" "3.16" "Barman"
 .SH NAME
 barman-keep \- Barman Sub-Commands
 .SH SYNOPSIS
@@ -49,6 +49,22 @@ Mark the specified backup with a \fBtarget\fP as an archival backup to be retain
 indefinitely, overriding any active retention policies. You can also check the keep
 \fBstatus\fP of a backup and \fBrelease\fP the keep mark from a backup. You can use a
 shortcut instead of \fBBACKUP_ID\fP\&.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Incremental backups are not eligible for the \fBkeep\fP command. This restriction exists
+because incremental backups rely on their parent backups and cannot be used on their
+own for recovery. Keeping an incremental without its base would serve no purpose, as
+it is unusable independently.
+.sp
+If you attempt to apply keep to an incremental backup, Barman will return an error
+indicating that incremental backups cannot be kept.
+.sp
+\fBOnly the full base backup —the one that starts the backup chain— can be marked with
+keep.\fP
+.UNINDENT
+.UNINDENT
 .SH PARAMETERS
 .INDENT 0.0
 .TP
