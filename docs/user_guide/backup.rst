@@ -828,7 +828,8 @@ same VM instance.
 
 3. **Access Control**
 
-Barman needs to access AWS so you must configure the AWS credentials with the ``awscli``
+Barman needs to access AWS so you must configure either the IAM Role for the service account
+(recommended) or the AWS credentials with the ``awscli``
 tool as the postgres user, by entering the Access Key and Secret Key that must be
 previously created in the IAM section of the AWS console.
 
@@ -847,8 +848,13 @@ For provider specific credentials configurations, refer to the
 
 4. **Specific Configuration**
 
-The fields ``aws_region``, ``aws_profile`` and ``aws_await_snapshots_timeout`` are
-configuration options specific to AWS.
+The fields ``aws_region``, ``aws_irsa``, ``aws_profile`` and
+``aws_await_snapshots_timeout`` are configuration options specific to AWS.
+
+``aws_irsa`` if set to true, overrides the ``aws_profile`` field and uses the IAM Role
+of the AWS Service account. This is the recommended method when authenticating using an
+EKS pod. `AWS_WEB_IDENTITY_TOKEN_FILE` and `AWS_ROLE_ARN` environment variables must be
+set so the STS service can fetch the credentials.
 
 ``aws_profile`` is the name of the AWS profile in the credentials file. If not used, the
 default profile will be applied. If no credentials file exists, credentials will come from
@@ -867,7 +873,7 @@ Barman will return an error.
 .. code-block:: text
 
     aws_region = AWS_REGION
-    aws_profile = AWS_PROFILE_NAME
+    aws_irsa = true
     aws_await_snapshots_timeout = TIMEOUT_IN_SECONDS
 
 5. **Ransomware Protection**
@@ -905,7 +911,7 @@ To lock a snapshot during backup creation, you need to configure the following o
 
     * ``ec2:LockSnapshot``
 
-For the concepts behing AWS Snapshot Lock, refer to the `Amazon EBS snapshot lock concepts <https://docs.aws.amazon.com/ebs/latest/userguide/snapshot-lock-concepts.html>`_.
+For the concepts behind AWS Snapshot Lock, refer to the `Amazon EBS snapshot lock concepts <https://docs.aws.amazon.com/ebs/latest/userguide/snapshot-lock-concepts.html>`_.
 
 Backup Process
 """"""""""""""
