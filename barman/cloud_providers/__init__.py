@@ -64,6 +64,8 @@ def _make_s3_cloud_interface(config, cloud_interface_kwargs):
                 'Encryption type must be "aws:kms" if SSE KMS Key ID is specified'
             )
         cloud_interface_kwargs["sse_kms_key_id"] = config.sse_kms_key_id
+    if "addressing_style" in config:
+        cloud_interface_kwargs["addressing_style"] = config.addressing_style
     return S3CloudInterface(**cloud_interface_kwargs)
 
 
