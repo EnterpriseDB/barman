@@ -1122,10 +1122,25 @@ class TestS3CloudInterface(object):
         assert ("Deletion of object path/to/object/1 failed with error:") in caplog.text
         assert ("Deletion of object path/to/object/2 failed with error:") in caplog.text
 
+    @pytest.mark.parametrize(
+        ("code", "message"),
+        [
+            (
+                "MissingContentMD5",
+                "Missing required header for this request: Content-Md5.",
+            ),
+            ("InvalidRequest", "Content-MD5 is missing"),
+            ("InvalidRequest", "Missing required header for this request: Content-MD5"),
+            (
+                "BadDigest",
+                "The Content-MD5 you specified did not match what we received",
+            ),
+        ],
+    )
     @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface._delete_object")
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_delete_objects_botocore_exceptions_ClientError(
-        self, boto_mock, mock_delete_obj, client_error_factory, caplog
+        self, boto_mock, mock_delete_obj, client_error_factory, caplog, code, message
     ):
         """
         Test `S3CloudInterface.delete_objects` handling of `botocore.exceptions.ClientError`.
@@ -1167,8 +1182,8 @@ class TestS3CloudInterface(object):
         mock_keys = ["path/to/object/1", "path/to/object/2"]
 
         s3_client.delete_objects.side_effect = client_error_factory(
-            code="MissingContentMD5",
-            message="Missing required header for this request: Content-Md5.",
+            code,
+            message,
         )
 
         cloud_interface.delete_objects(mock_keys)

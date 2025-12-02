@@ -467,8 +467,7 @@ class S3CloudInterface(CloudInterface):
             # and return "InvalidRequest" instead, so we also check the message in that.
             if (
                 e.response["Error"]["Code"] == "MissingContentMD5"
-                or "missing required header for this request: content-md5"
-                in e.response["Error"]["Message"].lower()
+                or "content-md5" in e.response["Error"]["Message"].lower()
             ):
                 for path in paths:
                     self._delete_object(path)
@@ -566,8 +565,7 @@ class S3CloudInterface(CloudInterface):
             # and return "InvalidRequest" instead, so we also check the message in that.
             if (
                 e.response["Error"]["Code"] == "MissingContentMD5"
-                or "missing required header for this request: content-md5"
-                in e.response["Error"]["Message"].lower()
+                or "content-md5" in e.response["Error"]["Message"].lower()
             ):
                 for obj in bucket.objects.filter(Prefix=prefix):
                     self._delete_object(obj.key)
