@@ -1113,7 +1113,7 @@ class TestCloudBackupDelete(object):
         cloud_interface_mock = get_cloud_interface_mock.return_value
         self._should_error = True
 
-        def mock_delete_objects(objects):
+        def mock_delete_objects(objects, **kwargs):
             if self._should_error:
                 self._should_error = False
                 raise Exception("Something went wrong on delete")
@@ -1153,7 +1153,7 @@ class TestCloudBackupDelete(object):
             backup_metadata, out_of_policy_backup_ids[1]
         )
         assert (
-            mock.call(expected_deleted_objects)
+            mock.call(expected_deleted_objects, check_locks=False, atomic=True)
             in cloud_interface_mock.delete_objects.call_args_list
         )
 
@@ -2255,7 +2255,7 @@ class TestCloudBackupDelete(object):
         cloud_interface_mock = get_cloud_interface_mock.return_value
         self._should_error = True
 
-        def mock_delete_objects(objects):
+        def mock_delete_objects(objects, **kwargs):
             if any(o.split("/")[0] == "wals" for o in objects) and self._should_error:
                 self._should_error = False
                 raise Exception("Something went wrong on delete")
@@ -2846,3 +2846,279 @@ class TestCloudBackupDelete(object):
             "Ignoring malformed WAL object prefix: {}".format(bad_wal_prefix)
             in caplog.text
         )
+
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_check_object_lock_flag_passed_to_delete_objects(
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+    ):
+        """
+        Test that --check-object-lock flag passes check_locks=True to delete_objects.
+        """
+        # GIVEN a backup catalog with one backup and no WALs
+        backup_id = "20210723T095432"
+        backup_metadata = self._create_backup_metadata([backup_id])
+        cloud_backup_catalog_mock.return_value = self._create_catalog(backup_metadata)
+
+        # WHEN barman-cloud-backup-delete runs with --check-object-lock
+        cloud_backup_delete.main(
+            [
+                "s3://bucket/path",
+                "test_server",
+                "--backup-id",
+                backup_id,
+                "--check-object-lock",
+            ]
+        )
+
+        # THEN delete_objects was called with check_locks=True and atomic=True
+        cloud_interface_mock = get_cloud_interface_mock.return_value
+        # Should be called twice: once for backup files, once for backup.info
+        assert cloud_interface_mock.delete_objects.call_count == 2
+
+        # Verify the first call (backup files)
+        expected_files = self._get_sorted_files_for_backup(backup_metadata, backup_id)
+        assert (
+            mock.call(expected_files, check_locks=True, atomic=True)
+            in cloud_interface_mock.delete_objects.call_args_list
+        )
+
+        # Verify the second call (backup.info)
+        assert (
+            mock.call(["%s/backup.info" % backup_id])
+            in cloud_interface_mock.delete_objects.call_args_list
+        )
+
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_check_object_lock_flag_passed_to_wal_deletion(
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+    ):
+        """
+        Test that --check-object-lock flag passes check_locks=True to WAL deletion.
+        """
+        # GIVEN a backup catalog with one backup and WALs
+        backup_id = "20210723T095432"
+        backup_metadata = self._create_backup_metadata(
+            [backup_id], begin_wals={backup_id: "000000010000000000000002"}
+        )
+        wals = ["000000010000000000000001", "000000010000000000000002"]
+        catalog = self._create_catalog(backup_metadata, wals=wals)
+        cloud_backup_catalog_mock.return_value = catalog
+
+        # WHEN barman-cloud-backup-delete runs with --check-object-lock
+        cloud_backup_delete.main(
+            [
+                "s3://bucket/path",
+                "test_server",
+                "--backup-id",
+                backup_id,
+                "--check-object-lock",
+            ]
+        )
+
+        # THEN delete_objects for WALs was called with check_locks=True and atomic=False
+        cloud_interface_mock = get_cloud_interface_mock.return_value
+        # The third call should be for WAL files
+        assert cloud_interface_mock.delete_objects.call_count >= 3
+
+        # Check for the WAL deletion call
+        expected_wal_paths = ["wals/0000000100000000/000000010000000000000001.gz"]
+        assert (
+            mock.call(expected_wal_paths)
+            in cloud_interface_mock.delete_objects.call_args_list
+        )
+
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_check_object_lock_flag_passed_to_delete_under_prefix(
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+    ):
+        """
+        Test that --check-object-lock flag passes check_locks=True to delete_under_prefix.
+        """
+        # GIVEN a backup catalog with one backup and WAL prefixes
+        backup_id = "20230609T120000"
+        wal_catalog = ["0000000100000000000000FF", "000000010000000100000000"]
+        backup_metadata = self._create_backup_metadata(
+            [backup_id], begin_wals={backup_id: "000000010000000100000000"}
+        )
+        catalog = self._create_catalog(backup_metadata, wals=wal_catalog)
+        cloud_backup_catalog_mock.return_value = catalog
+
+        # WHEN barman-cloud-backup-delete runs with --check-object-lock
+        cloud_backup_delete.main(
+            [
+                "s3://bucket/path",
+                "test_server",
+                "--backup-id",
+                backup_id,
+                "--check-object-lock",
+            ]
+        )
+
+        # THEN delete_under_prefix was called with check_locks=True and atomic=False
+        cloud_interface_mock = get_cloud_interface_mock.return_value
+        assert cloud_interface_mock.delete_under_prefix.call_count >= 1
+
+        # Check that the prefix deletion includes the correct kwargs
+        assert (
+            mock.call("wals/0000000100000000/")
+            in cloud_interface_mock.delete_under_prefix.call_args_list
+        )
+
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_check_object_lock_not_passed_by_default(
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+    ):
+        """
+        Test that without --check-object-lock flag, check_locks=False is passed to backup files only.
+        """
+        # GIVEN a backup catalog with one backup and WALs
+        backup_id = "20210723T095432"
+        backup_metadata = self._create_backup_metadata(
+            [backup_id], begin_wals={backup_id: "000000010000000000000002"}
+        )
+        wals = ["000000010000000000000001", "000000010000000000000002"]
+        catalog = self._create_catalog(backup_metadata, wals=wals)
+        cloud_backup_catalog_mock.return_value = catalog
+
+        # WHEN barman-cloud-backup-delete runs without --check-object-lock
+        cloud_backup_delete.main(
+            ["s3://bucket/path", "test_server", "--backup-id", backup_id]
+        )
+
+        # THEN delete_objects was called with check_locks=False for backup files only
+        cloud_interface_mock = get_cloud_interface_mock.return_value
+
+        # Verify backup files use check_locks=False, atomic=True
+        expected_files = self._get_sorted_files_for_backup(backup_metadata, backup_id)
+        assert (
+            mock.call(expected_files, check_locks=False, atomic=True)
+            in cloud_interface_mock.delete_objects.call_args_list
+        )
+
+        # Verify backup.info deletion has no check_locks
+        assert (
+            mock.call(["%s/backup.info" % backup_id])
+            in cloud_interface_mock.delete_objects.call_args_list
+        )
+
+        # Verify WAL deletion has no check_locks
+        expected_wal_paths = ["wals/0000000100000000/000000010000000000000001.gz"]
+        assert (
+            mock.call(expected_wal_paths)
+            in cloud_interface_mock.delete_objects.call_args_list
+        )
+
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_check_object_lock_with_non_s3_provider_warns(
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock, caplog
+    ):
+        """
+        Test that --check-object-lock with non-S3 provider logs a warning.
+        """
+        # GIVEN a non-S3 cloud interface (Azure)
+        from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
+
+        cloud_interface_mock = mock.MagicMock(spec=AzureCloudInterface)
+        get_cloud_interface_mock.return_value = cloud_interface_mock
+
+        # AND a backup catalog with one backup
+        backup_id = "20210723T095432"
+        backup_metadata = self._create_backup_metadata([backup_id])
+        catalog = self._create_catalog(backup_metadata)
+        catalog.get_backup_list.return_value = backup_metadata
+        cloud_backup_catalog_mock.return_value = catalog
+
+        # WHEN barman-cloud-backup-delete runs with --check-object-lock on Azure
+        cloud_backup_delete.main(
+            [
+                "azure://container/path",
+                "test_server",
+                "--backup-id",
+                backup_id,
+                "--check-object-lock",
+                "--cloud-provider",
+                "azure-blob-storage",
+            ]
+        )
+
+        # THEN a warning is logged about unsupported provider
+        assert "only supported for aws-s3" in caplog.text
+        assert "Object lock checks will not be performed" in caplog.text
+
+    @mock.patch("barman.retention_policies.datetime")
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_check_object_lock_with_retention_policy(
+        self,
+        get_cloud_interface_mock,
+        cloud_backup_catalog_mock,
+        datetime_mock,
+    ):
+        """
+        Test that --check-object-lock works with retention policy deletion.
+        """
+        # GIVEN a backup catalog with backups eligible for retention policy deletion
+        backup_ids = [
+            "20210720T000000",
+            "20210721T000000",
+            "20210722T000000",
+        ]
+        backup_metadata = self._create_backup_metadata(backup_ids)
+        catalog = self._create_catalog(backup_metadata)
+        cloud_backup_catalog_mock.return_value = catalog
+
+        # AND a mocked current time that makes all but the newest backup obsolete
+        datetime_mock.now.return_value = datetime.datetime(2021, 7, 23)
+
+        # WHEN barman-cloud-backup-delete runs with retention policy and --check-object-lock
+        cloud_backup_delete.main(
+            [
+                "s3://bucket/path",
+                "test_server",
+                "--retention-policy",
+                "RECOVERY WINDOW OF 1 DAYS",
+                "--check-object-lock",
+            ]
+        )
+
+        # THEN all delete_objects calls include check_locks=True
+        cloud_interface_mock = get_cloud_interface_mock.return_value
+        # Only backup file deletion calls should have check_locks=True
+        backup_file_calls = [
+            call
+            for call in cloud_interface_mock.delete_objects.call_args_list
+            if "backup.info" not in str(call) and "wals/" not in str(call[0])
+        ]
+        for call in backup_file_calls:
+            assert call[1].get("check_locks") is True
+
+    def test_parse_arguments_check_object_lock_flag(self):
+        """
+        Test that parse_arguments correctly handles --check-object-lock flag.
+        """
+        # WHEN parsing arguments with --check-object-lock
+        args = cloud_backup_delete.parse_arguments(
+            [
+                "s3://bucket/path",
+                "test_server",
+                "--backup-id",
+                "backup_id",
+                "--check-object-lock",
+            ]
+        )
+
+        # THEN check_object_lock is True
+        assert args.check_object_lock is True
+
+        # WHEN parsing arguments without --check-object-lock
+        args = cloud_backup_delete.parse_arguments(
+            ["s3://bucket/path", "test_server", "--backup-id", "backup_id"]
+        )
+
+        # THEN check_object_lock is False
+        assert args.check_object_lock is False
