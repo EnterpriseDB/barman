@@ -1231,16 +1231,17 @@ class CloudInterface(with_metaclass(ABCMeta)):
         """
 
     @abstractmethod
-    def _delete_objects_batch(self, paths):
+    def _delete_objects_batch(self, paths, **kwargs):
         """
         Delete a single batch of objects
 
         :param List[str] paths:
+        :param dict kwargs: Provider-specific keyword arguments.
         """
         if len(paths) > self.MAX_DELETE_BATCH_SIZE:
             raise ValueError("Max batch size exceeded")
 
-    def delete_objects(self, paths):
+    def delete_objects(self, paths, **kwargs):
         """
         Delete the objects at the specified paths
 
@@ -1249,11 +1250,14 @@ class CloudInterface(with_metaclass(ABCMeta)):
         lowest.
 
         :param List[str] paths:
+        :param dict kwargs: Provider-specific keyword arguments.
         """
         errors = False
         for i in range_fun(0, len(paths), self.delete_batch_size):
             try:
-                self._delete_objects_batch(paths[i : i + self.delete_batch_size])
+                self._delete_objects_batch(
+                    paths[i : i + self.delete_batch_size], **kwargs
+                )
             except CloudProviderError:
                 # Don't let one error stop us from trying to delete any remaining
                 # batches.
@@ -1277,12 +1281,13 @@ class CloudInterface(with_metaclass(ABCMeta)):
         """
 
     @abstractmethod
-    def delete_under_prefix(self, prefix):
+    def delete_under_prefix(self, prefix, **kwargs):
         """
         Delete all objects under the specified prefix.
 
         :param str prefix: The object key prefix under which all objects should be
             deleted.
+        :param dict kwargs: Provider-specific keyword arguments.
         """
 
     def verify_cloud_connectivity_and_bucket_existence(self):

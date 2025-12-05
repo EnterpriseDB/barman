@@ -418,7 +418,7 @@ class S3CloudInterface(CloudInterface):
             Bucket=self.bucket_name, Key=key, UploadId=upload_metadata["UploadId"]
         )
 
-    def _delete_objects_batch(self, paths):
+    def _delete_objects_batch(self, paths, **kwargs):
         """
         Deletes multiple objects from the S3 bucket at the specified paths.
 
@@ -431,18 +431,36 @@ class S3CloudInterface(CloudInterface):
         :exc:`CloudProviderError` if any bulk deletion errors occur.
 
         :param paths: List of object paths (keys) to delete from the S3 bucket.
-        :raises CloudProviderError:
-            If bulk deletion fails for any object.
+        :param dict kwargs: Provider-specific keyword arguments. Supports:
+            - check_locks (bool): If ``True``, check for Object Lock before deletion
+            - atomic (bool): If ``True``, abort deletion if any objects are locked; if ``False``,
+              skip locked objects and continue with unlocked ones
+        :raises CloudProviderError: If bulk deletion fails for any object, if object lock
+            checking fails, or if atomic deletion encounters a locked object
         :raises botocore.exceptions.ClientError:
             If an AWS client error occurs that is not handled by the fallback logic.
         """
-        super(S3CloudInterface, self)._delete_objects_batch(paths)
+        super(S3CloudInterface, self)._delete_objects_batch(paths, **kwargs)
+
+        # Extract check_locks and atomic from kwargs
+        check_locks = kwargs.get("check_locks", False)
+        atomic = kwargs.get("atomic", True)
+
+        # Filter out locked objects if check_locks is enabled
+        if check_locks:
+            unlocked_paths = self._filter_locked_objects(paths, atomic)
+            # If all objects are locked, nothing to delete
+            if not unlocked_paths:
+                _logger.debug("No unlocked objects to delete")
+                return
+        else:
+            unlocked_paths = paths
 
         try:
             resp = self.s3.meta.client.delete_objects(
                 Bucket=self.bucket_name,
                 Delete={
-                    "Objects": [{"Key": path} for path in paths],
+                    "Objects": [{"Key": path} for path in unlocked_paths],
                     "Quiet": True,
                 },
             )
@@ -481,6 +499,13 @@ class S3CloudInterface(CloudInterface):
         Attempts to delete an object individually. If a deletion fails due to a client
         error, logs the error details and raises a :exc:`CloudProviderError`.
         Any other exceptions are also logged and re-raised as :exc:`CloudProviderError`.
+
+        .. important::
+            This method does not perform Object Lock checks. If those checks are
+            required by the user, it is the responsibility of the calling method
+            (e.g., :meth:`_delete_objects_batch` or :meth:`delete_under_prefix`)
+            to check for Object Lock status before calling this fallback method.
+            This method should only be called after such checks have been completed.
 
         .. note::
             This method should not be called as the "primary deletion" method. Its use
@@ -530,12 +555,19 @@ class S3CloudInterface(CloudInterface):
             if wal_prefix.endswith("/"):
                 yield wal_prefix
 
-    def delete_under_prefix(self, prefix):
+    def delete_under_prefix(self, prefix, **kwargs):
         """
         Delete all objects under the specified prefix.
 
         :param str prefix: The object key prefix under which all objects should be
             deleted.
+        :param dict kwargs: Provider-specific keyword arguments. Supports:
+            - check_locks (bool): If True, check for Object Lock before deletion
+            - atomic (bool): If True, abort deletion if any objects are locked; if False,
+              skip locked objects and continue with unlocked ones
+        :raises ValueError: If the prefix is empty, "/", or does not end with "/"
+        :raises CloudProviderError: If object lock checking fails, if atomic deletion
+            encounters a locked object, or if bulk deletion fails for any object
         """
         if len(prefix) == 0 or prefix == "/" or not prefix.endswith("/"):
             raise ValueError(
@@ -543,19 +575,49 @@ class S3CloudInterface(CloudInterface):
             )
 
         bucket = self.s3.Bucket(self.bucket_name)
+        # First, collect all objects under the prefix
+        objects_to_delete = bucket.objects.filter(Prefix=prefix)
+
+        # Extract check_locks and atomic from kwargs
+        check_locks = kwargs.get("check_locks", False)
+        atomic = kwargs.get("atomic", True)
+
+        # Filter out locked objects if check_locks is enabled
+        if check_locks:
+            unlocked_objects = self._filter_locked_objects(objects_to_delete, atomic)
+            # If all objects are locked, nothing to delete
+            if not unlocked_objects:
+                _logger.debug("No unlocked objects to delete under prefix %s", prefix)
+                return
+        else:
+            unlocked_objects = objects_to_delete
+
         try:
-            # Although this is written as a `for` loop, the `.delete()` call on the
-            # filtered objects performs a **bulk delete** in AWS S3 in a single API
-            # request. Each `resp` is the metadata for a deleted object returned by the
-            # bulk delete operation.
-            for resp in bucket.objects.filter(Prefix=prefix).delete():
-                response_metadata = resp["ResponseMetadata"]
-                if response_metadata["HTTPStatusCode"] != 200:
-                    _logger.error(
-                        'Deletion of objects under %s failed with error code: "%s"'
-                        % (prefix, response_metadata["HTTPStatusCode"])
-                    )
+            # Use batch deletion for unlocked objects
+            unlocked_keys = [obj.key for obj in unlocked_objects]
+
+            for i in range(0, len(unlocked_keys), self.MAX_DELETE_BATCH_SIZE):
+                batch_keys = unlocked_keys[i : i + self.MAX_DELETE_BATCH_SIZE]
+                resp = self.s3.meta.client.delete_objects(
+                    Bucket=self.bucket_name,
+                    Delete={
+                        "Objects": [{"Key": key} for key in batch_keys],
+                        "Quiet": True,
+                    },
+                )
+                if "Errors" in resp:
+                    for error_dict in resp["Errors"]:
+                        _logger.error(
+                            'Deletion of object %s failed with error code: "%s", '
+                            'message: "%s"'
+                            % (
+                                error_dict["Key"],
+                                error_dict["Code"],
+                                error_dict["Message"],
+                            )
+                        )
                     raise CloudProviderError()
+
         except botocore.exceptions.ClientError as e:
             # Fallback for MissingContentMD5 errors: `_delete_object` deletes a single
             # object at a time using `.delete()` for the given key. This is necessary
@@ -567,10 +629,123 @@ class S3CloudInterface(CloudInterface):
                 e.response["Error"]["Code"] == "MissingContentMD5"
                 or "content-md5" in e.response["Error"]["Message"].lower()
             ):
-                for obj in bucket.objects.filter(Prefix=prefix):
+                for obj in unlocked_objects:
                     self._delete_object(obj.key)
             else:
                 raise e
+
+    def _check_object_lock(self, key):
+        """
+        Check if an S3 object has Object Lock retention or legal hold. Uses the
+        head_object API to retrieve object metadata including Object Lock configuration.
+
+        .. note::
+            If the user the required privileges to fetch object lock information, this
+            method will return ``(False, None)`` even if the object is actually locked.
+            That occurs because ``boto3`` doesn't return the relevant headers if the
+            user lacks privileges:
+
+            * ``s3:GetObjectRetention`` is required for fetching
+              ``ObjectLockRetainUntilDate``;
+            * ``s3:GetObjectLegalHold`` is required for fetching
+              ``ObjectLockLegalHoldStatus``.
+
+        :param str key: The S3 object key
+        :return: Tuple of (is_locked: bool, reason: str|None)
+        :rtype: tuple[bool, str|None]
+        :raises CloudProviderError: If access is denied when checking Object Lock status,
+            or if any other error occurs during the check
+        """
+        try:
+            response = self.s3.meta.client.head_object(Bucket=self.bucket_name, Key=key)
+
+            # Check for active Object Lock retention
+            retain_until = response.get("ObjectLockRetainUntilDate")
+            if retain_until:
+                now = datetime.now(retain_until.tzinfo)
+                if retain_until > now:
+                    return (
+                        True,
+                        f"Object is locked and can't be deleted until {retain_until}",
+                    )
+
+            # Check for legal hold
+            legal_hold_status = response.get("ObjectLockLegalHoldStatus")
+            if legal_hold_status == "ON":
+                return (
+                    True,
+                    "Object has a legal hold and can't be deleted until the legal hold is removed",
+                )
+
+            # No locks found
+            return False, None
+
+        except ClientError as exc:
+            error_code = exc.response["Error"]["Code"]
+            # Permission denied
+            if error_code in ("AccessDenied", "Forbidden", "403"):
+                raise CloudProviderError(
+                    "Access denied when checking Object Lock for %s: %s"
+                    % (key, exc.response["Error"]["Message"])
+                )
+            # Fail safe for any other client error
+            else:
+                raise CloudProviderError(
+                    "Error checking Object Lock for %s: %s"
+                    % (key, exc.response["Error"]["Message"])
+                )
+
+    def _filter_locked_objects(self, objects, atomic):
+        """
+        Filter objects based on Object Lock status.
+
+        Checks each object for Object Lock (retention or legal hold) and returns
+        only the unlocked objects. For atomic deletion,
+        raises an error immediately when a locked object is encountered. For
+        non-atomic deletion, logs warnings and skips locked objects.
+
+        .. note::
+            When objects is provided as a s3.objectCollection of s3.ObjectSummary
+            instances, the objects is a generator and will be consumed during this
+            check. Besides that, the returned list may contain several keys, which may
+            increase memory usage when compared to the consumed generator. That might
+            be fine though -- given we return a list of strings, memory consumption
+            shouldn't be too high.
+
+        :param objects: List of object keys (str) or s3.objectCollection of
+            s3.ObjectSummary to be checked
+        :param bool atomic: If ``True``, abort on first locked object; if ``False``,
+            skip locked objects with warnings
+        :return: List of unlocked objects in the same format as input
+        :rtype: list
+        :raises CloudProviderError: If atomic=``True`` and a locked object is found
+        """
+        _logger.debug("Checking Object Lock status of objects")
+
+        unlocked = []
+        object_number = 0
+
+        for obj in objects:
+            object_number += 1
+            # Handle both string keys and s3.ObjectSummary objects with .key attribute
+            key = obj if isinstance(obj, str) else obj.key
+
+            is_locked, reason = self._check_object_lock(key)
+            if is_locked:
+                # For atomic deletion, fail immediately on first locked object
+                if atomic:
+                    _logger.error("Cannot delete locked object %s: %s", key, reason)
+                    raise CloudProviderError(
+                        "Deletion aborted: object %s is locked: %s" % (key, reason)
+                    )
+                # For non-atomic deletion, log warning and skip
+                _logger.warning("Skipping locked object %s: %s", key, reason)
+            else:
+                _logger.debug("Object %s is not locked", key)
+                unlocked.append(obj)  # Return the original object, not just the key
+
+        _logger.debug("Filtered %d unlocked objects", len(unlocked), object_number)
+        return unlocked
 
 
 class AwsCloudSnapshotInterface(CloudSnapshotInterface):
