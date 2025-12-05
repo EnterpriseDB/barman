@@ -1,0 +1,13 @@
+- summary: Increase coverage of non-compliant S3 object stores for backup deletion
+  description: |
+    With this fix we increase the coverage of non-compliant S3 object stores for backup
+    deletion.
+
+    We've reduced the expression we were matching for the message returned on failure
+    to catch any error code that returns a message that contains "content-MD5".
+
+    We believe with this, almost all non-compliant S3 object stores for backup deletion
+    will be covered
+  type: bugfix
+  jira_tickets:
+    - BAR-974
