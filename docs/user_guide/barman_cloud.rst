@@ -103,6 +103,60 @@ process varies based on the distribution you are using.
 Refer to the :ref:`installation <installation>` section for the installation process,
 and make sure to note the important information for each distribution.
 
+.. _barman-cloud-object-lock:
+
+Object Lock Support
+-------------------
+
+Barman cloud can work with object locking mechanisms that provide Write-Once-Read-Many
+(WORM) protection for backups stored in cloud object storage. Object locking helps
+ensure compliance with data retention requirements and prevents accidental or
+malicious deletion of backup files, protecting critical backup data from ransomware
+attacks or unauthorized deletions.
+
+Object locking prevents objects from being deleted or overwritten for a fixed amount
+of time (retention period) or indefinitely (legal hold). This is particularly useful
+for regulatory compliance requirements.
+
+.. note::
+   Object Lock verification is currently only supported for AWS S3 and S3-compatible
+   storage providers.
+
+.. important::
+   Barman does not create or manage object locks. It is the user's responsibility to
+   configure the cloud storage bucket with the appropriate retention policies. Barman
+   can verify and respect these locks during deletion operations to ensure compliance
+   with the configured policies.
+
+S3 Object Lock
+""""""""""""""
+
+Barman can work with AWS S3 Object Lock to help maintain backup immutability. To use
+this feature, you must configure your S3 bucket with the necessary Object Lock settings:
+
+* **Object versioning enabled**: Required for Object Lock to function.
+* **Default retention policy**: Configure a default retention policy for new objects
+  in your bucket. This policy is managed entirely within AWS S3, not by Barman.
+
+When these settings are configured in your S3 bucket, AWS automatically applies the
+retention policy to objects uploaded through ``barman-cloud-backup`` and
+``barman-cloud-wal-archive``. The objects are protected according to the bucket's
+retention configuration and cannot be deleted or modified until the retention period
+expires.
+
+When deleting backups and WALs with ``barman-cloud-backup-delete``, you can use the
+``--check-object-lock`` option to verify whether objects are protected by Object Lock
+before attempting deletion. This flag instructs Barman to check the lock status of
+backup files and respect the configured retention policies, preventing deletion attempts
+that would fail and ensuring compliance with your data retention requirements.
+
+For more information about AWS S3 Object Lock, refer to the
+`AWS S3 Object Lock documentation <https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html>`_.
+
+See the :ref:`barman-cloud-barman-cloud-backup-delete` command reference for more
+details on how the ``--check-object-lock`` option works, including information about the
+deletion process and performance considerations.
+
 .. _barman-cloud-commands-reference:
 
 Commands Reference
