@@ -637,12 +637,19 @@ def list_backups(args):
     """
     List available backups for the given server (supports 'all')
     """
-    servers = get_server_list(args, skip_inactive=True)
+    servers = get_server_list(args, skip_inactive=False, skip_disabled=False)
     for name in sorted(servers):
         server = servers[name]
 
         # Skip the server (apply general rule)
-        if not manage_server_command(server, name):
+        if not manage_server_command(
+            server,
+            name,
+            skip_inactive=False,
+            skip_disabled=False,
+            inactive_is_error=False,
+            disabled_is_error=False,
+        ):
             continue
 
         output.init("list_backup", name, minimal=args.minimal)
@@ -665,12 +672,19 @@ def status(args):
     """
     Shows live information and status of the PostgreSQL server
     """
-    servers = get_server_list(args, skip_inactive=True)
+    servers = get_server_list(args, skip_inactive=False, skip_disabled=False)
     for name in sorted(servers):
         server = servers[name]
 
         # Skip the server (apply general rule)
-        if not manage_server_command(server, name):
+        if not manage_server_command(
+            server,
+            name,
+            skip_inactive=False,
+            skip_disabled=False,
+            inactive_is_error=False,
+            disabled_is_error=False,
+        ):
             continue
 
         output.init("status", name)
@@ -1019,7 +1033,13 @@ def restore(args):
     """
     Restore a server at a given time, name, LSN or xid
     """
-    server = get_server(args)
+    server = get_server(
+        args,
+        skip_inactive=False,
+        skip_disabled=False,
+        inactive_is_error=False,
+        disabled_is_error=True,
+    )
 
     # PostgreSQL supports multiple parameters to specify when the recovery
     # process will end, and in that case the last entry in recovery
@@ -1674,7 +1694,13 @@ def show_backup(args):
     """
     This method shows a single backup information
     """
-    server = get_server(args)
+    server = get_server(
+        args,
+        skip_inactive=False,
+        skip_disabled=False,
+        inactive_is_error=False,
+        disabled_is_error=False,
+    )
 
     # Retrieves the backup
     backup_info = parse_backup_id(server, args)
@@ -1716,7 +1742,13 @@ def list_files(args):
     """
     List all the files for a single backup
     """
-    server = get_server(args)
+    server = get_server(
+        args,
+        skip_inactive=False,
+        skip_disabled=False,
+        inactive_is_error=False,
+        disabled_is_error=False,
+    )
 
     # Retrieves the backup
     backup_info = parse_backup_id(server, args)
@@ -1752,7 +1784,13 @@ def delete(args):
     """
     Delete a backup
     """
-    server = get_server(args)
+    server = get_server(
+        args,
+        skip_inactive=False,
+        skip_disabled=False,
+        inactive_is_error=False,
+        disabled_is_error=True,
+    )
 
     # Retrieves the backup
     backup_id = parse_backup_id(server, args)
@@ -1839,7 +1877,13 @@ def get_wal(args):
     The content will be streamed on standard output unless
     the --output-directory option is specified.
     """
-    server = get_server(args, inactive_is_error=True)
+    server = get_server(
+        args,
+        skip_inactive=False,
+        skip_disabled=False,
+        inactive_is_error=False,
+        disabled_is_error=True,
+    )
 
     if getattr(args, "test", None):
         output.info(
@@ -2046,7 +2090,13 @@ def verify_backup(args):
     verify a backup for the given server and backup id
     """
     # get barman.server.Server
-    server = get_server(args)
+    server = get_server(
+        args,
+        skip_inactive=False,
+        skip_disabled=False,
+        inactive_is_error=False,
+        disabled_is_error=False,
+    )
     # Raises an error if wrong backup
     backup_info = parse_backup_id(server, args)
     # get backup path
@@ -2232,7 +2282,13 @@ def config_switch(args):
         output.error("Either a model name or '--reset' flag need to be given")
         return
 
-    server = get_server(args, skip_inactive=False)
+    server = get_server(
+        args,
+        skip_inactive=False,
+        skip_disabled=False,
+        inactive_is_error=False,
+        disabled_is_error=False,
+    )
 
     if server is not None:
         if args.reset:
