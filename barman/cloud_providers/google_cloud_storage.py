@@ -131,7 +131,12 @@ class GoogleCloudInterface(CloudInterface):
         Creates a client using "GOOGLE_APPLICATION_CREDENTIALS" env.
         An error will be raised if the variable is missing.
         """
-        self.client = storage.Client()
+        client_options = None
+        universe_domain = os.getenv("GOOGLE_CLOUD_UNIVERSE_DOMAIN")
+        if universe_domain:
+            client_options={"universe_domain": universe_domain}
+
+        self.client = storage.Client(client_options=client_options)
         self.container_client = self.client.bucket(self.bucket_name)
 
     def test_connectivity(self):
