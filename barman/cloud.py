@@ -38,6 +38,7 @@ from barman import xlog
 from barman.annotations import KeepManagerMixinCloud
 from barman.backup_executor import ConcurrentBackupStrategy, SnapshotBackupExecutor
 from barman.clients import cloud_compression
+from barman.clients import cloud_encryption
 from barman.clients.cloud_cli import (
     NetworkErrorExit,
     OperationErrorExit,
@@ -222,6 +223,9 @@ class CloudTarUploader(object):
         self.stats = None
         self.time_of_last_upload = None
         self.size_of_last_upload = None
+        # TODO get the information from config
+        self.encryptor = None
+        self.encryptor = cloud_encryption.get_encryptor('XChaCha20-poly1305')
 
     def write(self, buf):
         if self.buffer and self.buffer.tell() > self.chunk_size:
@@ -230,15 +234,12 @@ class CloudTarUploader(object):
             self.buffer = self._buffer()
         if self.compressor:
             # If we have a custom compressor we must use it here
-            compressed_buf = self.compressor.add_chunk(buf)
-            self.buffer.write(compressed_buf)
-            self.size += len(compressed_buf)
-        else:
-            # If there is no custom compressor then we are either not using
-            # compression or tar has already compressed it - in either case we
-            # just write the data to the buffer
-            self.buffer.write(buf)
-            self.size += len(buf)
+            buf = self.compressor.add_chunk(buf)
+        if self.encryptor:
+            buf = self.encryptor.add_chunk(buf)
+
+        self.buffer.write(buf)
+        self.size += len(buf)
 
     def _throttle_upload(self, part_size):
         """

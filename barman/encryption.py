@@ -29,6 +29,12 @@ from functools import lru_cache
 from barman.command_wrappers import GPG, Command, Handler
 from barman.exceptions import CommandFailedException, EncryptionCommandException
 
+def _try_import_crypto():
+    try:
+        import Crypto
+    except ImportError:
+        raise SystemExit("Missing required python module: Crypto (pycryptodome)")
+    return Crypto
 
 @lru_cache(maxsize=1)
 def get_passphrase_from_command(command):

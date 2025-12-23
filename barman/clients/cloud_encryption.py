@@ -19,6 +19,7 @@
 
 from abc import ABCMeta, abstractmethod
 
+from barman.encryption import _try_import_crypto
 from barman.utils import with_metaclass
 
 
