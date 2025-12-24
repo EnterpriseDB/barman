@@ -2490,8 +2490,10 @@ class RsyncCopyOperation(RecoveryOperation):
         )
 
         # Prepare the destination directories for the backup copy
+        # No need to attempt deleting the directory as this is the last operation,
+        # meaning that the destination is sure to be either empty or non-existing
         for _dir in dest_dirs:
-            self._prepare_directory(_dir)
+            self._prepare_directory(_dir, delete_if_exists=False)
 
         # Execute the copy
         try:
@@ -2718,7 +2720,10 @@ class DecompressOperation(RecoveryOperation):
                 f"Unexpected compression format: {compression}"
             )
 
-        self._prepare_directory(destination)
+        # Prepare the destination directory
+        # No need to attempt deleting the directory if it's the last operation as it's
+        # sure to be either empty or non-existing in that case
+        self._prepare_directory(destination, delete_if_exists=(not is_last_operation))
 
         # Untar the results files to their intended location
         if backup_info.tablespaces:
@@ -2748,7 +2753,9 @@ class DecompressOperation(RecoveryOperation):
                     tablespace_src_path,
                     tablespace_dst_path,
                 )
-                self._prepare_directory(tablespace_dst_path)
+                self._prepare_directory(
+                    tablespace_dst_path, delete_if_exists=(not is_last_operation)
+                )
                 cmd_output = compressor.decompress(
                     tablespace_src_path, tablespace_dst_path
                 )
@@ -2890,10 +2897,14 @@ class CombineOperation(RecoveryOperation):
         # Prepare the destination directories (PGDATA and tablespaces)
         # Only include tablespace directories that are not subdirectories of output_dest,
         # to avoid preparing the same directory multiple times.
-        self._prepare_directory(output_dest)
+        # No need to attempt deleting the directory if it's the last operation as it's
+        # sure to be either empty or non-existing in that case
+        self._prepare_directory(output_dest, delete_if_exists=(not is_last_operation))
         for tbspc_dest in tablespace_mapping.values():
             if not is_subdirectory(output_dest, tbspc_dest):
-                self._prepare_directory(tbspc_dest)
+                self._prepare_directory(
+                    tbspc_dest, delete_if_exists=(not is_last_operation)
+                )
 
         output.info(
             "Start combining backup via pg_combinebackup for backup %s on %s",
