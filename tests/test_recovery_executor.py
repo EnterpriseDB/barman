@@ -3338,7 +3338,9 @@ class TestRsyncCopyOperation(object):
         )
 
         # AND the destination directory is prepared correctly
-        mock_prepare_directory.assert_called_once_with(destination)
+        mock_prepare_directory.assert_called_once_with(
+            destination, delete_if_exists=False
+        )
 
         # AND the copy is executed
         mock_copy_controller.copy.assert_called_once()
@@ -3446,9 +3448,9 @@ class TestRsyncCopyOperation(object):
         # AND the destination directory is prepared correctly
         mock_prepare_directory.assert_has_calls(
             [
-                mock.call("/path/to/destination"),
-                mock.call(tbs1_dest),
-                mock.call(tbs2_dest),
+                mock.call("/path/to/destination", delete_if_exists=False),
+                mock.call(tbs1_dest, delete_if_exists=False),
+                mock.call(tbs2_dest, delete_if_exists=False),
             ]
         )
 
@@ -3617,7 +3619,10 @@ class TestCombineOperation(object):
         # AND all the destinations are prepared
         dests = [output_dest] + list(mock_get_tablespace_mapping.return_value.values())
         mock_prepare_directory.assert_has_calls(
-            [mock.call(dest) for dest in dests],
+            [
+                mock.call(dest, delete_if_exists=(not is_last_operation))
+                for dest in dests
+            ],
         )
 
         # AND _run_pg_combinebackup is called with the correct parameters
@@ -5007,9 +5012,9 @@ class TestDecompressOperation(object):
         # Should create all destinations before decompressing
         if is_last_op:
             prep_calls = [
-                call("/dest"),
-                call(tbs1),
-                call(tbs2),
+                call("/dest", delete_if_exists=False),
+                call(tbs1, delete_if_exists=False),
+                call(tbs2, delete_if_exists=False),
             ]
             decompress_calls = [
                 call(
@@ -5029,9 +5034,9 @@ class TestDecompressOperation(object):
             dest = "/dest"
         else:
             prep_calls = [
-                call("/dest/1234567890/data"),
-                call("/dest/1234567890/16387"),
-                call("/dest/1234567890/16405"),
+                call("/dest/1234567890/data", delete_if_exists=True),
+                call("/dest/1234567890/16387", delete_if_exists=True),
+                call("/dest/1234567890/16405", delete_if_exists=True),
             ]
             decompress_calls = [
                 call(
