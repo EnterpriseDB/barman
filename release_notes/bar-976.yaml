@@ -1,0 +1,29 @@
+---
+- summary: Enable query, fetch, and selective operations on inactive/disabled servers
+  description: |
+    Multiple Barman commands now work with inactive and disabled servers based
+    on their safety profile:
+
+    **Query commands**:
+    - `list-backups`: view backups from inactive/disabled servers
+    - `status`: check status of inactive/disabled servers
+    - `show-backup`: display backup details from inactive/disabled servers
+    - `list-files`: list files from backups on inactive/disabled servers
+    - `verify-backup`: verify backups on inactive/disabled servers
+
+    **Fetch commands**:
+    - `restore`: restore backups from inactive servers
+    - `get-wal`: retrieve WAL files from inactive servers
+
+    **Modification commands**:
+    - `delete`: delete backups from inactive servers
+    - `config-switch`: switch configuration models for inactive/disabled servers
+
+    This change improves operational flexibility by allowing users to query
+    backup information and perform restore operations even when servers are
+    manually disabled (inactive) or have configuration issues (disabled). The
+    different behavior for disabled servers provides safety against operations
+    on servers with potential configuration conflicts or path issues.
+  type: notable_change
+  jira_tickets:
+    - BAR-976
