@@ -49,6 +49,7 @@ from barman.cli import (
     get_server,
     get_server_list,
     keep,
+    list_backups,
     list_files,
     list_processes,
     manage_model_command,
@@ -58,6 +59,7 @@ from barman.cli import (
     replication_status,
     restore,
     show_servers,
+    status,
     terminate_process,
 )
 from barman.exceptions import BadXlogSegmentName, WalArchiveContentError
@@ -456,6 +458,89 @@ class TestCli(object):
             server_dict["main"].config.streaming_conninfo == expected_streaming_conninfo
         )
         assert server_dict["main"].config.conninfo == expected_conninfo
+
+    @pytest.mark.parametrize(
+        ("active", "disabled", "command"),
+        [
+            # Inactive servers should be listed by list_backups
+            (False, False, "list_backups"),
+            # Disabled servers should be listed by list_backups
+            (True, True, "list_backups"),
+            # Inactive servers should be listed by status
+            (False, False, "status"),
+            # Disabled servers should be listed by status
+            (True, True, "status"),
+        ],
+    )
+    @patch("barman.server.Server.list_backups")
+    @patch("barman.server.Server.status")
+    @patch("barman.cli.get_server_list")
+    def test_commands_with_inactive_disabled_servers(
+        self,
+        mock_get_server_list,
+        mock_status,
+        mock_list_backups,
+        active,
+        disabled,
+        command,
+        monkeypatch,
+    ):
+        """
+        Test that list_backups and status commands work with inactive and disabled servers.
+
+        This verifies the fix for allowing these commands to process inactive/disabled
+        servers by passing skip_inactive=False and skip_disabled=False.
+        """
+        # GIVEN a server that is either inactive or disabled
+        monkeypatch.setattr(
+            barman,
+            "__config__",
+            build_config_from_dicts(
+                main_conf={
+                    "active": str(active).lower(),
+                    "archiver": "on",
+                }
+            ),
+        )
+        server = build_real_server({"main": barman.__config__.get_server("main")})
+
+        # Mock the server to have the expected active/disabled state
+        server.config.active = active
+        server.config.disabled = disabled
+        if disabled:
+            server.config.msg_list = ["Test error message"]
+
+        # Mock get_server_list to return our server
+        mock_get_server_list.return_value = {"main": server}
+
+        # WHEN the command is called with the server
+        args = Mock()
+        args.server_name = ["main"]
+        args.minimal = False
+        if command == "status":
+            args.target = "all"
+            args.source = "backup-host"
+
+        # Import and call the appropriate command
+        if command == "list_backups":
+            with pytest.raises(SystemExit):
+                list_backups(args)
+        else:
+            with pytest.raises(SystemExit):
+                status(args)
+
+        # THEN get_server_list was called with skip_inactive=False and skip_disabled=False
+        mock_get_server_list.assert_called_once()
+        call_args = mock_get_server_list.call_args
+        assert call_args[0][0] == args  # First positional arg is args
+        assert call_args[1].get("skip_inactive") is False
+        assert call_args[1].get("skip_disabled") is False
+
+        # AND the appropriate server method was called
+        if command == "list_backups":
+            mock_list_backups.assert_called_once()
+        else:
+            mock_status.assert_called_once()
 
     def test_get_model(self, monkeypatch):
         """
@@ -2547,7 +2632,13 @@ class TestConfigSwitchCli:
 
         config_switch(mock_args)
 
-        mock_get_server.assert_called_once_with(mock_args, skip_inactive=False)
+        mock_get_server.assert_called_once_with(
+            mock_args,
+            skip_inactive=False,
+            skip_disabled=False,
+            inactive_is_error=False,
+            disabled_is_error=False,
+        )
 
     @patch("barman.cli.get_model")
     @patch("barman.cli.get_server")
@@ -2565,7 +2656,13 @@ class TestConfigSwitchCli:
 
         config_switch(mock_args)
 
-        mock_get_server.assert_called_once_with(mock_args, skip_inactive=False)
+        mock_get_server.assert_called_once_with(
+            mock_args,
+            skip_inactive=False,
+            skip_disabled=False,
+            inactive_is_error=False,
+            disabled_is_error=False,
+        )
         mock_apply_model.assert_not_called()
         mock_reset_model.assert_not_called()
 
@@ -2584,7 +2681,13 @@ class TestConfigSwitchCli:
 
         config_switch(mock_args)
 
-        mock_get_server.assert_called_once_with(mock_args, skip_inactive=False)
+        mock_get_server.assert_called_once_with(
+            mock_args,
+            skip_inactive=False,
+            skip_disabled=False,
+            inactive_is_error=False,
+            disabled_is_error=False,
+        )
         mock_apply_model.assert_called_once_with(mock_get_model.return_value, True)
         mock_reset_model.assert_not_called()
 
@@ -2602,6 +2705,12 @@ class TestConfigSwitchCli:
 
         config_switch(mock_args)
 
-        mock_get_server.assert_called_once_with(mock_args, skip_inactive=False)
+        mock_get_server.assert_called_once_with(
+            mock_args,
+            skip_inactive=False,
+            skip_disabled=False,
+            inactive_is_error=False,
+            disabled_is_error=False,
+        )
         mock_apply_model.assert_not_called()
         mock_reset_model.assert_called_once_with()
