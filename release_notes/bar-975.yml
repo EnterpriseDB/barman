@@ -1,0 +1,17 @@
+- summary: Fix "rm execution failed" errors during restore
+  description: |
+    As a consequence of a refactoring implemented during the release of
+    version 3.15, Barman started removing the destination directory of the
+    restore operation before copying backup files. This was to ensure that
+    the files were always being copied to a clean directory.
+
+    However, when the destination directory is a mount point, or a
+    subdirectory where the user does not have sufficient permissions on its parent,
+    the removal of the directory fails, leading to errors
+    like "rm execution failed".
+
+    The issue is now fixed by avoiding the removal of the destination
+    directory for PGDATA and tablespaces on the restore final destination.
+  type: bugfix
+  jira_tickets:
+    - BAR-975
