@@ -187,7 +187,7 @@ class CloudTarUploader(object):
         return NamedTemporaryFile(delete=False, prefix="barman-upload-", suffix=".part")
 
     def __init__(
-        self, cloud_interface, key, chunk_size, compression=None, max_bandwidth=None
+        self, cloud_interface, key, chunk_size, encryption, compression=None, max_bandwidth=None
     ):
         """
         A tar archive that resides on cloud storage
@@ -195,11 +195,13 @@ class CloudTarUploader(object):
         :param CloudInterface cloud_interface: cloud interface instance
         :param str key: path inside the bucket
         :param str compression: required compression
+        :param dict encryption: encryption config, None if no encryption
         :param int chunk_size: the upload chunk size
         :param int max_bandwidth: the maximum amount of data per second that
           should be uploaded by this tar uploader
         """
         self.cloud_interface = cloud_interface
+        self.encryption_config = encryption
         self.key = key
         self.chunk_size = chunk_size
         self.max_bandwidth = max_bandwidth
@@ -223,9 +225,7 @@ class CloudTarUploader(object):
         self.stats = None
         self.time_of_last_upload = None
         self.size_of_last_upload = None
-        # TODO get the information from config
-        self.encryptor = None
-        self.encryptor = cloud_encryption.get_encryptor('XChaCha20-poly1305')
+        self.encryptor = cloud_encryption.get_encryptor(self.encryption_config) if self.encryption_config else None
 
     def write(self, buf):
         if self.buffer and self.buffer.tell() > self.chunk_size:
@@ -294,6 +294,10 @@ class CloudTarUploader(object):
     def close(self):
         if self.tar:
             self.tar.close()
+        if self.encryptor:
+            buf = self.encryptor.close()
+            self.buffer.write(buf)
+            self.size += len(buf)
         self.flush()
         self.cloud_interface.async_complete_multipart_upload(
             upload_metadata=self.upload_metadata,
@@ -310,6 +314,7 @@ class CloudUploadController(object):
         key_prefix,
         max_archive_size,
         compression,
+        encryption,
         min_chunk_size=None,
         max_bandwidth=None,
     ):
@@ -320,6 +325,7 @@ class CloudUploadController(object):
         :param str|None key_prefix: path inside the bucket
         :param int max_archive_size: the maximum size of an archive
         :param str|None compression: required compression
+        :param dict encryption: required encryption config
         :param int|None min_chunk_size: the minimum size of a single upload part
         :param int|None max_bandwidth: the maximum amount of data per second that
           should be uploaded during the backup
@@ -351,6 +357,7 @@ class CloudUploadController(object):
             possible_min_chunk_sizes.append(min_chunk_size)
         self.chunk_size = max(possible_min_chunk_sizes)
         self.compression = compression
+        self.encryption = encryption
         self.max_bandwidth = max_bandwidth
         self.tar_list = {}
 
@@ -380,6 +387,8 @@ class CloudUploadController(object):
             components.append(".bz2")
         elif self.compression == "snappy":
             components.append(".snappy")
+        if self.encryption:
+            components.append(".enc")
         return "".join(components)
 
     def _get_tar(self, name):
@@ -396,6 +405,7 @@ class CloudUploadController(object):
                     key=os.path.join(self.key_prefix, self._build_dest_name(name)),
                     chunk_size=self.chunk_size,
                     compression=self.compression,
+                    encryption=self.encryption,
                     max_bandwidth=self.max_bandwidth,
                 )
             ]
@@ -412,6 +422,7 @@ class CloudUploadController(object):
                 ),
                 chunk_size=self.chunk_size,
                 compression=self.compression,
+                encryption=self.encryption,
                 max_bandwidth=self.max_bandwidth,
             )
             self.tar_list[name].append(uploader)
@@ -1423,6 +1434,7 @@ class CloudBackup(with_metaclass(ABCMeta)):
             self.backup_info.save(file_object=backup_info_file)
             backup_info_file.seek(0, os.SEEK_SET)
             _logger.info("Uploading '%s'", key)
+            # TODO: actually encrypt this if necessary !
             self.cloud_interface.upload_fileobj(backup_info_file, key)
 
     def _check_postgres_version(self):
@@ -1537,6 +1549,7 @@ class CloudBackupUploader(CloudBackup):
         cloud_interface,
         max_archive_size,
         postgres,
+        encryption,
         compression=None,
         backup_name=None,
         min_chunk_size=None,
@@ -1566,6 +1579,7 @@ class CloudBackupUploader(CloudBackup):
         )
 
         self.compression = compression
+        self.encryption = encryption
         self.max_archive_size = max_archive_size
         self.min_chunk_size = min_chunk_size
         self.max_bandwidth = max_bandwidth
@@ -1608,6 +1622,7 @@ class CloudBackupUploader(CloudBackup):
             key_prefix,
             self.max_archive_size,
             self.compression,
+            self.encryption,
             self.min_chunk_size,
             self.max_bandwidth,
         )

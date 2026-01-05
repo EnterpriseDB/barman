@@ -16,12 +16,19 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
+import io
+import logging
+import json
+import base64
+import struct
 
 from abc import ABCMeta, abstractmethod
 
-from barman.encryption import _try_import_crypto
+from barman.encryption import _try_import_cryptoCipherChaCha20Poly1305
 from barman.utils import with_metaclass
 
+_logger = logging.getLogger(__name__)
 
 class ChunkedEncryptor(with_metaclass(ABCMeta, object)):
     """
@@ -67,8 +74,20 @@ class XChaCha20Poly1305Encryptor(ChunkedEncryptor):
     A ChunkedEncryptor implementation based on pycryptodome
     """
 
-    def __init__(self):
-        crypto = _try_import_crypto()
+    def __init__(self,config):
+        self._logger = logging.getLogger(self.__class__.__name__)
+        self._logger.debug('init XChaCha20Poly1305Encryptor')
+        self.cryptoCipherChaCha20Poly1305 = _try_import_cryptoCipherChaCha20Poly1305()
+        self.encryptionKey = None
+        if 'key256b64' in config:
+            self.encryptionKey = base64.b64decode(config['key256b64'])
+        else:
+            raise KeyError('XChaCha20Poly1305Encryptor config must contain a key256b64 key')
+
+        if len(self.encryptionKey) != 32:
+            raise ValueError(f'XChaCha20Poly1305Encryptor needs a 256 bit key, got {len(self.encryptionKey)*8} bit')
+
+        self.encryptor = None
 
     def add_chunk(self, data):
         """
@@ -78,7 +97,30 @@ class XChaCha20Poly1305Encryptor(ChunkedEncryptor):
         :return: The encrypted data
         :rtype: bytes
         """
-        return data
+        #self._logger.debug(f'add chunk {len(data)}')
+
+        ret = b'' # data to return
+        header = { 'cipher': 'XChaCha20-poly1305' }
+
+        # an encrypted file is of the form
+        # PGBARMAN<headerlength:UINT16 LE><header in compact json><nonce 256bit><data><hmac>
+        if not self.encryptor: # this is the first chunk and encryption hasnt started
+            self._logger.info('initializing XChaCha20-poly1305 encryptor')
+            magic = 'PGBARMAN'.encode('ascii')
+            jsonHeader = json.dumps(header,ensure_ascii=True,separators=(',',':')).encode('ascii')
+            headerlength = struct.pack('<H',len(jsonHeader)) # UINT16 LE
+            nonce = os.urandom(24)
+
+            self.encryptor = self.cryptoCipherChaCha20Poly1305.new(
+                key=self.encryptionKey,
+                nonce=nonce)
+
+            ret += magic + headerlength + jsonHeader + nonce
+
+        ret += data
+        self.encryptor.update(ret)
+
+        return ret
 
     def close(self):
         """
@@ -87,7 +129,9 @@ class XChaCha20Poly1305Encryptor(ChunkedEncryptor):
         :return: closing data for the encryption stream
         :rtype: bytes
         """
-        return b''
+        self._logger.info('writing signature (digest/hmac) to encrypted file')
+
+        return self.encryptor.digest()
 
     def decrypt(self, data):
         """
@@ -106,29 +150,45 @@ def get_encryptor(encryption):
     Helper function which returns a ChunkedEncryptor for the specified encryption
     algorithm.
 
-    :param str encryption: The encryption algorithm to use.
+    :param dict encryption: the encryption configuration
     :return: A ChunkedEncryptor capable of enrypting and decrypting using the
       specified encryption.
     :rtype: ChunkedEncryptor
     """
-    if encryption == "XChaCha20-poly1305":
-        return XChaCha20Poly1305Encryptor()
+    if 'cipher' in encryption:
+        if encryption['cipher'] == "XChaCha20-poly1305":
+            return XChaCha20Poly1305Encryptor(config=encryption)
     return None
 
 
-def encrypt(wal_file, encryption):
+def encrypt(infile, encryption):
     """
-    Encryptes the supplied *wal_file* and returns a file-like object containing the
+    Encryptes the supplied *file-like object* and returns a file-like object containing the
     encrypted data.
 
-    :param IOBase wal_file: A file-like object containing the WAL file data.
-    :param str encryption: The encryption algorithm to apply. Currently only
-      ``XChaCha20-poly1305`` is supported.
+    :param IOBase infile: A file-like object containing the WAL file data.
+    :param dict encryption: The encryption config
     :return: The encrypted data
     :rtype: BytesIO
     """
-    encryptor = get_internal_encryptor(encryption, encryption_level)
-    return encryptor.compress_in_mem(wal_file)
+    ret = io.BytesIO()
+    encryptor = get_encryptor(encryption)
+    chunksize = 64*1024
+    # do an empty write so the encryption is properly initialized
+    # this is necessary so an empty file gets a proper header and hmac
+    ret.write(encryptor.add_chunk(b''))
+    # start reading data
+    chunk = infile.read(chunksize)
+    while chunk:
+        ret.write(encryptor.add_chunk(chunk))
+        chunk = infile.read(chunksize)
+    # write closing data
+    ret.write(encryptor.close())
+
+    # set the stream for reading
+    ret.seek(0)
+
+    return ret
 
 
 def decrypts_to_file(blob, dest_file, encryption):

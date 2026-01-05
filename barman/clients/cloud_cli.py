@@ -18,6 +18,7 @@
 
 import argparse
 import csv
+import json
 import logging
 
 import barman
@@ -213,3 +214,15 @@ def create_argument_parser(description, source_or_destination=UrlArgumentType.so
         dest="azure_credential",
     )
     return parser, s3_arguments, azure_arguments
+
+def get_encryption_config(filename):
+    """Try to load a json with the encryption parameters from <filename> """
+    ret = None
+    try:
+        with open(filename,'r') as f:
+            _logger.info(f'reading client-encryption config file {filename}')
+            ret = json.load(f)
+    except FileNotFoundError:
+        _logger.info(f'client-encryption config file {filename} not found')
+
+    return ret
