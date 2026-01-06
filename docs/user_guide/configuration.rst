@@ -976,6 +976,12 @@ and ``custom``.
     The ``pygzip`` and ``pybzip2`` compression options are deprecated and will be
     removed in a future release. Use their equivalents ``gzip`` and ``bzip2`` instead.
 
+.. deprecated:: 3.17
+    The ``custom`` compression option and related configuration options
+    (``custom_compression_filter``, ``custom_decompression_filter``, and
+    ``custom_compression_magic``) are deprecated and will be removed in a future
+    release. Use one of the built-in compression algorithms instead.
+
 .. note::
   All of these options require the module to be installed in the location where the
   compression will occur.
@@ -990,6 +996,9 @@ and ``custom``.
 
 Scope: Global / Server / Model.
 
+.. deprecated:: 3.17
+    This configuration option is deprecated and will be removed in a future release.
+
 **custom_compression_filter**
 
 Specifies a custom compression algorithm for WAL files. It must be a ``string`` that
@@ -1003,6 +1012,9 @@ files.
   This is the same as running ``xz -c > "$2" < "$1";``.
 
 Scope: Global / Server / Model.
+
+.. deprecated:: 3.17
+    This configuration option is deprecated and will be removed in a future release.
 
 **custom_compression_magic**
 
@@ -1031,6 +1043,9 @@ apply custom compression to all WAL files, even those pre-compressed.
   Reference: `xz-file-format <https://tukaani.org/xz/xz-file-format-1.0.4.txt>`_
 
 Scope: Global / Server / Model.
+
+.. deprecated:: 3.17
+    This configuration option is deprecated and will be removed in a future release.
 
 **custom_decompression_filter**
 
