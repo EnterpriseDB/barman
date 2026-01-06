@@ -1,0 +1,24 @@
+---
+- summary: Deprecate custom compression for WAL files
+  description: |
+    The `custom` compression option and its related configuration options
+    (`custom_compression_filter`, `custom_decompression_filter`, and
+    `custom_compression_magic`) have been deprecated and will be removed in a
+    future release.
+
+    Users currently using custom compression are advised to migrate to one of the
+    built-in compression algorithms supported by Barman: `gzip`, `bzip2`, `lz4`,
+    `xz`, `zstd`, or `pigz`.
+
+    The custom compression feature was designed to provide flexibility for users
+    with specific compression requirements, but maintaining compatibility with
+    arbitrary external compression tools has proven to be complex and error-prone.
+    The built-in compression options provide better performance, reliability, and
+    maintainability.
+
+    Existing configurations using custom compression will continue to work in the
+    current release, but users should plan to migrate their configurations before
+    the feature is removed.
+  type: notable_change
+  jira_tickets:
+    - BAR-993
