@@ -1055,6 +1055,7 @@ class ServerConfig(BaseConfig):
             for key in self.KEYS
             if key not in {"config", "_active_model_file", "active_model"}
         }
+        json_dict["name"] = self.name
 
         # options that are override by the model
         override_options = set()

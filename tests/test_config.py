@@ -1119,7 +1119,6 @@ class TestServerConfig(object):
             "config_changes_queue",
             "lock_directory_cleanup",
             "msg_list",
-            "name",
         ]:
             del expected[key]
 
