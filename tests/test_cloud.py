@@ -4668,13 +4668,20 @@ class TestS3ObjectLock(object):
             yield interface
 
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
-    def test_check_object_lock_with_retention(self, boto_mock, s3_cloud_interface):
+    @mock.patch("barman.cloud_providers.aws_s3.datetime")
+    def test_check_object_lock_with_retention(
+        self, mock_datetime, boto_mock, s3_cloud_interface
+    ):
         """Test _check_object_lock detects time-based retention locks."""
         # Mock the head_object response with retention
         retain_date = datetime.datetime(2025, 12, 31, 23, 59, 59)
         s3_cloud_interface.s3.meta.client.head_object.return_value = {
             "ObjectLockRetainUntilDate": retain_date,
         }
+
+        # Mock datetime.now to return a time before the retention date
+        mock_now = datetime.datetime(2025, 6, 1, 0, 0, 0)
+        mock_datetime.now.return_value = mock_now
 
         is_locked, reason = s3_cloud_interface._check_object_lock("test-key")
 
