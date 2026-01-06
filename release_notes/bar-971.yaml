@@ -1,0 +1,14 @@
+- summary: Fix passive node not syncing
+  description: |
+    In Barman 3.16 the "name" field was removed from the "config" key of
+    the `barman diagnose` command. Turns out the same "config" data is also
+    used when syncing a passive node, and the absence of the "name" field
+    caused the sync to fail.
+
+    This change adds back the "name" field to the "config" key, fixing
+    the sync of passive nodes.
+
+    Reported in GitHub issue #1125.
+  type: bugfix
+  jira_tickets:
+    - BAR-971
