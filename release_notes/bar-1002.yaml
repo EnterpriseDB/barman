@@ -1,0 +1,10 @@
+- summary: Fix delta restore not working
+  description: |
+    The delta restore feature was not functioning correctly due to an oversight
+    where Barman was removing the destination directory before performing a restore.
+    The problem was fixed by avoiding the removal of the destination directory on
+    certain operations.
+    Reported in GitHub issue #1139.
+  type: bugfix
+  jira_tickets:
+    - BAR-1002
