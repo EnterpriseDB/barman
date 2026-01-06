@@ -308,6 +308,13 @@ def parse_arguments(args=None):
         const="snappy",
         dest="compression",
     )
+    compression.add_argument(
+        "--lz4",
+        help="lz4-compress the backup while uploading to the cloud",
+        action="store_const",
+        const="lz4",
+        dest="compression",
+    )
     parser.add_argument(
         "-h",
         "--host",

@@ -294,6 +294,14 @@ class CloudTarUploader(object):
     def close(self):
         if self.tar:
             self.tar.close()
+        # Flush any remaining compressed data (e.g., lz4 frame end marker)
+        if self.compressor:
+            final_bytes = self.compressor.flush()
+            if final_bytes:
+                if not self.buffer:
+                    self.buffer = self._buffer()
+                self.buffer.write(final_bytes)
+                self.size += len(final_bytes)
         self.flush()
         self.cloud_interface.async_complete_multipart_upload(
             upload_metadata=self.upload_metadata,
@@ -380,6 +388,8 @@ class CloudUploadController(object):
             components.append(".bz2")
         elif self.compression == "snappy":
             components.append(".snappy")
+        elif self.compression == "lz4":
+            components.append(".lz4")
         return "".join(components)
 
     def _get_tar(self, name):
@@ -2345,6 +2355,8 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
                         info.compression = "bzip2"
                     elif ext == "tar.snappy":
                         info.compression = "snappy"
+                    elif ext == "tar.lz4":
+                        info.compression = "lz4"
                     else:
                         _logger.warning("Skipping unknown extension: %s", ext)
                         continue
