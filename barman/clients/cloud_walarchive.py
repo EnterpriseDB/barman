@@ -308,8 +308,6 @@ class CloudWalUploader(object):
         """
         # Extract the WAL file
         wal_name = self.retrieve_wal_name(wal_path)
-        # Use the correct file object for the upload (simple|gzip|bz2)
-        file_object = self.retrieve_file_obj(wal_path)
         # Correctly format the destination path
         destination = os.path.join(
             self.cloud_interface.path,
@@ -319,11 +317,14 @@ class CloudWalUploader(object):
             wal_name,
         )
 
-        # Put the file in the correct bucket.
-        # The put method will handle automatically multipart upload
-        self.cloud_interface.upload_fileobj(
-            fileobj=file_object, key=destination, override_tags=override_tags
-        )
+        # Use the correct file object for the upload (simple|gzip|bz2)
+        file_object = self.retrieve_file_obj(wal_path)
+        with closing(file_object):
+            # Put the file in the correct bucket.
+            # The put method will handle automatically multipart upload
+            self.cloud_interface.upload_fileobj(
+                fileobj=file_object, key=destination, override_tags=override_tags
+            )
 
     def retrieve_file_obj(self, wal_path):
         """
@@ -339,6 +340,8 @@ class CloudWalUploader(object):
         This could change in the future because the WAL files dimension could
         be more than 16MB on some postgres install.
 
+        NOTE: caller is responsible for closing the returned file object.
+
         TODO: Evaluate using tempfile if the WAL is bigger than 16MB
 
         :param str wal_path:
@@ -350,7 +353,8 @@ class CloudWalUploader(object):
         if not self.compression:
             return wal_file
 
-        return compress(wal_file, self.compression, self.compression_level)
+        with closing(wal_file):
+            return compress(wal_file, self.compression, self.compression_level)
 
     def retrieve_wal_name(self, wal_path):
         """
