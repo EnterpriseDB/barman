@@ -182,9 +182,13 @@ class CloudTarUploader(object):
     # This is the method we use to create new buffers
     # We use named temporary files, so we can pass them by name to
     # other processes
-    _buffer = partial(
-        NamedTemporaryFile, delete=False, prefix="barman-upload-", suffix=".part"
-    )
+    # 20251223 pvbiesen: partial broke in 3.14, this could fix it with staticmethod :
+    #_buffer = staticmethod(partial(
+    #    NamedTemporaryFile, delete=False, prefix="barman-upload-", suffix=".part"
+    #))
+    # 20251223 pvbiesen: or, just for readability :
+    def _buffer(self):
+      return NamedTemporaryFile(delete=False, prefix="barman-upload-", suffix=".part")
 
     def __init__(
         self, cloud_interface, key, chunk_size, compression=None, max_bandwidth=None
