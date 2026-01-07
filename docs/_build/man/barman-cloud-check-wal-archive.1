@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CLOUD-CHECK-WAL-ARCHIVE" "1" "Oct 02, 2025" "3.16" "Barman"
+.TH "BARMAN-CLOUD-CHECK-WAL-ARCHIVE" "1" "Jan 07, 2026" "3.17" "Barman"
 .SH NAME
 barman-cloud-check-wal-archive \- Barman-cloud Commands
 .sp
@@ -59,6 +59,18 @@ barman\-cloud\-check\-wal\-archive
 Verify that the WAL archive destination for a server is suitable for use with a new
 Postgres cluster. By default, the check will succeed if the WAL archive is empty or if
 the target bucket is not found. Any other conditions will result in a failure.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+The \fBbarman\-cloud\-check\-wal\-archive\fP command performs an initial \fBHeadBucket\fP call
+to verify whether the target bucket already exists in the S3 storage. If the bucket
+does not exist, the command will attempt to automatically create it.
+.sp
+This is the only Barman command that performs these operations (bucket existence check
+and automatic creation).
+.UNINDENT
+.UNINDENT
 .sp
 \fBNOTE:\fP
 .INDENT 0.0
