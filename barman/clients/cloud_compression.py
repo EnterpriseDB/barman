@@ -19,7 +19,11 @@
 
 from abc import ABCMeta, abstractmethod
 
-from barman.compression import _try_import_snappy, get_internal_compressor
+from barman.compression import (
+    _try_import_lz4,
+    _try_import_snappy,
+    get_internal_compressor,
+)
 from barman.utils import with_metaclass
 
 
@@ -48,6 +52,19 @@ class ChunkedCompressor(with_metaclass(ABCMeta, object)):
         :return: The decompressed data
         :rtype: bytes
         """
+
+    def flush(self):
+        """
+        Flushes any remaining compressed data and returns the final bytes.
+
+        This method should be called after all data has been compressed with
+        add_chunk() to ensure any buffered data and end markers are written.
+        The default implementation returns an empty bytes object.
+
+        :return: Any remaining compressed data
+        :rtype: bytes
+        """
+        return b""
 
 
 class SnappyCompressor(ChunkedCompressor):
@@ -82,20 +99,89 @@ class SnappyCompressor(ChunkedCompressor):
         return self.decompressor.decompress(data)
 
 
+class Lz4Compressor(ChunkedCompressor):
+    """
+    A ChunkedCompressor implementation based on lz4.
+
+    Uses lz4.frame for streaming compression and decompression. The compressor
+    maintains state across add_chunk() calls and requires flush() to be called
+    at the end to write the frame end marker.
+    """
+
+    def __init__(self):
+        lz4 = _try_import_lz4()
+        self._lz4_frame = lz4.frame
+        self._compressor = None
+        self._decompressor = None
+        self._started = False
+        self._flushed = False
+
+    def add_chunk(self, data):
+        """
+        Compresses the supplied data and returns the compressed bytes.
+
+        On the first call, this initializes the lz4 frame and writes the header.
+        Subsequent calls compress additional data within the same frame.
+
+        :param bytes data: The chunk of data to be compressed
+        :return: The compressed data
+        :rtype: bytes
+        """
+        if self._compressor is None:
+            self._compressor = self._lz4_frame.LZ4FrameCompressor(auto_flush=True)
+
+        if not self._started:
+            self._started = True
+            return self._compressor.begin() + self._compressor.compress(data)
+        return self._compressor.compress(data)
+
+    def decompress(self, data):
+        """
+        Decompresses the supplied chunk of data and returns the uncompressed data.
+
+        The LZ4FrameDecompressor handles streaming decompression and buffering
+        of partial frames automatically.
+
+        :param bytes data: The chunk of data to be decompressed
+        :return: The decompressed data
+        :rtype: bytes
+        """
+        if self._decompressor is None:
+            self._decompressor = self._lz4_frame.LZ4FrameDecompressor()
+        return self._decompressor.decompress(data)
+
+    def flush(self):
+        """
+        Flushes any remaining data and returns the frame end marker.
+
+        This must be called after all data has been compressed to ensure the
+        lz4 frame is properly terminated. Subsequent calls return empty bytes.
+
+        :return: The frame end marker bytes
+        :rtype: bytes
+        """
+        if self._compressor is not None and self._started and not self._flushed:
+            self._flushed = True
+            return self._compressor.flush()
+        return b""
+
+
 def get_compressor(compression):
     """
     Helper function which returns a ChunkedCompressor for the specified compression
-    algorithm. Currently only snappy is supported. The other compression algorithms
+    algorithm. Snappy and lz4 are supported. The other compression algorithms
     supported by barman cloud use the decompression built into TarFile.
 
-    :param str compression: The compression algorithm to use. Can be set to snappy
-      or any compression supported by the TarFile mode string.
+    :param str compression: The compression algorithm to use. Can be set to snappy,
+      lz4, or any compression supported by the TarFile mode string.
     :return: A ChunkedCompressor capable of compressing and decompressing using the
       specified compression.
     :rtype: ChunkedCompressor
     """
     if compression == "snappy":
         return SnappyCompressor()
+    if compression == "lz4":
+        return Lz4Compressor()
     return None
 
 
@@ -107,12 +193,13 @@ def get_streaming_tar_mode(mode, compression):
     ignored so that barman-cloud can apply them itself.
 
     :param str mode: The file mode to use, either r or w.
-    :param str compression: The compression algorithm to use. Can be set to snappy
-      or any compression supported by the TarFile mode string.
+    :param str compression: The compression algorithm to use. Can be set to snappy,
+      lz4, or any compression supported by the TarFile mode string.
     :return: The full filemode for a streaming tar file
     :rtype: str
     """
-    if compression == "snappy" or compression is None:
+    # Compression algorithms that require manual handling (not built into TarFile)
+    if compression in ("snappy", "lz4") or compression is None:
         return "%s|" % mode
     else:
         return "%s|%s" % (mode, compression)
