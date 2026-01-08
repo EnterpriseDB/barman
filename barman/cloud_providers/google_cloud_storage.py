@@ -134,7 +134,7 @@ class GoogleCloudInterface(CloudInterface):
         client_options = None
         universe_domain = os.getenv("GOOGLE_CLOUD_UNIVERSE_DOMAIN")
         if universe_domain:
-            client_options={"universe_domain": universe_domain}
+            client_options = {"universe_domain": universe_domain}
 
         self.client = storage.Client(client_options=client_options)
         self.container_client = self.client.bucket(self.bucket_name)

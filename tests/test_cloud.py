@@ -2658,7 +2658,9 @@ class TestGoogleCloudInterface(TestCase):
         container_client_mock.exists.side_effect = GoogleAPIError("error")
         assert cloud_interface.test_connectivity() is False
 
-    @mock.patch.dict(os.environ, {"GOOGLE_CLOUD_UNIVERSE_DOMAIN": "custom.universe.domain"})
+    @mock.patch.dict(
+        os.environ, {"GOOGLE_CLOUD_UNIVERSE_DOMAIN": "custom.universe.domain"}
+    )
     @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
     def test_universe_domain_from_environment(self, gcs_client_mock):
         """
@@ -2677,7 +2679,10 @@ class TestGoogleCloudInterface(TestCase):
 
         # AND the cloud interface should be properly initialized
         assert cloud_interface.client == gcs_client_mock.return_value
-        assert cloud_interface.container_client == gcs_client_mock.return_value.bucket.return_value
+        assert (
+            cloud_interface.container_client
+            == gcs_client_mock.return_value.bucket.return_value
+        )
 
     @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
     def test_no_universe_domain_environment(self, gcs_client_mock):
@@ -2695,7 +2700,10 @@ class TestGoogleCloudInterface(TestCase):
 
         # AND the cloud interface should be properly initialized
         assert cloud_interface.client == gcs_client_mock.return_value
-        assert cloud_interface.container_client == gcs_client_mock.return_value.bucket.return_value
+        assert (
+            cloud_interface.container_client
+            == gcs_client_mock.return_value.bucket.return_value
+        )
 
     @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
     def test_setup_bucket(self, gcs_client_mock):
