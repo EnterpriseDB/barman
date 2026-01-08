@@ -2702,6 +2702,53 @@ class TestGoogleCloudInterface(TestCase):
         container_client_mock.exists.side_effect = GoogleAPIError("error")
         assert cloud_interface.test_connectivity() is False
 
+    @mock.patch.dict(
+        os.environ, {"GOOGLE_CLOUD_UNIVERSE_DOMAIN": "custom.universe.domain"}
+    )
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_universe_domain_from_environment(self, gcs_client_mock):
+        """
+        Test that the universe domain is properly loaded from GOOGLE_CLOUD_UNIVERSE_DOMAIN
+        environment variable and passed to the storage client
+        """
+        # GIVEN a GoogleCloudInterface instance is created
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-test/test"
+        )
+
+        # THEN the storage.Client should be called with the universe_domain in client_options
+        gcs_client_mock.assert_called_once_with(
+            client_options={"universe_domain": "custom.universe.domain"}
+        )
+
+        # AND the cloud interface should be properly initialized
+        assert cloud_interface.client == gcs_client_mock.return_value
+        assert (
+            cloud_interface.container_client
+            == gcs_client_mock.return_value.bucket.return_value
+        )
+
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_no_universe_domain_environment(self, gcs_client_mock):
+        """
+        Test that when GOOGLE_CLOUD_UNIVERSE_DOMAIN is not set, the storage client
+        is created without client_options
+        """
+        # GIVEN a GoogleCloudInterface instance is created without universe domain env var
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-test/test"
+        )
+
+        # THEN the storage.Client should be called with client_options=None
+        gcs_client_mock.assert_called_once_with(client_options=None)
+
+        # AND the cloud interface should be properly initialized
+        assert cloud_interface.client == gcs_client_mock.return_value
+        assert (
+            cloud_interface.container_client
+            == gcs_client_mock.return_value.bucket.return_value
+        )
+
     @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
     def test_setup_bucket(self, gcs_client_mock):
         """
