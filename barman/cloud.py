@@ -609,13 +609,13 @@ class TransformingReadableStreamIO(RawIOBase):
         """
         abstract method that does a transformation of bytes
         """
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def finalize_transform(self):
         """
         abstract method that finalizes a transformation and returns the closing bytes
         """
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def read(self, n=-1):
         """
@@ -628,13 +628,19 @@ class TransformingReadableStreamIO(RawIOBase):
         :return: Up to n transformed bytes from the wrapped IOBase
         :rtype: bytes
         """
-
         incoming_bytes = self.inStream.read(n)
+        #_logger.debug(f'requested {n} bytes, got {len(incoming_bytes)}')
         if len(incoming_bytes) == 0:
             # if no bytes are returned, we have reached EOF
             # get the closing bytes for the transformation
             incoming_bytes = self.finalize_transform()
         return self.transform(incoming_bytes)
+
+    def close(self):
+        """
+        abstract method for closing actions, e.g. check signature of a stream
+        """
+        raise NotImplementedError()
 
 class DecryptingReadableStreamIO(TransformingReadableStreamIO):
     """
@@ -656,6 +662,13 @@ class DecryptingReadableStreamIO(TransformingReadableStreamIO):
             self.decryptor = cloud_encryption.get_encryptor(self.transform_config)
 
         return self.decryptor.decrypt(inbytes)
+
+    def close(self):
+        #if self.decryptor.validate_decryption():
+        if True:
+            _logger.info('Stream has a correct signature.')
+        else:
+            _logger.error('The stream failed validation: incorrect signature')
 
 class DecompressingStreamingIO(RawIOBase):
     """

@@ -101,6 +101,12 @@ class ChunkedEncryptor(with_metaclass(ABCMeta, object)):
         :rtype: bytes
         """
 
+    @abstractmethod
+    def validate_decryption(self):
+        """
+        Check the signature of the decrypted stream. Returns True of False.
+        """
+
 
 class XChaCha20Poly1305Encryptor(ChunkedEncryptor):
     """
@@ -124,6 +130,7 @@ class XChaCha20Poly1305Encryptor(ChunkedEncryptor):
 
         self.encryptor = None
         self.decryptor = None
+        self.final16 = b'' # see the decrypt method for more information
 
     def add_chunk(self, data):
         """
@@ -193,21 +200,35 @@ class XChaCha20Poly1305Encryptor(ChunkedEncryptor):
                 nonce=nonce)
             # we need to update with the plain header
             self.decryptor.update(data[:encHeader.dataoffset+24])
-            ret = self.decryptor.decrypt(data[encHeader.dataoffset+24:])
-        else:
-            ret = self.decryptor.decrypt(data)
+            # remove the header from the data
+            data = data[encHeader.dataoffset+24:]
+
+        # we don't know it this is the last datachunk, so we keep the last 16 bytes
+        # which *could* be the signature.
+        # first, add the final16 back to the data - these were clearly not the signature
+        data = self.final16 + data
+        # take the final 16 from this data, maybe these are the final ones
+        self.final16 = data[-16:]
+        data = data[:-16]
+        # now decrypt the data
+        ret = self.decryptor.decrypt(data)
 
         return ret
 
-class genericStreamingDecryptor:
-    """
-    Generic decryptor, morphing into a specific Encryptor when the header is read
-    and the cipher is known.
-    Implements the write() method for streaming tar usage
-    """
+    def validate_decryption(self):
+        """
+        Check if the last 16 bytes of data we put aside, matches the calculated hmac of the stream
 
-    def __init__(self,fd):
-      pass
+        Possible problem : if the stream was used by tarfile, it will not read the complete stream.
+        An extreme edgecase would be when the tar data exactly coincides with the end of a chunk.
+        In that case, we do not have the final16.
+        """
+        try:
+            self.decryptor.verify(self.final16)
+            return True
+        except ValueError as e:
+            _logger.error(f'ValueError on decryption verify: {str(e)}')
+            return False
 
 def get_encryptor(encryption):
     """
