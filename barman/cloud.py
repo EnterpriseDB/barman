@@ -589,6 +589,73 @@ class FileUploadStatistics(dict):
         part = self["parts"].setdefault(part_number, {"part_number": part_number})
         part["start_time"] = start_time
 
+class TransformingReadableStreamIO(RawIOBase):
+    """
+    Generalisation of a streaming transformation, reading from an file-like object
+    """
+
+    def __init__(self, inStream, transform_config):
+        """
+        Creating a transforming streamer, reading from inStream, writing to outStream
+        in chunks of chunkSize.
+
+        :param IOBase inStream: stream to read() from
+        :param dict transform_config: configuration for the transformation
+        """
+        self.inStream = inStream
+        self.transform_config = transform_config
+
+    def transform(self, inbytes):
+        """
+        abstract method that does a transformation of bytes
+        """
+        raise NotImplemented()
+
+    def finalize_transform(self):
+        """
+        abstract method that finalizes a transformation and returns the closing bytes
+        """
+        raise NotImplemented()
+
+    def read(self, n=-1):
+        """
+        Read up to n bytes of data from the wrapped IOBase.
+        When EOF is reached, no bytes ( b'' ) are returned.
+        None will not be returned.
+        Ref: https://docs.python.org/3/library/io.html#io.RawIOBase.read
+
+        :param int n: The number of bytes requested
+        :return: Up to n transformed bytes from the wrapped IOBase
+        :rtype: bytes
+        """
+
+        incoming_bytes = self.inStream.read(n)
+        if len(incoming_bytes) == 0:
+            # if no bytes are returned, we have reached EOF
+            # get the closing bytes for the transformation
+            incoming_bytes = self.finalize_transform()
+        return self.transform(incoming_bytes)
+
+class DecryptingReadableStreamIO(TransformingReadableStreamIO):
+    """
+    TransformingReadableStreamIO doing decryption
+
+    transform_config should contain the info from the client_encryption.json
+    """
+    # cipher and key must be discovered from the header of the encrypted data
+    cipher = None
+    key = None
+
+    def transform(self, inbytes):
+        #breakpoint()
+        if not self.cipher:
+            header = cloud_encryption.EncryptionHeader(inbytes)
+            self.cipher = header.headerdict['cipher']
+            # TODO we should check if the information in the header matches with the
+            # one in the config - for the moment, assume they're ok
+            self.decryptor = cloud_encryption.get_encryptor(self.transform_config)
+
+        return self.decryptor.decrypt(inbytes)
 
 class DecompressingStreamingIO(RawIOBase):
     """
@@ -1079,18 +1146,29 @@ class CloudInterface(with_metaclass(ABCMeta)):
             self._create_bucket()
             self.bucket_exists = True
 
-    def extract_tar(self, key, dst):
+    def extract_tar(self, key, dst, encryption_config=None):
         """
         Extract a tar archive from cloud to the local directory
 
         :param str key: The key identifying the tar archive
         :param str dst: Path of the directory into which the tar archive should
           be extracted
+        :param dict encryption_config: client-encryption config
         """
-        extension = os.path.splitext(key)[-1]
+        fileobj = self.remote_open(key)
+        (keyremainder,extension) = os.path.splitext(key)
+        if extension == '.enc':
+            fileobj = DecryptingReadableStreamIO(inStream=fileobj,
+                                                 transform_config=encryption_config)
+            extension = os.path.splitext(keyremainder)[-1]
+
         compression = "" if extension == ".tar" else extension[1:]
         tar_mode = cloud_compression.get_streaming_tar_mode("r", compression)
-        fileobj = self.remote_open(key, cloud_compression.get_compressor(compression))
+        compressor = cloud_compression.get_compressor(compression)
+        # get_compressor returns None if decompression can be handled by tar
+        if compressor:
+            fileobj = DecompressingStreamingIO(fileobj, compressor)
+
         with tarfile.open(fileobj=fileobj, mode=tar_mode) as tf:
             tf.extractall(path=dst)
 
@@ -2100,11 +2178,12 @@ class CloudBackupSnapshot(CloudBackup):
 
 
 class BackupFileInfo(object):
-    def __init__(self, oid=None, base=None, path=None, compression=None):
+    def __init__(self, oid=None, base=None, path=None, compression=None, encryption=None):
         self.oid = oid
         self.base = base
         self.path = path
         self.compression = compression
+        self.encryption = encryption
         self.additional_files = []
 
 
@@ -2351,18 +2430,24 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
                     else:
                         info = backup_file
                         ext = suffix[1:]
-                    # Infer the compression from the file extension
-                    if ext == "tar":
-                        info.compression = None
-                    elif ext == "tar.gz":
-                        info.compression = "gzip"
-                    elif ext == "tar.bz2":
-                        info.compression = "bzip2"
-                    elif ext == "tar.snappy":
-                        info.compression = "snappy"
-                    else:
-                        _logger.warning("Skipping unknown extension: %s", ext)
-                        continue
+                    # Infer the compression and encryption from the file extension
+                    info.compression = None
+                    info.encryption = None
+                    for extpart in ext.split('.'):
+                        _logger.debug(f'handling part "{extpart}" from extension {ext}')
+                        if extpart == "tar":
+                            pass
+                        elif extpart == "gz":
+                            info.compression = "gzip"
+                        elif extpart == "bz2":
+                            info.compression = "bzip2"
+                        elif extpart == "snappy":
+                            info.compression = "snappy"
+                        elif extpart == "enc":
+                            info.encryption = True
+                        else:
+                            _logger.warning("Skipping unknown extension: %s", ext)
+                            continue
                     info.path = item
                     _logger.info(
                         "Found file from backup '%s' of server '%s': %s",

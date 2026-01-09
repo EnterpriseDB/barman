@@ -388,7 +388,7 @@ class CloudWalUploader(object):
         ret = os.path.basename(wal_path)
 
         compressionExtensionMap = {
-            "gzip": "gz", "bzip2": "bz2", "xz": "xz", "snappy": "snappy", 
+            "gzip": "gz", "bzip2": "bz2", "xz": "xz", "snappy": "snappy",
             "zstd": "zst", "lz4": "lz4" }
 
         if self.compression and self.compression in compressionExtensionMap:

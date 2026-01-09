@@ -25,6 +25,7 @@ from barman.clients.cloud_cli import (
     GeneralErrorExit,
     OperationErrorExit,
     create_argument_parser,
+    get_encryption_config,
 )
 from barman.cloud import CloudBackupCatalog, configure_logging
 from barman.cloud_providers import (
@@ -77,6 +78,9 @@ def main(args=None):
 
     try:
         cloud_interface = get_cloud_interface(config)
+
+        # get the client-encryption config
+        encryption_config = get_encryption_config(config.client_encryption)
 
         with closing(cloud_interface):
             # Do connectivity test if requested
@@ -148,7 +152,8 @@ def main(args=None):
                     config.snapshot_recovery_instance,
                 )
             else:
-                downloader = CloudBackupDownloaderObjectStore(cloud_interface, catalog)
+                downloader = CloudBackupDownloaderObjectStore(cloud_interface, catalog,
+                                            encryption_config=encryption_config)
                 downloader.download_backup(
                     backup_info,
                     config.recovery_dir,
@@ -179,6 +184,12 @@ def parse_arguments(args=None):
     )
     parser.add_argument("backup_id", help="the backup ID")
     parser.add_argument("recovery_dir", help="the path to a directory for recovery.")
+    parser.add_argument(
+        "--client-encryption",
+        help="path to the client-encryption config file"
+        "(default: /etc/barman/client-encryption.json)",
+        default='/etc/barman/client-encryption.json',
+    )
     parser.add_argument(
         "--tablespace",
         help="tablespace relocation rule",
@@ -252,7 +263,7 @@ class CloudBackupDownloader(with_metaclass(ABCMeta)):
     Restore a backup from cloud storage.
     """
 
-    def __init__(self, cloud_interface, catalog):
+    def __init__(self, cloud_interface, catalog, encryption_config=None):
         """
         Object responsible for handling interactions with cloud storage
 
@@ -260,9 +271,11 @@ class CloudBackupDownloader(with_metaclass(ABCMeta)):
           upload the backup
         :param str server_name: The name of the server as configured in Barman
         :param CloudBackupCatalog catalog: The cloud backup catalog
+        :param dict encryption_config: client-encryption config
         """
         self.cloud_interface = cloud_interface
         self.catalog = catalog
+        self.encryption_config = encryption_config
 
     @abstractmethod
     def download_backup(self, backup_id, destination_dir):
@@ -285,6 +298,7 @@ class CloudBackupDownloaderObjectStore(CloudBackupDownloader):
 
         :param BackupInfo backup_info: The backup info for the backup to restore
         :param str destination_dir: Path to the destination directory
+        :param list tablespaces: TODO help message
         """
         # Validate the destination directory before starting recovery
         if os.path.exists(destination_dir) and os.listdir(destination_dir):
@@ -346,7 +360,7 @@ class CloudBackupDownloaderObjectStore(CloudBackupDownloader):
         for file_info, target_dir in copy_jobs:
             # Download the file
             _logger.debug(
-                "Extracting %s to %s (%s)",
+                "Extracting %s to %s (%s/%s)",
                 file_info.path,
                 target_dir,
                 (
@@ -354,8 +368,14 @@ class CloudBackupDownloaderObjectStore(CloudBackupDownloader):
                     if file_info.compression
                     else "no compression"
                 ),
+                (
+                    "decrypting"
+                    if file_info.encryption
+                    else "no encryption"
+                ),
             )
-            self.cloud_interface.extract_tar(file_info.path, target_dir)
+            self.cloud_interface.extract_tar(file_info.path, target_dir,
+                            encryption_config = self.encryption_config)
 
         for link, target in link_jobs:
             os.symlink(target, link)

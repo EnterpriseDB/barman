@@ -30,6 +30,39 @@ from barman.utils import with_metaclass
 
 _logger = logging.getLogger(__name__)
 
+class EncryptionHeader:
+    """
+    The header used for encrypted files
+
+    <magic><headerlength><json header>
+    """
+    is_valid = False
+    magic = b'PGBARMAN'
+    headerlength = None
+    headerdict = None
+    dataoffset = None
+
+    def __init__(self, inbytes):
+        """
+        Tries to decompose the header from <inbytes>. Assumes the header is completely
+        contained in <inbytes>. Use is_valid() to check validity.
+        """
+        # file should start with magic
+        if inbytes[:len(self.magic)] != self.magic:
+            _logger.error('Encrypted file does not start with required magic')
+        else:
+            # get the length of the header
+            self.headerlength = struct.unpack_from('<H', inbytes, offset=len(self.magic))[0]
+            # extract the header
+            headerbytes = inbytes[len(self.magic)+struct.calcsize('<H'):][:self.headerlength]
+            if len(headerbytes) != self.headerlength:
+                # we couldnt extract the entire header from the byte array
+                _logger.error('Supplied byte array does not contain complete encryption header')
+            else:
+                self.headerdict = json.loads(headerbytes)
+                self.dataoffset = len(self.magic) + struct.calcsize('<H') + self.headerlength
+                self.is_valid = True
+
 class ChunkedEncryptor(with_metaclass(ABCMeta, object)):
     """
     Base class for all ChunkedEncryptors
@@ -72,6 +105,8 @@ class ChunkedEncryptor(with_metaclass(ABCMeta, object)):
 class XChaCha20Poly1305Encryptor(ChunkedEncryptor):
     """
     A ChunkedEncryptor implementation based on pycryptodome
+
+    TODO: this design is not clean : it handles decryption too !
     """
 
     def __init__(self,config):
@@ -88,6 +123,7 @@ class XChaCha20Poly1305Encryptor(ChunkedEncryptor):
             raise ValueError(f'XChaCha20Poly1305Encryptor needs a 256 bit key, got {len(self.encryptionKey)*8} bit')
 
         self.encryptor = None
+        self.decryptor = None
 
     def add_chunk(self, data):
         """
@@ -116,9 +152,9 @@ class XChaCha20Poly1305Encryptor(ChunkedEncryptor):
                 nonce=nonce)
 
             ret += magic + headerlength + jsonHeader + nonce
+            self.encryptor.update(ret) # this is only the header
 
-        ret += data
-        self.encryptor.update(ret)
+        ret += self.encryptor.encrypt(data)
 
         return ret
 
@@ -142,8 +178,36 @@ class XChaCha20Poly1305Encryptor(ChunkedEncryptor):
         :return: The deencrypted data
         :rtype: bytes
         """
-        return data
+        ret = b''
+        # an encrypted file is of the form
+        # PGBARMAN<headerlength:UINT16 LE><header in compact json><nonce 256bit><data><hmac>
+        if not self.decryptor: # this is the first chunk and encryption hasnt started
+            self._logger.info('initializing XChaCha20-poly1305 decryptor')
+            encHeader = EncryptionHeader(data)
+            if not encHeader.is_valid:
+                raise SystemError('encrypted file header is not valid')
+            # get the nonce - 24 bytes after the header
+            nonce = data[encHeader.dataoffset:encHeader.dataoffset+24]
+            self.decryptor = self.cryptoCipherChaCha20Poly1305.new(
+                key=self.encryptionKey,
+                nonce=nonce)
+            # we need to update with the plain header
+            self.decryptor.update(data[:encHeader.dataoffset+24])
+            ret = self.decryptor.decrypt(data[encHeader.dataoffset+24:])
+        else:
+            ret = self.decryptor.decrypt(data)
 
+        return ret
+
+class genericStreamingDecryptor:
+    """
+    Generic decryptor, morphing into a specific Encryptor when the header is read
+    and the cipher is known.
+    Implements the write() method for streaming tar usage
+    """
+
+    def __init__(self,fd):
+      pass
 
 def get_encryptor(encryption):
     """
