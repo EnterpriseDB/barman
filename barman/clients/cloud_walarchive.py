@@ -27,10 +27,9 @@ from barman.clients.cloud_cli import (
     UrlArgumentType,
     add_tag_argument,
     create_argument_parser,
-    get_encryption_config,
 )
 from barman.clients.cloud_compression import compress
-from barman.clients.cloud_encryption import encrypt
+from barman.clients.cloud_encryption import encrypt, EncryptionConfiguration
 from barman.cloud import configure_logging
 from barman.cloud_providers import get_cloud_interface
 from barman.config import parse_compression_level
@@ -86,7 +85,7 @@ def main(args=None):
         cloud_interface = get_cloud_interface(config)
 
         # get the client-encryption config
-        encryption_config = get_encryption_config(config.client_encryption)
+        encryption_config = EncryptionConfiguration(filename=config.client_encryption)
 
         with closing(cloud_interface):
             if config.test:

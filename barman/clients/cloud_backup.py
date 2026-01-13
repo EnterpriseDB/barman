@@ -29,8 +29,8 @@ from barman.clients.cloud_cli import (
     UrlArgumentType,
     add_tag_argument,
     create_argument_parser,
-    get_encryption_config,
 )
+from barman.clients.cloud_encryption import EncryptionConfiguration
 from barman.cloud import (
     CloudBackupSnapshot,
     CloudBackupUploader,
@@ -175,7 +175,7 @@ def main(args=None):
         tempfile.tempdir = tempdir
 
         # get the client-encryption config
-        encryption_config = get_encryption_config(config.client_encryption)
+        encryption_config = EncryptionConfiguration(filename=config.client_encryption)
 
         cloud_interface = get_cloud_interface(config)
 

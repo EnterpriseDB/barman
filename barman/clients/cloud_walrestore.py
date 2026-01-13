@@ -18,7 +18,9 @@
 
 import logging
 import os
+import io
 import sys
+import shutil
 from contextlib import closing
 
 from barman.clients.cloud_cli import (
@@ -27,7 +29,9 @@ from barman.clients.cloud_cli import (
     OperationErrorExit,
     create_argument_parser,
 )
-from barman.cloud import ALLOWED_COMPRESSIONS, configure_logging
+from barman.clients.cloud_compression import decompress_to_file
+from barman.clients.cloud_encryption import EncryptionConfiguration
+from barman.cloud import ALLOWED_COMPRESSIONS, configure_logging, DecryptingReadableStreamIO
 from barman.cloud_providers import get_cloud_interface
 from barman.exceptions import BarmanException
 from barman.utils import force_str
@@ -54,6 +58,9 @@ def main(args=None):
     try:
         cloud_interface = get_cloud_interface(config)
 
+        # get the client-encryption config
+        encryption_config = EncryptionConfiguration(filename=config.client_encryption)
+
         with closing(cloud_interface):
             # Do connectivity test if requested
             if config.test:
@@ -61,7 +68,9 @@ def main(args=None):
                 raise SystemExit(0)
 
             downloader = CloudWalDownloader(
-                cloud_interface=cloud_interface, server_name=config.server_name
+                cloud_interface=cloud_interface, 
+                server_name=config.server_name,
+                encryption_config=encryption_config
             )
 
             downloader.download_wal(config.wal_name, config.wal_dest, config.no_partial)
@@ -93,6 +102,12 @@ def parse_arguments(args=None):
         default=False,
     )
     parser.add_argument(
+        "--client-encryption",
+        help="path to the client-encryption config file"
+        "(default: /etc/barman/client-encryption.json)",
+        default='/etc/barman/client-encryption.json',
+    )
+    parser.add_argument(
         "wal_name",
         help="The value of the '%%f' keyword (according to 'restore_command').",
     )
@@ -108,17 +123,19 @@ class CloudWalDownloader(object):
     Cloud storage download client
     """
 
-    def __init__(self, cloud_interface, server_name):
+    def __init__(self, cloud_interface, server_name, encryption_config):
         """
         Object responsible for handling interactions with cloud storage
 
         :param CloudInterface cloud_interface: The interface to use to
           upload the backup
         :param str server_name: The name of the server as configured in Barman
+        :param EncryptionConfiguration encryption_config: encryption config
         """
 
         self.cloud_interface = cloud_interface
         self.server_name = server_name
+        self.encryption_config = encryption_config
 
     def download_wal(self, wal_name, wal_dest, no_partial):
         """
@@ -140,19 +157,25 @@ class CloudWalDownloader(object):
         wal_path = os.path.join(source_dir, wal_name)
 
         remote_name = None
-        # Automatically detect compression based on the file extension
+        # Automatically detect compression and encryption based on the file extension
         compression = None
+        is_encrypted = False
         for item in self.cloud_interface.list_bucket(wal_path):
             # perfect match (uncompressed file)
             if item == wal_path:
                 remote_name = item
                 continue
-            # look for compressed files or .partial files
+            # look for encrypted, compressed files or .partial files
+            basename = item
+
+            # Detect encryption
+            if basename.endswith('.enc'):
+                is_encrypted = True
+                basename = basename[:-len('.enc')]
 
             # Detect compression
-            basename = item
             for e, c in ALLOWED_COMPRESSIONS.items():
-                if item[-len(e) :] == e:
+                if basename[-len(e) :] == e:
                     # Strip extension
                     basename = basename[: -len(e)]
                     compression = c
@@ -192,16 +215,30 @@ class CloudWalDownloader(object):
                 "Compressed WALs cannot be restored with Python 2.x - "
                 "please upgrade to a supported version of Python 3"
             )
-
+        
         # Download the file
         _logger.debug(
-            "Downloading %s to %s (%s)",
+            "Downloading %s to %s (%s/%s)",
             remote_name,
             wal_dest,
             "decompressing " + compression if compression else "no compression",
+            "decrypting" if is_encrypted else "no encryption"
         )
-        self.cloud_interface.download_file(remote_name, wal_dest, compression)
+        # no idea why decompression got pushed to the individual cloud implementations
+        #self.cloud_interface.download_file(remote_name, wal_dest, compression)
 
+        # the aim was to use DecryptingReadableStreamIO and decompress_to_file in tandem to
+        # stream the data. However, the decompressor first does a read(2) to determine the magic
+        # this breaks decryption. TODO -- this must be fixed
+        # since wal files are rather small in size, decrypt to memory ( not clean ... 😞 )
+        with self.cloud_interface.remote_open(remote_name) as rf, open(wal_dest, 'wb') as lf:
+            if is_encrypted:
+                unencryptedFileObj = io.BytesIO(
+                    DecryptingReadableStreamIO(rf, self.encryption_config).read())
+            else:
+                unencryptedFileObj = rf
+
+            decompress_to_file(unencryptedFileObj, lf, compression=compression)
 
 if __name__ == "__main__":
     main()

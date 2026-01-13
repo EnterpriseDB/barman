@@ -27,6 +27,7 @@ from barman.clients.cloud_cli import (
     create_argument_parser,
     get_encryption_config,
 )
+from barman.clients.cloud_encryption import EncryptionConfiguration
 from barman.cloud import CloudBackupCatalog, configure_logging
 from barman.cloud_providers import (
     get_cloud_interface,
@@ -80,7 +81,7 @@ def main(args=None):
         cloud_interface = get_cloud_interface(config)
 
         # get the client-encryption config
-        encryption_config = get_encryption_config(config.client_encryption)
+        encryption_config = EncryptionConfiguration(filename=config.client_encryption)
 
         with closing(cloud_interface):
             # Do connectivity test if requested
@@ -271,7 +272,7 @@ class CloudBackupDownloader(with_metaclass(ABCMeta)):
           upload the backup
         :param str server_name: The name of the server as configured in Barman
         :param CloudBackupCatalog catalog: The cloud backup catalog
-        :param dict encryption_config: client-encryption config
+        :param EncryptionConfiguration encryption_config: client-encryption config
         """
         self.cloud_interface = cloud_interface
         self.catalog = catalog

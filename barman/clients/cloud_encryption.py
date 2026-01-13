@@ -30,6 +30,66 @@ from barman.utils import with_metaclass
 
 _logger = logging.getLogger(__name__)
 
+class EncryptionConfiguration:
+    """
+    Wrapper around the client encryption configuration file.
+    Usually /etc/barman/client-encryption.json
+
+    The configuration file is a dict with named profiles. A profile is a dict
+    containing a <cipher> and a number of arbitrary keys defining the encryption.
+
+    There must always be a "default" profile which is used for encryption. This
+    should be a string pointing to the profile to use.
+
+    Decryption is done with the profile named in the header of the decryption
+    stream.
+
+    e.g.
+    {
+        "default": "XChaCha-january-2026",
+        "XChaCha-january-2026": {
+            "cipher": "XChaCha-poly1305",
+            "key256b64": "..."
+            },
+        "XChaCha-december-2025": {
+            ...
+            },
+        ...
+    }
+    """
+    configuration = None
+
+    def __init__(self, *, filename=None, data=None, fd=None):
+        """
+        Initialize the configuration with either ( in this order ):
+        * filename : open and read the file, convert to dict
+        * fd : read from the file-like object, convert to dict
+        * data : ascii decode the bytes, convert to dict
+
+        :param str filename: the path to open
+        :param file-like object fd: stream to read
+        :param bytes data: byte array containing the json
+        """
+        if filename: fd = open(filename, 'rb')
+
+        if fd: data = fd.read()
+
+        if data:
+            self.configuration = json.loads(data.decode('ascii'))
+        else:
+            raise ValueError('Initializing EncryptionConfiguratie needs either filename, fd or data')
+
+        if filename: fd.close()
+
+    def get_profile(self, name):
+        """
+        Return the profile dict corresponding to the profile name
+        """
+        if name == 'default':
+            name = self.configuration['default']
+
+        return self.configuration[name]
+
 class EncryptionHeader:
     """
     The header used for encrypted files
@@ -230,19 +290,19 @@ class XChaCha20Poly1305Encryptor(ChunkedEncryptor):
             _logger.error(f'ValueError on decryption verify: {str(e)}')
             return False
 
-def get_encryptor(encryption):
+def get_encryptor(encryption, profile_name='default'):
     """
     Helper function which returns a ChunkedEncryptor for the specified encryption
     algorithm.
 
-    :param dict encryption: the encryption configuration
+    :param EncryptionConfiguration encryption: the encryption configuration
     :return: A ChunkedEncryptor capable of enrypting and decrypting using the
       specified encryption.
     :rtype: ChunkedEncryptor
     """
-    if 'cipher' in encryption:
-        if encryption['cipher'] == "XChaCha20-poly1305":
-            return XChaCha20Poly1305Encryptor(config=encryption)
+    profile = encryption.get_profile(profile_name)
+    if profile['cipher'] == "XChaCha20-poly1305":
+        return XChaCha20Poly1305Encryptor(config=profile)
     return None
 
 
@@ -257,7 +317,7 @@ def encrypt(infile, encryption):
     :rtype: BytesIO
     """
     ret = io.BytesIO()
-    encryptor = get_encryptor(encryption)
+    encryptor = get_encryptor(encryption, profile_name='default')
     chunksize = 64*1024
     # do an empty write so the encryption is properly initialized
     # this is necessary so an empty file gets a proper header and hmac
@@ -276,16 +336,21 @@ def encrypt(infile, encryption):
     return ret
 
 
-def decrypts_to_file(blob, dest_file, encryption):
+def decrypt(infile, outfile, encryption):
     """
-    Decompresses the supplied *blob* of data into the *dest_file* file-like object using
-    the specified encryption.
+    Decrypts from the supplied *infile* into the *outfile* file-like objects using
+    the specified encryption config.
 
-    :param IOBase blob: A file-like object containing the encrypted data.
-    :param IOBase dest_file: A file-like object into which the unencrypted data
+    :param IOBase infile: A file-like object containing the encrypted data.
+    :param IOBase outfile: A file-like object into which the unencrypted data
       should be written.
-    :param str encryption: The encryption algorithm to apply.
+    :param str encryption: The available encryption configurations
     :rtype: None
     """
-    encryptor = get_internal_encryptor(encryption)
-    encryptor.decrypts_to_fileobj(blob, dest_file)
+    chunksize = 64*1024
+    decryptedStream = DecryptingReadableStreamIO(infile, encryption)
+    buf = decryptedStream.read(chunksize)
+    while len(buf) > 0:
+        outfile.write(buf)
+        decryptedStream = DecryptingReadableStreamIO(infile, encryption)
+

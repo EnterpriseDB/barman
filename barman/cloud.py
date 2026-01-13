@@ -600,7 +600,7 @@ class TransformingReadableStreamIO(RawIOBase):
         in chunks of chunkSize.
 
         :param IOBase inStream: stream to read() from
-        :param dict transform_config: configuration for the transformation
+        :param EncryptionConfiguration transform_config: configuration for the transformation
         """
         self.inStream = inStream
         self.transform_config = transform_config
@@ -630,6 +630,8 @@ class TransformingReadableStreamIO(RawIOBase):
         """
         incoming_bytes = self.inStream.read(n)
         #_logger.debug(f'requested {n} bytes, got {len(incoming_bytes)}')
+        # this could break : if upstream also stops when no bytes are returned,
+        #   this is called twice ...
         if len(incoming_bytes) == 0:
             # if no bytes are returned, we have reached EOF
             # get the closing bytes for the transformation
@@ -653,20 +655,25 @@ class DecryptingReadableStreamIO(TransformingReadableStreamIO):
     key = None
 
     def transform(self, inbytes):
-        #breakpoint()
         if not self.cipher:
             header = cloud_encryption.EncryptionHeader(inbytes)
             self.cipher = header.headerdict['cipher']
+            # if the header contains a profile name, use it, if not, use default
+            if 'profile' in header.headerdict:
+                self.profile = header.headerdict['profile']
+            else:
+                self.profile = 'default'
             # TODO we should check if the information in the header matches with the
             # one in the config - for the moment, assume they're ok
-            self.decryptor = cloud_encryption.get_encryptor(self.transform_config)
+            self.decryptor = cloud_encryption.get_encryptor(
+                                                      self.transform_config,
+                                                      profile_name=self.profile)
 
         return self.decryptor.decrypt(inbytes)
 
     def close(self):
-        #if self.decryptor.validate_decryption():
-        if True:
-            _logger.info('Stream has a correct signature.')
+        if self.decryptor.validate_decryption():
+            _logger.info('Stream has a valid signature.')
         else:
             _logger.error('The stream failed validation: incorrect signature')
 
