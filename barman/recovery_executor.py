@@ -126,6 +126,7 @@ class RecoveryExecutor(object):
         target_action=None,
         standby_mode=None,
         recovery_conf_filename=None,
+        recovery_option_port=None,
     ):
         """
         Performs a recovery of a backup
@@ -154,12 +155,18 @@ class RecoveryExecutor(object):
         :param bool|None standby_mode: standby mode
         :param str|None recovery_conf_filename: filename for storing recovery
             configurations
+        :kwparam str|None recovery_option_port: port to set in restore command
+            when invoking ``barman-wal-restore``
         """
 
         # Run the cron to be sure the wal catalog is up to date
         # Prepare a map that contains all the objects required for a recovery
         recovery_info = self._setup(
-            backup_info, remote_command, dest, recovery_conf_filename
+            backup_info,
+            remote_command,
+            dest,
+            recovery_conf_filename,
+            recovery_option_port,
         )
 
         output.info(
@@ -367,7 +374,14 @@ class RecoveryExecutor(object):
 
         return recovery_info
 
-    def _setup(self, backup_info, remote_command, dest, recovery_conf_filename):
+    def _setup(
+        self,
+        backup_info,
+        remote_command,
+        dest,
+        recovery_conf_filename,
+        recovery_option_port,
+    ):
         """
         Prepare the recovery_info dictionary for the recovery, as well
         as temporary working directory
@@ -376,6 +390,8 @@ class RecoveryExecutor(object):
             backup
         :param str remote_command: ssh command for remote connection
         :param str|None recovery_conf_filename: filename for storing recovery configurations
+        :kwparam str|None recovery_option_port: port to set in restore command
+            when invoking ``barman-wal-restore``
         :return dict: recovery_info dictionary, holding the basic values for a
             recovery
         """
@@ -399,6 +415,7 @@ class RecoveryExecutor(object):
             "is_pitr": False,
             "wal_dest": wal_dest,
             "get_wal": RecoveryOptions.GET_WAL in self.config.recovery_options,
+            "recovery_option_port": recovery_option_port,
         }
         # A map that will keep track of the results of the recovery.
         # Used for output generation
@@ -1081,6 +1098,9 @@ class RecoveryExecutor(object):
         # required wal files. Otherwise use the unix command "cp" to copy
         # them from the wal_dest directory
         if recovery_info["get_wal"]:
+            port_option = ""
+            if recovery_info["recovery_option_port"] is not None:
+                port_option = "--port %s" % recovery_info["recovery_option_port"]
             partial_option = ""
             if not standby_mode:
                 partial_option = "-P"
@@ -1101,14 +1121,22 @@ class RecoveryExecutor(object):
                     "is provided in the 'barman-cli' package"
                 )
                 restore_command = (
-                    "restore_command = 'barman-wal-restore %s -U %s %s %s %%f %%p'"
-                    % (partial_option, self.config.config.user, fqdn, self.config.name)
+                    "restore_command = 'barman-wal-restore %s -U %s %s %s %s %%f %%p'"
+                    % (
+                        partial_option,
+                        self.config.config.user,
+                        port_option,
+                        fqdn,
+                        self.config.name,
+                    )
                 )
                 if self.config.parallel_jobs > 1:
                     # Remove the last 'tick' if we are appending a `-p jobs'`.
                     restore_command = (
                         restore_command[:-1] + " -p %s'" % self.config.parallel_jobs
                     )
+                # Normalize spaces
+                restore_command = re.sub(r"\s+", " ", restore_command)
                 recovery_conf_lines.append(restore_command)
             else:
                 recovery_conf_lines.append(
@@ -1624,6 +1652,7 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
         target_action=None,
         standby_mode=None,
         recovery_conf_filename=None,
+        recovery_option_port=None,
         recovery_instance=None,
     ):
         """
@@ -1653,6 +1682,8 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
         :param bool|None standby_mode: standby mode
         :param str|None recovery_conf_filename: filename for storing recovery
             configurations
+        :kwparam str|None recovery_option_port: port to set in restore command
+            when invoking ``barman-wal-restore``
         :param str|None recovery_instance: The name of the recovery node as it
             is known by the cloud provider
         """
@@ -1688,6 +1719,7 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
             target_action=target_action,
             standby_mode=standby_mode,
             recovery_conf_filename=recovery_conf_filename,
+            recovery_option_port=recovery_option_port,
         )
 
     def _start_backup_copy_message(self):
@@ -2458,8 +2490,10 @@ class RsyncCopyOperation(RecoveryOperation):
         )
 
         # Prepare the destination directories for the backup copy
+        # No need to attempt deleting the directory as this is the last operation,
+        # meaning that the destination is sure to be either empty or non-existing
         for _dir in dest_dirs:
-            self._prepare_directory(_dir)
+            self._prepare_directory(_dir, delete_if_exists=False)
 
         # Execute the copy
         try:
@@ -2686,7 +2720,10 @@ class DecompressOperation(RecoveryOperation):
                 f"Unexpected compression format: {compression}"
             )
 
-        self._prepare_directory(destination)
+        # Prepare the destination directory
+        # No need to attempt deleting the directory if it's the last operation as it's
+        # sure to be either empty or non-existing in that case
+        self._prepare_directory(destination, delete_if_exists=(not is_last_operation))
 
         # Untar the results files to their intended location
         if backup_info.tablespaces:
@@ -2716,7 +2753,9 @@ class DecompressOperation(RecoveryOperation):
                     tablespace_src_path,
                     tablespace_dst_path,
                 )
-                self._prepare_directory(tablespace_dst_path)
+                self._prepare_directory(
+                    tablespace_dst_path, delete_if_exists=(not is_last_operation)
+                )
                 cmd_output = compressor.decompress(
                     tablespace_src_path, tablespace_dst_path
                 )
@@ -2858,10 +2897,14 @@ class CombineOperation(RecoveryOperation):
         # Prepare the destination directories (PGDATA and tablespaces)
         # Only include tablespace directories that are not subdirectories of output_dest,
         # to avoid preparing the same directory multiple times.
-        self._prepare_directory(output_dest)
+        # No need to attempt deleting the directory if it's the last operation as it's
+        # sure to be either empty or non-existing in that case
+        self._prepare_directory(output_dest, delete_if_exists=(not is_last_operation))
         for tbspc_dest in tablespace_mapping.values():
             if not is_subdirectory(output_dest, tbspc_dest):
-                self._prepare_directory(tbspc_dest)
+                self._prepare_directory(
+                    tbspc_dest, delete_if_exists=(not is_last_operation)
+                )
 
         output.info(
             "Start combining backup via pg_combinebackup for backup %s on %s",

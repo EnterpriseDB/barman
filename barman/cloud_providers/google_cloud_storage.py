@@ -329,11 +329,14 @@ class GoogleCloudInterface(CloudInterface):
             _logger.error(e)
             raise e
 
-    def _delete_objects_batch(self, paths):
+    def _delete_objects_batch(self, paths, **kwargs):
         """
         Delete the objects at the specified paths.
         The maximum possible number of calls in a batch is 100.
         :param List[str] paths:
+        :param dict kwargs: Provider-specific keyword arguments. Currently unused
+            for Google Cloud Storage; this parameter exists only to comply with the
+            base class interface.
         """
         super(GoogleCloudInterface, self)._delete_objects_batch(paths)
 
@@ -362,12 +365,15 @@ class GoogleCloudInterface(CloudInterface):
         """
         raise NotImplementedError()
 
-    def delete_under_prefix(self, prefix):
+    def delete_under_prefix(self, prefix, **kwargs):
         """
         Delete all objects under the specified prefix.
 
         :param str prefix: The object key prefix under which all objects should be
             deleted.
+        :param dict kwargs: Provider-specific keyword arguments. Currently unused
+            for Google Cloud Storage; this parameter exists only to comply with the
+            base class interface.
         """
         raise NotImplementedError()
 

@@ -644,9 +644,9 @@ class ServerConfig(BaseConfig):
         "compression",
         "compression_level",
         "conninfo",
-        "custom_compression_filter",
-        "custom_decompression_filter",
-        "custom_compression_magic",
+        "custom_compression_filter",  # Deprecated in 3.17
+        "custom_decompression_filter",  # Deprecated in 3.17
+        "custom_compression_magic",  # Deprecated in 3.17
         "description",
         "disabled",
         "encryption",
@@ -753,9 +753,9 @@ class ServerConfig(BaseConfig):
         "compression_level",
         "configuration_files_directory",
         "create_slot",
-        "custom_compression_filter",
-        "custom_decompression_filter",
-        "custom_compression_magic",
+        "custom_compression_filter",  # Deprecated in 3.17
+        "custom_decompression_filter",  # Deprecated in 3.17
+        "custom_compression_magic",  # Deprecated in 3.17
         "encryption",
         "encryption_key_id",
         "encryption_passphrase_command",
@@ -1055,6 +1055,7 @@ class ServerConfig(BaseConfig):
             for key in self.KEYS
             if key not in {"config", "_active_model_file", "active_model"}
         }
+        json_dict["name"] = self.name
 
         # options that are override by the model
         override_options = set()

@@ -18,6 +18,7 @@
                   [ { -m | --minimum-redundancy } MINIMUM_REDUNDANCY ]
                   [ { -b | --backup-id } BACKUP_ID]
                   [ --dry-run ]
+                  [ --check-object-lock ]
                   [ { -P | --aws-profile } AWS_PROFILE ]
                   [ --profile AWS_PROFILE ]
                   [ --read-timeout READ_TIMEOUT ]
@@ -119,6 +120,20 @@ WALs are considered unused if:
   Find the objects which need to be deleted but do not delete them.
 
 **Extra options for the AWS cloud provider**
+
+``--check-object-lock``
+  Check whether backup files are protected by S3 Object Lock before attempting
+  deletion. Enable this when your S3 bucket has Object Lock configured and you
+  want to ensure deletion operations respect object-level retention policies. If
+  any base backup file is locked (either by an active retention period or legal
+  hold), the deletion is aborted with an error. 
+  
+  For performance reasons, lock checks are only performed for base backup files,
+  since once the base backup is removed, the corresponding WAL files are no longer
+  useful. Note that this check requires one request per file to check the lock
+  status, which may increase deletion time for backups with many files. This feature
+  is only available for AWS S3-compatible object stores and it also requires the
+  ``s3:GetObjectRetention`` and ``s3:GetObjectLegalHold`` IAM permissions.
 
 ``--endpoint-url``
   Override default S3 endpoint URL with the given one.

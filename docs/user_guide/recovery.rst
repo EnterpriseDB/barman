@@ -431,6 +431,46 @@ The process involves the following steps:
   `pg_combinebackup documentation <https://www.postgresql.org/docs/current/app-pgcombinebackup.html>`_
   for more details.
 
+
+Combine Modes
+"""""""""""""
+
+The method used to create files in the combined backup can be controlled with the
+``--combine-mode`` option of the :ref:`barman restore <commands-barman-restore>`
+command.
+
+Supported modes are:
+
+**copy** — Performs a standard file copy for each file in the chain. This is the default
+mode and works on all systems. It provides the highest level of safety since files in
+the resulting backup are fully independent from the originals, at the cost of more time,
+and extra disk space and I/O.
+
+**copy-file-range** — Uses the ``copy_file_range`` system call for efficient file copying.
+On some file systems, this can achieve results similar to ``--clone`` by sharing
+physical disk blocks, while on others it still performs full copies but through an
+optimized path. This mode is currently supported on Linux and FreeBSD. If the backup
+manifest is not available or does not contain compatible checksums, files are still
+copied, but also read block-by-block for checksum verification.
+
+**link** — Creates hard links, when possible, instead of copying files to the synthetic backup.
+This approach might be faster in some cases, and save disk space, but it introduces potential
+risks: changes made to the restore directory will also affect the original backup directories,
+and vice versa. Therefore, this mode should only be used when the input directories are
+disposable copies that will be deleted after combination. The input backups and output
+directory must reside on the same file system. If the backup manifest does not contain
+compatible checksums, hard links will still be created, but files will also be read
+block-by-block for checksum calculation.
+
+**clone** — Uses file cloning capabilities (such as reflink) provided by some file systems
+to create lightweight copies of files that initially share data blocks. This approach
+combines the speed and space efficiency of link with the isolation of copy.
+Modifications to either copy do not affect the other. Support for this mode depends on
+the underlying file system (for example, XFS and Btrfs support cloning).
+
+For more information about the behavior of these modes, see the
+`pg_combinebackup documentation <https://www.postgresql.org/docs/current/app-pgcombinebackup.html>`_.
+
 .. _recovery-recovery-pipeline-for-multi-format-backups:
 
 Recovery Pipeline for multi-format backups

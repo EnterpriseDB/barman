@@ -34,6 +34,7 @@ from barman.cloud_providers import (
     get_cloud_interface,
     get_snapshot_interface_from_backup_info,
 )
+from barman.cloud_providers.aws_s3 import S3CloudInterface
 from barman.exceptions import BadXlogPrefix, InvalidRetentionPolicy
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import check_non_negative, force_str
@@ -72,6 +73,27 @@ def _remove_wals_for_backup(
     dry_run,
     skip_wal_cleanup_if_standalone=True,
 ):
+    """
+    Remove WAL files that are no longer needed after a backup deletion.
+
+    This function implements WAL cleanup logic for cloud backups. It identifies and
+    deletes WAL files that are no longer required by any remaining backups while
+    preserving WALs needed for archival standalone backups and other timelines.
+
+    :param cloud_interface: Interface for interacting with cloud storage
+    :type cloud_interface: :class:`CloudInterface`
+    :param catalog: Cloud backup catalog containing backup and WAL metadata
+    :type catalog: :class:`CloudBackupCatalog`
+    :param deleted_backup: The backup that is being deleted
+    :type deleted_backup: :class:`BackupInfo`
+    :param dry_run: If ``True``, identify objects for deletion but do not delete them
+    :type dry_run: :class:`bool`
+    :param skip_wal_cleanup_if_standalone: If ``True``, skip WAL cleanup when deleting
+        a standalone archival backup. Defaults to ``True``.
+    :type skip_wal_cleanup_if_standalone: :class:`bool`
+
+    :return: ``None``. Exits early if an error occurs during WAL listing.
+    """
     # An implementation of BackupManager.remove_wal_before_backup which does not
     # use xlogdb, since xlogdb is not available to barman-cloud
     should_remove_wals, wal_ranges_to_protect = BackupManager.should_remove_wals(
@@ -269,7 +291,11 @@ def _delete_backup(
     _logger.debug("Will delete backup.info file at %s" % backup_info_path)
     if not config.dry_run:
         try:
-            cloud_interface.delete_objects(objects_to_delete)
+            # Check Object Lock only on base backup files.
+            # If these are unlocked and deletable, we proceed to delete everything.
+            cloud_interface.delete_objects(
+                objects_to_delete, check_locks=config.check_object_lock, atomic=True
+            )
             # Do not try to delete backup.info until we have successfully deleted
             # everything else so that it is possible to retry the operation should
             # we fail to delete any backup file
@@ -283,6 +309,9 @@ def _delete_backup(
             % (objects_to_delete + [backup_info_path])
         )
 
+    # Remove WALs without checking locks. Since base backup is already gone,
+    # the WALs no longer have value, and it's not worth the overhead of checking
+    # their lock status.
     _remove_wals_for_backup(
         cloud_interface,
         catalog,
@@ -310,6 +339,16 @@ def main(args=None):
         cloud_interface = get_cloud_interface(config)
 
         with closing(cloud_interface):
+            # Warn if check_object_lock is used with non-S3 providers
+            if config.check_object_lock and not isinstance(
+                cloud_interface, S3CloudInterface
+            ):
+                _logger.warning(
+                    "The --check-object-lock option is currently only supported for aws-s3. "
+                    "Object lock checks will not be performed for cloud provider: %s",
+                    config.cloud_provider,
+                )
+
             # Do connectivity test if requested
             if config.test:
                 cloud_interface.verify_cloud_connectivity_and_bucket_existence()
@@ -441,6 +480,13 @@ def parse_arguments(args=None):
         "cloud provider. If unset then the maximum allowed batch size for the "
         "specified cloud provider will be used (1000 for aws-s3, 256 for "
         "azure-blob-storage and 100 for google-cloud-storage).",
+    )
+    parser.add_argument(
+        "--check-object-lock",
+        action="store_true",
+        help="Check for S3 Object Lock before deleting to skip deletion of locked "
+        "objects. This option adds overhead as it requires a request to the object "
+        "store for each object of the base backup to delete.",
     )
     return parser.parse_args(args=args)
 

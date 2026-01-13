@@ -1098,6 +1098,8 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         :kwparam bool|None standby_mode: the standby mode if needed
         :kwparam str|None recovery_conf_filename: filename for storing recovery
             configurations
+        :kwparam str|None recovery_option_port: port to set in restore command
+            when invoking ``barman-wal-restore``
         """
 
         # Archive every WAL files in the incoming directory of the server

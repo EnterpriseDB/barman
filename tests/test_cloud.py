@@ -1122,10 +1122,25 @@ class TestS3CloudInterface(object):
         assert ("Deletion of object path/to/object/1 failed with error:") in caplog.text
         assert ("Deletion of object path/to/object/2 failed with error:") in caplog.text
 
+    @pytest.mark.parametrize(
+        ("code", "message"),
+        [
+            (
+                "MissingContentMD5",
+                "Missing required header for this request: Content-Md5.",
+            ),
+            ("InvalidRequest", "Content-MD5 is missing"),
+            ("InvalidRequest", "Missing required header for this request: Content-MD5"),
+            (
+                "BadDigest",
+                "The Content-MD5 you specified did not match what we received",
+            ),
+        ],
+    )
     @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface._delete_object")
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_delete_objects_botocore_exceptions_ClientError(
-        self, boto_mock, mock_delete_obj, client_error_factory, caplog
+        self, boto_mock, mock_delete_obj, client_error_factory, caplog, code, message
     ):
         """
         Test `S3CloudInterface.delete_objects` handling of `botocore.exceptions.ClientError`.
@@ -1167,8 +1182,8 @@ class TestS3CloudInterface(object):
         mock_keys = ["path/to/object/1", "path/to/object/2"]
 
         s3_client.delete_objects.side_effect = client_error_factory(
-            code="MissingContentMD5",
-            message="Missing required header for this request: Content-Md5.",
+            code,
+            message,
         )
 
         cloud_interface.delete_objects(mock_keys)
@@ -1257,31 +1272,40 @@ class TestS3CloudInterface(object):
         s3_mock = session_mock.resource.return_value
         bucket = s3_mock.Bucket.return_value
 
-        # --- Case 1: one object fails with 400 ---
-        mock_responses = [
-            {"ResponseMetadata": {"HTTPStatusCode": 200}},
-            {"ResponseMetadata": {"HTTPStatusCode": 400}},
-            {"ResponseMetadata": {"HTTPStatusCode": 200}},
-        ]
+        # Mock the objects under the prefix
+        mock_obj1 = mock.MagicMock()
+        mock_obj1.key = "prefix/object1"
+        mock_obj2 = mock.MagicMock()
+        mock_obj2.key = "prefix/object2"
+        mock_obj3 = mock.MagicMock()
+        mock_obj3.key = "prefix/object3"
 
-        bucket.objects.filter.return_value.delete.return_value = mock_responses
+        bucket.objects.filter.return_value = [mock_obj1, mock_obj2, mock_obj3]
+
+        # Mock the s3 client for delete_objects calls
+        s3_client = s3_mock.meta.client
+
+        # --- Case 1: one object fails with error ---
+        s3_client.delete_objects.return_value = {
+            "Errors": [
+                {
+                    "Key": "prefix/object2",
+                    "Code": "AccessDenied",
+                    "Message": "Access Denied",
+                }
+            ]
+        }
 
         with pytest.raises(CloudProviderError):
             cloud_interface.delete_under_prefix(prefix)
 
         assert (
-            'Deletion of objects under %s failed with error code: "400"' % prefix
+            'Deletion of object prefix/object2 failed with error code: "AccessDenied"'
         ) in caplog.text
 
         # --- Case 2: all objects succeed ---
-        caplog.clear()  # --- Case 1: one object fails with 400 ---
-        mock_responses = [
-            {"ResponseMetadata": {"HTTPStatusCode": 200}},
-            {"ResponseMetadata": {"HTTPStatusCode": 200}},
-            {"ResponseMetadata": {"HTTPStatusCode": 200}},
-        ]
-
-        bucket.objects.filter.return_value.delete.return_value = mock_responses
+        caplog.clear()
+        s3_client.delete_objects.return_value = {}  # No `Errors` key means success
 
         cloud_interface.delete_under_prefix(prefix)
 
@@ -1338,15 +1362,15 @@ class TestS3CloudInterface(object):
         mock_obj = mock.MagicMock()
         mock_obj.key = "some-key"
 
-        # .delete() raises ClientError first
-        delete_mock = mock.Mock()
-        delete_mock.delete.side_effect = client_error_factory(
+        # Create a mock filter result that is iterable
+        mock_filter_result = [mock_obj]
+        bucket.objects.filter.return_value = mock_filter_result
+
+        # Make the first call to list() succeed, but delete_objects raise ClientError
+        s3_mock.meta.client.delete_objects.side_effect = client_error_factory(
             code="MissingContentMD5",
             message="Missing required header for this request: Content-Md5.",
         )
-
-        # First call returns delete_mock, second call returns iterable
-        bucket.objects.filter.side_effect = [delete_mock, [mock_obj]]
 
         cloud_interface.delete_under_prefix("/prefix1/")
 
@@ -1356,11 +1380,14 @@ class TestS3CloudInterface(object):
         caplog.clear()
         mock_delete_obj.reset_mock()
 
-        other_delete_mock = mock.Mock()
-        other_delete_mock.delete.side_effect = client_error_factory(
+        mock_obj2 = mock.MagicMock()
+        mock_obj2.key = "some-key"
+        mock_filter_result2 = [mock_obj2]
+        bucket.objects.filter.return_value = mock_filter_result2
+
+        s3_mock.meta.client.delete_objects.side_effect = client_error_factory(
             code="AnyOtherError", message="Any other error message"
         )
-        bucket.objects.filter.side_effect = [other_delete_mock, [mock_obj]]
 
         with pytest.raises(botocore.exceptions.ClientError) as exc:
             cloud_interface.delete_under_prefix("/prefix1/")
@@ -1587,17 +1614,34 @@ class TestS3CloudInterface(object):
 
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_delete_under_prefix_errors(self, boto_mock):
-        """Verify delete_under_prefix fails if any responses are not 200."""
-        # GIVEN a mock s3 bucket which responds successfully to all deletions
+        """Verify delete_under_prefix fails if any responses have errors."""
+        # GIVEN a mock s3 bucket
         s3_mock = boto_mock.Session.return_value.resource.return_value
         bucket_mock = s3_mock.Bucket.return_value
-        mock_responses = [
-            {"ResponseMetadata": {"HTTPStatusCode": 200}},
-            {"ResponseMetadata": {"HTTPStatusCode": 500}},
-            {"ResponseMetadata": {"HTTPStatusCode": 200}},
-        ]
 
-        bucket_mock.objects.filter.return_value.delete.return_value = mock_responses
+        # Mock the objects under the prefix
+        mock_obj1 = mock.MagicMock()
+        mock_obj1.key = "wals/0000000100000001/wal1"
+        mock_obj2 = mock.MagicMock()
+        mock_obj2.key = "wals/0000000100000001/wal2"
+        mock_obj3 = mock.MagicMock()
+        mock_obj3.key = "wals/0000000100000001/wal3"
+
+        bucket_mock.objects.filter.return_value = [mock_obj1, mock_obj2, mock_obj3]
+
+        # Mock the s3 client for delete_objects calls
+        s3_client = s3_mock.meta.client
+
+        # Mock delete_objects to return an error for one object
+        s3_client.delete_objects.return_value = {
+            "Errors": [
+                {
+                    "Key": "wals/0000000100000001/wal2",
+                    "Code": "InternalError",
+                    "Message": "We encountered an internal error. Please try again.",
+                }
+            ]
+        }
 
         # AND an S3CloudInterface to that bucket
         cloud_interface = S3CloudInterface("s3://bucket/test", encryption=None)
@@ -4605,3 +4649,364 @@ class TestCloudBackupSnapshot(object):
             assert (
                 uploaded_fileobjs[backup_info_key] == backup_info_file.read().decode()
             )
+
+
+class TestS3ObjectLock(object):
+    """
+    Tests for Object Lock functionality in S3CloudInterface.
+    """
+
+    @pytest.fixture
+    def s3_cloud_interface(self):
+        """Fixture providing a basic S3CloudInterface for testing."""
+        with mock.patch("barman.cloud_providers.aws_s3.boto3"):
+            interface = S3CloudInterface(
+                url="s3://test-bucket/path/to/dir",
+                encryption=None,
+                jobs=2,
+            )
+            yield interface
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    @mock.patch("barman.cloud_providers.aws_s3.datetime")
+    def test_check_object_lock_with_retention(
+        self, mock_datetime, boto_mock, s3_cloud_interface
+    ):
+        """Test _check_object_lock detects time-based retention locks."""
+        # Mock the head_object response with retention
+        retain_date = datetime.datetime(2025, 12, 31, 23, 59, 59)
+        s3_cloud_interface.s3.meta.client.head_object.return_value = {
+            "ObjectLockRetainUntilDate": retain_date,
+        }
+
+        # Mock datetime.now to return a time before the retention date
+        mock_now = datetime.datetime(2025, 6, 1, 0, 0, 0)
+        mock_datetime.now.return_value = mock_now
+
+        is_locked, reason = s3_cloud_interface._check_object_lock("test-key")
+
+        assert is_locked is True
+        assert "locked and can't be deleted until" in reason
+        assert str(retain_date) in reason
+        s3_cloud_interface.s3.meta.client.head_object.assert_called_once_with(
+            Bucket="test-bucket", Key="test-key"
+        )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_check_object_lock_with_legal_hold(self, boto_mock, s3_cloud_interface):
+        """Test _check_object_lock detects legal hold locks."""
+        # Mock the head_object response with legal hold
+        s3_cloud_interface.s3.meta.client.head_object.return_value = {
+            "ObjectLockLegalHoldStatus": "ON",
+        }
+
+        is_locked, reason = s3_cloud_interface._check_object_lock("test-key")
+
+        assert is_locked is True
+        assert "legal hold" in reason
+        s3_cloud_interface.s3.meta.client.head_object.assert_called_once_with(
+            Bucket="test-bucket", Key="test-key"
+        )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_check_object_lock_not_locked(self, boto_mock, s3_cloud_interface):
+        """Test _check_object_lock returns False for unlocked objects."""
+        # Mock the head_object response with no locks
+        s3_cloud_interface.s3.meta.client.head_object.return_value = {}
+
+        is_locked, reason = s3_cloud_interface._check_object_lock("test-key")
+
+        assert is_locked is False
+        assert reason is None
+        s3_cloud_interface.s3.meta.client.head_object.assert_called_once_with(
+            Bucket="test-bucket", Key="test-key"
+        )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_check_object_lock_access_denied(self, boto_mock, s3_cloud_interface):
+        """Test _check_object_lock raises CloudProviderError on access denied."""
+        # Mock ClientError with AccessDenied
+        error_response = {"Error": {"Code": "AccessDenied", "Message": "Access Denied"}}
+        s3_cloud_interface.s3.meta.client.head_object.side_effect = ClientError(
+            error_response, "HeadObject"
+        )
+
+        with pytest.raises(CloudProviderError) as exc_info:
+            s3_cloud_interface._check_object_lock("test-key")
+
+        assert "Access denied" in str(exc_info.value)
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_check_object_lock_forbidden(self, boto_mock, s3_cloud_interface):
+        """Test _check_object_lock raises CloudProviderError on Forbidden."""
+        # Mock ClientError with Forbidden
+        error_response = {"Error": {"Code": "Forbidden", "Message": "Forbidden"}}
+        s3_cloud_interface.s3.meta.client.head_object.side_effect = ClientError(
+            error_response, "HeadObject"
+        )
+
+        with pytest.raises(CloudProviderError) as exc_info:
+            s3_cloud_interface._check_object_lock("test-key")
+
+        assert "Access denied" in str(exc_info.value)
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_check_object_lock_other_client_error(self, boto_mock, s3_cloud_interface):
+        """Test _check_object_lock raises CloudProviderError on other client errors."""
+        # Mock ClientError with a different error code
+        error_response = {
+            "Error": {"Code": "InternalError", "Message": "Internal Server Error"}
+        }
+        s3_cloud_interface.s3.meta.client.head_object.side_effect = ClientError(
+            error_response, "HeadObject"
+        )
+
+        with pytest.raises(CloudProviderError) as exc_info:
+            s3_cloud_interface._check_object_lock("test-key")
+
+        assert "Error checking Object Lock" in str(exc_info.value)
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_filter_locked_objects_all_unlocked(self, boto_mock, s3_cloud_interface):
+        """Test _filter_locked_objects with all unlocked objects."""
+        # Mock _check_object_lock to return unlocked for all objects
+        s3_cloud_interface._check_object_lock = mock.Mock(return_value=(False, None))
+
+        objects = ["key1", "key2", "key3"]
+        result = s3_cloud_interface._filter_locked_objects(objects, atomic=True)
+
+        assert result == objects
+        assert s3_cloud_interface._check_object_lock.call_count == 3
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_filter_locked_objects_atomic_fails_on_locked(
+        self, boto_mock, s3_cloud_interface
+    ):
+        """Test _filter_locked_objects with atomic=True raises on locked object."""
+
+        # Mock _check_object_lock to return locked for second object
+        def check_lock_side_effect(key):
+            if key == "key2":
+                return (True, "Object is locked")
+            return (False, None)
+
+        s3_cloud_interface._check_object_lock = mock.Mock(
+            side_effect=check_lock_side_effect
+        )
+
+        objects = ["key1", "key2", "key3"]
+
+        with pytest.raises(CloudProviderError) as exc_info:
+            s3_cloud_interface._filter_locked_objects(objects, atomic=True)
+
+        assert "Deletion aborted" in str(exc_info.value)
+        assert "key2 is locked" in str(exc_info.value)
+        # Should fail on first locked object, so only 2 checks
+        assert s3_cloud_interface._check_object_lock.call_count == 2
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_filter_locked_objects_non_atomic_skips_locked(
+        self, boto_mock, s3_cloud_interface, caplog
+    ):
+        """Test _filter_locked_objects with atomic=False skips locked objects."""
+
+        # Mock _check_object_lock to return locked for second object
+        def check_lock_side_effect(key):
+            if key == "key2":
+                return (True, "Object is locked")
+            return (False, None)
+
+        s3_cloud_interface._check_object_lock = mock.Mock(
+            side_effect=check_lock_side_effect
+        )
+
+        objects = ["key1", "key2", "key3"]
+
+        result = s3_cloud_interface._filter_locked_objects(objects, atomic=False)
+
+        assert result == ["key1", "key3"]
+        assert s3_cloud_interface._check_object_lock.call_count == 3
+        # Check that warning was logged
+        assert "Skipping locked object key2" in caplog.text
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_objects_batch_with_check_locks_enabled(
+        self, boto_mock, s3_cloud_interface
+    ):
+        """Test _delete_objects_batch with check_locks=True filters locked objects."""
+        # Mock _filter_locked_objects
+        s3_cloud_interface._filter_locked_objects = mock.Mock(
+            return_value=["key1", "key3"]
+        )
+
+        # Mock successful delete_objects response
+        s3_cloud_interface.s3.meta.client.delete_objects.return_value = {}
+
+        paths = ["key1", "key2", "key3"]
+        s3_cloud_interface._delete_objects_batch(paths, check_locks=True, atomic=True)
+
+        # Verify _filter_locked_objects was called with correct parameters
+        s3_cloud_interface._filter_locked_objects.assert_called_once_with(paths, True)
+
+        # Verify delete_objects was called with only unlocked paths
+        s3_cloud_interface.s3.meta.client.delete_objects.assert_called_once()
+        call_args = s3_cloud_interface.s3.meta.client.delete_objects.call_args
+        assert len(call_args[1]["Delete"]["Objects"]) == 2
+        assert call_args[1]["Delete"]["Objects"][0]["Key"] == "key1"
+        assert call_args[1]["Delete"]["Objects"][1]["Key"] == "key3"
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_objects_batch_without_check_locks(
+        self, boto_mock, s3_cloud_interface
+    ):
+        """Test _delete_objects_batch with check_locks=False skips filtering."""
+        # Mock successful delete_objects response
+        s3_cloud_interface.s3.meta.client.delete_objects.return_value = {}
+
+        paths = ["key1", "key2", "key3"]
+        s3_cloud_interface._delete_objects_batch(paths, check_locks=False)
+
+        # Verify delete_objects was called with all paths
+        s3_cloud_interface.s3.meta.client.delete_objects.assert_called_once()
+        call_args = s3_cloud_interface.s3.meta.client.delete_objects.call_args
+        assert len(call_args[1]["Delete"]["Objects"]) == 3
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_objects_batch_all_locked_no_deletion(
+        self, boto_mock, s3_cloud_interface, caplog
+    ):
+        """Test _delete_objects_batch when all objects are locked."""
+        # Mock _filter_locked_objects to return empty list
+        s3_cloud_interface._filter_locked_objects = mock.Mock(return_value=[])
+        caplog.set_level(logging.DEBUG)
+
+        paths = ["key1", "key2", "key3"]
+        s3_cloud_interface._delete_objects_batch(paths, check_locks=True, atomic=False)
+
+        # Verify no deletion was attempted
+        s3_cloud_interface.s3.meta.client.delete_objects.assert_not_called()
+        assert "No unlocked objects to delete" in caplog.text
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_under_prefix_with_check_locks_enabled(
+        self, boto_mock, s3_cloud_interface
+    ):
+        """Test delete_under_prefix with check_locks=True filters locked objects."""
+        # Create mock objects
+        obj1 = mock.Mock()
+        obj1.key = "prefix/key1"
+        obj2 = mock.Mock()
+        obj2.key = "prefix/key2"
+        obj3 = mock.Mock()
+        obj3.key = "prefix/key3"
+
+        # Mock bucket.objects.filter to return mock objects
+        s3_cloud_interface.s3.Bucket.return_value.objects.filter.return_value = [
+            obj1,
+            obj2,
+            obj3,
+        ]
+
+        # Mock _filter_locked_objects to skip obj2
+        s3_cloud_interface._filter_locked_objects = mock.Mock(return_value=[obj1, obj3])
+
+        # Mock successful delete_objects response
+        s3_cloud_interface.s3.meta.client.delete_objects.return_value = {}
+
+        s3_cloud_interface.delete_under_prefix(
+            "prefix/", check_locks=True, atomic=False
+        )
+
+        # Verify _filter_locked_objects was called
+        s3_cloud_interface._filter_locked_objects.assert_called_once_with(
+            [obj1, obj2, obj3], False
+        )
+
+        # Verify delete_objects was called with only unlocked keys
+        s3_cloud_interface.s3.meta.client.delete_objects.assert_called_once()
+        call_args = s3_cloud_interface.s3.meta.client.delete_objects.call_args
+        assert len(call_args[1]["Delete"]["Objects"]) == 2
+        assert call_args[1]["Delete"]["Objects"][0]["Key"] == "prefix/key1"
+        assert call_args[1]["Delete"]["Objects"][1]["Key"] == "prefix/key3"
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_under_prefix_without_check_locks(
+        self, boto_mock, s3_cloud_interface
+    ):
+        """Test delete_under_prefix with check_locks=False skips filtering."""
+        # Create mock objects
+        obj1 = mock.Mock()
+        obj1.key = "prefix/key1"
+        obj2 = mock.Mock()
+        obj2.key = "prefix/key2"
+
+        # Mock bucket.objects.filter to return mock objects
+        s3_cloud_interface.s3.Bucket.return_value.objects.filter.return_value = [
+            obj1,
+            obj2,
+        ]
+
+        # Mock successful delete_objects response
+        s3_cloud_interface.s3.meta.client.delete_objects.return_value = {}
+
+        s3_cloud_interface.delete_under_prefix("prefix/", check_locks=False)
+
+        # Verify delete_objects was called with all keys
+        s3_cloud_interface.s3.meta.client.delete_objects.assert_called_once()
+        call_args = s3_cloud_interface.s3.meta.client.delete_objects.call_args
+        assert len(call_args[1]["Delete"]["Objects"]) == 2
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_under_prefix_all_locked_no_deletion(
+        self, boto_mock, s3_cloud_interface, caplog
+    ):
+        """Test delete_under_prefix when all objects are locked."""
+        # Create mock objects
+        obj1 = mock.Mock()
+        obj1.key = "prefix/key1"
+        caplog.set_level(logging.DEBUG)
+
+        # Mock bucket.objects.filter
+        s3_cloud_interface.s3.Bucket.return_value.objects.filter.return_value = [obj1]
+
+        # Mock _filter_locked_objects to return empty list
+        s3_cloud_interface._filter_locked_objects = mock.Mock(return_value=[])
+
+        s3_cloud_interface.delete_under_prefix(
+            "prefix/", check_locks=True, atomic=False
+        )
+
+        # Verify no deletion was attempted
+        s3_cloud_interface.s3.meta.client.delete_objects.assert_not_called()
+        assert "No unlocked objects to delete under prefix prefix/" in caplog.text
+
+    @mock.patch("barman.cloud_providers.aws_s3.datetime")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_check_object_lock_with_expired_retention(
+        self, boto_mock, mock_datetime, s3_cloud_interface
+    ):
+        """Test _check_object_lock returns False when retention date has expired."""
+        # Mock the head_object response with an expired retention date
+        retain_date = datetime.datetime(
+            2024, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc
+        )
+        current_date = datetime.datetime(
+            2025, 12, 8, 12, 0, 0, tzinfo=datetime.timezone.utc
+        )
+
+        s3_cloud_interface.s3.meta.client.head_object.return_value = {
+            "ObjectLockRetainUntilDate": retain_date,
+        }
+
+        # Mock datetime.now to return a time after the retention date
+        mock_datetime.now.return_value = current_date
+
+        is_locked, reason = s3_cloud_interface._check_object_lock("test-key")
+
+        assert is_locked is False
+        assert reason is None
+        s3_cloud_interface.s3.meta.client.head_object.assert_called_once_with(
+            Bucket="test-bucket", Key="test-key"
+        )
+        # Verify datetime.now was called with the correct timezone
+        mock_datetime.now.assert_called_once_with(retain_date.tzinfo)

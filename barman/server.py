@@ -2326,6 +2326,8 @@ class Server(RemoteStatusMixin):
         :kwparam bool|None standby_mode: the standby mode
         :kwparam str|None recovery_conf_filename: filename for storing recovery
             configurations
+        :kwparam str|None recovery_option_port: port to set in restore command
+            when invoking ``barman-wal-restore``
         """
         return self.backup_manager.recover(
             backup_info, dest, wal_dest, tablespaces, remote_command, **kwargs

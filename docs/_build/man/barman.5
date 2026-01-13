@@ -28,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN" "5" "Oct 02, 2025" "3.16" "Barman"
+.TH "BARMAN" "5" "Jan 07, 2026" "3.17" "Barman"
 .SH NAME
 barman \- Barman Configurations
 .sp
@@ -48,6 +48,17 @@ barman system, such as the main directory, system user, log file, and other gene
 options. Default location is \fB/etc/barman.conf\fP and it can be overridden on a per\-user
 level by \fB~/.barman.conf\fP or by specifying a \fB\&.conf\fP file using the \fB\-c\fP /
 \fB\-\-config\fP with the \fI\%barman command\fP directly in the CLI.
+.sp
+Barman searches for its configuration file in a predefined order and uses the first one
+it finds. The search order is as follows:
+.INDENT 0.0
+.IP \(bu 2
+\fB~/.barman.conf\fP \- per\-user configuration file.
+.IP \(bu 2
+\fB/etc/barman.conf\fP \- main global configuration file.
+.IP \(bu 2
+\fB/etc/barman/barman.conf\fP \- alternative global configuration file.
+.UNINDENT
 .sp
 2. \fBServer Configuration\fP: It comprises one or more files with a set of
 configurations for a Postgres server that you want to keep track and interact for
@@ -1129,6 +1140,12 @@ Deprecated since version 3.16: The \fBpygzip\fP and \fBpybzip2\fP compression op
 removed in a future release. Use their equivalents \fBgzip\fP and \fBbzip2\fP instead.
 
 .sp
+Deprecated since version 3.17: The \fBcustom\fP compression option and related configuration options
+(\fBcustom_compression_filter\fP, \fBcustom_decompression_filter\fP, and
+\fBcustom_compression_magic\fP) are deprecated and will be removed in a future
+release. Use one of the built\-in compression algorithms instead.
+
+.sp
 \fBNOTE:\fP
 .INDENT 0.0
 .INDENT 3.5
@@ -1151,6 +1168,9 @@ file.
 .sp
 Scope: Global / Server / Model.
 .sp
+Deprecated since version 3.17: This configuration option is deprecated and will be removed in a future release.
+
+.sp
 \fBcustom_compression_filter\fP
 .sp
 Specifies a custom compression algorithm for WAL files. It must be a \fBstring\fP that
@@ -1168,6 +1188,9 @@ This is the same as running \fBxz \-c > \(dq$2\(dq < \(dq$1\(dq;\fP\&.
 .UNINDENT
 .sp
 Scope: Global / Server / Model.
+.sp
+Deprecated since version 3.17: This configuration option is deprecated and will be removed in a future release.
+
 .sp
 \fBcustom_compression_magic\fP
 .sp
@@ -1206,6 +1229,9 @@ Reference: \X'tty: link https://tukaani.org/xz/xz-file-format-1.0.4.txt'\fI\%xz\
 .UNINDENT
 .sp
 Scope: Global / Server / Model.
+.sp
+Deprecated since version 3.17: This configuration option is deprecated and will be removed in a future release.
+
 .sp
 \fBcustom_decompression_filter\fP
 .sp

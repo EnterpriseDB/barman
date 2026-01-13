@@ -14,6 +14,12 @@ guidelines for how long backups are kept, when they should be archived or delete
 how they are organized. Implementing a well-defined retention policy is essential for
 ensuring data protection, optimizing storage use, and meeting compliance requirements.
 
+.. note::
+  Retention policies apply only to backups with status ``DONE``. Backups that are
+  incomplete (for example, those in the ``WAITING_FOR_WALS`` state) or ``FAILED`` are
+  not accounted by retention rules.
+
+
 .. _retention-policies-key-components:
 
 Key Components of Retention Policies
@@ -150,6 +156,18 @@ The ``keep`` command can be used to mark a specific backup so its kept indefinit
 This overrides the retention policy explained earlier for that backup. You can find
 more information on the ``keep`` command in the
 :ref:`Barman keep command documentation <commands-barman-keep>`.
+
+.. note::
+  Incremental backups are not eligible for the ``keep`` command. This restriction exists
+  because incremental backups rely on their parent backups and cannot be used on their
+  own for recovery. Keeping an incremental without its base would serve no purpose, as
+  it is unusable independently.
+  
+  If you attempt to apply keep to an incremental backup, Barman will return an error
+  indicating that incremental backups cannot be kept.
+  
+  **Only the full base backup —the one that starts the backup chain— can be marked with
+  keep.**
 
 .. _retention-policies-use-cases:
 

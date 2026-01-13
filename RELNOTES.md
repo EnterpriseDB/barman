@@ -2,6 +2,167 @@
 
 © Copyright EnterpriseDB UK Limited 2025 - All rights reserved.
 
+## 3.17.0 (2026-01-07)
+
+### Notable changes
+
+- Enable query, fetch, and selective operations on inactive/disabled servers
+
+  Multiple Barman commands now work with inactive and disabled servers based
+  on their safety profile:
+
+  **Query commands**:
+  - `list-backups`: view backups from inactive/disabled servers
+  - `status`: check status of inactive/disabled servers
+  - `show-backup`: display backup details from inactive/disabled servers
+  - `list-files`: list files from backups on inactive/disabled servers
+  - `verify-backup`: verify backups on inactive/disabled servers
+
+  **Fetch commands**:
+  - `restore`: restore backups from inactive servers
+  - `get-wal`: retrieve WAL files from inactive servers
+
+  **Modification commands**:
+  - `delete`: delete backups from inactive servers
+  - `config-switch`: switch configuration models for inactive/disabled servers
+
+  This change improves operational flexibility by allowing users to query
+  backup information and perform restore operations even when servers are
+  manually disabled (inactive) or have configuration issues (disabled). The
+  different behavior for disabled servers provides safety against operations
+  on servers with potential configuration conflicts or path issues.
+
+  References: BAR-976.
+
+- Deprecate custom compression for WAL files
+
+  The `custom` compression option and its related configuration options
+  (`custom_compression_filter`, `custom_decompression_filter`, and
+  `custom_compression_magic`) are now deprecated and will be removed in a
+  future release.
+
+  Users currently using custom compression are advised to migrate to one of the
+  built-in compression algorithms supported by Barman: `gzip`, `bzip2`, `lz4`,
+  `xz`, `zstd`, or `pigz`.
+
+  The custom compression feature was designed to provide flexibility for users
+  with specific compression requirements, but maintaining compatibility with
+  arbitrary external compression tools has proven to be complex and error-prone.
+  The built-in compression options provide better performance, reliability, and
+  maintainability.
+
+  Existing configurations using custom compression will continue to work in the
+  current release, but users should plan to migrate their configurations before
+  the feature is removed.
+
+  References: BAR-993.
+
+### Minor changes
+
+- Handle non-UTF8 output when checking for file encryption
+
+  In certain scenarios, such as when recovering WALs via `barman-wal-restore` or
+  running `barman rebuild-xlogdb`, Barman executes the `file` command to check
+  whether a file is encrypted.
+
+  On macOS systems (which are not officially supported), this command was reported
+  to be raising a `UnicodeDecodeError` exception if its output contained bytes that
+  could not be decoded using UTF-8.
+
+  To prevent this, Barman now handles undecodable bytes gracefully, allowing the
+  process to continue without interruption.
+
+  Github issue: #1117
+
+  References: BAR-926.
+
+- Add `--recovery-option-port` to `barman restore` command
+
+  When doing a remote restore with `get-wal` mode, Barman writes a `restore_command`
+  which invokes `barman-wal-restore` to fetch WALs. However, there was currently no
+  way to specify a custom port to the written `barman-wal-restore` command.
+
+  This change introduces the `--recovery-option-port` flag to the `barman restore`
+  command, allowing users to specify a value for the `--port` option of
+  `barman-wal-restore` command during remote restores.
+
+  References: BAR-943.
+
+- Add S3 Object Lock support for the deletion of backups in barman-cloud
+
+  `barman-cloud-backup-delete` now supports checking for Object Lock before
+  deleting backups in AWS S3. This feature helps prevent deletion of objects
+  protected by compliance or governance retention policies.
+
+  A new `--check-object-lock` option has been added, which enables Object Lock
+  verification before deletion. When enabled, the deletion operation for all objects of
+  a base backup will be aborted if any of those objects is locked. For performance
+  reasons, lock checks are only performed for base backup files, since once the
+  base backup is removed, the corresponding WAL files are no longer useful.
+
+  Note that this feature adds overhead to the delete operation, as it requires an
+  additional API call for each object being deleted. This feature is only available
+  for AWS S3-compatible object stores and requires the appropriate permissions
+  to function correctly.
+
+  References: BAR-946.
+
+### Bugfixes
+
+- Increase coverage of non-compliant S3 object stores for backup deletion
+
+  With this fix we increase the coverage of non-compliant S3 object stores for backup
+  deletion.
+
+  We've reduced the expression we were matching for the message returned on failure
+  to catch any error code that returns a message that contains "content-MD5".
+
+  We believe with this, almost all non-compliant S3 object stores for backup deletion
+  will be covered
+
+  References: BAR-974.
+
+- Fix passive node not syncing
+
+  In Barman 3.16 the "name" field was removed from the "config" key of
+  the `barman diagnose` command. Turns out the same "config" data is also
+  used when syncing a passive node, and the absence of the "name" field
+  caused the sync to fail.
+
+  This change adds back the "name" field to the "config" key, fixing
+  the sync of passive nodes.
+
+  Reported in GitHub issue #1125.
+
+  References: BAR-971.
+
+- Fix delta restore not working
+
+  The delta restore feature was not functioning correctly due to an oversight
+  where Barman was removing the destination directory before performing a restore.
+  The problem was fixed by avoiding the removal of the destination directory on
+  certain operations.
+  Reported in GitHub issue #1139.
+
+  References: BAR-1002.
+
+- Fix "rm execution failed" errors during restore
+
+  As a consequence of a refactoring implemented during the release of
+  version 3.15, Barman started removing the destination directory of the
+  restore operation before copying backup files. This was to ensure that
+  the files were always being copied to a clean directory.
+
+  However, when the destination directory is a mount point, or a
+  subdirectory where the user does not have sufficient permissions on its parent,
+  the removal of the directory fails, leading to errors
+  like "rm execution failed".
+
+  The issue is now fixed by avoiding the removal of the destination
+  directory for PGDATA and tablespaces on the restore final destination.
+
+  References: BAR-975.
+
 ## 3.16.2 (2025-11-04)
 
 ### Bugfixes

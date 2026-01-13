@@ -29,10 +29,17 @@ The option can use one of the following values:
 * ``custom``: for custom compression, which requires you to set the following options
   as well: ``custom_compression_filter``, ``custom_decompression_filter``,
   ``custom_compression_magic``. Check :ref:`configuration-options-wals` for details.
+  (Deprecated)
 
 .. deprecated:: 3.16
     The ``pygzip`` and ``pybzip2`` compression options are deprecated and will be
     removed in a future release. Use their equivalents ``gzip`` and ``bzip2`` instead.
+
+.. deprecated:: 3.17
+    The ``custom`` compression option and related configuration options
+    (``custom_compression_filter``, ``custom_decompression_filter``, and
+    ``custom_compression_magic``) are deprecated and will be removed in a future
+    release. Use one of the built-in compression algorithms instead.
 
 .. note::
     When using ``pigz`` Barman forks a new process for compression.

@@ -292,31 +292,31 @@ class TestRecoveryExecutor(object):
 
         # setup should create a temporary directory
         # and teardown should delete it
-        ret = executor._setup(backup_info, None, recovery_dir, None)
+        ret = executor._setup(backup_info, None, recovery_dir, None, None)
         assert os.path.exists(ret["tempdir"])
         executor.close()
         assert not os.path.exists(ret["tempdir"])
         assert ret["wal_dest"].endswith("/pg_xlog")
 
         # no postgresql.auto.conf on version 9.3
-        ret = executor._setup(backup_info, None, recovery_dir, None)
+        ret = executor._setup(backup_info, None, recovery_dir, None, None)
         executor.close()
         assert "postgresql.auto.conf" not in ret["configuration_files"]
 
         # Check the present for postgresql.auto.conf on version 9.4
         backup_info.version = 90400
-        ret = executor._setup(backup_info, None, recovery_dir, None)
+        ret = executor._setup(backup_info, None, recovery_dir, None, None)
         executor.close()
         assert "postgresql.auto.conf" in ret["configuration_files"]
 
         # Receive a error if the remote command is invalid
         with pytest.raises(SystemExit):
             executor.server.path = None
-            executor._setup(backup_info, "invalid", recovery_dir, None)
+            executor._setup(backup_info, "invalid", recovery_dir, None, None)
 
         # Test for PostgreSQL 10
         backup_info.version = 100000
-        ret = executor._setup(backup_info, None, recovery_dir, None)
+        ret = executor._setup(backup_info, None, recovery_dir, None, None)
         executor.close()
         assert ret["wal_dest"].endswith("/pg_wal")
 
@@ -355,7 +355,7 @@ class TestRecoveryExecutor(object):
 
         # WHEN _setup is called on the recovery executor
         recovery_info = executor._setup(
-            backup_info, None, "/path/to/recovery/dir", recovery_conf_filename
+            backup_info, None, "/path/to/recovery/dir", recovery_conf_filename, None
         )
         executor.close()
 
@@ -759,6 +759,7 @@ class TestRecoveryExecutor(object):
             "tempdir": tmpdir.strpath,
             "results": {"changes": [], "warnings": []},
             "get_wal": False,
+            "recovery_option_port": None,
             "target_datetime": "2015-06-03 16:11:03.71038+02",
             "wal_dest": wal_dest,
         }
@@ -1621,6 +1622,7 @@ class TestRecoveryExecutor(object):
             "safe_horizon": None,
             "is_pitr": False,
             "get_wal": False,
+            "recovery_option_port": None,
         }
         # test remote recovery
         with closing(executor):
@@ -1668,6 +1670,7 @@ class TestRecoveryExecutor(object):
             "safe_horizon": None,
             "is_pitr": False,
             "get_wal": False,
+            "recovery_option_port": None,
         }
         # test failed rsync
         rsync_pg_mock.side_effect = CommandFailedException()
@@ -2018,6 +2021,7 @@ class TestSnapshotRecoveryExecutor(object):
             target_action=None,
             standby_mode=None,
             recovery_conf_filename=None,
+            recovery_option_port=None,
         )
 
     @pytest.mark.parametrize(
@@ -3334,7 +3338,9 @@ class TestRsyncCopyOperation(object):
         )
 
         # AND the destination directory is prepared correctly
-        mock_prepare_directory.assert_called_once_with(destination)
+        mock_prepare_directory.assert_called_once_with(
+            destination, delete_if_exists=False
+        )
 
         # AND the copy is executed
         mock_copy_controller.copy.assert_called_once()
@@ -3442,9 +3448,9 @@ class TestRsyncCopyOperation(object):
         # AND the destination directory is prepared correctly
         mock_prepare_directory.assert_has_calls(
             [
-                mock.call("/path/to/destination"),
-                mock.call(tbs1_dest),
-                mock.call(tbs2_dest),
+                mock.call("/path/to/destination", delete_if_exists=False),
+                mock.call(tbs1_dest, delete_if_exists=False),
+                mock.call(tbs2_dest, delete_if_exists=False),
             ]
         )
 
@@ -3613,7 +3619,10 @@ class TestCombineOperation(object):
         # AND all the destinations are prepared
         dests = [output_dest] + list(mock_get_tablespace_mapping.return_value.values())
         mock_prepare_directory.assert_has_calls(
-            [mock.call(dest) for dest in dests],
+            [
+                mock.call(dest, delete_if_exists=(not is_last_operation))
+                for dest in dests
+            ],
         )
 
         # AND _run_pg_combinebackup is called with the correct parameters
@@ -5003,9 +5012,9 @@ class TestDecompressOperation(object):
         # Should create all destinations before decompressing
         if is_last_op:
             prep_calls = [
-                call("/dest"),
-                call(tbs1),
-                call(tbs2),
+                call("/dest", delete_if_exists=False),
+                call(tbs1, delete_if_exists=False),
+                call(tbs2, delete_if_exists=False),
             ]
             decompress_calls = [
                 call(
@@ -5025,9 +5034,9 @@ class TestDecompressOperation(object):
             dest = "/dest"
         else:
             prep_calls = [
-                call("/dest/1234567890/data"),
-                call("/dest/1234567890/16387"),
-                call("/dest/1234567890/16405"),
+                call("/dest/1234567890/data", delete_if_exists=True),
+                call("/dest/1234567890/16387", delete_if_exists=True),
+                call("/dest/1234567890/16405", delete_if_exists=True),
             ]
             decompress_calls = [
                 call(

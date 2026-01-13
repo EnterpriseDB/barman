@@ -447,11 +447,14 @@ class AzureCloudInterface(CloudInterface):
         blob_client.commit_block_list([], **self._extra_upload_args)
         blob_client.delete_blob()
 
-    def _delete_objects_batch(self, paths):
+    def _delete_objects_batch(self, paths, **kwargs):
         """
         Delete the objects at the specified paths
 
         :param List[str] paths:
+        :param dict kwargs: Provider-specific keyword arguments. Currently unused
+            for Azure Blob Storage; this parameter exists only to comply with the
+            base class interface.
         """
         super(AzureCloudInterface, self)._delete_objects_batch(paths)
 
@@ -501,12 +504,15 @@ class AzureCloudInterface(CloudInterface):
         """
         raise NotImplementedError()
 
-    def delete_under_prefix(self, prefix):
+    def delete_under_prefix(self, prefix, **kwargs):
         """
         Delete all objects under the specified prefix.
 
         :param str prefix: The object key prefix under which all objects should be
             deleted.
+        :param dict kwargs: Provider-specific keyword arguments. Currently unused
+            for Azure Blob Storage; this parameter exists only to comply with the
+            base class interface.
         """
         raise NotImplementedError()
 

@@ -224,6 +224,7 @@ class GPGEncryption(Encryption):
                 stderr=subprocess.PIPE,
                 check=True,
                 text=True,
+                errors="surrogateescape",  # handle any non-UTF-8 bytes
             )
             output = process.stdout.upper()
             return "PGP" in output and "ENCRYPTED" in output
