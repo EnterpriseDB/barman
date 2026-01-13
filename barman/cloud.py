@@ -1918,6 +1918,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
         backup_dir,
         backup_id,
         backup_info_path,
+        encryption,
         compression=None,
         min_chunk_size=None,
         max_bandwidth=None,
@@ -1943,6 +1944,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
             server_name,
             cloud_interface,
             max_archive_size,
+            encryption=encryption,
             compression=compression,
             postgres=None,
             min_chunk_size=min_chunk_size,
@@ -2011,7 +2013,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
         the self._coordinate_backup function. This is because there is no need to
         coordinate the backup with a live PostgreSQL server, create a restore point
         or upload the backup label independently of the backup (it will already be in
-        the base backup directoery).
+        the base backup directory).
         """
         # Read the backup_info file from disk as the backup has already been created
         self.backup_info = BackupInfo(self.backup_id)
