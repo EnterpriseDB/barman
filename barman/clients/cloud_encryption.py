@@ -76,6 +76,7 @@ class EncryptionConfiguration:
         """
         if filename and os.path.exists(filename):
             fd = open(filename, 'rb')
+            data = fd.read()
         elif filename: # filename given but does not exist
             _logger.info(f'requested client encryption config "{filename}" does not exist')
             data = b'{"default": "no_encryption", "no_encryption": null}'
@@ -96,7 +97,13 @@ class EncryptionConfiguration:
         if name == 'default':
             name = self.configuration['default']
 
-        return self.configuration[name]
+        ret = self.configuration[name]
+
+        # add the profile name to the returned dict -- is used to add into the encryption header
+        if ret:
+            ret["_profile_name"] = name
+
+        return ret
 
 class EncryptionHeader:
     """
@@ -188,10 +195,16 @@ class XChaCha20Poly1305Encryptor(ChunkedEncryptor):
         self._logger.debug('init XChaCha20Poly1305Encryptor')
         self.cryptoCipherChaCha20Poly1305 = _try_import_cryptoCipherChaCha20Poly1305()
         self.encryptionKey = None
-        if 'key256b64' in config:
-            self.encryptionKey = base64.b64decode(config['key256b64'])
+        self.config = config
+        if 'key256b64' in self.config:
+            self.encryptionKey = base64.b64decode(self.config['key256b64'])
         else:
             raise KeyError('XChaCha20Poly1305Encryptor config must contain a key256b64 key')
+
+        if '_profile_name' in self.config:
+            self.profile_name = self.config['_profile_name']
+        else:
+            raise KeyError('XChaCha20Poly1305Encryptor config must contain a _profile_name key')
 
         if len(self.encryptionKey) != 32:
             raise ValueError(f'XChaCha20Poly1305Encryptor needs a 256 bit key, got {len(self.encryptionKey)*8} bit')
@@ -211,7 +224,7 @@ class XChaCha20Poly1305Encryptor(ChunkedEncryptor):
         #self._logger.debug(f'add chunk {len(data)}')
 
         ret = b'' # data to return
-        header = { 'cipher': 'XChaCha20-poly1305' }
+        header = { 'cipher': 'XChaCha20-poly1305', 'profile': self.profile_name }
 
         # an encrypted file is of the form
         # PGBARMAN<headerlength:UINT16 LE><header in compact json><nonce 256bit><data><hmac>
