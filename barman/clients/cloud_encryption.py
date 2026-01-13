@@ -57,6 +57,7 @@ class EncryptionConfiguration:
         ...
     }
     """
+    # the json that was read
     configuration = None
 
     def __init__(self, *, filename=None, data=None, fd=None):
@@ -66,20 +67,27 @@ class EncryptionConfiguration:
         * fd : read from the file-like object, convert to dict
         * data : ascii decode the bytes, convert to dict
 
+        If <filename> is given but the file does not exist, initializes configuration to return
+        None for the default profile, effectively turning off encryption.
+
         :param str filename: the path to open
         :param file-like object fd: stream to read
         :param bytes data: byte array containing the json
         """
-        if filename: fd = open(filename, 'rb')
-
-        if fd: data = fd.read()
+        if filename and os.path.exists(filename):
+            fd = open(filename, 'rb')
+        elif filename: # filename given but does not exist
+            _logger.info(f'requested client encryption config "{filename}" does not exist')
+            data = b'{"default": "no_encryption", "no_encryption": null}'
+        elif fd:
+            data = fd.read()
 
         if data:
             self.configuration = json.loads(data.decode('ascii'))
         else:
             raise ValueError('Initializing EncryptionConfiguratie needs either filename, fd or data')
 
-        if filename: fd.close()
+        if filename and os.path.exists(filename): fd.close()
 
     def get_profile(self, name):
         """
@@ -301,6 +309,8 @@ def get_encryptor(encryption, profile_name='default'):
     :rtype: ChunkedEncryptor
     """
     profile = encryption.get_profile(profile_name)
+    if not profile:
+        return None
     if profile['cipher'] == "XChaCha20-poly1305":
         return XChaCha20Poly1305Encryptor(config=profile)
     return None

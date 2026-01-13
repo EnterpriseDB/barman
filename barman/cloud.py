@@ -387,7 +387,7 @@ class CloudUploadController(object):
             components.append(".bz2")
         elif self.compression == "snappy":
             components.append(".snappy")
-        if self.encryption:
+        if self.encryption and self.encryption.get_profile('default'):
             components.append(".enc")
         return "".join(components)
 

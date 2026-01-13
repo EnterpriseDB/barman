@@ -365,8 +365,8 @@ class CloudWalUploader(object):
         if self.compression:
             ret = compress(ret, self.compression, self.compression_level)
 
-        # encrypt if necessary
-        if self.encryption:
+        # encrypt if necessary -> a default profile should exist
+        if self.encryption and self.encryption.get_profile('default'):
             ret = encrypt(ret, self.encryption)
 
         return ret
@@ -395,7 +395,8 @@ class CloudWalUploader(object):
         else:
             raise ValueError("Unknown compression type: %s" % self.compression)
 
-        if self.encryption:
+        # are we encrypting ? -> default profile should exist
+        if self.encryption and self.encryption.get_profile('default'):
             ret += '.enc'
 
         return ret
