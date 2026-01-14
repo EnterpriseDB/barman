@@ -19,7 +19,7 @@ Description
 ^^^^^^^^^^^
 
 Display real-time information and status of any streaming clients connected to the
-specified server. Specify ``all`` shortcut to diplay information for all configured
+specified server. Specify ``all`` shortcut to display information for all configured
 servers.
 
 Parameters
