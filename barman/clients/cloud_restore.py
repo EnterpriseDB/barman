@@ -25,7 +25,6 @@ from barman.clients.cloud_cli import (
     GeneralErrorExit,
     OperationErrorExit,
     create_argument_parser,
-    get_encryption_config,
 )
 from barman.clients.cloud_encryption import EncryptionConfiguration
 from barman.cloud import CloudBackupCatalog, configure_logging
