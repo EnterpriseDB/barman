@@ -1,13 +1,24 @@
 name: Automation for GitHub -> Jira
 
 on:
-  pull_request:
-    branches:
-      - master
+  issues:
+    types:
+      - labeled
 
 jobs:
-  test:
+  # When an issue is labeled in GitHub, send a webhook to Jira to create a ticket for
+  # tracking the issue. Only account for the 'enhancement' and 'bug' labels.
+  on-github-issue-labeled-create-jira-ticket:
     runs-on: ubuntu-latest
-
+    if: github.event_name == 'issues' && github.event.action == 'labeled' && (github.event.label.name == 'enhancement' || github.event.label.name == 'bug')
     steps:
-      - uses: actions/checkout@v4
+      - name: Send webhook to Jira
+        run: |
+          curl -X POST "${WEBHOOK_URL}" \
+            -H "Content-Type: application/json" \
+            -H "X-Automation-Webhook-Token: ${WEBHOOK_SECRET}" \
+            -d "${WEBHOOK_PAYLOAD}"
+        env:
+          WEBHOOK_URL: ${{ secrets.JIRA_ISSUE_LABELED_WEBHOOK_URL }}
+          WEBHOOK_SECRET: ${{ secrets.JIRA_ISSUE_LABELED_WEBHOOK_SECRET }}
+          WEBHOOK_PAYLOAD: ${{ toJSON(github.event) }}
