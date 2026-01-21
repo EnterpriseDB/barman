@@ -196,6 +196,13 @@ def create_argument_parser(description, source_or_destination=UrlArgumentType.so
         help="the time in seconds until a timeout is raised when waiting to "
         "read from a connection (defaults to 60 seconds)",
     )
+    s3_arguments.add_argument(
+        "--addressing-style",
+        choices=["auto", "virtual", "path"],
+        help="the addressing style to use for S3 requests. Valid values are "
+        "'auto' (default), 'virtual' (virtual-hosted-style), or 'path' "
+        "(path-style)",
+    )
     azure_arguments = parser.add_argument_group(
         "Extra options for the azure-blob-storage cloud provider"
     )

@@ -570,6 +570,32 @@ class TestS3CloudInterface(object):
             config=config_mock.return_value,
         )
 
+    @mock.patch("barman.cloud_providers.aws_s3.Config")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_uploader_minimal_addressing_style(self, boto_mock, config_mock):
+        # GIVEN an s3 bucket url
+        bucket_url = "s3://bucket/path/to/dir"
+
+        # WHEN an S3CloudInterface with minimal arguments is created with
+        # a specified addressing_style
+        cloud_interface = S3CloudInterface(
+            url=bucket_url, encryption=None, addressing_style="path"
+        )
+
+        # THEN the cloud interface addressing_style property is set to the specified
+        # value
+        assert cloud_interface.addressing_style == "path"
+        # AND a Config is created with the specified addressing_style
+        config_mock.assert_called_once_with(s3={"addressing_style": "path"})
+        # AND the boto3 resource is created with no specified endpoint_url
+        # and the created Config object
+        session_mock = boto_mock.Session.return_value
+        session_mock.resource.assert_called_once_with(
+            "s3",
+            endpoint_url=None,
+            config=config_mock.return_value,
+        )
+
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_invalid_uploader_minimal(self, boto_mock):
         """
