@@ -91,6 +91,36 @@ differ.
    ``RELEASE.2025-02-03T21-03-04Z`` or newer) to ensure compatibility and avoid failures
    when deleting backups or releasing a keep annotation.
 
+For AWS S3 Policy definition is following (based on boto3 API calls).
+
+.. code-block:: json
+
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Sid": "BucketOperations",
+         "Effect": "Allow",
+         "Action": [
+           "s3:CreateBucket",
+           "s3:ListBucket"
+         ],
+         "Resource": "arn:aws:s3:::${bucket_name}"
+       },
+       {
+         "Sid": "ObjectOperations",
+         "Effect": "Allow",
+         "Action": [
+           "s3:GetObject",
+           "s3:PutObject",
+           "s3:DeleteObject"
+           "s3:AbortMultipartUpload"
+         ],
+         "Resource": "arn:aws:s3:::${bucket_name}/*"
+       }
+     ]
+   }
+
 .. _barman-cloud-installation:
 
 Installation
