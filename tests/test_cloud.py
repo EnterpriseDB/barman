@@ -1926,7 +1926,7 @@ class TestAzureCloudInterface(object):
         # iterate the bucket contents
         container_client = container_client_mock.from_connection_string.return_value
         container_client.list_blobs.assert_called_once_with(
-            name_starts_with="path/to/blob",
+            name_starts_with="path/to/blob", results_per_page=1
         )
         blobs_iterator = container_client.list_blobs.return_value
         blobs_iterator.next.assert_called_once_with()
@@ -1964,7 +1964,7 @@ class TestAzureCloudInterface(object):
         cloud_interface.setup_bucket()
         container_client = container_client_mock.from_connection_string.return_value
         container_client.list_blobs.assert_called_once_with(
-            name_starts_with="path/to/blob",
+            name_starts_with="path/to/blob", results_per_page=1
         )
         blobs_iterator = container_client.list_blobs.return_value
         blobs_iterator.next.assert_called_once_with()
@@ -1985,7 +1985,7 @@ class TestAzureCloudInterface(object):
         blobs_iterator.next.side_effect = ResourceNotFoundError()
         cloud_interface.setup_bucket()
         container_client.list_blobs.assert_called_once_with(
-            name_starts_with="path/to/blob",
+            name_starts_with="path/to/blob", results_per_page=1
         )
         blobs_iterator.next.assert_called_once_with()
         container_client.create_container.assert_called_once_with()
