@@ -1241,7 +1241,7 @@ Specifies the path on the recovery host for staging files from compressed backup
 location must have sufficient space to temporarily store the compressed backup.
 
 .. note::
-  Applies only for commpressed backups.
+  Applies only for compressed backups.
 
 .. deprecated:: 3.15
     ``recovery_staging_path`` is deprecated and will be removed in a future release.
