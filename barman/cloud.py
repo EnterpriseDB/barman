@@ -38,6 +38,7 @@ from barman import xlog
 from barman.annotations import KeepManagerMixinCloud
 from barman.backup_executor import ConcurrentBackupStrategy, SnapshotBackupExecutor
 from barman.clients import cloud_compression
+from barman.clients import cloud_encryption
 from barman.clients.cloud_cli import (
     NetworkErrorExit,
     OperationErrorExit,
@@ -182,12 +183,11 @@ class CloudTarUploader(object):
     # This is the method we use to create new buffers
     # We use named temporary files, so we can pass them by name to
     # other processes
-    _buffer = partial(
-        NamedTemporaryFile, delete=False, prefix="barman-upload-", suffix=".part"
-    )
+    def _buffer(self):
+        return NamedTemporaryFile(delete=False, prefix="barman-upload-", suffix=".part")
 
     def __init__(
-        self, cloud_interface, key, chunk_size, compression=None, max_bandwidth=None
+        self, cloud_interface, key, chunk_size, encryption, compression=None, max_bandwidth=None
     ):
         """
         A tar archive that resides on cloud storage
@@ -195,11 +195,13 @@ class CloudTarUploader(object):
         :param CloudInterface cloud_interface: cloud interface instance
         :param str key: path inside the bucket
         :param str compression: required compression
+        :param dict encryption: encryption config, None if no encryption
         :param int chunk_size: the upload chunk size
         :param int max_bandwidth: the maximum amount of data per second that
           should be uploaded by this tar uploader
         """
         self.cloud_interface = cloud_interface
+        self.encryption_config = encryption
         self.key = key
         self.chunk_size = chunk_size
         self.max_bandwidth = max_bandwidth
@@ -223,6 +225,7 @@ class CloudTarUploader(object):
         self.stats = None
         self.time_of_last_upload = None
         self.size_of_last_upload = None
+        self.encryptor = cloud_encryption.get_encryptor(self.encryption_config) if self.encryption_config else None
 
     def write(self, buf):
         if self.buffer and self.buffer.tell() > self.chunk_size:
@@ -231,15 +234,12 @@ class CloudTarUploader(object):
             self.buffer = self._buffer()
         if self.compressor:
             # If we have a custom compressor we must use it here
-            compressed_buf = self.compressor.add_chunk(buf)
-            self.buffer.write(compressed_buf)
-            self.size += len(compressed_buf)
-        else:
-            # If there is no custom compressor then we are either not using
-            # compression or tar has already compressed it - in either case we
-            # just write the data to the buffer
-            self.buffer.write(buf)
-            self.size += len(buf)
+            buf = self.compressor.add_chunk(buf)
+        if self.encryptor:
+            buf = self.encryptor.add_chunk(buf)
+
+        self.buffer.write(buf)
+        self.size += len(buf)
 
     def _throttle_upload(self, part_size):
         """
@@ -294,6 +294,10 @@ class CloudTarUploader(object):
     def close(self):
         if self.tar:
             self.tar.close()
+        if self.encryptor:
+            buf = self.encryptor.close()
+            self.buffer.write(buf)
+            self.size += len(buf)
         self.flush()
         self.cloud_interface.async_complete_multipart_upload(
             upload_metadata=self.upload_metadata,
@@ -310,6 +314,7 @@ class CloudUploadController(object):
         key_prefix,
         max_archive_size,
         compression,
+        encryption,
         min_chunk_size=None,
         max_bandwidth=None,
     ):
@@ -320,6 +325,7 @@ class CloudUploadController(object):
         :param str|None key_prefix: path inside the bucket
         :param int max_archive_size: the maximum size of an archive
         :param str|None compression: required compression
+        :param dict encryption: required encryption config
         :param int|None min_chunk_size: the minimum size of a single upload part
         :param int|None max_bandwidth: the maximum amount of data per second that
           should be uploaded during the backup
@@ -351,6 +357,7 @@ class CloudUploadController(object):
             possible_min_chunk_sizes.append(min_chunk_size)
         self.chunk_size = max(possible_min_chunk_sizes)
         self.compression = compression
+        self.encryption = encryption
         self.max_bandwidth = max_bandwidth
         self.tar_list = {}
 
@@ -380,6 +387,8 @@ class CloudUploadController(object):
             components.append(".bz2")
         elif self.compression == "snappy":
             components.append(".snappy")
+        if self.encryption and self.encryption.get_profile('default'):
+            components.append(".enc")
         return "".join(components)
 
     def _get_tar(self, name):
@@ -396,6 +405,7 @@ class CloudUploadController(object):
                     key=os.path.join(self.key_prefix, self._build_dest_name(name)),
                     chunk_size=self.chunk_size,
                     compression=self.compression,
+                    encryption=self.encryption,
                     max_bandwidth=self.max_bandwidth,
                 )
             ]
@@ -412,6 +422,7 @@ class CloudUploadController(object):
                 ),
                 chunk_size=self.chunk_size,
                 compression=self.compression,
+                encryption=self.encryption,
                 max_bandwidth=self.max_bandwidth,
             )
             self.tar_list[name].append(uploader)
@@ -578,6 +589,93 @@ class FileUploadStatistics(dict):
         part = self["parts"].setdefault(part_number, {"part_number": part_number})
         part["start_time"] = start_time
 
+class TransformingReadableStreamIO(RawIOBase):
+    """
+    Generalisation of a streaming transformation, reading from an file-like object
+    """
+
+    def __init__(self, inStream, transform_config):
+        """
+        Creating a transforming streamer, reading from inStream, writing to outStream
+        in chunks of chunkSize.
+
+        :param IOBase inStream: stream to read() from
+        :param EncryptionConfiguration transform_config: configuration for the transformation
+        """
+        self.inStream = inStream
+        self.transform_config = transform_config
+
+    def transform(self, inbytes):
+        """
+        abstract method that does a transformation of bytes
+        """
+        raise NotImplementedError()
+
+    def finalize_transform(self):
+        """
+        abstract method that finalizes a transformation and returns the closing bytes
+        """
+        raise NotImplementedError()
+
+    def read(self, n=-1):
+        """
+        Read up to n bytes of data from the wrapped IOBase.
+        When EOF is reached, no bytes ( b'' ) are returned.
+        None will not be returned.
+        Ref: https://docs.python.org/3/library/io.html#io.RawIOBase.read
+
+        :param int n: The number of bytes requested
+        :return: Up to n transformed bytes from the wrapped IOBase
+        :rtype: bytes
+        """
+        incoming_bytes = self.inStream.read(n)
+        #_logger.debug(f'requested {n} bytes, got {len(incoming_bytes)}')
+        # this could break : if upstream also stops when no bytes are returned,
+        #   this is called twice ...
+        if len(incoming_bytes) == 0:
+            # if no bytes are returned, we have reached EOF
+            # get the closing bytes for the transformation
+            incoming_bytes = self.finalize_transform()
+        return self.transform(incoming_bytes)
+
+    def close(self):
+        """
+        abstract method for closing actions, e.g. check signature of a stream
+        """
+        raise NotImplementedError()
+
+class DecryptingReadableStreamIO(TransformingReadableStreamIO):
+    """
+    TransformingReadableStreamIO doing decryption
+
+    transform_config should contain the info from the client_encryption.json
+    """
+    # cipher and key must be discovered from the header of the encrypted data
+    cipher = None
+    key = None
+
+    def transform(self, inbytes):
+        if not self.cipher:
+            header = cloud_encryption.EncryptionHeader(inbytes)
+            self.cipher = header.headerdict['cipher']
+            # if the header contains a profile name, use it, if not, use default
+            if 'profile' in header.headerdict:
+                self.profile = header.headerdict['profile']
+            else:
+                self.profile = 'default'
+            # TODO we should check if the information in the header matches with the
+            # one in the config - for the moment, assume they're ok
+            self.decryptor = cloud_encryption.get_encryptor(
+                                                      self.transform_config,
+                                                      profile_name=self.profile)
+
+        return self.decryptor.decrypt(inbytes)
+
+    def close(self):
+        if self.decryptor.validate_decryption():
+            _logger.info('Stream has a valid signature.')
+        else:
+            _logger.error('The stream failed validation: incorrect signature')
 
 class DecompressingStreamingIO(RawIOBase):
     """
@@ -1068,18 +1166,29 @@ class CloudInterface(with_metaclass(ABCMeta)):
             self._create_bucket()
             self.bucket_exists = True
 
-    def extract_tar(self, key, dst):
+    def extract_tar(self, key, dst, encryption_config=None):
         """
         Extract a tar archive from cloud to the local directory
 
         :param str key: The key identifying the tar archive
         :param str dst: Path of the directory into which the tar archive should
           be extracted
+        :param dict encryption_config: client-encryption config
         """
-        extension = os.path.splitext(key)[-1]
+        fileobj = self.remote_open(key)
+        (keyremainder,extension) = os.path.splitext(key)
+        if extension == '.enc':
+            fileobj = DecryptingReadableStreamIO(inStream=fileobj,
+                                                 transform_config=encryption_config)
+            extension = os.path.splitext(keyremainder)[-1]
+
         compression = "" if extension == ".tar" else extension[1:]
         tar_mode = cloud_compression.get_streaming_tar_mode("r", compression)
-        fileobj = self.remote_open(key, cloud_compression.get_compressor(compression))
+        compressor = cloud_compression.get_compressor(compression)
+        # get_compressor returns None if decompression can be handled by tar
+        if compressor:
+            fileobj = DecompressingStreamingIO(fileobj, compressor)
+
         with tarfile.open(fileobj=fileobj, mode=tar_mode) as tf:
             tf.extractall(path=dst)
 
@@ -1428,6 +1537,7 @@ class CloudBackup(with_metaclass(ABCMeta)):
             self.backup_info.save(file_object=backup_info_file)
             backup_info_file.seek(0, os.SEEK_SET)
             _logger.info("Uploading '%s'", key)
+            # TODO: actually encrypt this if necessary !
             self.cloud_interface.upload_fileobj(backup_info_file, key)
 
     def _check_postgres_version(self):
@@ -1542,6 +1652,7 @@ class CloudBackupUploader(CloudBackup):
         cloud_interface,
         max_archive_size,
         postgres,
+        encryption,
         compression=None,
         backup_name=None,
         min_chunk_size=None,
@@ -1571,6 +1682,7 @@ class CloudBackupUploader(CloudBackup):
         )
 
         self.compression = compression
+        self.encryption = encryption
         self.max_archive_size = max_archive_size
         self.min_chunk_size = min_chunk_size
         self.max_bandwidth = max_bandwidth
@@ -1613,6 +1725,7 @@ class CloudBackupUploader(CloudBackup):
             key_prefix,
             self.max_archive_size,
             self.compression,
+            self.encryption,
             self.min_chunk_size,
             self.max_bandwidth,
         )
@@ -1810,6 +1923,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
         backup_dir,
         backup_id,
         backup_info_path,
+        encryption,
         compression=None,
         min_chunk_size=None,
         max_bandwidth=None,
@@ -1835,6 +1949,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
             server_name,
             cloud_interface,
             max_archive_size,
+            encryption=encryption,
             compression=compression,
             postgres=None,
             min_chunk_size=min_chunk_size,
@@ -1903,7 +2018,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
         the self._coordinate_backup function. This is because there is no need to
         coordinate the backup with a live PostgreSQL server, create a restore point
         or upload the backup label independently of the backup (it will already be in
-        the base backup directoery).
+        the base backup directory).
         """
         # Read the backup_info file from disk as the backup has already been created
         self.backup_info = BackupInfo(self.backup_id)
@@ -2090,11 +2205,12 @@ class CloudBackupSnapshot(CloudBackup):
 
 
 class BackupFileInfo(object):
-    def __init__(self, oid=None, base=None, path=None, compression=None):
+    def __init__(self, oid=None, base=None, path=None, compression=None, encryption=None):
         self.oid = oid
         self.base = base
         self.path = path
         self.compression = compression
+        self.encryption = encryption
         self.additional_files = []
 
 
@@ -2341,18 +2457,24 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
                     else:
                         info = backup_file
                         ext = suffix[1:]
-                    # Infer the compression from the file extension
-                    if ext == "tar":
-                        info.compression = None
-                    elif ext == "tar.gz":
-                        info.compression = "gzip"
-                    elif ext == "tar.bz2":
-                        info.compression = "bzip2"
-                    elif ext == "tar.snappy":
-                        info.compression = "snappy"
-                    else:
-                        _logger.warning("Skipping unknown extension: %s", ext)
-                        continue
+                    # Infer the compression and encryption from the file extension
+                    info.compression = None
+                    info.encryption = None
+                    for extpart in ext.split('.'):
+                        _logger.debug(f'handling part "{extpart}" from extension {ext}')
+                        if extpart == "tar":
+                            pass
+                        elif extpart == "gz":
+                            info.compression = "gzip"
+                        elif extpart == "bz2":
+                            info.compression = "bzip2"
+                        elif extpart == "snappy":
+                            info.compression = "snappy"
+                        elif extpart == "enc":
+                            info.encryption = True
+                        else:
+                            _logger.warning("Skipping unknown extension: %s", ext)
+                            continue
                     info.path = item
                     _logger.info(
                         "Found file from backup '%s' of server '%s': %s",

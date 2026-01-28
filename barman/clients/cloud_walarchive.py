@@ -29,6 +29,7 @@ from barman.clients.cloud_cli import (
     create_argument_parser,
 )
 from barman.clients.cloud_compression import compress
+from barman.clients.cloud_encryption import encrypt, EncryptionConfiguration
 from barman.cloud import configure_logging
 from barman.cloud_providers import get_cloud_interface
 from barman.config import parse_compression_level
@@ -83,6 +84,9 @@ def main(args=None):
     try:
         cloud_interface = get_cloud_interface(config)
 
+        # get the client-encryption config
+        encryption_config = EncryptionConfiguration(filename=config.client_encryption)
+
         with closing(cloud_interface):
             if config.test:
                 cloud_interface.verify_cloud_connectivity_and_bucket_existence()
@@ -92,6 +96,7 @@ def main(args=None):
                 cloud_interface=cloud_interface,
                 server_name=config.server_name,
                 compression=config.compression,
+                encryption=encryption_config,
                 compression_level=config.compression_level,
             )
 
@@ -180,6 +185,12 @@ def parse_arguments(args=None):
         dest="compression_level",
         type=parse_compression_level,
         default=None,
+    )
+    parser.add_argument(
+        "--client-encryption",
+        help="path to the client-encryption config file"
+        "(default: /etc/barman/client-encryption.json)",
+        default='/etc/barman/client-encryption.json',
     )
 
     tag_arguments = parser.add_mutually_exclusive_group()
@@ -279,6 +290,7 @@ class CloudWalUploader(object):
         self,
         cloud_interface,
         server_name,
+        encryption,
         compression=None,
         compression_level=None,
     ):
@@ -288,12 +300,14 @@ class CloudWalUploader(object):
         :param CloudInterface cloud_interface: The interface to use to
           upload the backup
         :param str server_name: The name of the server as configured in Barman
+        :param dict encryption: encryption config information
         :param str|None compression: Compression algorithm to use
         :param str|int|None compression_level: Compression level for the specified
             algorithm
         """
 
         self.cloud_interface = cloud_interface
+        self.encryption = encryption
         self.compression = compression
         self.compression_level = compression_level
         self.server_name = server_name
@@ -345,12 +359,17 @@ class CloudWalUploader(object):
         :return File: simple or compressed file object
         """
         # Read the wal_file in binary mode
-        wal_file = open(wal_path, "rb")
-        # return the opened file if is uncompressed
-        if not self.compression:
-            return wal_file
+        ret = open(wal_path, "rb")
 
-        return compress(wal_file, self.compression, self.compression_level)
+        # compress the file if necessary
+        if self.compression:
+            ret = compress(ret, self.compression, self.compression_level)
+
+        # encrypt if necessary -> a default profile should exist
+        if self.encryption and self.encryption.get_profile('default'):
+            ret = encrypt(ret, self.encryption)
+
+        return ret
 
     def retrieve_wal_name(self, wal_path):
         """
@@ -365,36 +384,22 @@ class CloudWalUploader(object):
         :return str: WAL file name
         """
         # Extract the WAL name
-        wal_name = os.path.basename(wal_path)
-        # return the plain file name if no compression is specified
-        if not self.compression:
-            return wal_name
+        ret = os.path.basename(wal_path)
 
-        if self.compression == "gzip":
-            # add gz extension
-            return "%s.gz" % wal_name
+        compressionExtensionMap = {
+            "gzip": "gz", "bzip2": "bz2", "xz": "xz", "snappy": "snappy",
+            "zstd": "zst", "lz4": "lz4" }
 
-        elif self.compression == "bzip2":
-            # add bz2 extension
-            return "%s.bz2" % wal_name
-
-        elif self.compression == "xz":
-            # add xz extension
-            return "%s.xz" % wal_name
-
-        elif self.compression == "snappy":
-            # add snappy extension
-            return "%s.snappy" % wal_name
-
-        elif self.compression == "zstd":
-            # add zst extension
-            return "%s.zst" % wal_name
-
-        elif self.compression == "lz4":
-            # add lz4 extension
-            return "%s.lz4" % wal_name
+        if self.compression and self.compression in compressionExtensionMap:
+            ret += f'.{compressionExtensionMap[self.compression]}'
         else:
             raise ValueError("Unknown compression type: %s" % self.compression)
+
+        # are we encrypting ? -> default profile should exist
+        if self.encryption and self.encryption.get_profile('default'):
+            ret += '.enc'
+
+        return ret
 
 
 if __name__ == "__main__":

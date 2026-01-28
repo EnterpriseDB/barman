@@ -30,6 +30,7 @@ from barman.clients.cloud_cli import (
     add_tag_argument,
     create_argument_parser,
 )
+from barman.clients.cloud_encryption import EncryptionConfiguration
 from barman.cloud import (
     CloudBackupSnapshot,
     CloudBackupUploader,
@@ -173,6 +174,9 @@ def main(args=None):
         # Create any temporary file in the `tempdir` subdirectory
         tempfile.tempdir = tempdir
 
+        # get the client-encryption config
+        encryption_config = EncryptionConfiguration(filename=config.client_encryption)
+
         cloud_interface = get_cloud_interface(config)
 
         with closing(cloud_interface):
@@ -185,6 +189,7 @@ def main(args=None):
             uploader_kwargs = {
                 "server_name": config.server_name,
                 "compression": config.compression,
+                "encryption": encryption_config,
                 "max_archive_size": config.max_archive_size,
                 "min_chunk_size": config.min_chunk_size,
                 "max_bandwidth": config.max_bandwidth,
@@ -307,6 +312,12 @@ def parse_arguments(args=None):
         action="store_const",
         const="snappy",
         dest="compression",
+    )
+    parser.add_argument(
+        "--client-encryption",
+        help="path to the client-encryption config file"
+        "(default: /etc/barman/client-encryption.json)",
+        default='/etc/barman/client-encryption.json',
     )
     parser.add_argument(
         "-h",
