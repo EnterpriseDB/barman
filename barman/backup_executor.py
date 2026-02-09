@@ -2020,7 +2020,7 @@ class PostgresBackupStrategy(BackupStrategy):
     Concrete class for postgres backup strategy.
 
     This strategy is for PostgresBackupExecutor only and is responsible for
-    executing pre e post backup operations during a physical backup executed
+    executing pre and post backup operations during a physical backup executed
     using pg_basebackup.
     """
 

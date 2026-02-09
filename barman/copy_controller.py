@@ -177,7 +177,7 @@ class _RsyncCopyItem(object):
         self.item_class = item_class
         self.optional = optional
 
-        # Attributes that will e filled during the analysis
+        # Attributes that will be filled during the analysis
         self.temp_dir = None
         self.dir_file = None
         self.exclude_and_protect_file = None
