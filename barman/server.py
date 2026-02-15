@@ -4000,6 +4000,7 @@ class Server(RemoteStatusMixin):
             # to spawn unnecessary processes.
             try:
                 local_backup_info = self.get_backup(backup_id)
+                self.sync_parent_backup_info(backup_id, remote_info, local_backup_info)
                 self.check_sync_required(backup_id, remote_info, local_backup_info)
             except SyncError as e:
                 # It means that neither the local backup
@@ -4802,3 +4803,58 @@ class Server(RemoteStatusMixin):
         except IOError as e:
             if e.errno == errno.ENOENT:
                 _logger.warning("%s not found" % src)
+
+    def sync_parent_backup_info(self, backup_name, primary_info, local_backup_info):
+        """
+        Synchronize only the backup.info file for a backup from the primary server.
+        
+        This method is used when a parent backup already exists locally but needs its 
+        backup.info file to be updated for incremental backup synchronization.
+
+        Checks if server is a passive node and if the backup is present on remote. 
+        Builds the LocalBackupInfo object from the remote JSON and saves it.
+
+        :param str backup_name: the backup name to be synchronized
+        :param dict primary_info: the primary server information
+        :param LocalBackupInfo local_backup_info: the local backup information
+        """
+        if not self.passive_node:
+            return None
+
+        # Check if the backup is incremental
+        backups = primary_info["backups"]
+        parent_id = backups[backup_name].get("parent_backup_id")
+        if parent_id is None:
+            return None
+
+        # Check if the parent backup is present on the remote server.
+        # If not, raise a SyncError to stop the sync process, 
+        # as the synchronization of the incremental backup will fail.
+        if parent_id not in backups:
+            raise SyncError(
+                "Parent Backup %s is absent on %s server" % (parent_id, self.config.name)
+            )
+
+        try:
+            _logger.info(
+                "Synchronizing backup.info for parent backup %s of server %s",
+                parent_id,
+                self.config.name,
+            )
+
+            # Build local BackupInfo from remote JSON and save it
+            local_backup_info = LocalBackupInfo.from_json(self, backups[parent_id])
+            local_backup_info.save()
+            self.backup_manager.backup_cache_add(local_backup_info)
+            
+            _logger.info(
+                "Successfully synchronised backup.info for parent backup %s of server %s",
+                parent_id,
+                self.config.name,
+            )
+        except (OSError, IOError):
+            # Wrap file access exceptions using SyncError
+            raise SyncError(
+                "Unable to write %s backup.infofile for server %s"
+                % (parent_id, self.config.name)
+            )
