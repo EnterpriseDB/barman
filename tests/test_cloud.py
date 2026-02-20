@@ -3878,6 +3878,55 @@ end_time=2022-11-09 12:05:00
 class TestCloudTarUploader(object):
     """Tests CloudTarUploader creates valid tar files."""
 
+    @mock.patch("barman.cloud.CloudInterface")
+    def test_write_uses_disk_buffer_for_partial_data(self, mock_cloud_interface):
+        """
+        Verifies write keeps partial upload data in the disk-backed temp
+        buffer, not an in-memory accumulator.
+        """
+        uploader = CloudTarUploader(mock_cloud_interface, "key", chunk_size=1 << 40)
+        uploader.write(b"abc")
+
+        assert uploader.buffer is not None
+        assert uploader.buffer.tell() == 3
+        mock_cloud_interface.async_upload_part.assert_not_called()
+
+        buffer_name = uploader.buffer.name
+        uploader.buffer.close()
+        os.unlink(buffer_name)
+
+    @mock.patch("barman.cloud.CloudInterface")
+    def test_write_emits_fixed_size_parts_and_retains_tail(self, mock_cloud_interface):
+        """
+        Verifies write emits fixed-size parts and leaves only trailing bytes in
+        the buffer until flush uploads the final short part.
+        """
+        uploader = CloudTarUploader(mock_cloud_interface, "key", chunk_size=4)
+        uploader.write(b"abcdefghij")
+
+        assert mock_cloud_interface.async_upload_part.call_count == 2
+        uploaded_bodies = [
+            call_args[1]["body"]
+            for call_args in mock_cloud_interface.async_upload_part.call_args_list
+        ]
+        uploaded_sizes = [os.path.getsize(body.name) for body in uploaded_bodies]
+        assert uploaded_sizes == [4, 4]
+        assert uploader.buffer is not None
+        assert uploader.buffer.tell() == 2
+
+        uploader.flush()
+        assert mock_cloud_interface.async_upload_part.call_count == 3
+        final_body = mock_cloud_interface.async_upload_part.call_args_list[-1][1]["body"]
+        assert os.path.getsize(final_body.name) == 2
+        assert uploader.buffer is None
+
+        for body in [
+            call_args[1]["body"]
+            for call_args in mock_cloud_interface.async_upload_part.call_args_list
+        ]:
+            if os.path.exists(body.name):
+                os.unlink(body.name)
+
     @pytest.mark.parametrize(
         "compression",
         # The CloudTarUploader expects the short form compression args set by the
@@ -4101,7 +4150,9 @@ class TestCloudTarUploader(object):
             None,
             max_bandwidth,
         )
+        # Put some data in the disk buffer so flush has something to upload
         uploader.buffer = MagicMock()
+        uploader.buffer.tell.return_value = 1024
         # WHEN flush is called
         with mock.patch(
             "barman.cloud.CloudTarUploader._throttle_upload"
