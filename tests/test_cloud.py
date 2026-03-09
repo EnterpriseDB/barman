@@ -3914,7 +3914,7 @@ class TestCloudTarUploader(object):
         assert uploader.buffer is not None
         assert uploader.buffer.tell() == 2
 
-        uploader.flush()
+        uploader.flush(is_final=True)
         assert mock_cloud_interface.async_upload_part.call_count == 3
         final_body = mock_cloud_interface.async_upload_part.call_args_list[-1][1]["body"]
         assert os.path.getsize(final_body.name) == 2
@@ -3926,6 +3926,123 @@ class TestCloudTarUploader(object):
         ]:
             if os.path.exists(body.name):
                 os.unlink(body.name)
+
+    @mock.patch("barman.cloud.CloudInterface")
+    def test_write_across_calls_emits_fixed_size_parts_and_retains_tail(
+        self, mock_cloud_interface
+    ):
+        """
+        Verifies multiple writes are coalesced into fixed-size parts and retain
+        only trailing bytes in the buffer.
+        """
+        uploader = CloudTarUploader(mock_cloud_interface, "key", chunk_size=4)
+        uploader.write(b"ab")
+        uploader.write(b"cdefg")
+
+        assert mock_cloud_interface.async_upload_part.call_count == 1
+        uploaded_body = mock_cloud_interface.async_upload_part.call_args_list[0][1]["body"]
+        assert os.path.getsize(uploaded_body.name) == 4
+        assert uploader.buffer is not None
+        assert uploader.buffer.tell() == 3
+
+        uploader.flush(is_final=True)
+        assert mock_cloud_interface.async_upload_part.call_count == 2
+        final_body = mock_cloud_interface.async_upload_part.call_args_list[-1][1]["body"]
+        assert os.path.getsize(final_body.name) == 3
+        assert uploader.buffer is None
+
+        for body in [
+            call_args[1]["body"]
+            for call_args in mock_cloud_interface.async_upload_part.call_args_list
+        ]:
+            if os.path.exists(body.name):
+                os.unlink(body.name)
+
+    @mock.patch("barman.cloud.CloudInterface")
+    def test_write_exact_chunk_multiples_emit_no_trailing_part_on_flush(
+        self, mock_cloud_interface
+    ):
+        """Verifies exact chunk multiples do not produce an extra empty tail part."""
+        uploader = CloudTarUploader(mock_cloud_interface, "key", chunk_size=4)
+        uploader.write(b"abcdefgh")
+
+        assert mock_cloud_interface.async_upload_part.call_count == 2
+        uploaded_sizes = [
+            os.path.getsize(call_args[1]["body"].name)
+            for call_args in mock_cloud_interface.async_upload_part.call_args_list
+        ]
+        assert uploaded_sizes == [4, 4]
+        assert uploader.buffer is None
+
+        uploader.flush()
+        assert mock_cloud_interface.async_upload_part.call_count == 2
+
+        for body in [
+            call_args[1]["body"]
+            for call_args in mock_cloud_interface.async_upload_part.call_args_list
+        ]:
+            if os.path.exists(body.name):
+                os.unlink(body.name)
+
+    @mock.patch("barman.cloud.CloudInterface")
+    def test_flush_rejects_non_final_partial_part(self, mock_cloud_interface):
+        """Verifies non-final flush cannot upload a short multipart part."""
+        uploader = CloudTarUploader(mock_cloud_interface, "key", chunk_size=4)
+        uploader.write(b"abc")
+
+        with pytest.raises(RuntimeError):
+            uploader.flush()
+        assert mock_cloud_interface.async_upload_part.call_count == 0
+        assert uploader.buffer is not None
+        assert uploader.buffer.tell() == 3
+
+        buffer_name = uploader.buffer.name
+        uploader.buffer.close()
+        os.unlink(buffer_name)
+
+    @mock.patch("barman.cloud.CloudInterface")
+    def test_upload_part_failure_keeps_counter_and_buffer_for_retry(
+        self, mock_cloud_interface
+    ):
+        """
+        Verifies upload failures do not consume part numbers and preserve the
+        current full part buffer for retry.
+        """
+        mock_cloud_interface.async_upload_part.side_effect = RuntimeError("upload failed")
+        uploader = CloudTarUploader(mock_cloud_interface, "key", chunk_size=4)
+        uploader.buffer = uploader._buffer()
+        uploader.buffer.write(b"abcd")
+
+        with pytest.raises(RuntimeError):
+            uploader._upload_part_buffer()
+
+        assert uploader.counter == 0
+        assert uploader.buffer is not None
+        assert uploader.buffer.tell() == 4
+
+        mock_cloud_interface.async_upload_part.side_effect = None
+        uploader._upload_part_buffer()
+        assert uploader.counter == 1
+        assert uploader.buffer is None
+        part_numbers = [
+            call_args[1]["part_number"]
+            for call_args in mock_cloud_interface.async_upload_part.call_args_list
+        ]
+        assert part_numbers == [1, 1]
+
+        for body in [
+            call_args[1]["body"]
+            for call_args in mock_cloud_interface.async_upload_part.call_args_list
+        ]:
+            if os.path.exists(body.name):
+                os.unlink(body.name)
+
+    @pytest.mark.parametrize("chunk_size", (None, 0, -1))
+    @mock.patch("barman.cloud.CloudInterface")
+    def test_init_rejects_invalid_chunk_size(self, mock_cloud_interface, chunk_size):
+        """Verifies chunk_size is validated at initialization."""
+        with pytest.raises(ValueError):
+            CloudTarUploader(mock_cloud_interface, "key", chunk_size=chunk_size)
 
     @pytest.mark.parametrize(
         "compression",
@@ -4034,7 +4151,7 @@ class TestCloudTarUploader(object):
         uploader = CloudTarUploader(
             None,
             None,
-            None,
+            4,
             None,
             max_bandwidth,
         )
@@ -4113,7 +4230,7 @@ class TestCloudTarUploader(object):
         uploader = CloudTarUploader(
             None,
             None,
-            None,
+            4,
             None,
             max_bandwidth,
         )
@@ -4146,7 +4263,7 @@ class TestCloudTarUploader(object):
         uploader = CloudTarUploader(
             mock_cloud_interface,
             None,
-            None,
+            1024,
             None,
             max_bandwidth,
         )
