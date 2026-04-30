@@ -298,6 +298,8 @@ def build_config_dictionary(config_keys=None):
         "aws_profile": None,
         "aws_region": None,
         "aws_sse_kms_key_id": None,
+        "aws_storage_class": None,
+        "aws_storage_class_wals": None,
         "azure_credential": None,
         "azure_resource_group": None,
         "azure_subscription_id": None,

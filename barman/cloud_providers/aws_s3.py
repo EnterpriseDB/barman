@@ -38,7 +38,10 @@ from barman.cloud import (
     SnapshotsInfo,
     VolumeMetadata,
 )
-from barman.cloud_providers import ObjectKeyAlreadyExists
+from barman.cloud_providers import (
+    ObjectKeyAlreadyExists,
+    ObjectIsArchived
+)
 from barman.exceptions import (
     CommandException,
     SnapshotBackupException,
@@ -127,6 +130,7 @@ class S3CloudInterface(CloudInterface):
         read_timeout=None,
         sse_kms_key_id=None,
         addressing_style=None,
+        storage_class=None,
     ):
         """
         Create a new S3 interface given the S3 destination url and the profile
@@ -148,6 +152,8 @@ class S3CloudInterface(CloudInterface):
           for encrypting uploaded data in S3
         :param str|None addressing_style: the addressing style to use for S3
           requests. Valid values are 'auto', 'virtual', or 'path'
+        :param str|None storage_class: the storage class to use for the
+            uploaded data in S3.
         """
         super(S3CloudInterface, self).__init__(
             url=url,
@@ -162,6 +168,7 @@ class S3CloudInterface(CloudInterface):
         self.read_timeout = read_timeout
         self.sse_kms_key_id = sse_kms_key_id
         self.addressing_style = addressing_style
+        self.storage_class = storage_class
 
         # Extract information from the destination URL
         parsed_url = urlparse(url)
@@ -207,6 +214,8 @@ class S3CloudInterface(CloudInterface):
             additional_args["ServerSideEncryption"] = self.encryption
         if self.sse_kms_key_id:
             additional_args["SSEKMSKeyId"] = self.sse_kms_key_id
+        if self.storage_class:
+            additional_args["StorageClass"] = self.storage_class
         return additional_args
 
     def test_connectivity(self):
@@ -308,9 +317,23 @@ class S3CloudInterface(CloudInterface):
         :param str dest_path: Where to put the destination file
         :param str|None decompress: Compression scheme to use for decompression
         """
-        # Open the remote file
-        obj = self.s3.Object(self.bucket_name, key)
-        remote_file = obj.get()["Body"]
+        try:
+            # Open the remote file
+            obj = self.s3.Object(self.bucket_name, key)
+            remote_file = obj.get()["Body"]
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] == "InvalidObjectState":
+                raise ObjectIsArchived(
+                    "Object %s is archived in bucket %s using %s. "
+                    "Please issue an S3 RestoreObject request and wait for it to complete."
+                    % (
+                        key,
+                        self.bucket_name,
+                        exc.response["Error"].get("StorageClass", "an archive storage class")
+                    )
+                )
+            else:
+                raise
 
         # Write the dest file in binary mode
         with open(dest_path, "wb") as dest_file:
@@ -343,6 +366,16 @@ class S3CloudInterface(CloudInterface):
             error_code = exc.response["Error"]["Code"]
             if error_code == "NoSuchKey":
                 return None
+            elif error_code == "InvalidObjectState":
+                raise ObjectIsArchived(
+                    "Object %s is archived in bucket %s using %s. "
+                    "Please issue an S3 RestoreObject request and wait for it to complete."
+                    % (
+                        key,
+                        self.bucket_name,
+                        exc.response["Error"].get("StorageClass", "an archive storage class")
+                    )
+                )
             else:
                 raise
 

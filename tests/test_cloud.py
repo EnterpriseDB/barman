@@ -3742,6 +3742,7 @@ class TestGetCloudInterface(object):
             aws_region="us-east-1",
             aws_encryption="AES256",
             aws_sse_kms_key_id=None,
+            aws_storage_class=None,
             aws_read_timeout=60,
             cloud_delete_batch_size=20,
         )
@@ -3754,6 +3755,7 @@ class TestGetCloudInterface(object):
                 region="us-east-1",
                 encryption="AES256",
                 sse_kms_key_id=None,
+                storage_class=None,
                 read_timeout=60,
                 delete_batch_size=20,
             )
@@ -3786,6 +3788,7 @@ class TestGetCloudInterface(object):
             aws_region="us-east-1",
             aws_encryption="aws:kms",
             aws_sse_kms_key_id="arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
+            aws_storage_class=None,
             aws_read_timeout=60,
             cloud_delete_batch_size=20,
         )
@@ -3797,6 +3800,7 @@ class TestGetCloudInterface(object):
             region="us-east-1",
             encryption="aws:kms",
             sse_kms_key_id="arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
+            storage_class=None,
             read_timeout=60,
             delete_batch_size=20,
         )
@@ -3834,6 +3838,40 @@ class TestGetCloudInterface(object):
         with pytest.raises(ConfigurationException) as exc:
             get_cloud_interface_from_server_config(mock_config, "aws-s3", url)
         assert expected_error == str(exc.value)
+    
+    @pytest.mark.parametrize(
+        ("url","expected_storage_class"),
+        [
+            ("s3://some-bucket/server/wals", "STANDARD_IA"),
+            ("s3://some-bucket/server/base", "STANDARD"),
+        ]
+    )
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface")
+    def test_get_cloud_interface_from_server_config_uses_storage_class(
+    self, mock_s3_cloud_interface, url, expected_storage_class
+    ):
+        """When base_url equals wals_directory, aws_storage_class_wals must be
+        forwarded to S3CloudInterface as storage_class."""
+        wals_url = "s3://some-bucket/server/wals"
+        base_url = "s3://some-bucket/server/base"
+        mock_config = MagicMock(
+            url=url,
+            parallel_jobs=8,
+            aws_profile="some-profile",
+            aws_region="us-east-1",
+            aws_encryption=None,
+            aws_sse_kms_key_id=None,
+            aws_storage_class="STANDARD",
+            aws_storage_class_wals="STANDARD_IA",
+            aws_read_timeout=60,
+            cloud_delete_batch_size=20,
+            wals_directory=wals_url,
+            basebackups_directory=base_url,
+        )
+        get_cloud_interface_from_server_config(mock_config, "aws-s3", url)
+
+        _, kwargs = mock_s3_cloud_interface.call_args
+        assert kwargs["storage_class"] == expected_storage_class
 
 
 class TestCloudBackupCatalog(object):

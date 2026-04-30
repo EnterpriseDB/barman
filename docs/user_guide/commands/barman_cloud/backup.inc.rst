@@ -36,6 +36,7 @@
                   [ --read-timeout READ_TIMEOUT ]
                   [ { -e | --encryption } { AES256 | aws:kms } ]
                   [ --sse-kms-key-id SSE_KMS_KEY_ID ]
+                  [ --storage-class STORAGE_CLASS ]
                   [ --aws-region AWS_REGION ]
                   [ --aws-await-snapshots-timeout AWS_AWAIT_SNAPSHOTS_TIMEOUT ]
                   [ --aws-snapshot-lock-mode { compliance | governance } ]
@@ -217,6 +218,10 @@ uploaded to the cloud.
   The AWS KMS key ID that should be used for encrypting the uploaded data in S3. Can be
   specified using the key ID on its own or using the full ARN for the key. Only allowed if
   ``-e`` / ``--encryption`` is set to ``aws:kms``.
+
+``--storage-class``
+  The storage class to specify for the uploaded data in S3. Allowed values depend on the S3
+  compatible service used.
 
 ``--aws-region``
   The name of the AWS region containing the EC2 VM and storage volumes defined by the

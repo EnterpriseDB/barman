@@ -469,6 +469,11 @@ def parse_arguments(args=None):
         "the key. Only allowed if `-e/--encryption` is set to `aws:kms`.",
     )
     s3_arguments.add_argument(
+        "--storage-class",
+        help="The storage class to use for the uploaded data in S3. "
+        "Allowed values depend on the S3 compatible service used.",
+    )
+    s3_arguments.add_argument(
         "--aws-region",
         help="The name of the AWS region containing the EC2 VM and storage volumes "
         "defined by the --snapshot-instance and --snapshot-disk arguments.",
