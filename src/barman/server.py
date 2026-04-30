@@ -82,7 +82,7 @@ from barman.exceptions import (
     UnknownBackupIdException,
     WalRangeCheckError,
 )
-from barman.infofile import BackupInfo, LocalBackupInfo, WalFileInfo
+from barman.infofile import BackupInfo, LocalBackupInfo, WalFileInfo, load_backup_ids
 from barman.lockfile import (
     ServerBackupIdLock,
     ServerBackupLock,
@@ -4742,7 +4742,7 @@ class Server(RemoteStatusMixin):
             # to spawn unnecessary processes.
             try:
                 local_backup_info = self.get_backup(backup_id)
-                self.sync_parent_backup_info(backup_id, remote_info, local_backup_info)
+                self.sync_parent_backup_info(backup_id, remote_info)
                 self.check_sync_required(backup_id, remote_info, local_backup_info)
             except SyncError as e:
                 # It means that neither the local backup
@@ -5560,19 +5560,31 @@ class Server(RemoteStatusMixin):
             if e.errno == errno.ENOENT:
                 _logger.warning("%s not found" % src)
 
-    def sync_parent_backup_info(self, backup_name, primary_info, local_backup_info):
+    def sync_parent_backup_info(self, backup_name, primary_info):
         """
         Synchronize only the backup.info file for a backup from the primary server.
 
         This method is used when a parent backup already exists locally but needs its
-        backup.info file to be updated for incremental backup synchronization.
+        ``children_backup_ids`` field to be updated for incremental backup
+        synchronization.
 
         Checks if server is a passive node and if the backup is present on remote.
-        Builds the LocalBackupInfo object from the remote JSON and saves it.
+        Updates only the ``children_backup_ids`` field of the existing local
+        LocalBackupInfo object and saves it.
+
+        .. note::
+            The parent's LocalBackupInfo is fetched locally (via
+            :meth:`get_backup`) and mutated in place with
+            :meth:`~barman.infofile.LocalBackupInfo.set_attribute`, rather than
+            rebuilt with :meth:`~barman.infofile.LocalBackupInfo.from_json`.
+            ``LocalBackupInfo.__init__`` reloads the on-disk backup.info
+            whenever the target ``backup_id`` already exists, which would
+            silently discard the values just deserialized from the primary's
+            JSON before ``save()`` ever runs. Updating the existing object in
+            place avoids that trap.
 
         :param str backup_name: the backup name to be synchronized
         :param dict primary_info: the primary server information
-        :param LocalBackupInfo local_backup_info: the local backup information
         """
         if not self.passive_node:
             return None
@@ -5584,12 +5596,29 @@ class Server(RemoteStatusMixin):
             return None
 
         # Check if the parent backup is present on the remote server.
-        # If not, raise a SyncError to stop the sync process,
-        # as the synchronization of the incremental backup will fail.
+        # If not, skip syncing this incremental for now — the parent may have
+        # been removed by retention on the primary in a race condition.
+        # Raising SyncError here would break the entire cron loop; instead we
+        # raise SyncNothingToDo so the loop moves on to the next backup.
         if parent_id not in backups:
-            raise SyncError(
-                "Parent Backup %s is absent on %s server" % (parent_id, self.config.name)
+            _logger.warning(
+                "Parent backup %s of incremental %s is absent on %s server; "
+                "skipping sync of this incremental",
+                parent_id,
+                backup_name,
+                self.config.name,
             )
+            raise SyncNothingToDo(
+                "Parent backup %s is absent on %s server"
+                % (parent_id, self.config.name)
+            )
+
+        # If the parent hasn't been synced locally yet at all, there is no
+        # existing backup.info to refresh here. It will be synced with
+        # up-to-date data of its own in a subsequent sync-backup run.
+        parent_backup_info = self.get_backup(parent_id)
+        if parent_backup_info is None:
+            return None
 
         try:
             _logger.info(
@@ -5598,19 +5627,36 @@ class Server(RemoteStatusMixin):
                 self.config.name,
             )
 
-            # Build local BackupInfo from remote JSON and save it
-            local_backup_info = LocalBackupInfo.from_json(self, backups[parent_id])
-            local_backup_info.save()
-            self.backup_manager.backup_cache_add(local_backup_info)
+            # Update only the children_backup_ids field of the existing local
+            # BackupInfo object and save it.
+            try:
+                with ServerBackupIdLock(
+                    self.config.barman_lock_directory,
+                    self.config.name,
+                    parent_id,
+                ):
+                    parent_backup_info.set_attribute(
+                        "children_backup_ids",
+                        load_backup_ids(backups[parent_id].get("children_backup_ids")),
+                    )
+                    parent_backup_info.save()
+            except LockFileBusy:
+                _logger.info(
+                    "Backup %s is locked on server %s; skipping parent backup.info refresh",
+                    parent_id,
+                    self.config.name,
+                )
+                return None
+            self.backup_manager.backup_cache_add(parent_backup_info)
 
             _logger.info(
                 "Successfully synchronised backup.info for parent backup %s of server %s",
                 parent_id,
                 self.config.name,
             )
-        except (OSError, IOError):
+        except (OSError, IOError) as e:
             # Wrap file access exceptions using SyncError
             raise SyncError(
-                "Unable to write %s backup.infofile for server %s"
-                % (parent_id, self.config.name)
+                "Unable to write %s backup.infofile for server %s: %s"
+                % (parent_id, self.config.name, e)
             )

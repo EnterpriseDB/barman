@@ -297,9 +297,11 @@ class TestSync(object):
         )
         backups = {
             "backups": {
-                "test_backup6": build_test_backup_info(
-                    server=server, backup_id="test_backup6"
-                ).to_json()
+                "test_backup6": (
+                    build_test_backup_info(
+                        server=server, backup_id="test_backup6"
+                    ).to_json()
+                )
             },
             "config": {"name": "test_server"},
         }
@@ -330,12 +332,14 @@ class TestSync(object):
         )
         backups = {
             "backups": {
-                "test_backup6": build_test_backup_info(
-                    server=server,
-                    backup_id="test_backup6",
-                    begin_time=(datetime.now(tz.tzlocal()) + timedelta(days=4)),
-                    end_time=(datetime.now(tz.tzlocal()) - timedelta(days=3)),
-                ).to_json()
+                "test_backup6": (
+                    build_test_backup_info(
+                        server=server,
+                        backup_id="test_backup6",
+                        begin_time=(datetime.now(tz.tzlocal()) + timedelta(days=4)),
+                        end_time=(datetime.now(tz.tzlocal()) - timedelta(days=3)),
+                    ).to_json()
+                )
             },
             "config": {"name": "test_server"},
         }
@@ -830,41 +834,65 @@ class TestSync(object):
             == "barman -c /path/to/barman.conf sync-info main"
         )
 
-    def test_sync_parent_backup_info(self):
+    def test_sync_parent_backup_info_not_passive_node(self):
         """
-        Test the behaviour of the sync_parent_backup_info method,
-        testing all the possible error conditions.
+        Verify that sync_parent_backup_info returns early when the server
+        is not configured as a passive node.
         """
-        # Test 1: Not a passive node.
-        # Expect early return (None)
+        # GIVEN a server that is not a passive node
         backup_name = "child_backup_123"
         server = build_real_server()
-        result = server.sync_parent_backup_info(backup_name, {}, None)
+
+        # WHEN sync_parent_backup_info is called
+        result = server.sync_parent_backup_info(backup_name, {})
+
+        # THEN it returns None immediately without doing any work
         assert result is None
 
-        # Test 2: Non-incremental backup (no parent).
-        # Expect early return (None)
+    def test_sync_parent_backup_info_non_incremental_backup(self):
+        """
+        Verify that sync_parent_backup_info returns early when the backup
+        has no parent (i.e. it is a full backup, not an incremental).
+        """
+        # GIVEN a passive node server
         backup_name = "full_backup_123"
         server = build_real_server(
             main_conf={"primary_ssh_command": "ssh fakeuser@fakehost"}
         )
+
+        # AND primary_info describing a full backup with no parent
         primary_info = {
             "backups": {
-                "full_backup_123": build_test_backup_info(
-                    server=server, backup_id="full_backup_123", parent_backup_id=None
-                ).to_json(),
+                "full_backup_123": (
+                    build_test_backup_info(
+                        server=server,
+                        backup_id="full_backup_123",
+                        parent_backup_id=None,
+                    ).to_json()
+                ),
             }
         }
-        result = server.sync_parent_backup_info(backup_name, primary_info, None)
+
+        # WHEN sync_parent_backup_info is called for that backup
+        result = server.sync_parent_backup_info(backup_name, primary_info)
+
+        # THEN it returns None immediately, as there is no parent to sync
         assert result is None
 
-        # Test 3: Successful parent backup info sync.
-        # Expect LocalBackupInfo.from_json, save, and backup_cache_add to be called
+    def test_sync_parent_backup_info_successful_sync(self):
+        """
+        Verify that sync_parent_backup_info updates the children_backup_ids
+        of the existing local parent BackupInfo (fetched via get_backup,
+        not rebuilt via from_json) and saves it.
+        """
+        # GIVEN a passive node server
         backup_name = "child_backup_123"
         parent_id = "parent_backup_123"
         server = build_real_server(
             main_conf={"primary_ssh_command": "ssh fakeuser@fakehost"}
         )
+
+        # AND primary_info describing an incremental backup whose parent is also present
         parent_backup_json = build_test_backup_info(
             server=server,
             backup_id=parent_id,
@@ -872,86 +900,176 @@ class TestSync(object):
         ).to_json()
         primary_info = {
             "backups": {
-                "child_backup_123": build_test_backup_info(
-                    server=server,
-                    backup_id="child_backup_123",
-                    parent_backup_id=parent_id,
-                ).to_json(),
+                "child_backup_123": (
+                    build_test_backup_info(
+                        server=server,
+                        backup_id="child_backup_123",
+                        parent_backup_id=parent_id,
+                    ).to_json()
+                ),
                 parent_id: parent_backup_json,
             }
         }
-        local_backup_info = build_test_backup_info(
-            server=server, backup_id="child_backup_123", parent_backup_id=parent_id
+
+        # AND the parent backup already exists locally with a stale
+        # children_backup_ids (e.g. it was synced before this child existed)
+        existing_parent_backup_info = build_test_backup_info(
+            server=server, backup_id=parent_id, children_backup_ids=None
         )
 
-        with mock.patch("barman.infofile.LocalBackupInfo.from_json") as from_json_mock, mock.patch(
-            "barman.infofile.LocalBackupInfo.save"
-        ) as save_mock, mock.patch(
-            "barman.server.BackupManager.backup_cache_add"
-        ) as cache_add_mock:
-            from_json_mock.return_value = build_test_backup_info(
-                server=server, backup_id=parent_id
+        # WHEN sync_parent_backup_info is called
+        with (
+            mock.patch.object(
+                server, "get_backup", return_value=existing_parent_backup_info
+            ) as get_backup_mock,
+            mock.patch("barman.infofile.LocalBackupInfo.save") as save_mock,
+            mock.patch(
+                "barman.server.BackupManager.backup_cache_add"
+            ) as cache_add_mock,
+            mock.patch("barman.server.ServerBackupIdLock") as lock_mock,
+        ):
+            server.sync_parent_backup_info(backup_name, primary_info)
+
+            # THEN the existing local parent BackupInfo is fetched
+            get_backup_mock.assert_called_once_with(parent_id)
+
+            # AND a backup ID lock was acquired for the parent backup
+            lock_mock.assert_called_once_with(
+                server.config.barman_lock_directory,
+                server.config.name,
+                parent_id,
             )
-            server.sync_parent_backup_info(backup_name, primary_info, local_backup_info)
-            from_json_mock.assert_called_once_with(server, parent_backup_json)
+
+            # AND its children_backup_ids is refreshed from the primary's data
+            assert existing_parent_backup_info.children_backup_ids == [
+                "child_backup_123"
+            ]
+
+            # AND the parent backup.info is saved to disk
             save_mock.assert_called_once()
+
+            # AND the parent is added to the local backup cache
             cache_add_mock.assert_called_once()
 
-        # Test 4: Parent backup missing on remote server.
-        # Expect SyncError
+    def test_sync_parent_backup_info_parent_not_synced_locally(self):
+        """
+        Verify that sync_parent_backup_info returns early when the parent
+        backup is present on the primary but has not been synced locally
+        yet (get_backup returns None). There is no existing backup.info to
+        refresh in that case; the parent will be synced with up-to-date
+        data of its own in a subsequent sync-backup run.
+        """
+        # GIVEN a passive node server
         backup_name = "child_backup_123"
         parent_id = "parent_backup_123"
         server = build_real_server(
             main_conf={"primary_ssh_command": "ssh fakeuser@fakehost"}
         )
+
+        # AND primary_info describing an incremental backup whose parent is
+        # present on the primary but not yet synced locally
         primary_info = {
             "backups": {
-                "child_backup_123": build_test_backup_info(
-                    server=server,
-                    backup_id="child_backup_123",
-                    parent_backup_id=parent_id,
+                "child_backup_123": (
+                    build_test_backup_info(
+                        server=server,
+                        backup_id="child_backup_123",
+                        parent_backup_id=parent_id,
+                    ).to_json()
+                ),
+                parent_id: build_test_backup_info(
+                    server=server, backup_id=parent_id
                 ).to_json(),
-                # Parent backup is NOT in the backups dict
             }
         }
-        local_backup_info = build_test_backup_info(
-            server=server, backup_id="child_backup_123", parent_backup_id=parent_id
-        )
-        with pytest.raises(SyncError) as exc_info:
-            server.sync_parent_backup_info(backup_name, primary_info, local_backup_info)
-        assert "Parent Backup %s is absent" % parent_id in str(exc_info.value)
 
-        # Test 5: File I/O error during save.
-        # Expect SyncError
+        # WHEN sync_parent_backup_info is called and the parent isn't found locally
+        with mock.patch.object(server, "get_backup", return_value=None):
+            result = server.sync_parent_backup_info(backup_name, primary_info)
+
+        # THEN it returns None immediately, without trying to save anything
+        assert result is None
+
+    def test_sync_parent_backup_info_parent_missing_on_remote(self):
+        """
+        Verify that sync_parent_backup_info raises SyncNothingToDo (not
+        SyncError) when the parent backup is absent from the primary server's
+        backup list, so the cron loop continues to the next backup rather than
+        breaking out entirely.
+        """
+        # GIVEN a passive node server
         backup_name = "child_backup_123"
         parent_id = "parent_backup_123"
         server = build_real_server(
             main_conf={"primary_ssh_command": "ssh fakeuser@fakehost"}
         )
+
+        # AND primary_info where the incremental backup references a parent
+        # that is not present in the backups dict (e.g. deleted by retention
+        # on the primary in a race condition)
+        primary_info = {
+            "backups": {
+                "child_backup_123": (
+                    build_test_backup_info(
+                        server=server,
+                        backup_id="child_backup_123",
+                        parent_backup_id=parent_id,
+                    ).to_json()
+                ),
+            }
+        }
+
+        # WHEN sync_parent_backup_info is called
+        # THEN SyncNothingToDo is raised so the cron loop skips this backup
+        # without breaking out of the loop entirely
+        with pytest.raises(SyncNothingToDo) as exc_info:
+            server.sync_parent_backup_info(backup_name, primary_info)
+        assert "Parent backup %s is absent" % parent_id in str(exc_info.value)
+
+    def test_sync_parent_backup_info_io_error_on_save(self):
+        """
+        Verify that sync_parent_backup_info raises SyncError when an
+        I/O error occurs while writing the parent backup.info to disk.
+        """
+        # GIVEN a passive node server
+        backup_name = "child_backup_123"
+        parent_id = "parent_backup_123"
+        server = build_real_server(
+            main_conf={"primary_ssh_command": "ssh fakeuser@fakehost"}
+        )
+
+        # AND primary_info with a valid incremental backup and its parent
         parent_backup_json = build_test_backup_info(
-            server=server, backup_id=parent_id
+            server=server, backup_id=parent_id, children_backup_ids=["child_backup_123"]
         ).to_json()
         primary_info = {
             "backups": {
-                "child_backup_123": build_test_backup_info(
-                    server=server,
-                    backup_id="child_backup_123",
-                    parent_backup_id=parent_id,
-                ).to_json(),
+                "child_backup_123": (
+                    build_test_backup_info(
+                        server=server,
+                        backup_id="child_backup_123",
+                        parent_backup_id=parent_id,
+                    ).to_json()
+                ),
                 parent_id: parent_backup_json,
             }
         }
-        local_backup_info = build_test_backup_info(
-            server=server, backup_id="child_backup_123", parent_backup_id=parent_id
+
+        # AND the parent backup already exists locally
+        existing_parent_backup_info = build_test_backup_info(
+            server=server, backup_id=parent_id, children_backup_ids=None
         )
 
+        # WHEN saving the parent backup.info raises an OSError
         with (
-            mock.patch("barman.infofile.LocalBackupInfo.from_json") as from_json_mock, 
-            mock.patch("barman.infofile.LocalBackupInfo.save") as save_mock
+            mock.patch.object(
+                server, "get_backup", return_value=existing_parent_backup_info
+            ),
+            mock.patch("barman.infofile.LocalBackupInfo.save") as save_mock,
         ):
-            mock_backup_info = build_test_backup_info(server=server, backup_id=parent_id)
-            from_json_mock.return_value = mock_backup_info
             save_mock.side_effect = OSError("Permission denied")
+
+            # THEN a SyncError is raised wrapping the I/O failure
             with pytest.raises(SyncError) as exc_info:
-                server.sync_parent_backup_info(backup_name, primary_info, local_backup_info)
+                server.sync_parent_backup_info(backup_name, primary_info)
             assert "Unable to write" in str(exc_info.value)
