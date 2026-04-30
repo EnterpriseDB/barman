@@ -1,0 +1,17 @@
+---
+- summary: Fix passive node crash with KeyError when running retention on incremental backups
+  description: |
+    Fixed a bug where passive nodes would crash with a `KeyError` when running
+    retention policies on servers that have incremental backups. The crash was
+    caused by a serialization issue: when syncing backup metadata from the primary,
+    the list of child backup IDs was not correctly deserialized, resulting in a
+    corrupted `backup.info` file being written to disk. This prevented retention
+    policies from correctly associating incremental backups with their parent,
+    leading to the crash.
+
+    Note: this fix is prospective and applies to backups synced after upgrading.
+    Passive nodes with already-corrupted `backup.info` files require manual
+    remediation.
+  type: bugfix
+  jira_tickets:
+    - BAR-927
