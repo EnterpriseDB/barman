@@ -448,6 +448,7 @@ class CloudUploadController(object):
                 chunk_size=self.chunk_size,
                 compression=self.compression,
                 max_bandwidth=self.max_bandwidth,
+                staging_dir=self.staging_dir,
             )
             self.tar_list[name].append(uploader)
         return uploader.tar
