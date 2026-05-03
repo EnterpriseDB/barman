@@ -414,6 +414,8 @@ class CloudUploadController(object):
             components.append(".snappy")
         elif self.compression == "lz4":
             components.append(".lz4")
+        elif self.compression == "zstd":
+            components.append(".zst")
         return "".join(components)
 
     def _get_tar(self, name):
