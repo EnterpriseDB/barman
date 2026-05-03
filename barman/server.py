@@ -1491,12 +1491,13 @@ class Server(RemoteStatusMixin):
         check_strategy.init_check("wal maximum age")
         backup_id = self.backup_manager.get_last_backup_id()
         backup_info = self.get_backup(backup_id)
+        wal_info = None
         if backup_info is not None:
             wal_info = self.get_wal_info(backup_info)
         # first check: check wal maximum age
         if self.config.last_wal_maximum_age is not None:
             # get maximum age information
-            if backup_info is None or wal_info["wal_last_timestamp"] is None:
+            if backup_info is None or wal_info is None or wal_info["wal_last_timestamp"] is None:
                 # No WAL files received
                 # (we should have the .backup file, as a minimum)
                 # This may also be an indication that 'barman cron' is not
@@ -1512,7 +1513,7 @@ class Server(RemoteStatusMixin):
             check_strategy.result(self.config.name, wal_age_isok, hint=wal_message)
         else:
             # no last_wal_maximum_age provided by the user
-            if backup_info is None or wal_info["wal_until_next_size"] is None:
+            if backup_info is None or wal_info is None or wal_info["wal_until_next_size"] is None:
                 wal_size = 0
             else:
                 wal_size = wal_info["wal_until_next_size"]
