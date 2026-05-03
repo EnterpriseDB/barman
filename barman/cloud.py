@@ -515,7 +515,7 @@ class CloudUploadController(object):
         if mode is not None:
             tarinfo.mode = mode
         if uid is not None:
-            tarinfo.gid = uid
+            tarinfo.uid = uid
         if gid is not None:
             tarinfo.gid = gid
         fileobj.seek(0, os.SEEK_SET)
