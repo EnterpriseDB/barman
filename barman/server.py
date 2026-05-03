@@ -826,7 +826,7 @@ class Server(RemoteStatusMixin):
 
         # Subtract one from the count because of .partial file inside the
         # streaming directory
-        if dir_name == "streaming":
+        if dir_name == "streaming" and file_count > 0:
             file_count -= 1
 
         # If this archiver is disabled, check the number of files in the
