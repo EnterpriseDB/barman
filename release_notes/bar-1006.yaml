@@ -1,0 +1,18 @@
+---
+- summary: Add support for AWS S3 SSE-C (Server-Side Encryption with Customer Keys)
+  description: |
+    Barman now supports SSE-C (Server-Side Encryption with Customer-Provided Keys)
+    for AWS S3. The `--sse-customer-key` option is available across all backup, restore,
+    and WAL management `barman-cloud-*` commands. The key is supplied as a `file://` URI
+    pointing to a file containing a base64-encoded 256-bit (32-byte) key
+    (e.g. `file:///etc/barman/sse-c.b64`). SSE-C cannot be used together with
+    `--encryption` or `--sse-kms-key-id`. The equivalent server configuration parameter
+    `aws_sse_customer_key` is also supported when using `backup_method = local-to-cloud`
+    or `postgres`.
+
+    All backups and WAL files for a given server must be encrypted with the same SSE-C
+    key. Mixing SSE-C-encrypted and unencrypted objects, or using different keys, will
+    cause commands to fail.
+  type: notable_change
+  jira_tickets:
+    - BAR-1006
