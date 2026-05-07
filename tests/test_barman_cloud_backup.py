@@ -349,6 +349,7 @@ class TestCloudBackup(object):
                 {
                     "encryption": None,
                     "sse_kms_key_id": None,
+                    "sse_customer_key": None,
                 },
             ),
             # If values are provided then they should be passed to the cloud interface
@@ -357,6 +358,7 @@ class TestCloudBackup(object):
                 {
                     "encryption": "aws:kms",
                     "sse_kms_key_id": "somekeyid",
+                    "sse_customer_key": None,
                 },
             ),
         ],
@@ -388,6 +390,43 @@ class TestCloudBackup(object):
             read_timeout=None,
             addressing_style=None,
             **expected_cloud_interface_kwargs,
+        )
+
+    @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface")
+    @mock.patch("barman.clients.cloud_backup.CloudBackupUploader")
+    def test_aws_sse_customer_key_arg(
+        self,
+        _uploader_mock,
+        cloud_interface_mock,
+        _mock_postgres_conn,
+        _rmtree_mock,
+        _tempfile_mock,
+        tmp_path,
+    ):
+        """Verify that --sse-customer-key file:// URI is passed to the cloud interface."""
+        # GIVEN a key file containing a valid base64-encoded key
+        key_file = tmp_path / "key.b64"
+        key_file.write_text("WkMb3SePiDn8cCIt/Knb0O+B0yYZavrwqsOQdjNe57g=")
+        key_uri = "file://" + str(key_file)
+
+        # WHEN barman-cloud-backup is run with --sse-customer-key
+        cloud_backup.main(
+            ["cloud_storage_url", "test_server", "--sse-customer-key", key_uri]
+        )
+
+        # THEN the file:// URI is passed as sse_customer_key to the cloud interface
+        cloud_interface_mock.assert_called_once_with(
+            url="cloud_storage_url",
+            jobs=2,
+            tags=None,
+            profile_name=None,
+            endpoint_url=None,
+            read_timeout=None,
+            addressing_style=None,
+            encryption=None,
+            sse_kms_key_id=None,
+            sse_customer_key=key_uri,
         )
 
     @pytest.mark.parametrize(

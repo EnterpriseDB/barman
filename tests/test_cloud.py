@@ -803,16 +803,29 @@ class TestS3CloudInterface(object):
                 {"encryption": "aws:kms", "sse_kms_key_id": "somekeyid"},
                 {"ServerSideEncryption": "aws:kms", "SSEKMSKeyId": "somekeyid"},
             ),
+            (
+                {"sse_customer_key": "bXkzMmJ5dGVlbmNyeXB0aW9ua2V5MTIzNDU2Nzg5MDE="},
+                {
+                    "SSECustomerKey": b"my32byteencryptionkey12345678901",
+                    "SSECustomerAlgorithm": "AES256",
+                },
+            ),
         ],
     )
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_upload_fileobj_with_encryption(
-        self, boto_mock, encryption_args, expected_extra_args
+        self, boto_mock, tmp_path, encryption_args, expected_extra_args
     ):
         """
         Tests the ServerSideEncryption and SSEKMSKeyId arguments are provided to boto3
         when uploading a file if encryption args are set on the S3CloudInterface.
         """
+        # SSE-C keys must be provided via a file:// URI, not as plain strings
+        if "sse_customer_key" in encryption_args:
+            key_file = tmp_path / "key.b64"
+            key_file.write_text(encryption_args["sse_customer_key"])
+            encryption_args = dict(encryption_args)
+            encryption_args["sse_customer_key"] = "file://" + str(key_file)
         cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", **encryption_args)
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
@@ -1058,7 +1071,9 @@ class TestS3CloudInterface(object):
                 error_response={
                     "Error": {
                         "Code": "PreconditionFailed",
-                        "Message": "At least one of the pre-conditions you specified did not hold",
+                        "Message": (
+                            "At least one of the pre-conditions you specified did not hold"
+                        ),
                     }
                 },
                 operation_name="PutObject",
@@ -1792,6 +1807,35 @@ class TestS3CloudInterface(object):
         with open(dest_path, "r") as f:
             assert f.read() == content
 
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_download_file_with_sse_c(self, boto_mock, tmp_path):
+        """
+        Verifies that SSECustomerKey and SSECustomerAlgorithm are passed to boto3
+        when downloading a file with SSE-C configured.
+        """
+        dest_path = str(tmp_path / "downloaded_file")
+        # GIVEN a cloud interface configured with SSE-C via a key file
+        key_file = tmp_path / "key.b64"
+        key_file.write_text("bXkzMmJ5dGVlbmNyeXB0aW9ua2V5MTIzNDU2Nzg5MDE=")
+        object_key = "/arbitrary/object/key"
+        cloud_interface = S3CloudInterface(
+            "s3://bucket/%s" % object_key,
+            sse_customer_key="file://" + str(key_file),
+        )
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        mock_object = s3_mock.Object.return_value
+        mock_object.get.return_value = {
+            "Body": BytesIO(b"some content"),
+        }
+        # WHEN the file is downloaded
+        cloud_interface.download_file(object_key, dest_path, None)
+        # THEN SSECustomerKey and SSECustomerAlgorithm are passed to obj.get()
+        mock_object.get.assert_called_once_with(
+            SSECustomerKey=b"my32byteencryptionkey12345678901",
+            SSECustomerAlgorithm="AES256",
+        )
+
     @pytest.mark.parametrize(
         ("compression", "file_ext"),
         (
@@ -2078,6 +2122,129 @@ class TestS3CloudInterface(object):
         )
         # AND the return value is as expected
         assert result is object_exists
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_upload_part_with_sse_c(self, boto_mock, tmp_path):
+        """
+        Tests that SSECustomerKey and SSECustomerAlgorithm are passed to boto3
+        when uploading a part with SSE-C configured.
+        """
+        # GIVEN a cloud interface configured with SSE-C via a key file
+        key_file = tmp_path / "key.b64"
+        key_file.write_text("bXkzMmJ5dGVlbmNyeXB0aW9ua2V5MTIzNDU2Nzg5MDE=")
+        cloud_interface = S3CloudInterface(
+            "s3://bucket/path/to/dir", sse_customer_key="file://" + str(key_file)
+        )
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+        mock_body = mock.MagicMock()
+        mock_key = "path/to/dir"
+        mock_metadata = {"UploadId": "asdf"}
+        # WHEN a part is uploaded
+        cloud_interface._upload_part(mock_metadata, mock_key, mock_body, 1)
+        # THEN SSECustomerKey and SSECustomerAlgorithm are passed to upload_part
+        s3_client.upload_part.assert_called_once_with(
+            Body=mock_body,
+            Bucket="bucket",
+            Key=mock_key,
+            UploadId=mock_metadata["UploadId"],
+            PartNumber=1,
+            SSECustomerKey=b"my32byteencryptionkey12345678901",
+            SSECustomerAlgorithm="AES256",
+        )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_load_sse_customer_key_valid(self, _boto_mock, tmp_path):
+        """Verify that a valid file:// URI is resolved and decoded correctly."""
+        # GIVEN a key file containing a valid base64-encoded 256-bit key
+        key_b64 = "bXkzMmJ5dGVlbmNyeXB0aW9ua2V5MTIzNDU2Nzg5MDE="
+        key_file = tmp_path / "key.b64"
+        key_file.write_text(key_b64)
+        # WHEN S3CloudInterface is created with the file:// URI
+        cloud_interface = S3CloudInterface(
+            "s3://bucket/path",
+            sse_customer_key="file://" + str(key_file),
+        )
+        # THEN the key is decoded to the expected bytes
+        assert cloud_interface.sse_customer_key == b"my32byteencryptionkey12345678901"
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_load_sse_customer_key_file_not_found(self, _boto_mock):
+        """Verify that a missing key file raises a ValueError with a clear message."""
+        # WHEN S3CloudInterface is created with a non-existent file:// URI
+        # THEN a ValueError is raised mentioning the missing file
+        with pytest.raises(ValueError, match="SSE-C key file not found"):
+            S3CloudInterface(
+                "s3://bucket/path",
+                sse_customer_key="file:///nonexistent/path/key.b64",
+            )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_load_sse_customer_key_invalid_content(self, _boto_mock, tmp_path):
+        """Verify that a key file with invalid base64 content raises a ValueError."""
+        # GIVEN a key file with content that is not valid base64
+        key_file = tmp_path / "key.b64"
+        key_file.write_text("this is not valid base64!!!")
+        # WHEN S3CloudInterface is created with that file:// URI
+        # THEN a ValueError is raised mentioning the invalid key
+        with pytest.raises(
+            ValueError, match="does not contain a valid base64-encoded key"
+        ):
+            S3CloudInterface(
+                "s3://bucket/path",
+                sse_customer_key="file://" + str(key_file),
+            )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_load_sse_customer_key_plain_string_rejected(self, _boto_mock):
+        """Verify that a plain string (not file://) is rejected with a clear message."""
+        # WHEN S3CloudInterface is created with a plain base64 string (not file://)
+        # THEN a ValueError is raised explaining the file:// requirement
+        with pytest.raises(ValueError, match="must be provided as a file:// URI"):
+            S3CloudInterface(
+                "s3://bucket/path",
+                sse_customer_key="bXkzMmJ5dGVlbmNyeXB0aW9ua2V5MTIzNDU2Nzg5MDE=",
+            )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_load_sse_customer_key_relative_path_rejected(self, _boto_mock):
+        """Verify that a relative file:// path is rejected with a clear message."""
+        # WHEN S3CloudInterface is created with a relative file:// URI
+        # THEN a ValueError is raised explaining the absolute path requirement
+        with pytest.raises(ValueError, match="path must be absolute"):
+            S3CloudInterface(
+                "s3://bucket/path",
+                sse_customer_key="file://relative/path/key.b64",
+            )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_load_sse_customer_key_wrong_length(self, _boto_mock, tmp_path):
+        """Verify that a key file with wrong decoded length raises a ValueError."""
+        # GIVEN a key file containing a valid base64 string that decodes to != 32 bytes
+        key_file = tmp_path / "key.b64"
+        key_file.write_text("aGVsbG8=")  # decodes to b"hello" = 5 bytes
+        # WHEN S3CloudInterface is created with that file:// URI
+        # THEN a ValueError is raised mentioning the expected key size
+        with pytest.raises(ValueError, match="256-bit.*32-byte"):
+            S3CloudInterface(
+                "s3://bucket/path",
+                sse_customer_key="file://" + str(key_file),
+            )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_load_sse_customer_key_empty_file(self, _boto_mock, tmp_path):
+        """Verify that an empty key file raises a ValueError."""
+        # GIVEN an empty key file
+        key_file = tmp_path / "key.b64"
+        key_file.write_text("")
+        # WHEN S3CloudInterface is created with that file:// URI
+        # THEN a ValueError is raised (0 bytes != 32 bytes)
+        with pytest.raises(ValueError, match="256-bit.*32-byte"):
+            S3CloudInterface(
+                "s3://bucket/path",
+                sse_customer_key="file://" + str(key_file),
+            )
 
 
 class TestAzureCloudInterface(object):
@@ -3018,7 +3185,9 @@ class TestGoogleCloudInterface(TestCase):
         """Uses DefaultCredential if no other auth provided"""
         tests = {
             "https_url": {
-                "url": "https://console.cloud.google.com/storage/browser/some-bucket/useful/path",
+                "url": (
+                    "https://console.cloud.google.com/storage/browser/some-bucket/useful/path"
+                ),
                 "expected-path": "useful/path",
                 "expected-bucket-name": "some-bucket",
             },
@@ -3072,13 +3241,17 @@ class TestGoogleCloudInterface(TestCase):
             "missing bucket bis": {
                 "url": "https://console.cloud.google.com/storage/browser/",
                 "error": ValueError,
-                "message": "Google cloud storage URL https://console.cloud.google.com/storage/browser/ is malformed. "
-                "Bucket name not found",
+                "message": (
+                    "Google cloud storage URL https://console.cloud.google.com/storage/browser/ is malformed. "
+                    "Bucket name not found"
+                ),
             },
             "missing bucket ter": {
                 "url": "gs://",
                 "error": ValueError,
-                "message": "Google cloud storage URL gs:// is malformed. Bucket name not found",
+                "message": (
+                    "Google cloud storage URL gs:// is malformed. Bucket name not found"
+                ),
             },
         }
         for test_name, test in tests.items():
@@ -3652,6 +3825,14 @@ class TestGetCloudInterface(object):
                 {"encryption": "AES256", "sse_kms_key_id": "somekeyid"},
                 'Encryption type must be "aws:kms" if SSE KMS Key ID is specified',
             ),
+            (
+                {"sse_customer_key": "mykey", "sse_kms_key_id": "somekeyid"},
+                "SSE-C (--sse-customer-key) cannot be used together with SSE-KMS (--sse-kms-key-id)",
+            ),
+            (
+                {"sse_customer_key": "mykey", "encryption": "AES256"},
+                "SSE-C (--sse-customer-key) cannot be used together with --encryption",
+            ),
         ],
     )
     @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface")
@@ -3806,6 +3987,7 @@ class TestGetCloudInterface(object):
             aws_region="us-east-1",
             aws_encryption="AES256",
             aws_sse_kms_key_id=None,
+            aws_sse_customer_key=None,
             aws_read_timeout=60,
             cloud_delete_batch_size=20,
         )
@@ -3818,6 +4000,7 @@ class TestGetCloudInterface(object):
                 region="us-east-1",
                 encryption="AES256",
                 sse_kms_key_id=None,
+                sse_customer_key=None,
                 read_timeout=60,
                 delete_batch_size=20,
             )
@@ -3850,6 +4033,7 @@ class TestGetCloudInterface(object):
             aws_region="us-east-1",
             aws_encryption="aws:kms",
             aws_sse_kms_key_id="arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
+            aws_sse_customer_key=None,
             aws_read_timeout=60,
             cloud_delete_batch_size=20,
         )
@@ -3861,6 +4045,7 @@ class TestGetCloudInterface(object):
             region="us-east-1",
             encryption="aws:kms",
             sse_kms_key_id="arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
+            sse_customer_key=None,
             read_timeout=60,
             delete_batch_size=20,
         )
@@ -3908,9 +4093,9 @@ class TestCloudBackupCatalog(object):
     def get_backup_info_file_object(self):
         """Minimal backup info"""
         return BytesIO(b"""
-            backup_label=None
-            end_time=2014-12-22 09:25:27.410470+01:00
-            """)
+backup_label=None
+end_time=2014-12-22 09:25:27.410470+01:00
+""")
 
     def raise_exception(self):
         raise Exception("something went wrong reading backup.info")
@@ -4300,12 +4485,12 @@ class TestCloudBackupCatalog(object):
     def catalog_with_named_backup(self, in_memory_cloud_interface):
         backup_infos = {
             "20221107T120000": BytesIO(b"""backup_label=None
-                end_time=2022-11-07 12:05:00
-                backup_name=named backup
-                """),
+end_time=2022-11-07 12:05:00
+backup_name=named backup
+"""),
             "20221109T120000": BytesIO(b"""backup_label=None
-                end_time=2022-11-09 12:05:00
-                """),
+end_time=2022-11-09 12:05:00
+"""),
         }
         in_memory_cloud_interface.path = ""
         for id, backup_info in backup_infos.items():
@@ -4408,13 +4593,27 @@ class TestCloudBackupCatalog(object):
             # The backup ID should resolve to itself
             (
                 {
-                    "0000000100000003000000BA": "server_name/wals/0000000100000003/0000000100000003000000BA.gz",
-                    "0000000200000003000000BA": "server_name/wals/0000000200000003/0000000200000003000000BA.gz",
-                    "0000000200000003000000FF": "server_name/wals/0000000200000003/0000000200000003000000FF.gz",
-                    "0000000300000003000001AB": "server_name/wals/0000000300000003/0000000300000003000001AB.gz",
-                    "0000000400000003000000CD": "server_name/wals/0000000400000003/0000000400000003000000CD.gz",
-                    "0000000400000003000000FF": "server_name/wals/0000000400000003/0000000400000003000000FF.gz",
-                    "0000000500000003000001DE": "server_name/wals/0000000500000003/0000000500000003000001DE.gz",
+                    "0000000100000003000000BA": (
+                        "server_name/wals/0000000100000003/0000000100000003000000BA.gz"
+                    ),
+                    "0000000200000003000000BA": (
+                        "server_name/wals/0000000200000003/0000000200000003000000BA.gz"
+                    ),
+                    "0000000200000003000000FF": (
+                        "server_name/wals/0000000200000003/0000000200000003000000FF.gz"
+                    ),
+                    "0000000300000003000001AB": (
+                        "server_name/wals/0000000300000003/0000000300000003000001AB.gz"
+                    ),
+                    "0000000400000003000000CD": (
+                        "server_name/wals/0000000400000003/0000000400000003000000CD.gz"
+                    ),
+                    "0000000400000003000000FF": (
+                        "server_name/wals/0000000400000003/0000000400000003000000FF.gz"
+                    ),
+                    "0000000500000003000001DE": (
+                        "server_name/wals/0000000500000003/0000000500000003000001DE.gz"
+                    ),
                 },
                 {
                     "00000005": WalFileInfo(
@@ -4883,7 +5082,9 @@ class TestCloudBackupUploader(object):
         # THEN the expected directories were uploaded
         uploaded_directory_src = [
             call[1]["src"]
-            for call in mock_cloud_upload_controller.return_value.upload_directory.call_args_list
+            for call in (
+                mock_cloud_upload_controller.return_value.upload_directory.call_args_list
+            )
         ]
         assert uploaded_directory_src == [
             "/tbs1",
@@ -4893,7 +5094,9 @@ class TestCloudBackupUploader(object):
         # AND the external config file was uploaded
         uploaded_file_src = [
             call[1]["src"]
-            for call in mock_cloud_upload_controller.return_value.add_file.call_args_list
+            for call in (
+                mock_cloud_upload_controller.return_value.add_file.call_args_list
+            )
         ]
         assert "/path/to/pg_ident.conf" in uploaded_file_src
         # AND the backup was coordinated with PostgreSQL
@@ -5053,7 +5256,9 @@ class TestCloudBackupUploaderBarman(object):
         # THEN the expected directories were uploaded
         uploaded_directory_src = [
             call[1]["src"]
-            for call in mock_cloud_upload_controller.return_value.upload_directory.call_args_list
+            for call in (
+                mock_cloud_upload_controller.return_value.upload_directory.call_args_list
+            )
         ]
         assert uploaded_directory_src == [
             "/path/to/test_server/backup_id/1234",

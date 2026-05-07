@@ -667,6 +667,79 @@ class TestAutoRestoreExcludesStartedBackups(object):
         assert started_backup_id not in backup_ids_passed
 
 
+class TestCloudRestoreAwsEncryptionArgs(object):
+    @mock.patch("barman.clients.cloud_restore.CloudBackupDownloaderObjectStore")
+    @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface")
+    def test_sse_customer_key_not_set(
+        self,
+        cloud_interface_mock,
+        mock_catalog,
+        _mock_downloader,
+    ):
+        """Verify that sse_customer_key is None when --sse-customer-key is not provided."""
+        # GIVEN a catalog that resolves backup ID and returns a mock backup info
+        mock_catalog.return_value.parse_backup_id.return_value = "20201110T120000"
+        mock_backup_info = mock.Mock(backup_id="20201110T120000", snapshots_info=None)
+        mock_catalog.return_value.get_backup_info.return_value = mock_backup_info
+
+        # WHEN barman-cloud-restore is called without --sse-customer-key
+        cloud_restore.main(
+            [
+                "--cloud-provider",
+                "aws-s3",
+                "s3://test-bucket",
+                "test_server",
+                "20201110T120000",
+                "/path/to/dir",
+            ]
+        )
+
+        # THEN S3CloudInterface was created with sse_customer_key=None
+        cloud_interface_mock.assert_called_once()
+        _, kwargs = cloud_interface_mock.call_args
+        assert kwargs.get("sse_customer_key") is None
+
+    @mock.patch("barman.clients.cloud_restore.CloudBackupDownloaderObjectStore")
+    @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface")
+    def test_sse_customer_key_passed_to_cloud_interface(
+        self,
+        cloud_interface_mock,
+        mock_catalog,
+        _mock_downloader,
+        tmp_path,
+    ):
+        """Verify that --sse-customer-key file:// URI is passed to the S3 cloud interface."""
+        # GIVEN a key file containing a valid base64-encoded key
+        key_file = tmp_path / "key.b64"
+        key_file.write_text("WkMb3SePiDn8cCIt/Knb0O+B0yYZavrwqsOQdjNe57g=")
+        key_uri = "file://" + str(key_file)
+        # AND a catalog that resolves backup ID and returns a mock backup info
+        mock_catalog.return_value.parse_backup_id.return_value = "20201110T120000"
+        mock_backup_info = mock.Mock(backup_id="20201110T120000", snapshots_info=None)
+        mock_catalog.return_value.get_backup_info.return_value = mock_backup_info
+
+        # WHEN barman-cloud-restore is called with --sse-customer-key
+        cloud_restore.main(
+            [
+                "--cloud-provider",
+                "aws-s3",
+                "s3://test-bucket",
+                "test_server",
+                "20201110T120000",
+                "/path/to/dir",
+                "--sse-customer-key",
+                key_uri,
+            ]
+        )
+
+        # THEN S3CloudInterface was created with the file:// URI as sse_customer_key
+        cloud_interface_mock.assert_called_once()
+        _, kwargs = cloud_interface_mock.call_args
+        assert kwargs.get("sse_customer_key") == key_uri
+
+
 class TestCloudBackupDownloader(object):
     """Superclass containing common fixtures for CloudBackupDownloader tests."""
 

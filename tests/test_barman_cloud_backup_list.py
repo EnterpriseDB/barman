@@ -20,10 +20,16 @@ import datetime
 import json
 
 import mock
+import pytest
 from testing_helpers import build_test_backup_info
 
 from barman.annotations import KeepManager
-from barman.clients import cloud_backup_list
+from barman.clients import (
+    cloud_backup_delete,
+    cloud_backup_keep,
+    cloud_backup_list,
+    cloud_backup_show,
+)
 
 
 class TestCloudBackupList(object):
@@ -205,3 +211,39 @@ class TestCloudBackupList(object):
         # AND the DONE backup is present with status=DONE
         assert "backup_id_1" in backups
         assert backups["backup_id_1"]["status"] == "DONE"
+
+
+class TestCloudBackupManagementCommandsSseArgs(object):
+    @pytest.mark.parametrize(
+        "parse_arguments,base_args",
+        [
+            (cloud_backup_list.parse_arguments, ["s3://bucket", "server"]),
+            (cloud_backup_show.parse_arguments, ["s3://bucket", "server", "backup_id"]),
+            (
+                cloud_backup_delete.parse_arguments,
+                ["s3://bucket", "server", "-b", "backup_id"],
+            ),
+            (
+                cloud_backup_keep.parse_arguments,
+                ["s3://bucket", "server", "backup_id", "--target", "full"],
+            ),
+        ],
+    )
+    def test_sse_customer_key_arg(self, parse_arguments, base_args, tmp_path):
+        """Verify --sse-customer-key is accepted and stored by each backup management command."""
+        # GIVEN no --sse-customer-key
+        # WHEN parse_arguments is called without the flag
+        config = parse_arguments(["--cloud-provider", "aws-s3"] + base_args)
+        # THEN sse_customer_key defaults to None
+        assert config.sse_customer_key is None
+
+        # GIVEN a key file containing a valid base64-encoded key
+        key_file = tmp_path / "key.b64"
+        key_file.write_text("WkMb3SePiDn8cCIt/Knb0O+B0yYZavrwqsOQdjNe57g=")
+        key_uri = "file://" + str(key_file)
+        # WHEN parse_arguments is called with --sse-customer-key
+        config = parse_arguments(
+            ["--cloud-provider", "aws-s3"] + base_args + ["--sse-customer-key", key_uri]
+        )
+        # THEN sse_customer_key is set to the provided URI
+        assert config.sse_customer_key == key_uri

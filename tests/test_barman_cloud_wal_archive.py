@@ -282,6 +282,7 @@ class TestMain(object):
             endpoint_url=None,
             encryption=None,
             sse_kms_key_id=None,
+            sse_customer_key=None,
             read_timeout=None,
             addressing_style=None,
         )
@@ -438,6 +439,7 @@ class TestMain(object):
                 {
                     "encryption": None,
                     "sse_kms_key_id": None,
+                    "sse_customer_key": None,
                 },
             ),
             # If values are provided then they should be passed to the cloud interface
@@ -446,6 +448,7 @@ class TestMain(object):
                 {
                     "encryption": "aws:kms",
                     "sse_kms_key_id": "somekeyid",
+                    "sse_customer_key": None,
                 },
             ),
         ],
@@ -475,6 +478,41 @@ class TestMain(object):
             read_timeout=None,
             addressing_style=None,
             **expected_cloud_interface_kwargs,
+        )
+
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface")
+    def test_aws_sse_customer_key_arg(
+        self, cloud_interface_mock, _uploader_mock, tmp_path
+    ):
+        """Verify that --sse-customer-key file:// URI is passed to the cloud interface."""
+        # GIVEN a key file containing a valid base64-encoded key
+        key_file = tmp_path / "key.b64"
+        key_file.write_text("WkMb3SePiDn8cCIt/Knb0O+B0yYZavrwqsOQdjNe57g=")
+        key_uri = "file://" + str(key_file)
+
+        # WHEN barman-cloud-wal-archive is run with --sse-customer-key
+        cloud_walarchive.main(
+            [
+                "cloud_storage_url",
+                "test_server",
+                "000000080000ABFF000000C2",
+                "--sse-customer-key",
+                key_uri,
+            ]
+        )
+
+        # THEN the file:// URI is passed as sse_customer_key to the cloud interface
+        cloud_interface_mock.assert_called_once_with(
+            url="cloud_storage_url",
+            tags=None,
+            profile_name=None,
+            endpoint_url=None,
+            read_timeout=None,
+            addressing_style=None,
+            encryption=None,
+            sse_kms_key_id=None,
+            sse_customer_key=key_uri,
         )
 
     @pytest.mark.parametrize(

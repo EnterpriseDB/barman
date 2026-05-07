@@ -206,3 +206,61 @@ class TestMain(object):
             "Barman cloud WAL restore exception: connection reset by peer\n"
             in caplog.text
         )
+
+
+class TestCloudWalRestoreAwsEncryptionArgs(object):
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface")
+    def test_sse_customer_key_not_set(self, cloud_interface_mock):
+        """Verify that sse_customer_key is None when --sse-customer-key is not provided."""
+        # GIVEN a cloud interface mock that simulates a WAL not being found
+        cloud_interface_mock.return_value.download_file.return_value = False
+
+        # WHEN barman-cloud-wal-restore is called without --sse-customer-key
+        with pytest.raises(SystemExit):
+            cloud_walrestore.main(
+                [
+                    "--cloud-provider",
+                    "aws-s3",
+                    "s3://test-bucket",
+                    "test-server",
+                    "000000010000000000000001",
+                    "/tmp/000000010000000000000001",
+                ]
+            )
+
+        # THEN S3CloudInterface was created with sse_customer_key=None
+        cloud_interface_mock.assert_called_once()
+        _, kwargs = cloud_interface_mock.call_args
+        assert kwargs.get("sse_customer_key") is None
+
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface")
+    def test_sse_customer_key_passed_to_cloud_interface(
+        self, cloud_interface_mock, tmp_path
+    ):
+        """Verify that --sse-customer-key file:// URI is passed to the S3 cloud interface."""
+        # GIVEN a key file containing a valid base64-encoded key
+        key_file = tmp_path / "key.b64"
+        key_file.write_text("WkMb3SePiDn8cCIt/Knb0O+B0yYZavrwqsOQdjNe57g=")
+        key_uri = "file://" + str(key_file)
+        # AND a cloud interface mock that simulates a WAL not being found
+        cloud_interface_mock.return_value.download_file.return_value = False
+
+        # WHEN barman-cloud-wal-restore is called with --sse-customer-key
+        with pytest.raises(SystemExit):
+            cloud_walrestore.main(
+                [
+                    "--cloud-provider",
+                    "aws-s3",
+                    "s3://test-bucket",
+                    "test-server",
+                    "000000010000000000000001",
+                    "/tmp/000000010000000000000001",
+                    "--sse-customer-key",
+                    key_uri,
+                ]
+            )
+
+        # THEN S3CloudInterface was created with the file:// URI as sse_customer_key
+        cloud_interface_mock.assert_called_once()
+        _, kwargs = cloud_interface_mock.call_args
+        assert kwargs.get("sse_customer_key") == key_uri
