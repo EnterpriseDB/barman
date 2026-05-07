@@ -24,6 +24,7 @@
                   [ --read-timeout READ_TIMEOUT ]
                   [ { -e | --encryption } ENCRYPTION ]
                   [ --sse-kms-key-id SSE_KMS_KEY_ID ]
+                  [ --sse-customer-key SSE_CUSTOMER_KEY ]
                   [ { --azure-credential | --credential } { azure-cli | managed-identity |
                     default } ]
                   [ --encryption-scope ENCRYPTION_SCOPE ]
@@ -183,6 +184,18 @@ Barman server. Additionally, it can be utilized as a hook script for WAL archivi
   The AWS KMS key ID that should be used for encrypting the uploaded data in S3. Can be
   specified using the key ID on its own or using the full ARN for the key. Only allowed if
   ``-e`` / ``--encryption`` is set to ``aws:kms``.
+
+``--sse-customer-key``
+  The customer-provided encryption key (SSE-C) to use for encrypting and decrypting
+  data in S3. The value must be a ``file://`` URI pointing to a file containing a
+  base64-encoded 256-bit (32-byte) key (e.g. ``file:///etc/barman/sse-c.b64``). Cannot
+  be used together with ``--sse-kms-key-id`` or ``-e`` / ``--encryption``.
+
+  .. important::
+    All backups and WAL files for a given server must be encrypted with the same SSE-C
+    key. Mixing SSE-C-encrypted and unencrypted objects, or using different keys across
+    backups, will cause barman commands to fail when S3 rejects requests with a
+    mismatched or missing key.
 
 **Extra options for the Azure cloud provider**
 

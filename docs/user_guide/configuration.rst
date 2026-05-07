@@ -776,6 +776,37 @@ Example::
 
 Scope: Global / Server / Model.
 
+**aws_sse_customer_key**
+
+Specifies a customer-provided encryption key for AWS S3 SSE-C (Server-Side
+Encryption with Customer Keys). The value must be a ``file://`` URI pointing to a file
+containing a base64-encoded 256-bit (32-byte) key.
+
+When set, Barman passes the key to boto3 for all upload and download operations,
+including base backups and WAL files. The same key must be provided for both
+backup and restore operations.
+
+Cannot be used together with ``aws_encryption`` or ``aws_sse_kms_key_id``.
+
+Example::
+
+  [myserver]
+  backup_method = local-to-cloud
+  basebackups_directory = s3://my-bucket/barman/backups
+  aws_sse_customer_key = file:///etc/barman/sse-c.b64
+
+.. important::
+  All backups and WAL files for a given server must be encrypted with the same SSE-C
+  key. Mixing SSE-C-encrypted and unencrypted objects, or using different keys across
+  backups, will cause barman commands to fail when S3 rejects requests with a
+  mismatched or missing key.
+
+.. note::
+  Only supported when ``backup_method`` is ``postgres`` or ``local-to-cloud``, and
+  ``basebackups_directory`` and/or ``wals_directory`` point to S3.
+
+Scope: Global / Server / Model.
+
 **aws_read_timeout**
 
 Specifies the read timeout in seconds for S3 operations when using cloud storage.

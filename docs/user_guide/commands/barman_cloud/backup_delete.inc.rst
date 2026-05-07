@@ -23,6 +23,7 @@
                   [ { -P | --aws-profile } AWS_PROFILE ]
                   [ --profile AWS_PROFILE ]
                   [ --read-timeout READ_TIMEOUT ]
+                  [ --sse-customer-key SSE_CUSTOMER_KEY ]
                   [ { --azure-credential | --credential } { azure-cli | managed-identity | default } ]
                   [--batch-size DELETE_BATCH_SIZE]
                   SOURCE_URL SERVER_NAME
@@ -161,6 +162,17 @@ WALs are considered unused if:
 ``--read-timeout``
   The time in seconds until a timeout is raised when waiting to read from a connection
   (defaults to ``60`` seconds).
+
+``--sse-customer-key``
+  The customer-provided encryption key (SSE-C) to use for decrypting data in S3. The
+  value must be a ``file://`` URI pointing to a file containing a base64-encoded 256-bit
+  (32-byte) key (e.g. ``file:///etc/barman/sse-c.b64``).
+
+  .. important::
+    All backups and WAL files for a given server must be encrypted with the same SSE-C
+    key. Mixing SSE-C-encrypted and unencrypted objects, or using different keys across
+    backups, will cause barman commands to fail when S3 rejects requests with a
+    mismatched or missing key.
 
 **Extra options for the Azure cloud provider**
 
