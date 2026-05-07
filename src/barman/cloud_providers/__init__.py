@@ -72,6 +72,24 @@ def _make_s3_cloud_interface(config, cloud_interface_kwargs):
                 'Encryption type must be "aws:kms" if SSE KMS Key ID is specified'
             )
         cloud_interface_kwargs["sse_kms_key_id"] = config.sse_kms_key_id
+    if "sse_customer_key" in config:
+        if (
+            config.sse_customer_key is not None
+            and "sse_kms_key_id" in config
+            and config.sse_kms_key_id is not None
+        ):
+            raise CloudProviderOptionUnsupported(
+                "SSE-C (--sse-customer-key) cannot be used together with SSE-KMS (--sse-kms-key-id)"
+            )
+        if (
+            config.sse_customer_key is not None
+            and "encryption" in config
+            and config.encryption is not None
+        ):
+            raise CloudProviderOptionUnsupported(
+                "SSE-C (--sse-customer-key) cannot be used together with --encryption"
+            )
+        cloud_interface_kwargs["sse_customer_key"] = config.sse_customer_key
     if "addressing_style" in config:
         cloud_interface_kwargs["addressing_style"] = config.addressing_style
     return S3CloudInterface(**cloud_interface_kwargs)
@@ -199,7 +217,14 @@ def get_cloud_interface_from_server_config(config, cloud_provider, base_url):
             raise ConfigurationException(
                 'aws_encryption must be "aws:kms" if aws_sse_kms_key_id is specified'
             )
-
+        if config.aws_sse_customer_key and config.aws_sse_kms_key_id:
+            raise ConfigurationException(
+                "aws_sse_customer_key cannot be used together with aws_sse_kms_key_id"
+            )
+        if config.aws_sse_customer_key and config.aws_encryption:
+            raise ConfigurationException(
+                "aws_sse_customer_key cannot be used together with aws_encryption"
+            )
         cloud_interface_kwargs.update(
             {
                 "profile_name": config.aws_profile,
@@ -207,6 +232,7 @@ def get_cloud_interface_from_server_config(config, cloud_provider, base_url):
                 "read_timeout": config.aws_read_timeout,
                 "encryption": config.aws_encryption,
                 "sse_kms_key_id": config.aws_sse_kms_key_id,
+                "sse_customer_key": config.aws_sse_customer_key,
             }
         )
         return S3CloudInterface(**cloud_interface_kwargs)

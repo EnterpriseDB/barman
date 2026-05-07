@@ -234,6 +234,13 @@ def parse_arguments(args=None):
         "in S3. Can be specified using the key ID on its own or using the full ARN for "
         "the key. Only allowed if `-e/--encryption` is set to `aws:kms`.",
     )
+    s3_arguments.add_argument(
+        "--sse-customer-key",
+        help="Path to a file containing the customer-provided encryption key (SSE-C) "
+        "to use for encrypting and decrypting data in S3, specified as a file:// URI "
+        "(e.g. file:///path/to/key.b64). The file must contain a base64-encoded "
+        "256-bit key. Cannot be used together with --encryption or --sse-kms-key-id.",
+    )
     azure_arguments.add_argument(
         "--encryption-scope",
         help="The name of an encryption scope defined in the Azure Blob Storage "

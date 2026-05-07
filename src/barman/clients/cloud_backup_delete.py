@@ -448,10 +448,17 @@ def parse_arguments(args=None):
 
     :return: The options parsed
     """
-    parser, _, _ = create_argument_parser(
+    parser, s3_arguments, _ = create_argument_parser(
         description="This script can be used to delete backups "
         "made with barman-cloud-backup command. "
         "Currently AWS S3, Azure Blob Storage and Google Cloud Storage are supported.",
+    )
+    s3_arguments.add_argument(
+        "--sse-customer-key",
+        help="Path to a file containing the customer-provided encryption key (SSE-C) "
+        "to use for decrypting data in S3, specified as a file:// URI "
+        "(e.g. file:///path/to/key.b64). The file must contain a base64-encoded "
+        "256-bit key.",
     )
     delete_arguments = parser.add_mutually_exclusive_group(required=True)
     delete_arguments.add_argument(

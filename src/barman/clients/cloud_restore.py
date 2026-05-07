@@ -204,6 +204,13 @@ def parse_arguments(args=None):
         dest="gcp_zone",
     )
     s3_arguments.add_argument(
+        "--sse-customer-key",
+        help="Path to a file containing the customer-provided encryption key (SSE-C) "
+        "to use for decrypting data in S3, specified as a file:// URI "
+        "(e.g. file:///path/to/key.b64). The file must contain a base64-encoded "
+        "256-bit key.",
+    )
+    s3_arguments.add_argument(
         "--aws-region",
         help=(
             "Name of the AWS region where the instance and disks for snapshot "
