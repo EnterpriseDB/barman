@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>
 
+import base64
 import json
 import logging
 import math
@@ -126,6 +127,7 @@ class S3CloudInterface(CloudInterface):
         delete_batch_size=None,
         read_timeout=None,
         sse_kms_key_id=None,
+        sse_customer_key=None,
         addressing_style=None,
     ):
         """
@@ -146,6 +148,10 @@ class S3CloudInterface(CloudInterface):
           raised when waiting to read from a connection
         :param str|None sse_kms_key_id: the AWS KMS key ID that should be used
           for encrypting uploaded data in S3
+        :param str|None sse_customer_key: path to a file containing the
+          customer-provided encryption key (SSE-C) to use for encrypting and
+          decrypting data in S3, specified as a ``file://`` URI. The file must
+          contain a base64-encoded 256-bit key.
         :param str|None addressing_style: the addressing style to use for S3
           requests. Valid values are 'auto', 'virtual', or 'path'
         """
@@ -161,6 +167,7 @@ class S3CloudInterface(CloudInterface):
         self.endpoint_url = endpoint_url
         self.read_timeout = read_timeout
         self.sse_kms_key_id = sse_kms_key_id
+        self.sse_customer_key = self._load_sse_customer_key(sse_customer_key)
         self.addressing_style = addressing_style
 
         # Extract information from the destination URL
@@ -194,6 +201,49 @@ class S3CloudInterface(CloudInterface):
             "s3", endpoint_url=self.endpoint_url, region_name=self.region, config=config
         )
 
+    @staticmethod
+    def _load_sse_customer_key(sse_customer_key):
+        """
+        Resolve and decode an SSE-C customer key from a ``file://`` URI.
+
+        :param str|None sse_customer_key: a ``file://`` URI pointing to a file
+          that contains a base64-encoded 256-bit AES key, or ``None``. The file
+          may be a regular file, a symlink, or a named pipe.
+        :return: the decoded key as :class:`bytes`, or ``None`` if
+          *sse_customer_key* is ``None``.
+        :raises ValueError: if *sse_customer_key* is not a ``file://`` URI, if
+          the referenced file does not exist, or if the file content is not a
+          valid base64-encoded key.
+        """
+        if sse_customer_key is None:
+            return None
+        if not sse_customer_key.startswith("file://"):
+            raise ValueError(
+                "SSE-C customer key must be provided as a file:// URI (e.g. file:///path/to/key.b64)"
+            )
+        path = sse_customer_key[len("file://") :]
+        if not os.path.isabs(path):
+            raise ValueError("SSE-C key file path must be absolute: %s" % path)
+        try:
+            with open(path, "rb") as f:
+                raw = f.read().strip()
+        except FileNotFoundError:
+            raise ValueError("SSE-C key file not found: %s" % path)
+        except OSError as e:
+            raise ValueError("Could not read SSE-C key file %s: %s" % (path, e))
+        try:
+            decoded = base64.b64decode(raw, validate=True)
+        except Exception:
+            raise ValueError(
+                "SSE-C key file %s does not contain a valid base64-encoded key" % path
+            )
+        if len(decoded) != 32:
+            raise ValueError(
+                "SSE-C key file %s must contain a 256-bit (32-byte) key, "
+                "got %d bytes" % (path, len(decoded))
+            )
+        return decoded
+
     @property
     def _extra_upload_args(self):
         """
@@ -202,11 +252,25 @@ class S3CloudInterface(CloudInterface):
         Because some boto3 calls accept `ExtraArgs: {}` and others do not, we
         return a nested dict which can be expanded with `**` in the boto3 call.
         """
-        additional_args = {}
+        additional_args = {**self._extra_sse_c_args}
         if self.encryption:
             additional_args["ServerSideEncryption"] = self.encryption
         if self.sse_kms_key_id:
             additional_args["SSEKMSKeyId"] = self.sse_kms_key_id
+        return additional_args
+
+    @property
+    def _extra_sse_c_args(self):
+        """
+        Return a dict containing SSE-C arguments to be passed to boto3 S3 calls.
+
+        SSE-C requires the customer key to be provided on every GET, HEAD, and
+        PUT (including multipart upload parts) operation.
+        """
+        additional_args = {}
+        if self.sse_customer_key:
+            additional_args["SSECustomerKey"] = self.sse_customer_key
+            additional_args["SSECustomerAlgorithm"] = "AES256"
         return additional_args
 
     def test_connectivity(self):
@@ -322,7 +386,7 @@ class S3CloudInterface(CloudInterface):
         """
         # Open the remote file
         obj = self.s3.Object(self.bucket_name, key)
-        remote_file = obj.get()["Body"]
+        remote_file = obj.get(**self._extra_sse_c_args)["Body"]
 
         # Write the dest file in binary mode
         with open(dest_path, "wb") as dest_file:
@@ -346,7 +410,7 @@ class S3CloudInterface(CloudInterface):
         """
         try:
             obj = self.s3.Object(self.bucket_name, key)
-            resp = StreamingBodyIO(obj.get()["Body"])
+            resp = StreamingBodyIO(obj.get(**self._extra_sse_c_args)["Body"])
             if decompressor:
                 return DecompressingStreamingIO(resp, decompressor)
             else:
@@ -406,7 +470,9 @@ class S3CloudInterface(CloudInterface):
         :return: ``True`` if the object exists, ``False`` otherwise
         """
         try:
-            self.s3.meta.client.head_object(Bucket=self.bucket_name, Key=key)
+            self.s3.meta.client.head_object(
+                Bucket=self.bucket_name, Key=key, **self._extra_sse_c_args
+            )
             return True
         except ClientError as e:
             if e.response["Error"]["Code"] == "404":
@@ -508,6 +574,7 @@ class S3CloudInterface(CloudInterface):
             Key=key,
             UploadId=upload_metadata["UploadId"],
             PartNumber=part_number,
+            **self._extra_sse_c_args,
         )
         return {
             "PartNumber": part_number,
@@ -779,7 +846,9 @@ class S3CloudInterface(CloudInterface):
             or if any other error occurs during the check
         """
         try:
-            response = self.s3.meta.client.head_object(Bucket=self.bucket_name, Key=key)
+            response = self.s3.meta.client.head_object(
+                Bucket=self.bucket_name, Key=key, **self._extra_sse_c_args
+            )
 
             # Check for active Object Lock retention
             retain_until = response.get("ObjectLockRetainUntilDate")
