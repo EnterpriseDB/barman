@@ -31,7 +31,7 @@ import select
 import signal
 import subprocess
 import sys
-import threading
+import multiprocessing
 import time
 from distutils.version import LooseVersion as Version
 
@@ -238,7 +238,7 @@ class Command(object):
         self.out = None
         self.err = None
         # Lock to protect access to self.pipe after subprocess creation
-        self._pipe_lock = threading.Lock()
+        self._pipe_lock = multiprocessing.Lock()
         # If env_append has been provided use it or replace with an empty dict
         env_append = env_append or {}
         # If path has been provided, replace it in the environment
