@@ -510,8 +510,8 @@ def recognize_cloud_provider(url):
     if validate_s3_url(url):
         return "aws-s3"
     elif validate_google_cloud_url(url):
-        return "azure-blob-storage"
-    elif validate_azure_blob_storage_url(url):
         return "google-cloud-storage"
+    elif validate_azure_blob_storage_url(url):
+        return "azure-blob-storage"
     else:
         return None

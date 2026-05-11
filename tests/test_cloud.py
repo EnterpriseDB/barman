@@ -67,6 +67,7 @@ from barman.cloud_providers import (
     ObjectKeyAlreadyExists,
     get_cloud_interface,
     get_cloud_interface_from_server_config,
+    recognize_cloud_provider,
     validate_azure_blob_storage_url,
     validate_google_cloud_url,
     validate_s3_url,
@@ -5608,3 +5609,25 @@ def test_validate_google_cloud_url(url, is_valid):
 def test_validate_azure_blob_storage_url(url, is_valid):
     """Test the ``validate_azure_blob_storage_url`` function."""
     assert validate_azure_blob_storage_url(url) == is_valid
+
+
+@pytest.mark.parametrize(
+    ("url", "expected_provider"),
+    (
+        ("s3://my-bucket/my-object", "aws-s3"),
+        ("gs://my-bucket/my-object", "google-cloud-storage"),
+        (
+            "https://console.cloud.google.com/storage/browser/my-bucket/my-object",
+            "google-cloud-storage",
+        ),
+        (
+            "https://myaccount.blob.core.windows.net/mycontainer/myblob",
+            "azure-blob-storage",
+        ),
+        ("http://my-bucket/my-object", None),
+        ("not-a-url", None),
+    ),
+)
+def test_recognize_cloud_provider(url, expected_provider):
+    """Test the ``recognize_cloud_provider`` function returns the correct provider."""
+    assert recognize_cloud_provider(url) == expected_provider
