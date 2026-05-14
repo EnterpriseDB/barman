@@ -206,6 +206,51 @@ To install the ``barman-cli`` package, run as **root** in the Postgres server:
    :ref:`hook scripts <hook-scripts-using-barman-cloud-scripts-as-hooks-in-barman>`, you
    will need to install this package in the Barman server.
 
+.. _installation-upgrading:
+
+Upgrading
+---------
+
+Before upgrading Barman packages, review the following recommendations to ensure a
+smooth and safe upgrade:
+
+* **Review the release notes**: Check the release notes for the target version to
+  identify any breaking changes, deprecated options, or new requirements that may
+  affect your setup.
+
+* **Back up your configuration**: Make a copy of your Barman configuration files
+  (e.g. ``/etc/barman.conf`` and ``/etc/barman.d/``) before upgrading, in case the
+  package update modifies or replaces them. This is usually not necessary, but it's
+  always good practice to have a backup of your configuration.
+
+* **Ensure no operations are running**: Before upgrading, make sure no backup, WAL
+  archiving, or recovery operations are in progress on any of your configured servers.
+
+  * Disable the execution of ``barman cron`` during the upgrade to prevent any scheduled
+    tasks from running. You can do this by setting all servers to inactive, or
+    commenting out the cron job in your system's crontab.
+
+  * Comment any cron job that would execute ``barman backup`` during the upgrade.
+
+  * Stop the ``receive-wal`` process for each configured server to prevent possible issues
+    with WAL archiving during the upgrade. You can do this by running:
+
+    .. code-block:: bash
+
+       barman terminate-process SERVER_NAME receive-wal
+
+* **Use the same repository**: Upgrade Barman using the same package repository that
+  was used for the original installation. Mixing repositories can result in
+  configuration layout mismatches or broken packages.
+
+* **Verify Python compatibility**: Confirm that the Python version on your system is
+  supported by the new Barman release. Refer to :ref:`installation-system-requirements`
+  for supported versions.
+
+* **Test before upgrading production**: When possible, test the upgrade in a
+  non-production environment first to catch any issues before applying it to your
+  production Barman server.
+
 .. _extra-requirements:
 
 Additional Requirements
