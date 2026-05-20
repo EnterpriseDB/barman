@@ -1574,7 +1574,9 @@ Scope: Global / Server / Model.
 
 **wal_retention_policy**
 
-Policy for retaining WAL files. Currently only ``main`` is available.
+Policy for retaining WAL files. Currently only ``main`` is available. With ``main``,
+WAL retention follows the main ``retention_policy`` setting. Barman doesn't support a
+separate WAL retention policy.
 
 Scope: Global / Server / Model.
 

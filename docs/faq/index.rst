@@ -46,11 +46,17 @@ less invasive than what is required for high availability.
 
 **Can I define retention policies for my backups?**
 
-Yes. Barman 1.2.0 introduced support for retention policies both for base backups and
-WAL segments, for every server you have. You can specify a retention policy in the
-server configuration file. Retention policies can be based on time
-(e.g. ``RECOVERY WINDOW OF 30 DAYS``) or number of base backups
-(e.g. ``REDUNDANCY 3``).
+Yes. You can specify a retention policy in the server configuration file. The
+``retention_policy`` option controls which base backups, and which WAL files required
+by those backups, Barman retains. Retention policies can be based on time
+(for example, ``RECOVERY WINDOW OF 30 DAYS``) or number of base backups
+(for example, ``REDUNDANCY 3``).
+
+Barman doesn't currently support an independent retention policy for WAL files. The
+``wal_retention_policy`` option only supports ``main``, which means WAL retention
+follows the main ``retention_policy`` setting. To keep WAL files for a longer
+point-in-time recovery window, configure ``retention_policy`` for that window or manage
+the extra WAL archive outside Barman.
 
 **Does Barman guarantee data protection and security?**
 
@@ -240,6 +246,5 @@ Requirements
 
 Barman can take backups of your Postgres servers on Windows. The recovery part 
 is not supported. Additionally, Barman will have to run on a UNIX box.
-
 
 
