@@ -1649,22 +1649,28 @@ class TestAzureCloudSnapshotInterface(object):
         )
 
         # THEN begin_create_or_update is called on the SnapshotsOperations with the
-        # expected args
+        # expected args. The payload is built with the azure-mgmt-compute model
+        # objects (Snapshot / CreationData) so the strict deserializer in
+        # azure-mgmt-compute 38+ accepts it.
         expected_disk_id = self.azure_disks[0]["id"]
         expected_disk_name = self.azure_disks[0]["name"]
         expected_location = self.azure_disks[0]["location"]
         expected_snapshot_name = self._get_snapshot_name(expected_disk_name)
+        mock_snapshot_model = self._mock_azure_mgmt_compute.models.Snapshot
+        mock_creation_data_model = self._mock_azure_mgmt_compute.models.CreationData
+        mock_creation_data_model.assert_called_once_with(
+            create_option="Copy",
+            source_uri=expected_disk_id,
+        )
+        mock_snapshot_model.assert_called_once_with(
+            location=expected_location,
+            incremental=True,
+            creation_data=mock_creation_data_model.return_value,
+        )
         mock_snapshot_operations.begin_create_or_update.assert_called_once_with(
             self.azure_resource_group,
             expected_snapshot_name,
-            {
-                "location": expected_location,
-                "incremental": True,
-                "creation_data": {
-                    "create_option": "Copy",
-                    "source_uri": expected_disk_id,
-                },
-            },
+            mock_snapshot_model.return_value,
         )
         # AND wait() was called on the response to await completion of the snapshot
         mock_resp.wait.assert_called_once()
