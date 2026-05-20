@@ -1262,6 +1262,7 @@ class PgVerifyBackup(PostgreSQLClient):
         app_name=None,
         check=True,
         args=None,
+        format=None,
         **kwargs,
     ):
         """
@@ -1275,6 +1276,10 @@ class PgVerifyBackup(PostgreSQLClient):
         :param bool check: check if the return value is in the list of allowed values of
             the Command obj
         :param List[str] args: additional arguments
+        :param None|str format: backup format to verify (e.g. ``tar``). When provided,
+            ``-F <format>`` is appended to the command arguments. Verifying
+            non-plain formats requires ``pg_verifybackup`` from Postgres 18 or
+            newer.
         """
         PostgreSQLClient.__init__(
             self,
@@ -1287,6 +1292,8 @@ class PgVerifyBackup(PostgreSQLClient):
         )
 
         self.args = ["-n", data_path]
+        if format is not None:
+            self.args += ["-F", format]
         if args:
             self.args += args
 

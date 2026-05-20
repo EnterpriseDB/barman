@@ -89,6 +89,9 @@ from barman.storage.local_file_manager import LocalFileManager
 from barman.utils import (
     SHA256,
     BarmanEncoderV2,
+)
+from barman.utils import LooseVersion as Version
+from barman.utils import (
     force_str,
     fsync_dir,
     fsync_file,
@@ -2026,6 +2029,10 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             )
             return
 
+        if backup_info.encryption is not None:
+            output.error("Backup verification is not supported for encrypted backups")
+            return
+
         output.info("Calling pg_verifybackup")
         # Test pg_verifybackup existence
         version_info = PgVerifyBackup.get_version_info(self.server.path)
@@ -2033,10 +2040,24 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             output.error("pg_verifybackup not found")
             return
 
+        # Determine the backup format
+        backup_format = "tar" if backup_info.compression is not None else None
+
+        # Verifying tar-format backups requires pg_verifybackup from Postgres 18+
+        if backup_format == "tar":
+            major_version = version_info.get("major_version")
+            if major_version is None or major_version < Version("18"):
+                output.error(
+                    "Verification of tar format backups requires pg_verifybackup from "
+                    "Postgres 18 or newer (found %s)" % version_info.get("full_version")
+                )
+                return
+
         pg_verifybackup = PgVerifyBackup(
             data_path=backup_info.get_data_directory(),
             command=version_info["full_path"],
             version=version_info["full_version"],
+            format=backup_format,
         )
         try:
             pg_verifybackup()
