@@ -2946,11 +2946,14 @@ class TestVerifyBackup:
         backup_manager.server.use_backup_cloud_storage = False
         backup_manager.server.use_wal_cloud_storage = False
         mock_backup_info = Mock()
+        mock_backup_info.compression = None
+        mock_backup_info.encryption = None
         mock_backup_info.get_data_directory.return_value = backup_path
 
         mock_pg_verify_backup.get_version_info.return_value = {
             "full_path": pg_verify_backup_path,
             "full_version": "13.2",
+            "major_version": barman.utils.LooseVersion("13"),
         }
 
         backup_manager.verify_backup(mock_backup_info)
@@ -2958,7 +2961,10 @@ class TestVerifyBackup:
         mock_backup_info.get_data_directory.assert_called_once()
         mock_pg_verify_backup_instance = mock_pg_verify_backup.return_value
         mock_pg_verify_backup.assert_called_once_with(
-            data_path=backup_path, command=pg_verify_backup_path, version="13.2"
+            data_path=backup_path,
+            command=pg_verify_backup_path,
+            version="13.2",
+            format=None,
         )
         mock_pg_verify_backup.return_value.assert_called_once()
         mock_pg_verify_backup_instance.get_output.assert_called_once()
@@ -2967,6 +2973,8 @@ class TestVerifyBackup:
     def test_verify_backup_exec_not_found(self, mock_pg_verify_backup):
         backup_manager = build_backup_manager()
         mock_backup_info = Mock()
+        mock_backup_info.compression = None
+        mock_backup_info.encryption = None
         mock_backup_info.get_data_directory.return_value = "/fake/path2"
         mock_pg_verify_backup.get_version_info.return_value = dict.fromkeys(
             ("full_path", "full_version", "major_version"), None
@@ -2981,10 +2989,13 @@ class TestVerifyBackup:
     def test_verify_backup_failed_cmd(self, mock_pg_verify_backup):
         backup_manager = build_backup_manager()
         mock_backup_info = Mock()
+        mock_backup_info.compression = None
+        mock_backup_info.encryption = None
         mock_backup_info.get_data_directory.return_value = "/fake/path3"
         mock_pg_verify_backup.get_version_info.return_value = {
             "full_path": "/path/to/pg_verifybackup",
             "full_version": "13.2",
+            "major_version": barman.utils.LooseVersion("13"),
         }
         mock_pg_verify_backup_instance = mock_pg_verify_backup.return_value
         mock_pg_verify_backup_instance.side_effect = CommandFailedException(
@@ -3004,6 +3015,94 @@ class TestVerifyBackup:
         backup_manager.verify_backup(mock_backup_info)
         mock_output.error.assert_called_once_with(
             "Backup verification is not supported for servers using cloud storage"
+        )
+
+    @pytest.mark.parametrize("compression", ["none", "gzip", "lz4", "zstd"])
+    @patch("barman.backup.PgVerifyBackup")
+    def test_verify_backup_tar_format_pg18(self, mock_pg_verify_backup, compression):
+        """Tar (and compressed tar) backups should be verified with -F tar when
+        pg_verifybackup >= 18 is available."""
+        # GIVEN a tar-format backup and pg_verifybackup 18
+        backup_path = "/fake/path"
+        pg_verify_backup_path = "/path/to/pg_verifybackup"
+        backup_manager = build_backup_manager()
+        backup_manager.server.use_backup_cloud_storage = False
+        backup_manager.server.use_wal_cloud_storage = False
+        mock_backup_info = Mock()
+        mock_backup_info.compression = compression
+        mock_backup_info.encryption = None
+        mock_backup_info.get_data_directory.return_value = backup_path
+        mock_pg_verify_backup.get_version_info.return_value = {
+            "full_path": pg_verify_backup_path,
+            "full_version": "18.0",
+            "major_version": barman.utils.LooseVersion("18"),
+        }
+
+        # WHEN verify_backup is invoked
+        backup_manager.verify_backup(mock_backup_info)
+
+        # THEN PgVerifyBackup is called with format="tar"
+        mock_pg_verify_backup.assert_called_once_with(
+            data_path=backup_path,
+            command=pg_verify_backup_path,
+            version="18.0",
+            format="tar",
+        )
+        mock_pg_verify_backup.return_value.assert_called_once()
+
+    @pytest.mark.parametrize("compression", ["none", "gzip", "lz4", "zstd"])
+    @patch("barman.backup.output")
+    @patch("barman.backup.PgVerifyBackup")
+    def test_verify_backup_tar_format_requires_pg18(
+        self, mock_pg_verify_backup, mock_output, compression
+    ):
+        """Verifying tar/compressed backups with pg_verifybackup < 18 must
+        fail with a clear error and never invoke the command."""
+        # GIVEN a tar-format backup and a pre-PG18 pg_verifybackup
+        backup_manager = build_backup_manager()
+        backup_manager.server.use_backup_cloud_storage = False
+        backup_manager.server.use_wal_cloud_storage = False
+        mock_backup_info = Mock()
+        mock_backup_info.compression = compression
+        mock_backup_info.encryption = None
+        mock_backup_info.get_data_directory.return_value = "/fake/path"
+        mock_pg_verify_backup.get_version_info.return_value = {
+            "full_path": "/path/to/pg_verifybackup",
+            "full_version": "17.0",
+            "major_version": barman.utils.LooseVersion("17"),
+        }
+
+        # WHEN verify_backup is invoked
+        backup_manager.verify_backup(mock_backup_info)
+
+        # THEN an error is emitted and pg_verifybackup is not instantiated
+        mock_pg_verify_backup.assert_not_called()
+        mock_output.error.assert_called_once()
+        assert (
+            "pg_verifybackup from Postgres 18 or newer"
+            in mock_output.error.call_args[0][0]
+        )
+
+    @patch("barman.backup.output")
+    @patch("barman.backup.PgVerifyBackup")
+    def test_verify_backup_refuses_encrypted(self, mock_pg_verify_backup, mock_output):
+        """Encrypted backups must be refused by verify_backup."""
+        # GIVEN an encrypted backup
+        backup_manager = build_backup_manager()
+        backup_manager.server.use_backup_cloud_storage = False
+        backup_manager.server.use_wal_cloud_storage = False
+        mock_backup_info = Mock()
+        mock_backup_info.compression = "gzip"
+        mock_backup_info.encryption = "gpg"
+
+        # WHEN verify_backup is invoked
+        backup_manager.verify_backup(mock_backup_info)
+
+        # THEN it is refused and pg_verifybackup is not invoked at all
+        mock_pg_verify_backup.assert_not_called()
+        mock_pg_verify_backup.get_version_info.assert_not_called()
+        mock_output.error.assert_called_once_with(
+            "Backup verification is not supported for encrypted backups"
         )
 
 

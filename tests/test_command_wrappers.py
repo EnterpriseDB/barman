@@ -2005,6 +2005,27 @@ class TestPgVerifyBackup(object):
         assert pg_verify_backup.err_handler
         assert pg_verify_backup.out_handler
 
+    def test_init_with_tar_format(self, which):
+        """
+        When ``format`` is provided, ``-F <format>`` is appended to the
+        command arguments. Used to verify tar/compressed backups against
+        ``pg_verifybackup`` from PostgreSQL 18 or newer.
+        """
+        backup_path = "/backup/path"
+        verifybackup_path = "/usr/bin/pg_verifybackup"
+        pg_verify_backup = command_wrappers.PgVerifyBackup(
+            data_path=backup_path,
+            command=verifybackup_path,
+            version="18.0",
+            format="tar",
+        )
+        assert pg_verify_backup.args == [
+            "-n",
+            backup_path,
+            "-F",
+            "tar",
+        ]
+
 
 class TestPgCombineBackup(object):
     """
