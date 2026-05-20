@@ -20,6 +20,12 @@ For rsync backups, it can be used after creating a manifest file using the
 ``generate-manifest`` command. Requires ``pg_verifybackup`` to be installed on the
 backup server. You can use a shortcut instead of ``BACKUP_ID``.
 
+Starting with Postgres 18, tar-format backups taken with the ``postgres`` backup
+method can also be verified, including those compressed with ``gzip``, ``lz4`` or
+``zstd``. Verifying tar or compressed backups requires ``pg_verifybackup`` from
+Postgres 18 or newer to be available on the backup server, otherwise the command
+will fail with an error. Encrypted backups are not supported by this command.
+
 Parameters
 ^^^^^^^^^^
 
