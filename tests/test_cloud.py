@@ -6094,6 +6094,42 @@ class TestCloudWalDownloader:
         # THEN an empty list is returned
         assert result == []
 
+    def test_get_wals_to_download_finds_compressed_wal_with_backup_label(self):
+        """
+        Test that _get_wals_to_download finds the requested compressed WAL even
+        when a sibling ``<wal>.<offset>.backup`` label file lives next to it in
+        the bucket.
+
+        Example scenario:
+            A user requests 00000001000000030000001A. The bucket holds both
+            00000001000000030000001A.gz (the actual WAL) and
+            00000001000000030000001A.00000028.backup.gz (the backup label).
+            S3 list_bucket returns them sorted, and the backup label sorts
+            before the WAL because ``.0`` < ``.g`` in ASCII. The downloader
+            must still return the real WAL.
+        """
+        # GIVEN a cloud bucket holding both the WAL and its sibling .backup label
+        mock_cloud_interface = MagicMock()
+        mock_cloud_interface.path = "bucket/barman"
+        wal_dir = "0000000100000003"
+        source_dir = "bucket/barman/test_server/wals/{}/".format(wal_dir)
+        # sorted() order — the .backup label appears before the .gz WAL
+        mock_cloud_interface.list_bucket.return_value = [
+            source_dir + "00000001000000030000001A.00000028.backup.gz",
+            source_dir + "00000001000000030000001A.gz",
+        ]
+
+        # AND a CloudWalDownloader
+        downloader = CloudWalDownloader(mock_cloud_interface, "test_server")
+
+        # WHEN _get_wals_to_download is called for the WAL
+        result = downloader._get_wals_to_download(
+            "00000001000000030000001A", no_partial=False, parallel=1
+        )
+
+        # THEN the actual WAL is returned, not skipped because of the label
+        assert result == [source_dir + "00000001000000030000001A.gz"]
+
     @mock.patch(
         "barman.cloud.CloudWalDownloader._validate_wal_path",
         new=lambda self, x, no_partial: False,  # always returns false
