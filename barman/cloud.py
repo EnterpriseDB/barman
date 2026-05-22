@@ -3002,20 +3002,44 @@ class CloudWalDownloader(object):
 
         wals_to_download = []
         count = 0
+        found_requested = False
         for path in sorted(self.cloud_interface.list_bucket(prefix)):
-            is_requested_wal = path.startswith(requested_wal_path)
+            # Match the requested WAL by basename (after stripping any
+            # compression extension) rather than by raw prefix. A prefix
+            # match would also catch the related ``<wal>.<offset>.backup``
+            # label file, and the label sorts before the WAL's compressed
+            # form (``.0`` < ``.g``), so the loop would treat the label as
+            # ``is_requested_wal``, fail validation, and (under the legacy
+            # break-on-invalid behavior) exit before ever reaching the real
+            # compressed WAL — preventing recovery from fetching the
+            # start-checkpoint WAL. The ``.partial`` form is also accepted
+            # so a not-yet-archived WAL can still satisfy the request.
+            basename_no_compression = self._remove_compression_suffix(
+                os.path.basename(path)
+            )
+            is_requested_wal = basename_no_compression in (
+                wal_name,
+                wal_name + ".partial",
+            )
             if is_requested_wal or (path > requested_wal_path and count < parallel):
                 if not self._validate_wal_path(path, no_partial):
-                    if is_requested_wal:
-                        # If the requested WAL itself is not valid we can exit immediately
-                        break
                     continue
+                if is_requested_wal:
+                    found_requested = True
                 filename = os.path.basename(path)
                 _logger.info(
                     "Found WAL %s for server %s as %s", filename, self.server_name, path
                 )
                 wals_to_download.append(path)
                 count += 1
+
+        # Preserve the semantic introduced by the early-break in the previous
+        # implementation: if the requested WAL itself does not exist in the
+        # bucket, do not return prefetched siblings — recovery cannot use
+        # later WALs without the requested one anyway, and returning them
+        # would mislead the caller into thinking the request succeeded.
+        if not found_requested:
+            return []
 
         return wals_to_download
 
