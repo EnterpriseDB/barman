@@ -3047,7 +3047,7 @@ def manage_server_command(
         if disabled_is_error:
             for message in server.config.msg_list:
                 output.error(message)
-                return False
+            return False
         if skip_disabled:
             return False
 
