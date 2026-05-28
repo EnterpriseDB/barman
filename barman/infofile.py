@@ -812,6 +812,8 @@ class BackupInfo(FieldListFile):
             del data["end_time_iso"]
         elif data.get("end_time") is not None:
             data["end_time"] = load_datetime_tz(data["end_time"])
+        if data.get("children_backup_ids") is not None:
+            data["children_backup_ids"] = load_backup_ids(data["children_backup_ids"])
         # Instantiate a BackupInfo object using the converted fields
         return cls(server, **data)
 

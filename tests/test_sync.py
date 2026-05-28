@@ -834,3 +834,129 @@ class TestSync(object):
             command.call_args_list[1][0][0]
             == "barman -c /path/to/barman.conf sync-info main"
         )
+
+    def test_sync_parent_backup_info(self):
+        """
+        Test the behaviour of the sync_parent_backup_info method,
+        testing all the possible error conditions.
+        """
+        # Test 1: Not a passive node.
+        # Expect early return (None)
+        backup_name = "child_backup_123"
+        server = build_real_server()
+        result = server.sync_parent_backup_info(backup_name, {}, None)
+        assert result is None
+
+        # Test 2: Non-incremental backup (no parent).
+        # Expect early return (None)
+        backup_name = "full_backup_123"
+        server = build_real_server(
+            main_conf={"primary_ssh_command": "ssh fakeuser@fakehost"}
+        )
+        primary_info = {
+            "backups": {
+                "full_backup_123": build_test_backup_info(
+                    server=server, backup_id="full_backup_123", parent_backup_id=None
+                ).to_json(),
+            }
+        }
+        result = server.sync_parent_backup_info(backup_name, primary_info, None)
+        assert result is None
+
+        # Test 3: Successful parent backup info sync.
+        # Expect LocalBackupInfo.from_json, save, and backup_cache_add to be called
+        backup_name = "child_backup_123"
+        parent_id = "parent_backup_123"
+        server = build_real_server(
+            main_conf={"primary_ssh_command": "ssh fakeuser@fakehost"}
+        )
+        parent_backup_json = build_test_backup_info(
+            server=server,
+            backup_id=parent_id,
+            children_backup_ids=["child_backup_123"],
+        ).to_json()
+        primary_info = {
+            "backups": {
+                "child_backup_123": build_test_backup_info(
+                    server=server,
+                    backup_id="child_backup_123",
+                    parent_backup_id=parent_id,
+                ).to_json(),
+                parent_id: parent_backup_json,
+            }
+        }
+        local_backup_info = build_test_backup_info(
+            server=server, backup_id="child_backup_123", parent_backup_id=parent_id
+        )
+
+        with mock.patch("barman.infofile.LocalBackupInfo.from_json") as from_json_mock, mock.patch(
+            "barman.infofile.LocalBackupInfo.save"
+        ) as save_mock, mock.patch(
+            "barman.server.BackupManager.backup_cache_add"
+        ) as cache_add_mock:
+            from_json_mock.return_value = build_test_backup_info(
+                server=server, backup_id=parent_id
+            )
+            server.sync_parent_backup_info(backup_name, primary_info, local_backup_info)
+            from_json_mock.assert_called_once_with(server, parent_backup_json)
+            save_mock.assert_called_once()
+            cache_add_mock.assert_called_once()
+
+        # Test 4: Parent backup missing on remote server.
+        # Expect SyncError
+        backup_name = "child_backup_123"
+        parent_id = "parent_backup_123"
+        server = build_real_server(
+            main_conf={"primary_ssh_command": "ssh fakeuser@fakehost"}
+        )
+        primary_info = {
+            "backups": {
+                "child_backup_123": build_test_backup_info(
+                    server=server,
+                    backup_id="child_backup_123",
+                    parent_backup_id=parent_id,
+                ).to_json(),
+                # Parent backup is NOT in the backups dict
+            }
+        }
+        local_backup_info = build_test_backup_info(
+            server=server, backup_id="child_backup_123", parent_backup_id=parent_id
+        )
+        with pytest.raises(SyncError) as exc_info:
+            server.sync_parent_backup_info(backup_name, primary_info, local_backup_info)
+        assert "Parent Backup %s is absent" % parent_id in str(exc_info.value)
+
+        # Test 5: File I/O error during save.
+        # Expect SyncError
+        backup_name = "child_backup_123"
+        parent_id = "parent_backup_123"
+        server = build_real_server(
+            main_conf={"primary_ssh_command": "ssh fakeuser@fakehost"}
+        )
+        parent_backup_json = build_test_backup_info(
+            server=server, backup_id=parent_id
+        ).to_json()
+        primary_info = {
+            "backups": {
+                "child_backup_123": build_test_backup_info(
+                    server=server,
+                    backup_id="child_backup_123",
+                    parent_backup_id=parent_id,
+                ).to_json(),
+                parent_id: parent_backup_json,
+            }
+        }
+        local_backup_info = build_test_backup_info(
+            server=server, backup_id="child_backup_123", parent_backup_id=parent_id
+        )
+
+        with (
+            mock.patch("barman.infofile.LocalBackupInfo.from_json") as from_json_mock, 
+            mock.patch("barman.infofile.LocalBackupInfo.save") as save_mock
+        ):
+            mock_backup_info = build_test_backup_info(server=server, backup_id=parent_id)
+            from_json_mock.return_value = mock_backup_info
+            save_mock.side_effect = OSError("Permission denied")
+            with pytest.raises(SyncError) as exc_info:
+                server.sync_parent_backup_info(backup_name, primary_info, local_backup_info)
+            assert "Unable to write" in str(exc_info.value)
