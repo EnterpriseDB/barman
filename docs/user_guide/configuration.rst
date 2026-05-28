@@ -111,6 +111,16 @@ When incorporating a new server into Barman, we recommend initially setting
 server. This approach helps prevent excessive error logging in Barman during the
 initial setup.
 
+.. important::
+   Setting ``active = false`` for a server disables operational commands (such as
+   ``backup``, ``put-wal``, ``receive-wal``, and cron-driven actions) for that server.
+   Diagnostics and read-only commands (like ``check``, ``list-backups``, ``status``,
+   ``show-servers``, ``diagnose``, ``list-processes``, and some options for
+   ``receive-wal`` maintenance subcommands) remain available.
+
+   If the server is marked as inactive, ``barman cron`` will kill any background
+   ``receive-wal`` processes and skip any other tasks.
+
 Scope: Server / Model.
 
 **archiver**
