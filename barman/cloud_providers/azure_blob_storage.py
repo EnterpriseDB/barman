@@ -275,6 +275,7 @@ class AzureCloudInterface(CloudInterface):
         try:
             self.container_client.list_blobs(
                 name_starts_with=self.path.strip("/"),
+                results_per_page=1,
             ).next()
         except ResourceNotFoundError:
             return False
