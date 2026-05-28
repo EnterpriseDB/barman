@@ -658,14 +658,24 @@ class AzureCloudSnapshotInterface(CloudSnapshotInterface):
         """
         snapshot_name = "%s-%s" % (disk_name, backup_info.backup_id.lower())
         _logger.info("Taking snapshot '%s' of disk '%s'", snapshot_name, disk_name)
+        # azure-mgmt-compute 38.0.0 tightened its request deserializer and rejects
+        # the flat-dict payload barman previously sent: `incremental` and
+        # `creation_data` live under `properties.*` in the wire format. Build the
+        # request with the Snapshot/CreationData model objects so it works on both
+        # the lenient and strict deserializer tracks. See issue #1186.
+        compute = import_azure_mgmt_compute()
+        snapshot_model = compute.models.Snapshot(
+            location=location,
+            incremental=True,
+            creation_data=compute.models.CreationData(
+                create_option="Copy",
+                source_uri=disk_id,
+            ),
+        )
         resp = self.client.snapshots.begin_create_or_update(
             resource_group,
             snapshot_name,
-            {
-                "location": location,
-                "incremental": True,
-                "creation_data": {"create_option": "Copy", "source_uri": disk_id},
-            },
+            snapshot_model,
         )
 
         _logger.info("Waiting for snapshot '%s' completion", snapshot_name)
