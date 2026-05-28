@@ -475,31 +475,33 @@ class RemoteGetWal(object):
             self.dest_file = dest_file
             dest_file = open(dest_file, "wb+")
 
-        # Spawn a remote get-wal process and direct its output to the destination file
-        self.ssh_process = subprocess.Popen(
-            build_ssh_command(config, wal_name), stdout=dest_file
-        )
-        self.ssh_process.wait()
-        dest_file.seek(0)
-
-        # Identify the WAL compression, if any
-        server_config = get_server_config_minimal(config.compression, None)
-        compression_manager = CompressionManager(server_config, None)
-        compression = compression_manager.identify_compression(dest_file)
-
-        # If compressed, decompress and overwrite the contents of the destination file
-        # Note: we are able to use decompress_in_mem here because it's sure that
-        # compressor can only be an InternalCompressor
-        if compression is not None:
-            compressor = compression_manager.get_compressor(compression)
-            dec_fileobj = compressor.decompress_in_mem(dest_file)
-            dec_fileobj = BytesIO(dec_fileobj.read())  # avoid lazy-decompressors
-            dest_file.truncate(0)
+        try:
+            # Spawn a remote get-wal process and direct its output to the destination file
+            self.ssh_process = subprocess.Popen(
+                build_ssh_command(config, wal_name), stdout=dest_file
+            )
+            self.ssh_process.wait()
             dest_file.seek(0)
-            shutil.copyfileobj(dec_fileobj, dest_file)
 
-        # close the opened file
-        dest_file.close()
+            # Identify the WAL compression, if any
+            server_config = get_server_config_minimal(config.compression, None)
+            compression_manager = CompressionManager(server_config, None)
+            compression = compression_manager.identify_compression(dest_file)
+
+            # If compressed, decompress and overwrite the contents of the destination file
+            # Note: we are able to use decompress_in_mem here because it's sure that
+            # compressor can only be an InternalCompressor
+            if compression is not None:
+                compressor = compression_manager.get_compressor(compression)
+                dec_fileobj = compressor.decompress_in_mem(dest_file)
+                dec_fileobj = BytesIO(dec_fileobj.read())  # avoid lazy-decompressors
+                dest_file.truncate(0)
+                dest_file.seek(0)
+                shutil.copyfileobj(dec_fileobj, dest_file)
+        finally:
+            # close the opened file
+            if self.dest_file is not None:
+                dest_file.close()
 
         # If a worker process, exit directly with its return code, allowing the
         # main process to access it via the exitcode attr of the process object
