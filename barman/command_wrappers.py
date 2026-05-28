@@ -1419,6 +1419,7 @@ class BarmanSubProcess(object):
             stdin=devnull,
             **additional_arguments,
         )
+        devnull.close()
         _logger.debug("BarmanSubProcess: subprocess started. pid: %s", proc.pid)
 
 
