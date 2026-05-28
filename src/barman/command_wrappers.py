@@ -271,6 +271,20 @@ class Command(object):
         else:
             self.err_handler = self.make_logging_handler(logging.WARNING)
 
+    # Python 3.14+ uses "forkserver" as the default multiprocessing start method on
+    # POSIX platforms, which requires pickling objects passed to worker processes.
+    # threading.Lock object cannot be pickled so we must exclude it during
+    # serialization and recreate it on the other side. This is done by overriding the
+    # __getstate__ and __setstate__ methods below.
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state["_pipe_lock"] = None
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._pipe_lock = threading.Lock()
+
     def __call__(self, *args, **kwargs):
         """
         Run the command and return the exit code.

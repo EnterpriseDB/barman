@@ -21,6 +21,7 @@ import os
 import select
 import signal
 import sys
+import threading
 from logging import DEBUG, INFO, WARNING
 from subprocess import PIPE
 
@@ -910,6 +911,61 @@ class TestCommand(object):
         pipe_mock.stderr.read.assert_not_called()
         command._pipe_lock.__enter__.assert_called_once()
         command._pipe_lock.__exit__.assert_called_once()
+
+    def test_getstate_excludes_pipe_lock(self, popen, pipe_processor_loop):
+        """
+        Test that Command instances can be pickled (i.e. _pipe_lock is excluded).
+        """
+        import pickle
+
+        # GIVEN a Command instance
+        cmd = command_wrappers.Command("command")
+
+        # WHEN we get its state for pickling
+        state = cmd.__getstate__()
+
+        # THEN _pipe_lock is None in the state (excluded from serialization)
+        assert state["_pipe_lock"] is None
+
+        # AND pickling round-trip works
+        unpickled = pickle.loads(pickle.dumps(cmd))
+        assert unpickled._pipe_lock is not None
+
+    def test_setstate_recreates_pipe_lock_when_wait_false(
+        self, popen, pipe_processor_loop
+    ):
+        """
+        Test that __setstate__ recreates _pipe_lock when wait=False.
+        """
+        # GIVEN a Command with wait=False
+        cmd = command_wrappers.Command("command", wait=False)
+        state = cmd.__getstate__()
+
+        # WHEN we restore state into a new instance
+        new_cmd = object.__new__(command_wrappers.Command)
+        new_cmd.__setstate__(state)
+
+        # THEN _pipe_lock is recreated as a threading.Lock
+        assert new_cmd._pipe_lock is not None
+        assert isinstance(new_cmd._pipe_lock, type(threading.Lock()))
+
+    def test_setstate_recreates_pipe_lock_when_wait_true(
+        self, popen, pipe_processor_loop
+    ):
+        """
+        Test that __setstate__ recreates _pipe_lock when wait=True (the default).
+        """
+        # GIVEN a Command with wait=True (the default)
+        cmd = command_wrappers.Command("command", wait=True)
+        state = cmd.__getstate__()
+
+        # WHEN we restore state into a new instance
+        new_cmd = object.__new__(command_wrappers.Command)
+        new_cmd.__setstate__(state)
+
+        # THEN _pipe_lock is recreated as a threading.Lock
+        assert new_cmd._pipe_lock is not None
+        assert isinstance(new_cmd._pipe_lock, type(threading.Lock()))
 
 
 # noinspection PyMethodMayBeStatic
