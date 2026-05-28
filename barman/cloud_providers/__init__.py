@@ -40,6 +40,12 @@ class ObjectKeyAlreadyExists(BarmanException):
     """
 
 
+class ObjectIsArchived(BarmanException):
+    """
+    Exception raised when trying to retrieve an archived object that hasn't been restored
+    """
+
+
 def _update_kwargs(kwargs, config, args):
     """
     Helper which adds the attributes of config specified in args to the supplied
@@ -72,6 +78,13 @@ def _make_s3_cloud_interface(config, cloud_interface_kwargs):
                 'Encryption type must be "aws:kms" if SSE KMS Key ID is specified'
             )
         cloud_interface_kwargs["sse_kms_key_id"] = config.sse_kms_key_id
+    storage_class = None
+    if "storage_class" in config and config.storage_class is not None:
+        storage_class = config.storage_class
+    if "storage_class_wals" in config and config.storage_class_wals is not None:
+        storage_class = config.storage_class_wals
+    if storage_class is not None:
+        cloud_interface_kwargs["storage_class"] = storage_class
     if "addressing_style" in config:
         cloud_interface_kwargs["addressing_style"] = config.addressing_style
     return S3CloudInterface(**cloud_interface_kwargs)
@@ -199,6 +212,10 @@ def get_cloud_interface_from_server_config(config, cloud_provider, base_url):
             raise ConfigurationException(
                 'aws_encryption must be "aws:kms" if aws_sse_kms_key_id is specified'
             )
+        if base_url == config.wals_directory:
+            storage_class = config.aws_storage_class_wals
+        else:
+            storage_class = config.aws_storage_class
 
         cloud_interface_kwargs.update(
             {
@@ -207,6 +224,7 @@ def get_cloud_interface_from_server_config(config, cloud_provider, base_url):
                 "read_timeout": config.aws_read_timeout,
                 "encryption": config.aws_encryption,
                 "sse_kms_key_id": config.aws_sse_kms_key_id,
+                "storage_class": storage_class,
             }
         )
         return S3CloudInterface(**cloud_interface_kwargs)

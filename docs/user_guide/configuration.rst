@@ -776,6 +776,34 @@ Example::
 
 Scope: Global / Server / Model.
 
+**aws_storage_class**
+  The storage class to specify for the uploaded data in S3 path defined by ``basebackups_directory``.
+  Allowed values depend on the S3 compatible service used.
+
+.. note::
+  Only supported when ``backup_method`` is ``postgres`` or ``local-to-cloud``, and
+  ``basebackups_directory`` and/or ``wals_directory`` point to S3.
+
+.. important::
+  Setting storage class to archive the backup (e.g. ``GLACIER`` or ``DEEP_ARCHIVE``) is dangerous as
+  the base backup will require issuing a restore request before it can be used.
+
+Scope: Global / Server / Model.
+
+**aws_storage_class_wals**
+  The storage class to specify for the uploaded WAL files in S3 path defined by ``wals_directory``.
+  Allowed values depend on the S3 compatible service used.
+
+.. note::
+  Only supported when ``backup_method`` is ``postgres`` or ``local-to-cloud``, and
+  ``basebackups_directory`` and/or ``wals_directory`` point to S3.
+
+.. important::
+  Setting storage class to archive the wals (e.g. ``GLACIER`` or ``DEEP_ARCHIVE``) will result in
+  failure for backup and recovery operations.
+  
+Scope: Global / Server / Model.
+
 **aws_read_timeout**
 
 Specifies the read timeout in seconds for S3 operations when using cloud storage.

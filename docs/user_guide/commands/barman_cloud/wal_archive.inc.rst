@@ -24,6 +24,7 @@
                   [ --read-timeout READ_TIMEOUT ]
                   [ { -e | --encryption } ENCRYPTION ]
                   [ --sse-kms-key-id SSE_KMS_KEY_ID ]
+                  [ --storage-class-wals STORAGE_CLASS_WALS ]
                   [ { --azure-credential | --credential } { azure-cli | managed-identity |
                     default } ]
                   [ --encryption-scope ENCRYPTION_SCOPE ]
@@ -183,6 +184,10 @@ Barman server. Additionally, it can be utilized as a hook script for WAL archivi
   The AWS KMS key ID that should be used for encrypting the uploaded data in S3. Can be
   specified using the key ID on its own or using the full ARN for the key. Only allowed if
   ``-e`` / ``--encryption`` is set to ``aws:kms``.
+
+``--storage-class-wals``
+  The storage class to specify for the uploaded WAL files in S3. Allowed values depend on the S3
+  compatible service used.
 
 **Extra options for the Azure cloud provider**
 

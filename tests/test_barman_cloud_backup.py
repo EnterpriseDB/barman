@@ -359,6 +359,15 @@ class TestCloudBackup(object):
                     "sse_kms_key_id": "somekeyid",
                 },
             ),
+            # --storage-class must reach the cloud interface as storage_class
+            (
+                ["--storage-class", "STANDARD_IA"],
+                {
+                    "encryption": None,
+                    "sse_kms_key_id": None,
+                    "storage_class": "STANDARD_IA",
+                },
+            ),
         ],
     )
     @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
