@@ -22,6 +22,7 @@ from contextlib import closing
 from barman.clients.cloud_cli import (
     CLIErrorExit,
     GeneralErrorExit,
+    NetworkErrorExit,
     create_argument_parser,
 )
 from barman.cloud import CloudWalDownloader, configure_logging
@@ -47,6 +48,7 @@ def main(args=None):
         _logger.error("%s is an invalid name for a WAL file" % config.wal_name)
         raise CLIErrorExit()
 
+    cloud_interface = None
     try:
         cloud_interface = get_cloud_interface(config)
 
@@ -68,6 +70,11 @@ def main(args=None):
     except Exception as exc:
         _logger.error("Barman cloud WAL restore exception: %s", force_str(exc))
         _logger.debug("Exception details:", exc_info=exc)
+        # If the failure was caused by loss of connectivity to the cloud
+        # provider, surface it as a dedicated network error (exit code 2)
+        # rather than a generic one.
+        if cloud_interface is not None and cloud_interface.is_connectivity_error(exc):
+            raise NetworkErrorExit()
         raise GeneralErrorExit()
 
 

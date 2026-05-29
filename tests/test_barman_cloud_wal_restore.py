@@ -159,6 +159,9 @@ class TestMain(object):
         cloud_interface_mock.download_file.side_effect = Exception(
             "something went wrong"
         )
+        # The exception is not a connectivity error, so it must be reported
+        # as a generic error (exit code 4).
+        cloud_interface_mock.is_connectivity_error.return_value = False
         with pytest.raises(SystemExit) as exc:
             cloud_walrestore.main(
                 [
@@ -171,4 +174,35 @@ class TestMain(object):
         assert exc.value.code == 4
         assert (
             "Barman cloud WAL restore exception: something went wrong\n" in caplog.text
+        )
+
+    @mock.patch("barman.clients.cloud_walrestore.get_cloud_interface")
+    def test_fails_on_network_error_during_download(
+        self, get_cloud_interface_mock, caplog
+    ):
+        """If a download fails and connectivity is lost we exit with status 2."""
+        cloud_interface_mock = get_cloud_interface_mock.return_value
+        cloud_interface_mock.path = "testfolder/"
+        cloud_interface_mock.list_bucket.return_value = [
+            "testfolder/test-server/wals/000000080000ABFF/000000080000ABFF000000C1"
+        ]
+        cloud_interface_mock.download_file.side_effect = Exception(
+            "connection reset by peer"
+        )
+        # The exception is a connectivity error, so the failure must be
+        # reported as a network error (exit code 2).
+        cloud_interface_mock.is_connectivity_error.return_value = True
+        with pytest.raises(SystemExit) as exc:
+            cloud_walrestore.main(
+                [
+                    "s3://test-bucket/testfolder/",
+                    "test-server",
+                    "000000080000ABFF000000C1",
+                    "/tmp/000000080000ABFF000000C1",
+                ]
+            )
+        assert exc.value.code == 2
+        assert (
+            "Barman cloud WAL restore exception: connection reset by peer\n"
+            in caplog.text
         )

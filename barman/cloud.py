@@ -1144,6 +1144,17 @@ class CloudInterface(with_metaclass(ABCMeta)):
         """
 
     @abstractmethod
+    def is_connectivity_error(self, exc):
+        """
+        Determine whether the given exception was caused by a loss of
+        connectivity to the cloud provider.
+
+        :param Exception exc: the exception to inspect
+        :return: True if the exception denotes a network/connectivity error
+        :rtype: bool
+        """
+
+    @abstractmethod
     def _check_bucket_existence(self):
         """
         Check cloud storage for the target bucket
