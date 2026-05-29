@@ -257,9 +257,21 @@ class AzureCloudInterface(CloudInterface):
             # we just want to see if Azure blob service is reachable.
             self.bucket_exists = self._check_bucket_existence()
             return True
-        except (HttpResponseError, ServiceRequestError) as exc:
-            _logger.error("Can't connect to cloud provider: %s", exc)
-            return False
+        except Exception as exc:
+            if self.is_connectivity_error(exc):
+                _logger.error("Can't connect to cloud provider: %s", exc)
+                return False
+            raise
+
+    def is_connectivity_error(self, exc):
+        """
+        Determine whether the given exception denotes a loss of connectivity
+        to Azure.
+
+        :param Exception exc: the exception to inspect
+        :rtype: bool
+        """
+        return isinstance(exc, (HttpResponseError, ServiceRequestError))
 
     def _check_bucket_existence(self):
         """

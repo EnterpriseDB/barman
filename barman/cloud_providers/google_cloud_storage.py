@@ -148,9 +148,21 @@ class GoogleCloudInterface(CloudInterface):
             # we just want to see if google cloud storage is reachable.
             self.bucket_exists = self._check_bucket_existence()
             return True
-        except GoogleAPIError as exc:
-            _logger.error("Can't connect to cloud provider: %s", exc)
-            return False
+        except Exception as exc:
+            if self.is_connectivity_error(exc):
+                _logger.error("Can't connect to cloud provider: %s", exc)
+                return False
+            raise
+
+    def is_connectivity_error(self, exc):
+        """
+        Determine whether the given exception denotes a loss of connectivity
+        to Google Cloud Storage.
+
+        :param Exception exc: the exception to inspect
+        :rtype: bool
+        """
+        return isinstance(exc, GoogleAPIError)
 
     def _check_bucket_existence(self):
         """

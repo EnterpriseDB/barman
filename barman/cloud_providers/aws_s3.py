@@ -218,9 +218,21 @@ class S3CloudInterface(CloudInterface):
             # we just want to try if aws is reachable
             self.bucket_exists = self._check_bucket_existence()
             return True
-        except EndpointConnectionError as exc:
-            _logger.error("Can't connect to cloud provider: %s", exc)
-            return False
+        except Exception as exc:
+            if self.is_connectivity_error(exc):
+                _logger.error("Can't connect to cloud provider: %s", exc)
+                return False
+            raise
+
+    def is_connectivity_error(self, exc):
+        """
+        Determine whether the given exception denotes a loss of connectivity
+        to AWS.
+
+        :param Exception exc: the exception to inspect
+        :rtype: bool
+        """
+        return isinstance(exc, EndpointConnectionError)
 
     def _check_bucket_existence(self):
         """
