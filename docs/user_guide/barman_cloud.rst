@@ -193,6 +193,118 @@ See the :ref:`barman-cloud-barman-cloud-backup-delete` command reference for mor
 details on how the ``--check-object-lock`` option works, including information about the
 deletion process and performance considerations.
 
+.. _barman-cloud-permissions:
+
+Cloud Provider Permissions
+--------------------------
+
+This section documents the minimum IAM/access permissions required for Barman to operate
+with each supported cloud provider. This is useful if you want to follow the principle
+of least privilege when configuring access for Barman.
+
+AWS S3 Permissions
+""""""""""""""""""
+
+When using AWS S3 for object storage (backups and WAL files), the following IAM
+permissions are required. These permissions apply to the ``barman-cloud-*`` scripts
+(``barman-cloud-backup``, ``barman-cloud-restore``, ``barman-cloud-wal-archive``, etc.)
+as well as to any Barman server that has S3 as the backup or WAL destination (i.e.
+have an S3 URL in ``basebackups_directory`` or ``wals_directory``).
+
+**Minimum Required Permissions**
+
+These permissions are required for basic backup and restore operations:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Permission
+     - Purpose
+   * - ``s3:CreateBucket``
+     - Create the bucket if it does not exist
+   * - ``s3:ListBucket``
+     - List objects in the bucket, verify bucket exists (``ListObjectsV2``, ``HeadBucket``)
+   * - ``s3:GetObject``
+     - Download backups and WAL files, check if objects exist (``GetObject``, ``HeadObject``)
+   * - ``s3:PutObject``
+     - Upload backups, WAL files, and metadata (includes multipart uploads)
+   * - ``s3:AbortMultipartUpload``
+     - Abort failed or interrupted multipart uploads
+   * - ``s3:DeleteObject``
+     - Delete backups and WAL files during retention enforcement
+
+**Conditional Permissions**
+
+These permissions are only required when using specific features:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Permission
+     - When Required
+   * - ``s3:PutObjectTagging``
+     - When using the ``--tags`` option to tag objects
+   * - ``s3:GetObjectRetention``
+     - When using ``--check-object-lock`` option before deleting backups
+   * - ``s3:GetObjectLegalHold``
+     - When using ``--check-object-lock`` option before deleting backups
+
+**KMS Permissions (Server-Side Encryption)**
+
+When using server-side encryption with AWS KMS (``--sse-kms-key-id`` option):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Permission
+     - Purpose
+   * - ``kms:GenerateDataKey``
+     - Required for encrypting uploaded objects
+   * - ``kms:Decrypt``
+     - Required for decrypting objects during restore
+
+**Sample IAM Policy**
+
+The following IAM policy provides the minimum permissions for S3 object storage
+operations:
+
+.. code-block:: json
+
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Sid": "BucketLevelPermissions",
+         "Effect": "Allow",
+         "Action": [
+           "s3:CreateBucket",
+           "s3:ListBucket"
+         ],
+         "Resource": "arn:aws:s3:::your-bucket-name"
+       },
+       {
+         "Sid": "ObjectLevelPermissions",
+         "Effect": "Allow",
+         "Action": [
+           "s3:GetObject",
+           "s3:PutObject",
+           "s3:AbortMultipartUpload",
+           "s3:DeleteObject"
+         ],
+         "Resource": "arn:aws:s3:::your-bucket-name/*"
+       }
+     ]
+   }
+
+.. note::
+   For EBS snapshot backups (using ``backup_method=snapshot``), additional EC2
+   permissions are required. Refer to the
+   :ref:`cloud snapshot backups <cloud-snapshot-backups>` section for details on
+   EC2 permissions.
+
 .. _barman-cloud-commands-reference:
 
 Commands Reference
