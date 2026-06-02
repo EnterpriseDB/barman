@@ -2842,6 +2842,95 @@ class TestServer(object):
         assert strategy.check_result[0].check == ("empty %s directory" % icoming_name)
         assert strategy.check_result[0].status is False
 
+    @pytest.mark.parametrize(
+        "incoming_name, archiver_name",
+        [
+            ["incoming", "archiver"],
+            ["streaming", "streaming_archiver"],
+        ],
+    )
+    def test_check_wal_queue_ignores_partial(
+        self, incoming_name, archiver_name, tmpdir
+    ):
+        """
+        Verify that ``.partial`` files are not counted towards the WAL queue
+        size in either the ``incoming`` or the ``streaming`` directory.
+
+        This is a regression test for the case where the queue size was
+        computed by counting every non-``.tmp`` file and then subtracting
+        one for the ``streaming`` directory to compensate for the
+        ``.partial`` file. That logic produced an off-by-one whenever no
+        ``.partial`` file was actually present (for example when archiving
+        through ``archive_command`` or when the WAL receiver is not
+        running).
+        """
+        # GIVEN a server with an empty WAL queue directory
+        server = build_real_server(
+            global_conf={"barman_lock_directory": tmpdir.mkdir("lock").strpath},
+            main_conf={
+                "wals_directory": tmpdir.mkdir("wals").strpath,
+                "%s_wals_directory"
+                % incoming_name: tmpdir.mkdir(incoming_name).strpath,
+            },
+        )
+        incoming_dir = getattr(server.config, "%s_wals_directory" % incoming_name)
+
+        # AND a non-empty xlog.db so the empty-xlogdb check does not fire
+        with open(server.xlogdb_file_path, "a") as fxlogdb:
+            fxlogdb.write("00000000000000000000")
+
+        # AND the relevant archiver is enabled with a known threshold
+        setattr(server.config, archiver_name, True)
+        server.config.max_incoming_wals_queue = 2
+
+        def write_wal(wal_number, suffix=""):
+            wal_name = "%s/0000000000000000%08d%s" % (
+                incoming_dir,
+                wal_number,
+                suffix,
+            )
+            with open(wal_name, "w") as wal_file:
+                wal_file.write("fake WAL %s" % wal_number)
+
+        # WHEN the queue contains exactly ``max_incoming_wals_queue`` real
+        # WALs and no ``.partial`` file
+        for x in range(1, server.config.max_incoming_wals_queue + 1):
+            write_wal(x)
+
+        # THEN the check passes
+        strategy = CheckStrategy()
+        server.check_archive(strategy)
+        assert not strategy.has_error
+        assert len(strategy.check_result) == 0
+
+        # WHEN one extra real WAL pushes the count above the threshold,
+        # still with no ``.partial`` file present (the previously-broken
+        # case for the ``streaming`` directory, where the count used to be
+        # artificially decremented by one to compensate for an assumed
+        # ``.partial`` file, masking the real backlog)
+        write_wal(0)
+
+        # THEN the check fails with the expected non-critical error
+        strategy = CheckStrategy()
+        server.check_archive(strategy)
+        assert strategy.has_error is False
+        assert len(strategy.check_result) == 1
+        assert strategy.check_result[0].check == ("%s WALs directory" % incoming_name)
+        assert strategy.check_result[0].status is False
+
+        # WHEN a ``.partial`` and a ``.tmp`` file are also present
+        write_wal(100, suffix=".partial")
+        write_wal(101, suffix=".tmp")
+
+        # THEN they are both ignored and the result is unchanged: still
+        # exactly one failure for the WALs directory check
+        strategy = CheckStrategy()
+        server.check_archive(strategy)
+        assert strategy.has_error is False
+        assert len(strategy.check_result) == 1
+        assert strategy.check_result[0].check == ("%s WALs directory" % incoming_name)
+        assert strategy.check_result[0].status is False
+
     def test_replication_status(self, capsys):
         """
         Test management of pg_stat_archiver view output
