@@ -820,16 +820,15 @@ class Server(RemoteStatusMixin):
         # Inspect the wal queue directory
         file_count = 0
         for file_item in glob(os.path.join(incoming_dir, "*")):
-            # Ignore temporary files
-            if file_item.endswith(".tmp"):
+            # Ignore temporary and partial files. ``.partial`` files are not
+            # part of the queue: in the ``streaming`` directory the latest
+            # WAL is normally kept as ``.partial`` until it is complete, and
+            # in the ``incoming`` directory there is no ``.partial`` at all
+            # when archiving via ``archive_command``.
+            if file_item.endswith((".tmp", ".partial")):
                 continue
             file_count += 1
         max_incoming_wal = self.config.max_incoming_wals_queue
-
-        # Subtract one from the count because of .partial file inside the
-        # streaming directory
-        if dir_name == "streaming":
-            file_count -= 1
 
         # If this archiver is disabled, check the number of files in the
         # corresponding directory.
