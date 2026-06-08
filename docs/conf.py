@@ -321,7 +321,7 @@ man_pages = [
     ),
     (
         "user_guide/commands/barman/list_backups.inc",
-        "barman-list_backups",
+        "barman-list-backups",
         "Barman Sub-Commands",
         [author],
         1,
