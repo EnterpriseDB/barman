@@ -2076,6 +2076,7 @@ def receive_wal(args):
     The process uses the streaming protocol to receive WAL files
     from the PostgreSQL server.
     """
+    server_name = args.server_name
     should_skip_inactive = not (
         args.create_slot or args.drop_slot or args.stop or args.reset
     )
@@ -2086,6 +2087,11 @@ def receive_wal(args):
     # If the caller requested to shutdown the receive-wal process deliver the
     # termination signal, otherwise attempt to start it
     elif args.stop:
+        output.warning(
+            "--stop is deprecated and will be removed in a future release. "
+            "Use 'barman terminate-process %s receive-wal' instead.",
+            server_name,
+        )
         server.kill("receive-wal")
     elif args.create_slot:
         with closing(server):
