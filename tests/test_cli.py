@@ -1944,6 +1944,38 @@ class TestCli(object):
             # OR if there were no options, the expected function was not called
             getattr(server, server_fun).assert_not_called()
 
+    @patch("barman.cli.output.warning")
+    @patch("barman.cli.get_server")
+    def test_receive_wal_stop_emits_deprecation_warning(
+        self, mock_get_server, mock_warning
+    ):
+        """
+        Check that using --stop emits a deprecation warning via output.warning
+        directing users to use barman terminate-process instead.
+        """
+        # GIVEN a server and args with --stop set
+        mock_server = build_mocked_server(name="main")
+        mock_get_server.return_value = mock_server
+        args = Mock(
+            server_name="main",
+            stop=True,
+            reset=False,
+            create_slot=False,
+            drop_slot=False,
+            if_not_exists=False,
+        )
+
+        # WHEN receive_wal is called with --stop
+        with pytest.raises(SystemExit):
+            receive_wal(args)
+
+        # THEN a deprecation warning was emitted via output.warning
+        mock_warning.assert_called_once()
+        assert "--stop is deprecated" in mock_warning.call_args[0][0]
+
+        # AND the server kill method was still called
+        mock_server.kill.assert_called_once_with("receive-wal")
+
     @pytest.mark.parametrize(
         ("backup_id", "expected_backup_id"),
         (
