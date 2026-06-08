@@ -1,0 +1,8 @@
+---
+- summary: Deprecate `--stop` option of `barman receive-wal`
+  description: |
+    The `--stop` option of `barman receive-wal` is deprecated and will be removed in a future
+    release. Use `barman terminate-process <server> receive-wal` instead.
+  type: minor_change
+  jira_tickets:
+    - BAR-724
