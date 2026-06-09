@@ -202,6 +202,12 @@ This section documents the minimum IAM/access permissions required for Barman to
 with each supported cloud provider. This is useful if you want to follow the principle
 of least privilege when configuring access for Barman.
 
+.. note::
+   Currently, only the required IAM permissions for AWS S3 are documented. The
+   documentation for Azure Blob Storage and Google Cloud Storage permissions is
+   not yet available.
+
+
 AWS S3 Permissions
 """"""""""""""""""
 
@@ -222,7 +228,7 @@ These permissions are required for basic backup and restore operations:
    * - Permission
      - Purpose
    * - ``s3:CreateBucket``
-     - Create the bucket if it does not exist
+     - Create the bucket if it does not exist when running ``barman-check-wal-archive``
    * - ``s3:ListBucket``
      - List objects in the bucket, verify bucket exists (``ListObjectsV2``, ``HeadBucket``)
    * - ``s3:GetObject``
