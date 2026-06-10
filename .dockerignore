@@ -1,0 +1,9 @@
+# Keep image build contexts lean; setup.py needs barman/ plus the prebuilt
+# man pages under docs/_build/man (data_files), so docs stays in context.
+.git
+.github
+.venv
+.pytest_cache
+build
+tests
+barman.egg-info

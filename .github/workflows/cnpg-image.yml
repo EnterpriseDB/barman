@@ -1,0 +1,45 @@
+---
+name: CNPG operand image
+
+# Publishes the CloudNativePG postgres operand image with the forked barman
+# overlaid (R2 multipart fix). Consumed by misfits-postgres clusters via
+# cluster.imageName in the canton monorepo.
+on:
+  push:
+    branches:
+      - bb/fix-r2-multipart-uniform-parts
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-push:
+    name: Build and push ghcr.io/0xsend/cnpg-postgresql
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.cnpg
+          push: true
+          # Swiss cluster nodes are amd64-only Hetzner machines.
+          platforms: linux/amd64
+          tags: |
+            ghcr.io/0xsend/cnpg-postgresql:18-r2
+            ghcr.io/0xsend/cnpg-postgresql:18-r2-${{ github.sha }}

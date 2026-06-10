@@ -1,0 +1,36 @@
+# CNPG operand image carrying the 0xsend barman fork.
+#
+# CloudNativePG's in-tree barmanObjectStore method executes barman-cloud-backup
+# from inside the postgres operand image, so shipping the R2 multipart fix
+# (uniform part sizes, EnterpriseDB/barman#954) requires overlaying the fork
+# onto the upstream operand image — there is no knob to point in-tree backups
+# at a separate barman container.
+#
+# barman is pure python, so build the wheel on a modern interpreter and
+# force-reinstall it over the stock barman (same 3.17.0 base version) in the
+# operand's python 3.9 environment.
+
+FROM python:3.12-slim AS builder
+
+COPY . /src
+RUN pip wheel --no-cache-dir --no-deps --wheel-dir /wheels /src
+
+# Pin the operand base by digest: rebuilds must deliberately track upstream
+# postgresql:18 updates, not silently absorb whatever the tag points at.
+FROM ghcr.io/cloudnative-pg/postgresql:18@sha256:afbcd2ca3827991317113ba8a90348f321b13a9698c39aaac8c089837a4e07f3
+
+LABEL org.opencontainers.image.source="https://github.com/0xsend/barman"
+LABEL org.opencontainers.image.description="CloudNativePG PostgreSQL 18 operand with R2-compatible barman multipart uploads"
+LABEL org.opencontainers.image.licenses="GPL-3.0-or-later"
+
+USER root
+COPY --from=builder /wheels /tmp/wheels
+# --force-reinstall: the fork shares upstream's 3.17.0 version number, so a
+# plain install would be a no-op against the preinstalled barman.
+# The import assert fails the build if the fork didn't replace stock barman.
+RUN python3 -m pip install --no-cache-dir --no-deps --force-reinstall /tmp/wheels/barman-*.whl \
+    && rm -rf /tmp/wheels \
+    && python3 -c "from barman.cloud import CloudTarUploader; assert hasattr(CloudTarUploader, '_upload_part_buffer'), 'barman fork not installed'"
+
+# CNPG operand images run postgres as uid 26; restore it after the root install.
+USER 26
