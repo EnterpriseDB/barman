@@ -26,8 +26,10 @@ import subprocess
 from abc import ABC, abstractmethod
 from functools import lru_cache
 
-from barman.command_wrappers import GPG, Command, Handler
+from barman.command_wrappers import GPG
 from barman.exceptions import CommandFailedException, EncryptionCommandException
+
+_logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=1)
@@ -46,31 +48,25 @@ def get_passphrase_from_command(command):
     :raises EncryptionCommandException: If the command fails.
     :raises ValueError: If the command returns a falsy output.
     """
-    # Create a logger specifically for the encryption passphrase command.
-    # Set its level above CRITICAL to effectively disable all logging from this logger.
-    # Also, prevent the logger from propagating messages to ancestor loggers.
-    # We do both things to avoid leaking the passphrase through log messages.
-    _logger = logging.getLogger("encryption_passphrase_command")
-    _logger.setLevel(logging.CRITICAL + 1)
-    _logger.propagate = False
-    # We set the level as CRITICAL here just because we need to pass some level to the
-    # handler. But any level will be ingored, given that the logger is set to a level
-    # above CRITICAL.
-    silent_handler = Handler(_logger, logging.CRITICAL)
+    _logger.debug("Retrieving passphrase using encryption_passphrase_command")
     try:
-        # Although the passphrase is expected to be written to stdout, we also silent
-        # the stderr output of the command, just in case the command writes something to
-        # it by mistake.
-        cmd = Command(
-            cmd=command,
+        # Use subprocess directly to avoid any logging of sensitive output.
+        # We avoid using the Command class here as it logs stdout/stderr
+        # for debugging, this would mean leaking the passphrase in this context.
+        result = subprocess.run(
+            command,
             shell=True,
             check=True,
-            out_handler=silent_handler,
-            err_handler=silent_handler,
+            capture_output=True,
+            text=True,
         )
-        out, _ = cmd.get_output()
-    except CommandFailedException as e:
-        raise EncryptionCommandException(f"Command failed: {e}") from e
+        out = result.stdout.strip()
+    except subprocess.CalledProcessError as ex:
+        raise EncryptionCommandException(
+            f"Command failed with code {ex.returncode}"
+        ) from ex
+
+    _logger.debug("encryption_passphrase_command returned code %s", result.returncode)
 
     if not out:
         raise ValueError("The command returned an empty passphrase")
