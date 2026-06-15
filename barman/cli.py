@@ -349,9 +349,12 @@ def cron(args):
     except LockFileBusy:
         output.warning("another process is updating barman configuration files")
 
-    # Skip inactive and temporarily disabled servers
+    # Skip temporarily disabled servers. Inactive servers are NOT skipped
+    # here: ``Server.cron()`` handles them by stopping any lingering
+    # ``receive-wal`` subprocess before returning early, so flipping a server
+    # to ``active = false`` is reflected on the next cron run.
     servers = get_server_list(
-        skip_inactive=True, skip_disabled=True, wal_streaming=True
+        skip_inactive=False, skip_disabled=True, wal_streaming=True
     )
     for name in sorted(servers):
         server = servers[name]
@@ -359,7 +362,9 @@ def cron(args):
         # Exception: manage_server_command is not invoked here
         # Normally you would call manage_server_command to check if the
         # server is None and to report inactive and disabled servers,
-        # but here we have only active and well configured servers.
+        # but here we have only well configured servers. Inactive servers
+        # are passed through so ``Server.cron()`` can perform its
+        # inactive-server cleanup.
 
         try:
             server.cron(keep_descriptors=args.keep_descriptors)

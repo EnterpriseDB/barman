@@ -3514,6 +3514,14 @@ class Server(RemoteStatusMixin):
             # Actually this is the highest level of locking in the cron,
             # this stops the execution of multiple cron on the same server
             with ServerCronLock(self.config.barman_lock_directory, self.config.name):
+                # Inactive servers must still get a minimal cron pass so
+                # that a previously spawned ``receive-wal`` subprocess does
+                # not keep streaming after the server has been switched to
+                # ``active = false``. We stop the receiver (if any) and
+                # skip all other cron work for this server.
+                if not self.config.active:
+                    self._cron_stop_inactive()
+                    return
                 # When passive call sync.cron() and never run
                 # local WAL archival
                 if self.passive_node:
@@ -3544,6 +3552,32 @@ class Server(RemoteStatusMixin):
             output.error("Permission denied, unable to access '%s'" % e)
         except (OSError, IOError) as e:
             output.error("%s", e)
+
+    def _cron_stop_inactive(self):
+        """
+        Stop the background ``receive-wal`` subprocess of an inactive server.
+
+        Called from :meth:`cron` when the server has ``active = false``.
+        If a ``receive-wal`` subprocess is currently running for the
+        server it is terminated, otherwise this method is a silent no-op
+        so that subsequent cron ticks do not produce log noise.
+
+        .. note::
+            Only the streaming receiver subprocess is stopped. The
+            replication slot on the PostgreSQL side is preserved, so
+            re-enabling the server resumes streaming without breaking
+            continuous WAL archival. Note however that, while the server
+            remains inactive, the upstream PostgreSQL will retain WAL on
+            its side for the still-existing slot.
+        """
+        # Avoid log noise on every cron tick: only log when there is
+        # actually a process to stop
+        if self.process_manager.list("receive-wal"):
+            output.info(
+                "Server '%s' is inactive: stopping receive-wal subprocess",
+                self.config.name,
+            )
+            self.kill("receive-wal", fail_if_not_present=False)
 
     def cron_archive_wal(self, keep_descriptors):
         """
