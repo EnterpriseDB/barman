@@ -2503,6 +2503,48 @@ class TestServer(object):
                 ) in caplog.text
 
     @patch("barman.server.ProcessManager")
+    def test_cron_stops_receive_wal_when_inactive(self, pm_mock, tmpdir, capsys):
+        """
+        Inactive servers must have their background receive-wal subprocess
+        terminated by cron, and no other cron work must be performed.
+        """
+        # GIVEN an inactive server with a running receive-wal subprocess
+        server = build_real_server({"barman_home": tmpdir.strpath})
+        server.config.active = False
+        pid = 1234
+        task = "receive-wal"
+        pm_mock.return_value.list.return_value = [
+            ProcessInfo(pid, server.config.name, task)
+        ]
+        pm_mock.return_value.kill.return_value = True
+        server.backup_manager = MagicMock()
+
+        # WHEN cron runs
+        with patch.object(server, "cron_archive_wal") as archive_mock, patch.object(
+            server, "background_receive_wal"
+        ) as bg_receive_mock, patch.object(
+            server, "cron_check_backup"
+        ) as check_mock, patch.object(
+            server, "sync_cron"
+        ) as sync_mock:
+            server.cron(wals=True, retention_policies=True)
+
+        # THEN the receive-wal subprocess is stopped with an explicit log line
+        out, _ = capsys.readouterr()
+        assert (
+            "Server '%s' is inactive: stopping receive-wal subprocess"
+            % server.config.name
+        ) in out
+        assert ("Stopped process %s(%s)" % (task, pid)) in out
+        pm_mock.return_value.list.assert_any_call("receive-wal")
+        # AND no other cron work runs for the inactive server
+        archive_mock.assert_not_called()
+        bg_receive_mock.assert_not_called()
+        check_mock.assert_not_called()
+        sync_mock.assert_not_called()
+        server.backup_manager.cron_retention_policy.assert_not_called()
+
+    @patch("barman.server.ProcessManager")
     def test_kill(self, pm_mock, capsys):
         server = build_real_server()
 

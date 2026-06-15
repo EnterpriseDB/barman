@@ -46,6 +46,7 @@ from barman.cli import (
     cloud_wal_restore,
     command,
     config_switch,
+    cron,
     export_backup,
     generate_manifest,
     get_model,
@@ -1975,6 +1976,42 @@ class TestCli(object):
 
         # AND the server kill method was still called
         mock_server.kill.assert_called_once_with("receive-wal")
+
+    @patch("barman.cli.barman.__config__")
+    @patch("barman.cli.barman.utils.lock_files_cleanup")
+    @patch("barman.cli.output.close_and_exit")
+    @patch("barman.cli.ConfigChangesProcessor")
+    @patch("barman.cli.ConfigUpdateLock")
+    @patch("barman.cli.get_server_list")
+    def test_cron_passes_inactive_servers_to_server_cron(
+        self,
+        mock_get_server_list,
+        _mock_config_lock,
+        _mock_changes_processor,
+        _mock_close,
+        _mock_lock_cleanup,
+        _mock_config,
+    ):
+        """
+        ``barman cron`` must no longer filter inactive servers out at the
+        CLI level: they must be handed off to ``Server.cron()`` so it can
+        stop any lingering ``receive-wal`` subprocess.
+        """
+        # GIVEN a fake server returned by get_server_list
+        server = Mock()
+        mock_get_server_list.return_value = {"main": server}
+        args = Mock(keep_descriptors=False)
+
+        # WHEN cron is invoked
+        cron(args)
+
+        # THEN get_server_list is called with skip_inactive=False so that
+        # inactive servers reach Server.cron() for cleanup
+        mock_get_server_list.assert_called_once_with(
+            skip_inactive=False, skip_disabled=True, wal_streaming=True
+        )
+        # AND Server.cron is invoked on the returned server
+        server.cron.assert_called_once_with(keep_descriptors=False)
 
     @pytest.mark.parametrize(
         ("backup_id", "expected_backup_id"),
