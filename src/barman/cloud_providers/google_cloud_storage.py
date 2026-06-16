@@ -49,24 +49,50 @@ try:
 except ImportError:
     raise SystemExit("Missing required python module: google-cloud-storage")
 
+try:
+    # These are internal, unversioned APIs which can change without notice,
+    # hence the strict pin on google-cloud-storage in pyproject.toml
+    from google.cloud.storage.transfer_manager import (
+        XMLMPUContainer,
+        XMLMPUPart,
+        _headers_from_metadata,
+    )
+except ImportError:
+    raise SystemExit(
+        "google-cloud-storage module is an incompatible version. Please ensure version 3.12 is installed"
+    )
+
 
 BASE_URL = "https://console.cloud.google.com/storage/browser/"
 
 
 class GoogleCloudInterface(CloudInterface):
     """
-    This class implements CloudInterface for GCS with the scope of using JSON API
+    This class implements CloudInterface for GCS using the XML MPU API for parallel
+    uploads.
 
-    storage client documentation:  https://googleapis.dev/python/storage/latest/client.html
-    JSON API documentation: https://cloud.google.com/storage/docs/json_api/v1/objects
+    Storage client documentation:  https://googleapis.dev/python/storage/latest/client.html
+    XML MPU API documentation: https://cloud.google.com/storage/docs/multipart-uploads
+
+    .. note::
+        The multipart upload methods use ``XMLMPUContainer`` and ``XMLMPUPart`` which
+        are not part of the public google-cloud-storage API. Unlike boto3, the GCS
+        client library does not expose a way to control the full cycle of multipart
+        uploads (initiate, upload parts, complete).
+
+        As a workaround, we import and use those classes directly here.
+        This gives us full control over the multi-part upload cycle at the risk
+        of those classes being changed in future versions without any notice.
+        See: https://github.com/googleapis/google-cloud-python/issues/17494
     """
 
-    # This implementation uses JSON API . does not support real parallel upload.
-    # <<Within the JSON API, there is an unrelated type of upload also called a "multipart upload".>>
-    MAX_CHUNKS_PER_FILE = 1
+    # https://cloud.google.com/storage/docs/multipart-uploads
+    # XML MPU supports up to 10,000 parts per upload
+    MAX_CHUNKS_PER_FILE = 10000
 
-    # Since there is only on chunk  min size is the same as max archive size
-    MIN_CHUNK_SIZE = 1 << 40
+    # Minimum part size is 5MiB (except for the last part)
+    # https://docs.cloud.google.com/storage/quotas#requests
+    MIN_CHUNK_SIZE = 5 << 20
 
     # https://cloud.google.com/storage/docs/json_api/v1/objects/insert
     # Google json api  permit a maximum of 5TB per file
@@ -77,14 +103,14 @@ class GoogleCloudInterface(CloudInterface):
     MAX_DELETE_BATCH_SIZE = 100
 
     def __init__(
-        self, url, jobs=1, tags=None, delete_batch_size=None, kms_key_name=None
+        self, url, jobs=2, tags=None, delete_batch_size=None, kms_key_name=None
     ):
         """
         Create a new Google cloud Storage interface given the supplied account url
 
         :param str url: Full URL of the cloud destination/source (ex: )
         :param int jobs: How many sub-processes to use for asynchronous
-          uploading, defaults to 1.
+          uploading, defaults to 2.
         :param List[tuple] tags: List of tags as k,v tuples to be added to all
           uploaded objects
         :param int|None delete_batch_size: the maximum number of objects to be
@@ -102,6 +128,10 @@ class GoogleCloudInterface(CloudInterface):
         self.kms_key_name = kms_key_name
         self.bucket_exists = None
         self._reinit_session()
+
+        # The multipart-upload headers. Sent along with every part upload.
+        # Only set when create_multipart_upload is called.
+        self._mpu_headers = None
 
     @staticmethod
     def _parse_url(url):
@@ -248,6 +278,16 @@ class GoogleCloudInterface(CloudInterface):
             return DecompressingStreamingIO(blob_reader, decompressor)
         return blob_reader
 
+    def _get_blob_object(self, key, override_tags=None):
+        tags = override_tags or self.tags
+        extra_args = {}
+        if self.kms_key_name is not None:
+            extra_args["kms_key_name"] = self.kms_key_name
+        blob = self.container_client.blob(key, **extra_args)
+        if tags is not None:
+            blob.metadata = dict(tags)
+        return blob
+
     def upload_fileobj(self, fileobj, key, override_tags=None, fail_if_exists=False):
         """
         Synchronously upload the content of a file-like object to a cloud key
@@ -259,19 +299,12 @@ class GoogleCloudInterface(CloudInterface):
         :param bool fail_if_exists: Whether to fail if the object already exists
         :raises NotImplementedError: if the object *fail_if_exists* is ``True``
         """
+        _logger.debug("upload_fileobj to {}".format(key))
+        blob = self._get_blob_object(key, override_tags)
+        _logger.debug("blob initiated")
         # TODO: implement a mechanism to avoid overrides
         if fail_if_exists:
             raise NotImplementedError()
-
-        tags = override_tags or self.tags
-        _logger.debug("upload_fileobj to {}".format(key))
-        extra_args = {}
-        if self.kms_key_name is not None:
-            extra_args["kms_key_name"] = self.kms_key_name
-        blob = self.container_client.blob(key, **extra_args)
-        if tags is not None:
-            blob.metadata = dict(tags)
-        _logger.debug("blob initiated")
         try:
             blob.upload_from_file(fileobj)
         except GoogleAPIError as e:
@@ -288,78 +321,178 @@ class GoogleCloudInterface(CloudInterface):
         """
         return NotImplementedError()
 
+    def _get_multipart_url(self, key):
+        """
+        Build the XML API multipart upload URL for a given key.
+
+        :param str key: The object key
+        :return: The upload URL
+        :rtype: str
+        """
+        universe_domain = os.getenv("GOOGLE_CLOUD_UNIVERSE_DOMAIN", "googleapis.com")
+        host = f"storage.{universe_domain}"
+        return f"https://{host}/{self.bucket_name}/{key}"
+
+    def _get_multipart_headers(self, blob):
+        """
+        Get the HTTP headers to use for a multipart upload request.
+
+        .. note::
+            Most of the logic in this method is adapted from
+            ``google.cloud.storage.transfer_manager.upload_chunks_concurrently()``.
+            GCS does not provide a public API for controlling the full lifecycle of
+            multipart uploads, so we replicate parts of that internal implementation,
+            including the use of private functions and methods.
+        """
+        base_headers, object_metadata, _ = blob._get_upload_arguments(
+            blob.client, content_type=None, filename=None, command="tm.upload_sharded"
+        )
+        headers = {**base_headers, **_headers_from_metadata(object_metadata)}
+
+        if blob.user_project is not None:
+            headers["x-goog-user-project"] = blob.user_project
+
+        if (
+            blob.kms_key_name is not None
+            and "cryptoKeyVersions" not in blob.kms_key_name
+        ):
+            headers["x-goog-encryption-kms-key-name"] = blob.kms_key_name
+
+        return headers
+
     def create_multipart_upload(self, key):
         """
-        JSON API does not allow this kind of multipart.
-        https://cloud.google.com/storage/docs/uploads-downloads#uploads
-        Closest solution is Parallel composite uploads. It is implemented in gsutil.
-        It basically behave as follow:
-            * file to upload is split in chunks
-            * each chunk is sent to a specific path
-            * when all chunks ar uploaded, compose call will assemble them into one file
-            * chunk files can then be deleted
+        Create a new multipart upload using the XML MPU API.
 
-        For now parallel upload is a simple upload.
+        https://cloud.google.com/storage/docs/multipart-uploads
 
-        :param key: The key to use in the cloud service
-        :return: The multipart upload metadata
-        :rtype: dict[str, str]|None
+        :param str key: The object key in the cloud service
+        :return: The multipart upload metadata containing upload_id and upload_url
+        :rtype: dict[str, str]
+
+        .. note::
+            Most of the logic in this method is adapted from
+            ``google.cloud.storage.transfer_manager.upload_chunks_concurrently()``.
+            GCS does not provide a public API for controlling the full lifecycle of
+            multipart uploads, so we replicate parts of that internal implementation,
+            including the use of private functions and methods.
         """
-        return []
+        upload_url = self._get_multipart_url(key)
+        blob = self._get_blob_object(key)
+
+        self._mpu_headers = self._get_multipart_headers(blob)
+        container = XMLMPUContainer(
+            upload_url, filename=None, headers=self._mpu_headers
+        )
+        container.initiate(
+            transport=self.client._http, content_type="application/octet-stream"
+        )
+        _logger.debug(
+            "Initiated multipart upload for %s, upload_id: %s",
+            key,
+            container.upload_id,
+        )
+        return {
+            "upload_id": container.upload_id,
+            "upload_url": upload_url,
+        }
 
     def _upload_part(self, upload_metadata, key, body, part_number):
         """
-        Upload a file
+        Upload a part into this multipart upload using the XML MPU API.
 
-        The part metadata will included in a list of metadata for all parts of
-        the upload which is passed to the _complete_multipart_upload method.
-
-        :param dict upload_metadata: Provider-specific metadata for this upload
-          e.g. the multipart upload handle in AWS S3
+        :param dict upload_metadata: The multipart upload metadata from
+            :meth:`create_multipart_upload`
         :param str key: The key to use in the cloud service
-        :param object body: A stream-like object to upload
-        :param int part_number: Part number, starting from 1
-        :return: The part metadata
-        :rtype: dict[str, None|str]
+        :param object body: A file-like object to upload
+        :param int part_number: Part number
+        :return: The part metadata including PartNumber and ETag
+        :rtype: dict[str, str|int]
+
+        .. note::
+            Most of the logic in this method is adapted from
+            ``google.cloud.storage.transfer_manager.upload_chunks_concurrently()``.
+            GCS does not provide a public API for controlling the full lifecycle of
+            multipart uploads, so we replicate parts of that internal implementation,
+            including the use of private functions and methods.
         """
-        self.upload_fileobj(body, key)
+        # body is a file object; get its size
+        body.seek(0, os.SEEK_END)
+        file_size = body.tell()
+        body.seek(0, os.SEEK_SET)
+
+        part = XMLMPUPart(
+            upload_url=upload_metadata["upload_url"],
+            upload_id=upload_metadata["upload_id"],
+            filename=body.name,
+            start=0,
+            end=file_size,
+            part_number=part_number,
+            headers=self._mpu_headers,
+        )
+        part.upload(transport=self.client._http)
+        _logger.debug("Uploaded part %s for %s, ETag: %s", part_number, key, part.etag)
         return {
             "PartNumber": part_number,
+            "ETag": part.etag,
         }
 
     def _complete_multipart_upload(self, upload_metadata, key, parts_metadata):
         """
-        Finish a certain multipart upload
-        There is nothing to do here as we are not using multipart.
+        Finish a multipart upload using the XML MPU API.
 
-        :param dict upload_metadata: Provider-specific metadata for this upload
-          e.g. the multipart upload handle in AWS S3
+        :param dict upload_metadata: The multipart upload metadata from
+            :meth:`create_multipart_upload`
         :param str key: The key to use in the cloud service
-        :param List[dict] parts_metadata: The list of metadata for the parts
-          composing the multipart upload. Each part is guaranteed to provide a
-          PartNumber and may optionally contain additional metadata returned by
-          the cloud provider such as ETags.
+        :param List[dict] parts_metadata: The list of metadata for the parts as
+            returned by :meth:`_upload_part` to be used for composing the multipart
+            upload.
+
+        .. note::
+            Most of the logic in this method is adapted from
+            ``google.cloud.storage.transfer_manager.upload_chunks_concurrently()``.
+            GCS does not provide a public API for controlling the full lifecycle of
+            multipart uploads, so we replicate parts of that internal implementation,
+            including the use of private functions and methods.
         """
-        pass
+        container = XMLMPUContainer(
+            upload_metadata["upload_url"],
+            filename=None,
+            upload_id=upload_metadata["upload_id"],
+            headers=self._mpu_headers,
+        )
+        for part in parts_metadata:
+            container.register_part(part["PartNumber"], part["ETag"])
+        container.finalize(transport=self.client._http)
+        _logger.debug("Completed multipart upload for %s", key)
 
     def _abort_multipart_upload(self, upload_metadata, key):
         """
-        Abort a certain multipart upload
+        Abort a multipart upload using the XML MPU API.
 
-        The implementation of this method should clean up any dangling resources
-        left by the incomplete upload.
-
-        :param dict upload_metadata: Provider-specific metadata for this upload
-          e.g. the multipart upload handle in AWS S3
+        :param dict upload_metadata: The multipart upload metadata from
+            :meth:`create_multipart_upload`
         :param str key: The key to use in the cloud service
+
+        .. note::
+            Most of the logic in this method is adapted from
+            ``google.cloud.storage.transfer_manager.upload_chunks_concurrently()``.
+            GCS does not provide a public API for controlling the full lifecycle of
+            multipart uploads, so we replicate parts of that internal implementation,
+            including the use of private functions and methods.
         """
-        # Probably delete things here in case it has already been uploaded ?
-        # Maybe catch some exceptions like file not found (equivalent)
+        container = XMLMPUContainer(
+            upload_metadata["upload_url"],
+            filename=None,
+            upload_id=upload_metadata["upload_id"],
+            headers=self._mpu_headers,
+        )
         try:
-            self.delete_objects(key)
+            container.cancel(transport=self.client._http)
+            _logger.debug("Aborted multipart upload for %s", key)
         except GoogleAPIError as e:
-            _logger.error(e)
-            raise e
+            _logger.error("Failed to abort multipart upload for %s: %s", key, e)
+            raise
 
     def _delete_objects_batch(self, paths, **kwargs):
         """
