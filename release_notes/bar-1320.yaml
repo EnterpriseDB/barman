@@ -1,0 +1,10 @@
+---
+- summary: Fix possible encryption passphrase leakage in debug log file
+  description: |
+    Fixed an issue where the stdout of `encryption_passphrase_command` could be logged
+    to the Barman log file when running in debug mode, potentially exposing sensitive
+    information. The passphrase command output is now captured without any logging to
+    prevent accidental exposure.
+  type: bugfix
+  jira_tickets:
+    - BAR-1320
