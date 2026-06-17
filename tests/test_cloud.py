@@ -3541,28 +3541,305 @@ class TestGoogleCloudInterface(TestCase):
         mock_blob.upload_from_file.assert_called_once_with(mock_fileobj)
 
     @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
-    def test_upload_part(self, gcs_client_mock):
+    @mock.patch("barman.cloud_providers.google_cloud_storage.XMLMPUPart")
+    def test_upload_part(self, mock_mpu_part_cls, gcs_client_mock):
         """
-        Tests the upload of a single block in Google
-        At that time there is no real multipart and file are sent entirely in one  bloc
+        Tests the upload of a single part using XML MPU API.
         """
+        # GIVEN a mock body file and upload metadata
         mock_key = "path/to/blob"
         mock_body = mock.MagicMock()
-        mock_blob = mock.MagicMock()
+        mock_body.name = "/tmp/test.part"
+        mock_body.tell.return_value = 5 * 1024 * 1024  # 5MB
 
-        service_client_mock = gcs_client_mock.return_value
-        container_client_mock = service_client_mock.bucket.return_value
-        container_client_mock.blob.return_value = mock_blob
+        mock_mpu_part = mock.MagicMock()
+        mock_mpu_part.etag = "mock-etag-123"
+        mock_mpu_part_cls.return_value = mock_mpu_part
 
-        # Create Object and call upload_fileobj
+        upload_metadata = {
+            "upload_id": "test-upload-id",
+            "upload_url": "https://storage.googleapis.com/barman-test/path/to/blob",
+        }
+
+        # WHEN _upload_part is called
         cloud_interface = GoogleCloudInterface(
-            "https://console.cloud.google.com/storage/browser/barman-test/test/path/to/my/"
+            "https://console.cloud.google.com/storage/browser/barman-test/test/"
         )
-        cloud_interface._upload_part({}, mock_key, mock_body, 1)
+        cloud_interface._mpu_headers = {"test-header": "value-x"}
+        result = cloud_interface._upload_part(upload_metadata, mock_key, mock_body, 1)
 
-        # Validate behavior
-        container_client_mock.blob.assert_called_once_with(mock_key)
-        mock_blob.upload_from_file.assert_called_once_with(mock_body)
+        # THEN XMLMPUPart is created with correct parameters and upload is called
+        mock_mpu_part_cls.assert_called_once_with(
+            upload_url="https://storage.googleapis.com/barman-test/path/to/blob",
+            upload_id="test-upload-id",
+            filename="/tmp/test.part",
+            start=0,
+            end=5 * 1024 * 1024,
+            part_number=1,
+            headers={"test-header": "value-x"},
+        )
+        mock_mpu_part.upload.assert_called_once()
+
+        # AND the result contains the part number and ETag
+        assert result == {"PartNumber": 1, "ETag": "mock-etag-123"}
+
+    @mock.patch(
+        "barman.cloud_providers.google_cloud_storage.GoogleCloudInterface._get_multipart_headers"
+    )
+    @mock.patch(
+        "barman.cloud_providers.google_cloud_storage.GoogleCloudInterface._get_blob_object"
+    )
+    @mock.patch("barman.cloud_providers.google_cloud_storage.XMLMPUContainer")
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_create_multipart_upload(
+        self,
+        gcs_client_mock,
+        mock_mpu_container_cls,
+        mock_get_blob_object,
+        mock_get_multipart_headers,
+    ):
+        """
+        Tests creating a multipart upload using XML MPU API.
+        """
+        # GIVEN a mock XMLMPUContainer
+        mock_container = mock.MagicMock()
+        mock_container.upload_id = "test-upload-id-123"
+        mock_mpu_container_cls.return_value = mock_container
+
+        # AND mocked _get_blob_object and _get_multipart_headers
+        mock_blob = mock.MagicMock()
+        mock_get_blob_object.return_value = mock_blob
+        mock_get_multipart_headers.return_value = {"x-goog-meta": "value"}
+
+        # WHEN create_multipart_upload is called
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-test/test/"
+        )
+        result = cloud_interface.create_multipart_upload("path/to/blob")
+
+        # THEN _get_blob_object is called with the key
+        mock_get_blob_object.assert_called_once_with("path/to/blob")
+
+        # AND _get_multipart_headers is called with the blob
+        mock_get_multipart_headers.assert_called_once_with(mock_blob)
+
+        # AND XMLMPUContainer is created with headers and initiate is called
+        mock_mpu_container_cls.assert_called_once_with(
+            "https://storage.googleapis.com/barman-test/path/to/blob",
+            filename=None,
+            headers={"x-goog-meta": "value"},
+        )
+        mock_container.initiate.assert_called_once()
+
+        # AND the result contains the upload_id and upload_url
+        assert result == {
+            "upload_id": "test-upload-id-123",
+            "upload_url": "https://storage.googleapis.com/barman-test/path/to/blob",
+        }
+
+    @mock.patch(
+        "barman.cloud_providers.google_cloud_storage.GoogleCloudInterface._get_multipart_headers"
+    )
+    @mock.patch(
+        "barman.cloud_providers.google_cloud_storage.GoogleCloudInterface._get_blob_object"
+    )
+    @mock.patch("barman.cloud_providers.google_cloud_storage.XMLMPUContainer")
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_create_multipart_upload_with_encryption(
+        self,
+        gcs_client_mock,
+        mock_mpu_container_cls,
+        mock_get_blob_object,
+        mock_get_multipart_headers,
+    ):
+        """
+        Tests creating a multipart upload with KMS encryption using XML MPU API.
+        """
+        # GIVEN a kms_key_name argument is passed
+        kms_key_name = (
+            "projects/my-project/locations/us/keyRings/my-ring/cryptoKeys/my-key"
+        )
+
+        # AND a mock XMLMPUContainer
+        mock_container = mock.MagicMock()
+        mock_container.upload_id = "test-upload-id-123"
+        mock_mpu_container_cls.return_value = mock_container
+
+        # AND mocked _get_blob_object and _get_multipart_headers
+        mock_blob = mock.MagicMock()
+        mock_get_blob_object.return_value = mock_blob
+        mock_get_multipart_headers.return_value = {
+            "base": "header",
+            "x-goog-encryption-kms-key-name": kms_key_name,
+        }
+
+        # WHEN create_multipart_upload is called
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-test/test/",
+            kms_key_name=kms_key_name,
+        )
+        result = cloud_interface.create_multipart_upload("path/to/blob")
+
+        # THEN _get_blob_object is called with the key
+        mock_get_blob_object.assert_called_once_with("path/to/blob")
+
+        # AND _get_multipart_headers is called with the blob
+        mock_get_multipart_headers.assert_called_once_with(mock_blob)
+
+        # AND XMLMPUContainer is created with headers including the KMS key
+        mock_mpu_container_cls.assert_called_once_with(
+            "https://storage.googleapis.com/barman-test/path/to/blob",
+            filename=None,
+            headers={
+                "base": "header",
+                "x-goog-encryption-kms-key-name": kms_key_name,
+            },
+        )
+        mock_container.initiate.assert_called_once()
+
+        # AND the result contains the upload_id and upload_url
+        assert result == {
+            "upload_id": "test-upload-id-123",
+            "upload_url": "https://storage.googleapis.com/barman-test/path/to/blob",
+        }
+
+    @mock.patch(
+        "barman.cloud_providers.google_cloud_storage.GoogleCloudInterface._get_multipart_headers"
+    )
+    @mock.patch(
+        "barman.cloud_providers.google_cloud_storage.GoogleCloudInterface._get_blob_object"
+    )
+    @mock.patch("barman.cloud_providers.google_cloud_storage.XMLMPUContainer")
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_create_multipart_upload_with_tags(
+        self,
+        gcs_client_mock,
+        mock_mpu_container_cls,
+        mock_get_blob_object,
+        mock_get_multipart_headers,
+    ):
+        """
+        Tests creating a multipart upload with custom metadata (tags) using XML MPU API.
+        """
+        # GIVEN tags are passed
+        tags = [("env", "test"), ("project", "barman")]
+
+        # AND a mock XMLMPUContainer
+        mock_container = mock.MagicMock()
+        mock_container.upload_id = "test-upload-id-123"
+        mock_mpu_container_cls.return_value = mock_container
+
+        # AND mocked _get_blob_object and _get_multipart_headers
+        mock_blob = mock.MagicMock()
+        mock_get_blob_object.return_value = mock_blob
+        mock_get_multipart_headers.return_value = {
+            "base": "header",
+            "x-goog-meta-env": "test",
+            "x-goog-meta-project": "barman",
+        }
+
+        # WHEN create_multipart_upload is called
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-test/test/",
+            tags=tags,
+        )
+        result = cloud_interface.create_multipart_upload("path/to/blob")
+
+        # THEN _get_blob_object is called with the key
+        mock_get_blob_object.assert_called_once_with("path/to/blob")
+
+        # AND _get_multipart_headers is called with the blob
+        mock_get_multipart_headers.assert_called_once_with(mock_blob)
+
+        # AND XMLMPUContainer is created with headers including the metadata
+        mock_mpu_container_cls.assert_called_once_with(
+            "https://storage.googleapis.com/barman-test/path/to/blob",
+            filename=None,
+            headers={
+                "base": "header",
+                "x-goog-meta-env": "test",
+                "x-goog-meta-project": "barman",
+            },
+        )
+        mock_container.initiate.assert_called_once()
+
+        # AND the result contains the upload_id and upload_url
+        assert result == {
+            "upload_id": "test-upload-id-123",
+            "upload_url": "https://storage.googleapis.com/barman-test/path/to/blob",
+        }
+
+    @mock.patch("barman.cloud_providers.google_cloud_storage.XMLMPUContainer")
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_complete_multipart_upload(self, gcs_client_mock, mock_mpu_container_cls):
+        """
+        Tests completing a multipart upload using XML MPU API.
+        """
+        # GIVEN a mock XMLMPUContainer and parts metadata
+        mock_container = mock.MagicMock()
+        mock_mpu_container_cls.return_value = mock_container
+
+        upload_metadata = {
+            "upload_id": "test-upload-id",
+            "upload_url": "https://storage.googleapis.com/barman-test/path/to/blob",
+        }
+        parts_metadata = [
+            {"PartNumber": 1, "ETag": "etag-1"},
+            {"PartNumber": 2, "ETag": "etag-2"},
+        ]
+
+        # WHEN _complete_multipart_upload is called
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-test/test/"
+        )
+        cloud_interface._mpu_headers = {"test-header": "value-x"}
+        cloud_interface._complete_multipart_upload(
+            upload_metadata, "path/to/blob", parts_metadata
+        )
+
+        # THEN XMLMPUContainer is created with the upload_id
+        mock_mpu_container_cls.assert_called_once_with(
+            "https://storage.googleapis.com/barman-test/path/to/blob",
+            filename=None,
+            upload_id="test-upload-id",
+            headers={"test-header": "value-x"},
+        )
+
+        # AND parts are registered and finalize is called
+        mock_container.register_part.assert_any_call(1, "etag-1")
+        mock_container.register_part.assert_any_call(2, "etag-2")
+        mock_container.finalize.assert_called_once()
+
+    @mock.patch("barman.cloud_providers.google_cloud_storage.XMLMPUContainer")
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_abort_multipart_upload(self, gcs_client_mock, mock_mpu_container_cls):
+        """
+        Tests aborting a multipart upload using XML MPU API.
+        """
+        # GIVEN a mock XMLMPUContainer
+        mock_container = mock.MagicMock()
+        mock_mpu_container_cls.return_value = mock_container
+
+        upload_metadata = {
+            "upload_id": "test-upload-id",
+            "upload_url": "https://storage.googleapis.com/barman-test/path/to/blob",
+        }
+        # WHEN _abort_multipart_upload is called
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-test/test/"
+        )
+        cloud_interface._mpu_headers = {"test-header": "value-x"}
+
+        cloud_interface._abort_multipart_upload(upload_metadata, "path/to/blob")
+
+        # THEN XMLMPUContainer is created and cancel is called
+        mock_mpu_container_cls.assert_called_once_with(
+            "https://storage.googleapis.com/barman-test/path/to/blob",
+            filename=None,
+            upload_id="test-upload-id",
+            headers={"test-header": "value-x"},
+        )
+        mock_container.cancel.assert_called_once()
 
     @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
     def test_delete_objects(self, gcs_client_mock):
@@ -3925,8 +4202,6 @@ class TestGetCloudInterface(object):
         for k, v in extra_args.items():
             setattr(mock_config_gcs, k, v)
         get_cloud_interface(mock_config_gcs)
-        # No matter what, jobs parameter will be set to 1
-        extra_args["jobs"] = 1
         mock_gcs_cloud_interface.assert_called_once_with(url="test-url", **extra_args)
 
     @pytest.mark.parametrize(

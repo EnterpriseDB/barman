@@ -476,7 +476,7 @@ class TestCloudBackup(object):
         # THEN they are passed to the cloud interface
         cloud_interface_mock.assert_called_once_with(
             url="cloud_storage_url",
-            jobs=1,
+            jobs=2,
             tags=None,
             **expected_cloud_interface_kwargs,
         )

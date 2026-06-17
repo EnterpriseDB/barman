@@ -560,7 +560,6 @@ class TestMain(object):
         cloud_interface_mock.assert_called_once_with(
             url="cloud_storage_url",
             tags=None,
-            jobs=1,
             **expected_cloud_interface_kwargs,
         )
 
