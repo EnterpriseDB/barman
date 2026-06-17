@@ -1,0 +1,136 @@
+[build-system]
+# Upper bound on uv_build is intentional: uv's versioning policy reserves
+# breaking changes for minor-version bumps, so pinning to the current minor
+# prevents unexpected breakage. Raise the bound when the new minor is
+# validated. See: https://docs.astral.sh/uv/concepts/build-backend/
+requires = ["uv_build>=0.11.17,<0.12"]
+build-backend = "uv_build"
+
+[project]
+name = "barman"
+version = "3.19.1"
+description = "Backup and Recovery Manager for PostgreSQL"
+readme = "README.rst"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+authors = [
+  {name = "EnterpriseDB", email = "barman@enterprisedb.com"},
+]
+classifiers = [
+  "Environment :: Console",
+  "Development Status :: 5 - Production/Stable",
+  "Topic :: System :: Archiving :: Backup",
+  "Topic :: Database",
+  "Topic :: System :: Recovery Tools",
+  "Intended Audience :: System Administrators",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: BSD :: FreeBSD",
+  "Operating System :: Unix",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+  "psycopg2 >= 2.4.2",
+  "python-dateutil",
+]
+
+[project.urls]
+Homepage = "https://www.pgbarman.org/"
+Documentation = "https://docs.pgbarman.org/"
+"Source Code" = "https://github.com/EnterpriseDB/barman"
+"Issue Tracker" = "https://github.com/EnterpriseDB/barman/issues"
+"Release Notes" = "https://github.com/EnterpriseDB/barman/blob/master/RELNOTES.md"
+
+[project.optional-dependencies]
+argcomplete = ["argcomplete"]
+aws-snapshots = ["boto3"]
+azure = ["azure-identity", "azure-storage-blob"]
+azure-snapshots = ["azure-identity", "azure-mgmt-compute"]
+cloud = ["boto3"]
+google = ["google-cloud-storage"]
+google-snapshots = ["grpcio", "google-cloud-compute"]
+snappy = ["python-snappy", "cramjam >= 2.7.0"]
+zstandard = ["zstandard"]
+lz4 = ["lz4"]
+all = [
+  "argcomplete",
+  "azure-identity",
+  "azure-mgmt-compute",
+  "azure-storage-blob",
+  "boto3",
+  "cramjam >= 2.7.0",
+  "google-cloud-compute",
+  "google-cloud-storage",
+  "grpcio",
+  "lz4",
+  "python-snappy",
+  "zstandard",
+]
+
+[project.scripts]
+barman = "barman.cli:main"
+barman-cloud-backup = "barman.clients.cloud_backup:main"
+barman-cloud-backup-delete = "barman.clients.cloud_backup_delete:main"
+barman-cloud-backup-keep = "barman.clients.cloud_backup_keep:main"
+barman-cloud-backup-list = "barman.clients.cloud_backup_list:main"
+barman-cloud-backup-show = "barman.clients.cloud_backup_show:main"
+barman-cloud-check-wal-archive = "barman.clients.cloud_check_wal_archive:main"
+barman-cloud-restore = "barman.clients.cloud_restore:main"
+barman-cloud-wal-archive = "barman.clients.cloud_walarchive:main"
+barman-cloud-wal-restore = "barman.clients.cloud_walrestore:main"
+barman-wal-archive = "barman.clients.walarchive:main"
+barman-wal-restore = "barman.clients.walrestore:main"
+
+[tool.uv]
+# MacOS is not a supported production platform but is supported for development
+# and testing.
+environments = [
+  "sys_platform == 'linux'",
+  "sys_platform == 'darwin'",
+  "sys_platform == 'freebsd'",
+]
+
+[tool.uv.build-backend]
+# Files listed here are included in the sdist but are NOT installed by pip.
+# uv_build does not support setuptools' data_files; files outside the module
+# root can be installed via the `data` directory mechanism, but man pages are
+# intentionally left to distro packages (deb/rpm) and not installed via pip.
+# docs/_build/man/** is only present after running `make -C docs man`
+# before `uv build --sdist`.
+source-include = [
+  # uv.lock is included in the sdist so that downstream packagers (e.g.
+  # RPM/DEB) can run `uv sync --frozen` for reproducible dependency installs.
+  # uv_build does not include VCS-tracked files automatically; only files
+  # matching source-include patterns are added beyond the Python package itself.
+  "uv.lock",
+  "docs/barman.d/**",
+  "docs/barman.conf",
+  "scripts/barman.bash_completion",
+  "docs/_build/man/**",
+  "AUTHORS",
+  "RELNOTES.md",
+  "INSTALL.md",
+]
+
+# [dependency-groups] (PEP 735) declares dev-only deps that are NOT part of
+# the published package metadata. Use `uv sync --group <name>` to install them.
+# These are intentionally separate from [project.optional-dependencies], which
+# are user-facing extras installable via `pip install barman[extra]`.
+[dependency-groups]
+test = ["pytest", "mock"]
+docs = [
+  "sphinx",
+  "sphinx-github-style",
+  "sphinxcontrib-apidoc",
+  "pydata-sphinx-theme",
+  "myst-parser",
+]
+dev = [
+  "tox",
+  {include-group = "test"},
+  {include-group = "docs"},
+]

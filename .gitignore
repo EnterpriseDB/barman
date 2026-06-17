@@ -34,9 +34,6 @@ venv/*
 # OSX
 .DS_Store
 
-# pyenv
-.python-version
-
 # Sphinx docs
 docs/_build/*
 docs/contributor_guide/modules

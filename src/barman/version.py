@@ -20,4 +20,16 @@
 This module contains the current Barman version.
 """
 
-__version__ = "3.19.0"
+# importlib.metadata reads the version from the dist-info metadata written
+# to site-packages at install time. The version is defined once in
+# pyproject.toml and embedded in that metadata during the build, so there is
+# no need to maintain a hardcoded string here. The fallback to "unknown"
+# applies when barman is run directly from source without being installed
+# (e.g. `python -m barman` in a bare clone). In normal usage —
+# pip install, uv sync, tox — the package is always installed first.
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("barman")
+except PackageNotFoundError:
+    __version__ = "unknown"
