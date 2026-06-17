@@ -1,0 +1,14 @@
+---
+- summary: Add support for parallel uploads to Google Cloud Storage
+  description: |
+    Previously, backups to Google Cloud Storage required the entire tarball
+    to be written locally before upload could begin. This was because the GCS
+    implementation did not support multipart uploads, resulting in slower
+    backups and higher disk space usage compared to AWS S3 and Azure Blob Storage.
+
+    Multipart upload is now supported for GCS backups. Data is now streamed in chunks
+    and uploaded in parallel using multiple workers (specified via `-J` / `--jobs`
+    in `barman-cloud-backup`), matching the behavior of the other cloud providers.
+  type: notable_change
+  jira_tickets:
+    - BAR-972
