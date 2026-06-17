@@ -43,7 +43,7 @@ from barman.version import __version__  # noqa: E402
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 module_dir = os.path.abspath(os.path.join(project_root, "barman"))
-excludes = ["tests", "setup.py", "conf"]
+excludes = ["tests", "conf"]
 
 release_date = os.getenv("SPHINX_BUILD_DATE")
 if release_date:
