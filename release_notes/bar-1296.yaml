@@ -1,0 +1,19 @@
+---
+- summary: Fix "cannot pickle '_thread.lock' object" error on rsync backups and restores
+  description: |
+    Python 3.14 changes the default subprocess start method from "fork"
+    to "forkserver" on POSIX platforms, which requires pickling objects to pass
+    them to worker processes. This change caused errors like the one below whenever
+    performing rsync-related operations using Python >= 3.14, e.g. performing a backup
+    with `backup_method = rsync` or restoring a backup locally or remotely.
+
+    ```
+    ERROR: Backup failed copying files.
+    DETAILS: cannot pickle '_thread.lock' object
+    ```
+
+    The issue has been fixed by properly handling serialization of lock objects and
+    such errors should no longer occur regardless of the Python version.
+  type: bugfix
+  jira_tickets:
+    - BAR-1296
