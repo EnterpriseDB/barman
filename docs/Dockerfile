@@ -2,7 +2,10 @@
 # documentation via github actions. There is no other use for it.
 
 # Use Debian as the base image
-FROM debian:latest
+# debian:trixie ships Python 3.12, which is required by barman (requires-python
+# = ">=3.12"). debian:bookworm (previously used via debian:latest) ships Python
+# 3.11 and is incompatible.
+FROM debian:trixie
 
 # Switch to the root user
 USER root
