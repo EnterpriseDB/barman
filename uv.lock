@@ -137,20 +137,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-all = [
-    { name = "argcomplete", marker = "sys_platform == 'darwin' or sys_platform == 'freebsd' or sys_platform == 'linux'" },
-    { name = "azure-identity", marker = "sys_platform == 'darwin' or sys_platform == 'freebsd' or sys_platform == 'linux'" },
-    { name = "azure-mgmt-compute", marker = "sys_platform == 'darwin' or sys_platform == 'freebsd' or sys_platform == 'linux'" },
-    { name = "azure-storage-blob", marker = "sys_platform == 'darwin' or sys_platform == 'freebsd' or sys_platform == 'linux'" },
-    { name = "boto3", marker = "sys_platform == 'darwin' or sys_platform == 'freebsd' or sys_platform == 'linux'" },
-    { name = "cramjam", marker = "sys_platform == 'darwin' or sys_platform == 'freebsd' or sys_platform == 'linux'" },
-    { name = "google-cloud-compute", marker = "sys_platform == 'darwin' or sys_platform == 'freebsd' or sys_platform == 'linux'" },
-    { name = "google-cloud-storage", marker = "sys_platform == 'darwin' or sys_platform == 'freebsd' or sys_platform == 'linux'" },
-    { name = "grpcio", marker = "sys_platform == 'darwin' or sys_platform == 'freebsd' or sys_platform == 'linux'" },
-    { name = "lz4", marker = "sys_platform == 'darwin' or sys_platform == 'freebsd' or sys_platform == 'linux'" },
-    { name = "python-snappy", marker = "sys_platform == 'darwin' or sys_platform == 'freebsd' or sys_platform == 'linux'" },
-    { name = "zstandard", marker = "sys_platform == 'darwin' or sys_platform == 'freebsd' or sys_platform == 'linux'" },
-]
 argcomplete = [
     { name = "argcomplete", marker = "sys_platform == 'darwin' or sys_platform == 'freebsd' or sys_platform == 'linux'" },
 ]
@@ -211,36 +197,24 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "argcomplete", marker = "extra == 'all'" },
     { name = "argcomplete", marker = "extra == 'argcomplete'" },
-    { name = "azure-identity", marker = "extra == 'all'" },
     { name = "azure-identity", marker = "extra == 'azure'" },
     { name = "azure-identity", marker = "extra == 'azure-snapshots'" },
-    { name = "azure-mgmt-compute", marker = "extra == 'all'" },
     { name = "azure-mgmt-compute", marker = "extra == 'azure-snapshots'" },
-    { name = "azure-storage-blob", marker = "extra == 'all'" },
     { name = "azure-storage-blob", marker = "extra == 'azure'" },
-    { name = "boto3", marker = "extra == 'all'" },
     { name = "boto3", marker = "extra == 'aws-snapshots'" },
     { name = "boto3", marker = "extra == 'cloud'" },
-    { name = "cramjam", marker = "extra == 'all'", specifier = ">=2.7.0" },
     { name = "cramjam", marker = "extra == 'snappy'", specifier = ">=2.7.0" },
-    { name = "google-cloud-compute", marker = "extra == 'all'" },
     { name = "google-cloud-compute", marker = "extra == 'google-snapshots'" },
-    { name = "google-cloud-storage", marker = "extra == 'all'" },
     { name = "google-cloud-storage", marker = "extra == 'google'" },
-    { name = "grpcio", marker = "extra == 'all'" },
     { name = "grpcio", marker = "extra == 'google-snapshots'" },
-    { name = "lz4", marker = "extra == 'all'" },
     { name = "lz4", marker = "extra == 'lz4'" },
     { name = "psycopg2", specifier = ">=2.4.2" },
     { name = "python-dateutil" },
-    { name = "python-snappy", marker = "extra == 'all'" },
     { name = "python-snappy", marker = "extra == 'snappy'" },
-    { name = "zstandard", marker = "extra == 'all'" },
     { name = "zstandard", marker = "extra == 'zstandard'" },
 ]
-provides-extras = ["argcomplete", "aws-snapshots", "azure", "azure-snapshots", "cloud", "google", "google-snapshots", "snappy", "zstandard", "lz4", "all"]
+provides-extras = ["argcomplete", "aws-snapshots", "azure", "azure-snapshots", "cloud", "google", "google-snapshots", "snappy", "zstandard", "lz4"]
 
 [package.metadata.requires-dev]
 dev = [

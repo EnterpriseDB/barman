@@ -56,20 +56,6 @@ google-snapshots = ["grpcio", "google-cloud-compute"]
 snappy = ["python-snappy", "cramjam >= 2.7.0"]
 zstandard = ["zstandard"]
 lz4 = ["lz4"]
-all = [
-  "argcomplete",
-  "azure-identity",
-  "azure-mgmt-compute",
-  "azure-storage-blob",
-  "boto3",
-  "cramjam >= 2.7.0",
-  "google-cloud-compute",
-  "google-cloud-storage",
-  "grpcio",
-  "lz4",
-  "python-snappy",
-  "zstandard",
-]
 
 [project.scripts]
 barman = "barman.cli:main"
