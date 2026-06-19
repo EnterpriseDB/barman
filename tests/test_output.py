@@ -1227,7 +1227,7 @@ class TestConsoleWriter(object):
         writer.result_show_backup(ext_info)
         writer.close()
         out, err = capsys.readouterr()
-        assert f'Backup {ext_info["backup_id"]}' in out
+        assert f"Backup {ext_info['backup_id']}" in out
 
         # Header rows
         header_rows = [
@@ -1685,9 +1685,7 @@ class TestConsoleWriter(object):
         writer.close()
         out, err = capsys.readouterr()
         expected = (
-            "Active subprocesses for server test_server:\n"
-            "1111 backup\n"
-            "2222 restore\n"
+            "Active subprocesses for server test_server:\n1111 backup\n2222 restore\n"
         )
         assert out == expected
         assert err == ""

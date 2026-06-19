@@ -444,8 +444,7 @@ class PostgresBackupExecutor(BackupExecutor):
         if self.config.network_compression:
             # Report the error in the configuration errors message list
             self.server.config.update_msg_list_and_disable_server(
-                "network_compression option is not supported by "
-                "postgres backup_method"
+                "network_compression option is not supported by postgres backup_method"
             )
 
         # The following checks require interactions with the PostgreSQL server

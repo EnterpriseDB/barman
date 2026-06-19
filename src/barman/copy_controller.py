@@ -71,9 +71,9 @@ def _run_worker(job):
     :param _RsyncJob job: the job to be executed
     """
     global _worker_callable  # noqa: F824
-    assert (
-        _worker_callable is not None
-    ), "Worker has not been initialized with `_init_worker`"
+    assert _worker_callable is not None, (
+        "Worker has not been initialized with `_init_worker`"
+    )
 
     # This is the entrypoint of the worker process. Since the KeyboardInterrupt
     # exceptions is handled by the main process, let's forget about Ctrl-C
@@ -781,12 +781,12 @@ class RsyncCopyController(object):
             _logger.info(job.description, bucket, "starting")
         if item.is_directory:
             # A directory item must always have checksum and file_list set
-            assert (
-                job.file_list is not None
-            ), "A directory item must not have a None `file_list` attribute"
-            assert (
-                job.checksum is not None
-            ), "A directory item must not have a None `checksum` attribute"
+            assert job.file_list is not None, (
+                "A directory item must not have a None `file_list` attribute"
+            )
+            assert job.checksum is not None, (
+                "A directory item must not have a None `checksum` attribute"
+            )
 
             # Generate a unique name for the file containing the list of files
             file_list_path = os.path.join(
@@ -812,12 +812,12 @@ class RsyncCopyController(object):
             )
         else:
             # A file must never have checksum and file_list set
-            assert (
-                job.file_list is None
-            ), "A file item must have a None `file_list` attribute"
-            assert (
-                job.checksum is None
-            ), "A file item must have a None `checksum` attribute"
+            assert job.file_list is None, (
+                "A file item must have a None `file_list` attribute"
+            )
+            assert job.checksum is None, (
+                "A file item must have a None `checksum` attribute"
+            )
             rsync(item.src, item.dst, allowed_retval=(0, 23, 24))
             if rsync.ret == 23:
                 if item.optional:

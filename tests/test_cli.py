@@ -313,8 +313,7 @@ class TestCli(object):
         assert err
         # Check paths in error messages
         assert (
-            "Conflicting path: "
-            "basebackups_directory=/some/barman/home/main/base" in err
+            "Conflicting path: basebackups_directory=/some/barman/home/main/base" in err
         )
         assert (
             "Conflicting path: "
@@ -364,8 +363,7 @@ class TestCli(object):
         assert err
         # Check paths in error messages
         assert (
-            "Conflicting path: "
-            "basebackups_directory=/some/barman/home/main/base" in err
+            "Conflicting path: basebackups_directory=/some/barman/home/main/base" in err
         )
         assert (
             "Conflicting path: "
@@ -1757,9 +1755,7 @@ class TestCli(object):
         target = "3/5F000000"
         setattr(args, "backup_id", "auto")
         setattr(args, target_option, target) if target_option else None
-        mock_get_server.return_value.get_closest_backup_id_from_target_lsn.return_value = (
-            None
-        )
+        mock_get_server.return_value.get_closest_backup_id_from_target_lsn.return_value = None
         with pytest.raises(SystemExit):
             restore(args)
         _, err = capsys.readouterr()
@@ -2640,9 +2636,7 @@ positional arguments:
   -t, --test-arg        Test command arg
 
 test epilog string
-""" % os.path.basename(
-        sys.argv[0]
-    )
+""" % os.path.basename(sys.argv[0])
 
     @pytest.fixture
     def minimal_parser(self):
@@ -3026,8 +3020,9 @@ class TestCloudWalArchiveCli:
         """
         mock_output.close_and_exit.side_effect = SystemExit(1)
 
-        with patch("os.path.isdir", return_value=False), patch(
-            "os.path.exists", return_value=False
+        with (
+            patch("os.path.isdir", return_value=False),
+            patch("os.path.exists", return_value=False),
         ):
             with pytest.raises(SystemExit):
                 cloud_wal_archive(mock_args)
@@ -3048,9 +3043,11 @@ class TestCloudWalArchiveCli:
         """
         mock_output.close_and_exit.side_effect = SystemExit(1)
 
-        with patch("os.path.isdir", return_value=False), patch(
-            "os.path.exists", return_value=True
-        ), patch("barman.cli.is_any_xlog_file", return_value=False):
+        with (
+            patch("os.path.isdir", return_value=False),
+            patch("os.path.exists", return_value=True),
+            patch("barman.cli.is_any_xlog_file", return_value=False),
+        ):
             with pytest.raises(SystemExit):
                 cloud_wal_archive(mock_args)
 
@@ -3070,9 +3067,11 @@ class TestCloudWalArchiveCli:
         mock_server = mock_get_server.return_value
         mock_server.config.cloud_wal_archive_parallel = 0
 
-        with patch("os.path.isdir", return_value=False), patch(
-            "os.path.exists", return_value=True
-        ), patch("barman.cli.is_any_xlog_file", return_value=True):
+        with (
+            patch("os.path.isdir", return_value=False),
+            patch("os.path.exists", return_value=True),
+            patch("barman.cli.is_any_xlog_file", return_value=True),
+        ):
             with pytest.raises(SystemExit):
                 cloud_wal_archive(mock_args)
 
@@ -3091,9 +3090,11 @@ class TestCloudWalArchiveCli:
         mock_server = mock_get_server.return_value
         mock_server.config.cloud_wal_archive_parallel = 0
 
-        with patch("os.path.isdir", return_value=False), patch(
-            "os.path.exists", return_value=True
-        ), patch("barman.cli.is_any_xlog_file", return_value=True):
+        with (
+            patch("os.path.isdir", return_value=False),
+            patch("os.path.exists", return_value=True),
+            patch("barman.cli.is_any_xlog_file", return_value=True),
+        ):
             with pytest.raises(SystemExit):
                 cloud_wal_archive(mock_args)
 
@@ -3604,8 +3605,7 @@ class TestExportBackup(object):
         # THEN an error is reported, naming the invalid level, the algorithm,
         # and the valid range
         mock_output_error.assert_called_once_with(
-            "Invalid compression level '%s' for algorithm '%s'. "
-            "Valid levels are: %s",
+            "Invalid compression level '%s' for algorithm '%s'. Valid levels are: %s",
             compression_level,
             compression,
             expected_valid_levels,

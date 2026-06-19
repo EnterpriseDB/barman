@@ -2290,7 +2290,8 @@ class TestServer(object):
         assert (
             "Skipping delete of backup %s for server %s as it has a current "
             "keep request. If you really want to delete this backup please remove "
-            "the keep and try again." % (backup_info.backup_id, server.config.name)
+            "the keep and try again."
+            % (backup_info.backup_id, server.config.name)
             in caplog.text
         )
 
@@ -2520,13 +2521,12 @@ class TestServer(object):
         server.backup_manager = MagicMock()
 
         # WHEN cron runs
-        with patch.object(server, "cron_archive_wal") as archive_mock, patch.object(
-            server, "background_receive_wal"
-        ) as bg_receive_mock, patch.object(
-            server, "cron_check_backup"
-        ) as check_mock, patch.object(
-            server, "sync_cron"
-        ) as sync_mock:
+        with (
+            patch.object(server, "cron_archive_wal") as archive_mock,
+            patch.object(server, "background_receive_wal") as bg_receive_mock,
+            patch.object(server, "cron_check_backup") as check_mock,
+            patch.object(server, "sync_cron") as sync_mock,
+        ):
             server.cron(wals=True, retention_policies=True)
 
         # THEN the receive-wal subprocess is stopped with an explicit log line
@@ -2911,8 +2911,9 @@ class TestServer(object):
             global_conf={"barman_lock_directory": tmpdir.mkdir("lock").strpath},
             main_conf={
                 "wals_directory": tmpdir.mkdir("wals").strpath,
-                "%s_wals_directory"
-                % incoming_name: tmpdir.mkdir(incoming_name).strpath,
+                "%s_wals_directory" % incoming_name: tmpdir.mkdir(
+                    incoming_name
+                ).strpath,
             },
         )
         incoming_dir = getattr(server.config, "%s_wals_directory" % incoming_name)

@@ -535,8 +535,9 @@ class TestFileWalArchiver(object):
         # ease all the comparisons. The resulting string is the name enclosed
         # in colons. e.g. ":000000010000000000000001:"
         from_file_mock.side_effect = (
-            lambda filename, compression_manager, unidentified_compression, encryption_manager, *args, **kwargs: ":%s:"
-            % filename
+            lambda filename, compression_manager, unidentified_compression, encryption_manager, *args, **kwargs: (
+                ":%s:" % filename
+            )
         )
 
         backup_manager = build_backup_manager(name="TestServer")
@@ -946,8 +947,9 @@ class TestStreamingWalArchiver(object):
         # ease all the comparisons. The resulting string is the name enclosed
         # in colons. e.g. ":000000010000000000000001:"
         from_file_mock.side_effect = (
-            lambda filename, compression_manager, unidentified_compression, encryption_manager, *args, **kwargs: ":%s:"
-            % filename
+            lambda filename, compression_manager, unidentified_compression, encryption_manager, *args, **kwargs: (
+                ":%s:" % filename
+            )
         )
 
         backup_manager = build_backup_manager(name="TestServer")
@@ -2032,8 +2034,8 @@ class TestLocalWalStorageStrategy:
         )
         # WHEN _delete_wal_directory is called
         wal_info = MagicMock()
-        wal_info.fullpath = (
-            lambda x: "/server/wals/0000000100000001/000000010000000000000001"
+        wal_info.fullpath = lambda x: (
+            "/server/wals/0000000100000001/000000010000000000000001"
         )
         wal_storage._delete_wal_file(wal_info)
         # THEN the file is unlinked and pre- and post-deletion scripts are run
@@ -3181,9 +3183,12 @@ class TestCloudWalArchiver:
         mock_tmp.name = tmp_file_path
 
         # WHEN the last-archived cache is updated
-        with patch(
-            "barman.wal_archiver.NamedTemporaryFile", return_value=mock_tmp
-        ) as mock_ntf, patch("barman.wal_archiver.os.rename") as mock_rename:
+        with (
+            patch(
+                "barman.wal_archiver.NamedTemporaryFile", return_value=mock_tmp
+            ) as mock_ntf,
+            patch("barman.wal_archiver.os.rename") as mock_rename,
+        ):
             archiver._write_cloud_wal_last_archived("000000010000000000000042")
 
             # THEN a NamedTemporaryFile was created in the cache directory

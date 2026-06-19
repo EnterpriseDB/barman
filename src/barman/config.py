@@ -1991,7 +1991,7 @@ class Config(object):
             name = parameter[0]
             if name not in allowed_keys:
                 output.warning(
-                    'Invalid configuration option "%s" in [%s] ' "section.",
+                    'Invalid configuration option "%s" in [%s] section.',
                     name,
                     section,
                 )

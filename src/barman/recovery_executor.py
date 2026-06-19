@@ -1220,9 +1220,8 @@ class RecoveryExecutor(object):
                 dst_dir,
             )
         except CommandFailedException as e:
-            msg = (
-                "data transfer failure while copying WAL files "
-                "to directory '%s'" % (dst_dir,)
+            msg = "data transfer failure while copying WAL files to directory '%s'" % (
+                dst_dir,
             )
             raise DataTransferFailure.from_command_error("rsync", e, msg)
         # Cleanup files after the transfer

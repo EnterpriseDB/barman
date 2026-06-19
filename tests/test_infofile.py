@@ -1820,8 +1820,9 @@ class TestCloudLocalBackupInfo:
         backup_info.server = mock.Mock(
             get_wal_until_next_backup=lambda *args, **kwargs: [wal1, wal2, wal3],
             wal_storage=mock.Mock(
-                get_full_path=lambda x: "barman-backups/my-server/wals/0000000100000001/%s"
-                % x
+                get_full_path=lambda x: (
+                    "barman-backups/my-server/wals/0000000100000001/%s" % x
+                )
             ),
         )
         # Mock get_required_wal_segments to return only wal1 and wal2 as required WAL

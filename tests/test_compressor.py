@@ -579,9 +579,9 @@ class TestInternalCompressors(object):
         for cls in subclasses:
             ext = cls.EXTENSION
             # THEN each subclass has a non-empty string EXTENSION
-            assert (
-                isinstance(ext, str) and ext
-            ), "%s.EXTENSION must be a non-empty string, got %r" % (cls.__name__, ext)
+            assert isinstance(ext, str) and ext, (
+                "%s.EXTENSION must be a non-empty string, got %r" % (cls.__name__, ext)
+            )
             # AND extensions are unique across subclasses
             assert ext not in extensions, "%s.EXTENSION %r is already used by %s" % (
                 cls.__name__,
@@ -602,8 +602,7 @@ class TestCustomCompressor(object):
 
         assert compressor is not None
         assert compressor._compress.cmd == (
-            'barman_command(){ dummy_compression_filter > "$2" < "$1";}; '
-            "barman_command"
+            'barman_command(){ dummy_compression_filter > "$2" < "$1";}; barman_command'
         )
         assert compressor._decompress.cmd == (
             'barman_command(){ dummy_decompression_filter > "$2" < "$1";}; '

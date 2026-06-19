@@ -1803,8 +1803,7 @@ class TestAzureCloudSnapshotInterface(object):
 
         # AND the exception contains the expected message
         assert str(exc.value) == (
-            "Cannot find instance with name {} in resource group {} "
-            "in subscription {}"
+            "Cannot find instance with name {} in resource group {} in subscription {}"
         ).format(
             self.azure_instance_name,
             self.azure_resource_group,
@@ -2285,8 +2284,7 @@ class TestAzureCloudSnapshotInterface(object):
 
         # AND the exception contains the expected message
         assert str(exc.value) == (
-            "Cannot find instance with name {} in resource group {} "
-            "in subscription {}"
+            "Cannot find instance with name {} in resource group {} in subscription {}"
         ).format(
             self.azure_instance_name,
             self.azure_resource_group,
@@ -2472,8 +2470,7 @@ class TestAzureVolumeMetadata(object):
 
         # AND the exception has the expected message
         expected_msg = (
-            "Could not determine source snapshot for disk {} with source resource ID "
-            "{}"
+            "Could not determine source snapshot for disk {} with source resource ID {}"
         ).format(disk_name, source_resource_id)
         assert expected_msg in str(exc.value)
 
@@ -3259,9 +3256,9 @@ class TestAwsCloudSnapshotInterface(object):
             self._get_mock_describe_volumes_resp(self.aws_disks)
         )
         # AND one of those disks has a SnapshotId
-        mock_ec2_client.describe_volumes.return_value["Volumes"][0][
-            "SnapshotId"
-        ] = "snap-0123"
+        mock_ec2_client.describe_volumes.return_value["Volumes"][0]["SnapshotId"] = (
+            "snap-0123"
+        )
 
         # WHEN get_attached_volumes is called
         volumes = snapshot_interface.get_attached_volumes(self.aws_instance_id)

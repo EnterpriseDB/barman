@@ -89,9 +89,6 @@ from barman.storage.local_file_manager import LocalFileManager
 from barman.utils import (
     SHA256,
     BarmanEncoderV2,
-)
-from barman.utils import LooseVersion as Version
-from barman.utils import (
     force_str,
     fsync_dir,
     fsync_file,
@@ -103,6 +100,7 @@ from barman.utils import (
     human_readable_timedelta,
     pretty_size,
 )
+from barman.utils import LooseVersion as Version
 from barman.wal_archiver import CloudWalArchiver, CloudWalStorageStrategy
 
 _logger = logging.getLogger(__name__)
@@ -1180,7 +1178,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         wal_dest=None,
         tablespaces=None,
         remote_command=None,
-        **kwargs
+        **kwargs,
     ):
         """
         Performs a recovery of a backup
@@ -1280,7 +1278,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 wal_dest=wal_dest,
                 tablespaces=tablespaces,
                 remote_command=remote_command,
-                **kwargs
+                **kwargs,
             )
 
         # Run the post_recovery_retry_script if present.

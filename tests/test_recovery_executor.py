@@ -107,7 +107,7 @@ class TestRecoveryExecutor(object):
             'include "without braces"'
         )
         recovery_config_file.write(
-            "archive_command = something\n" "data_directory = something"
+            "archive_command = something\ndata_directory = something"
         )
         recovery_info["temporary_configuration_files"].append(postgresql_conf.strpath)
         recovery_info["temporary_configuration_files"].append(
@@ -164,10 +164,10 @@ class TestRecoveryExecutor(object):
         postgresql_conf_local = datadir.join("postgresql.conf")
         postgresql_auto_local = datadir.join("postgresql.auto.conf")
         postgresql_conf_local.write(
-            "archive_command = something\n" "data_directory = something"
+            "archive_command = something\ndata_directory = something"
         )
         postgresql_auto_local.write(
-            "archive_command = something\n" "data_directory = something"
+            "archive_command = something\ndata_directory = something"
         )
         # Build a RecoveryExecutor object (using a mock as server and backup
         # manager.
@@ -2069,8 +2069,7 @@ class TestRecoveryExecutor(object):
 
         # THEN a warning is issued explaining that --partial-wal is ignored
         mock_warning.assert_any_call(
-            "The --partial-wal option was ignored as it only works "
-            "with --no-get-wal."
+            "The --partial-wal option was ignored as it only works with --no-get-wal."
         )
 
     @mock.patch("barman.output.warning")
@@ -2129,10 +2128,10 @@ class TestRecoveryExecutor(object):
         postgresql_conf_local = datadir.join("postgresql.conf")
         postgresql_auto_local = datadir.join("postgresql.auto.conf")
         postgresql_conf_local.write(
-            "archive_command = something\n" "data_directory = something"
+            "archive_command = something\ndata_directory = something"
         )
         postgresql_auto_local.write(
-            "archive_command = something\n" "data_directory = something"
+            "archive_command = something\ndata_directory = something"
         )
         shutil.copy2(postgresql_conf_local.strpath, dest.strpath)
         shutil.copy2(postgresql_auto_local.strpath, dest.strpath)
@@ -2703,9 +2702,9 @@ class TestSnapshotRecoveryExecutor(object):
             attached_volumes["disk0"].mount_point = "/opt/disk0"
             attached_volumes["disk0"].mount_options = "rw,noatime"
 
-        attached_volumes["disk0"].resolve_mounted_volume.side_effect = (
-            mock_resolve_mounted_volume
-        )
+        attached_volumes[
+            "disk0"
+        ].resolve_mounted_volume.side_effect = mock_resolve_mounted_volume
         mock_get_snapshot_interface.return_value.get_attached_volumes.return_value = (
             attached_volumes
         )
@@ -3141,9 +3140,9 @@ class TestSnapshotRecoveryExecutor(object):
             # If resolved_mount_info should raise an exception then just set it as the
             # side effect
             if isinstance(resolved_mount_info, Exception):
-                attached_volumes[disk].resolve_mounted_volume.side_effect = (
-                    resolved_mount_info
-                )
+                attached_volumes[
+                    disk
+                ].resolve_mounted_volume.side_effect = resolved_mount_info
             # Otherwise, create a partial which sets the mount point and options to the
             # values at the current index
             else:
@@ -4595,8 +4594,8 @@ class TestCombineOperation(object):
         # Also finish mocking the volatile backup info, as its object retunred should
         # have the is_checksum_consistent method mocked to return the parametrized
         # value of is_checksum_consistent
-        mock_create_volatile_backup_info.return_value.is_checksum_consistent = (
-            lambda: is_checksum_consistent
+        mock_create_volatile_backup_info.return_value.is_checksum_consistent = lambda: (
+            is_checksum_consistent
         )
 
         # GIVEN a CombineOperation instance
@@ -6177,8 +6176,8 @@ class TestDecompressOperation(object):
         """
         compressor = mock.Mock()
         compressor.file_extension = "tar.gz"
-        compressor.decompress.side_effect = (
-            lambda src, dst, exclude=None: f"decompressed {src} to {dst}"
+        compressor.decompress.side_effect = lambda src, dst, exclude=None: (
+            f"decompressed {src} to {dst}"
         )
         mock_gzip.return_value = compressor
         mock_gzip.name = "gzip"

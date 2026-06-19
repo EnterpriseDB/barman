@@ -228,8 +228,7 @@ def configure_logging(
         except (OSError, IOError):
             # fallback to standard error
             warn = (
-                "Failed opening the requested log file. "
-                "Using standard error instead."
+                "Failed opening the requested log file. Using standard error instead."
             )
     formatter = logging.Formatter(log_format)
     handler.setFormatter(formatter)

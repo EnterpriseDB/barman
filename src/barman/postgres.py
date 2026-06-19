@@ -638,7 +638,7 @@ class PostgreSQLConnection(PostgreSQL):
         """.format(
             start_fun_check=start_fun_check,
             stop_fun_check=stop_fun_check,
-            **self.name_map
+            **self.name_map,
         )
         try:
             cur = self._cursor()
@@ -1121,7 +1121,7 @@ class PostgreSQLConnection(PostgreSQL):
                 "ORDER BY 1"
             )
             # Extract the values from the containing single element tuples
-            included_files = [included_file for included_file, in cur.fetchall()]
+            included_files = [included_file for (included_file,) in cur.fetchall()]
             if len(included_files) > 0:
                 self.configuration_files["included_files"] = included_files
 
@@ -1429,8 +1429,9 @@ class PostgreSQLConnection(PostgreSQL):
             )
             # Collect the xlog file name after the switch
             cur.execute(
-                "SELECT {pg_walfile_name}("
-                "{pg_current_wal_insert_lsn}())".format(**self.name_map)
+                "SELECT {pg_walfile_name}({pg_current_wal_insert_lsn}())".format(
+                    **self.name_map
+                )
             )
             post_switch = cur.fetchone()[0]
 

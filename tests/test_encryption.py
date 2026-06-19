@@ -32,7 +32,6 @@ from barman.exceptions import CommandFailedException, EncryptionCommandException
 
 
 class TestEncryptionHelperFuncs:
-
     @mock.patch("barman.encryption.logging.getLogger")
     @mock.patch("barman.encryption.Command.get_output")
     @mock.patch("barman.encryption.Command.__init__")

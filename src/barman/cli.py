@@ -1189,8 +1189,7 @@ def restore(args):
 
     if backup_info.status not in BackupInfo.STATUS_COPY_DONE:
         output.error(
-            "Cannot restore from backup '%s' of server '%s': "
-            "backup status is not DONE",
+            "Cannot restore from backup '%s' of server '%s': backup status is not DONE",
             args.backup_id,
             server.config.name,
         )

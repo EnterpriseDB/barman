@@ -601,7 +601,6 @@ def _try_import_snappy():
 
 
 class SnappyCompressor(InternalCompressor):
-
     EXTENSION = ".snappy"
     MAGIC = b"\xff\x06\x00\x00sNaPpY"
 

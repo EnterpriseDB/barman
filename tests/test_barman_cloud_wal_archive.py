@@ -779,9 +779,9 @@ class TestWalUploader(object):
 
         # Verify all opened files were closed (fixes the wal_file leak)
         for f in opened_files:
-            assert (
-                f.closed
-            ), f"File {f.name} was not closed with compression={compression}"
+            assert f.closed, (
+                f"File {f.name} was not closed with compression={compression}"
+            )
 
         # Verify upload was called
         cloud_interface_mock.upload_fileobj.assert_called_once()

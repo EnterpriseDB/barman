@@ -561,8 +561,7 @@ class ConsoleOutputWriter(object):
             self.info("")
             self.info("WARNING: 'get-wal' is in the specified 'recovery_options'.")
             self.info(
-                "Before you start up the PostgreSQL server, please "
-                "review the %s file",
+                "Before you start up the PostgreSQL server, please review the %s file",
                 results["recovery_configuration_file"],
             )
             self.info(

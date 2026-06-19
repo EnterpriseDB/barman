@@ -393,7 +393,7 @@ class AzureCloudInterface(CloudInterface):
             overwrite=True,
             length=length,
             max_concurrency=self.max_concurrency,
-            **extra_args
+            **extra_args,
         )
 
     def check_object_existence(self, key):

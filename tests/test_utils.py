@@ -714,11 +714,7 @@ class TestHumanReadableDelta(object):
         Test output for a 1 day, 3 hour, 2 minutes timedelta.
         """
         td = timedelta(days=1, seconds=10920)
-        assert (
-            barman.utils.human_readable_timedelta(td) == "1 day, "
-            "3 hours, "
-            "2 minutes"
-        )
+        assert barman.utils.human_readable_timedelta(td) == "1 day, 3 hours, 2 minutes"
 
     def test_180_days_three_hour_4_mins(self):
         """
@@ -726,9 +722,7 @@ class TestHumanReadableDelta(object):
         """
         td = timedelta(days=180, seconds=11040)
         assert (
-            barman.utils.human_readable_timedelta(td) == "180 days, "
-            "3 hours, "
-            "4 minutes"
+            barman.utils.human_readable_timedelta(td) == "180 days, 3 hours, 4 minutes"
         )
 
     def test_seven_days(self):

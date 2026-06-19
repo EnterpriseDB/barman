@@ -3967,8 +3967,8 @@ class TestCloudBackupCatalog(object):
             "mt-backups/test-server/base/20210723T133818/",
             "mt-backups/test-server/base/20210723T154445/",
         ]
-        mock_cloud_interface.remote_open.side_effect = (
-            lambda x: self.get_backup_info_file_object()
+        mock_cloud_interface.remote_open.side_effect = lambda x: (
+            self.get_backup_info_file_object()
         )
         catalog = CloudBackupCatalog(mock_cloud_interface, "test-server")
         backups = catalog.get_backup_list()
@@ -6335,8 +6335,8 @@ class TestCloudWalDownloader:
         # Prepare mocks
         # Mock _remove_compression_suffix to remove compression suffixes
         # from the testing WAL paths
-        mock_remove_compression_suffix.side_effect = (
-            lambda x: x.replace(".snappy", "")
+        mock_remove_compression_suffix.side_effect = lambda x: (
+            x.replace(".snappy", "")
             .replace(".gz", "")
             .replace(".bz2", "")
             .replace(".zst", "")

@@ -168,7 +168,7 @@ def mock_backup_ext_info(
     analysis_time=None,
     number_of_workers=None,
     estimated_throughput=None,
-    **kwargs
+    **kwargs,
 ):
     # make a dictionary with all the arguments
     ext_info = dict(locals())

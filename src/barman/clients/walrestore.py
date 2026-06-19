@@ -371,8 +371,9 @@ def parse_arguments(args=None):
         "--spool-dir",
         default=DEFAULT_SPOOL_DIR,
         metavar="SPOOL_DIR",
-        help="Specifies spool directory for WAL files. Defaults to "
-        "'{0}'.".format(DEFAULT_SPOOL_DIR),
+        help="Specifies spool directory for WAL files. Defaults to '{0}'.".format(
+            DEFAULT_SPOOL_DIR
+        ),
     )
     parser.add_argument(
         "-P",

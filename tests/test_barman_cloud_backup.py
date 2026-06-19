@@ -387,7 +387,7 @@ class TestCloudBackup(object):
             endpoint_url=None,
             read_timeout=None,
             addressing_style=None,
-            **expected_cloud_interface_kwargs
+            **expected_cloud_interface_kwargs,
         )
 
     @pytest.mark.parametrize(
@@ -439,7 +439,7 @@ class TestCloudBackup(object):
             url="cloud_storage_url",
             jobs=1,
             tags=None,
-            **expected_cloud_interface_kwargs
+            **expected_cloud_interface_kwargs,
         )
 
     def test__validate_config(

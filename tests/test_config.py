@@ -441,7 +441,7 @@ class TestConfig(object):
         c = Config(fp)
         main = c.get_server("main")
         assert main.description == " Text with quotes "
-        assert main.ssh_command == 'ssh -c "arcfour" ' "-p 22 postgres@pg01.nowhere"
+        assert main.ssh_command == 'ssh -c "arcfour" -p 22 postgres@pg01.nowhere'
 
     def test_interpolation(self):
         """
@@ -993,9 +993,11 @@ class TestConfig(object):
 
         mock = mock_open(read_data="SOME_OTHER_MODEL")
 
-        with patch.object(c, "servers") as mock_servers, patch(
-            "builtins.open", mock
-        ), patch.object(c, "get_model", Mock(return_value=None)):
+        with (
+            patch.object(c, "servers") as mock_servers,
+            patch("builtins.open", mock),
+            patch.object(c, "get_model", Mock(return_value=None)),
+        ):
             mock_server = MagicMock()
             mock_servers.return_value = [mock_server]
 
@@ -1028,9 +1030,11 @@ class TestConfig(object):
 
         mock = mock_open(read_data="SOME_OTHER_MODEL")
 
-        with patch.object(c, "servers") as mock_servers, patch(
-            "builtins.open", mock
-        ), patch.object(c, "get_model", Mock(return_value=mock_model)):
+        with (
+            patch.object(c, "servers") as mock_servers,
+            patch("builtins.open", mock),
+            patch.object(c, "get_model", Mock(return_value=mock_model)),
+        ):
             mock_server = MagicMock()
             mock_servers.return_value = [mock_server]
 
@@ -1275,7 +1279,7 @@ class TestServerConfig(object):
         with patch("builtins.open", mock):
             server_config.apply_model(model_config, from_cli)
 
-        expected = "Model '%s' is already active for server '%s', " "skipping..." % (
+        expected = "Model '%s' is already active for server '%s', skipping..." % (
             "SOME_MODEL",
             server_config.name,
         )
@@ -2067,9 +2071,10 @@ class TestBaseConfig:
         an instance of the class.
         """
         bc = BaseConfig()
-        with patch.dict(bc.PARSERS, {"SOME_KEY": CsvOption}), patch.object(
-            CsvOption, "parse"
-        ) as mock:
+        with (
+            patch.dict(bc.PARSERS, {"SOME_KEY": CsvOption}),
+            patch.object(CsvOption, "parse") as mock,
+        ):
             result = bc.invoke_parser(
                 "SOME_KEY", "SOME_SOURCE", "SOME_VALUE", "SOME_NEW_VALUE"
             )
@@ -2087,9 +2092,10 @@ class TestBaseConfig:
         """
         bc = BaseConfig()
 
-        with patch.dict(bc.PARSERS, {"SOME_KEY": CsvOption}), patch.object(
-            CsvOption, "parse"
-        ) as mock:
+        with (
+            patch.dict(bc.PARSERS, {"SOME_KEY": CsvOption}),
+            patch.object(CsvOption, "parse") as mock,
+        ):
             mock.side_effect = ValueError("SOME_ERROR")
 
             result = bc.invoke_parser(

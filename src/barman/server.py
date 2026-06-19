@@ -1017,9 +1017,12 @@ class Server(RemoteStatusMixin):
         # the remote status information for the check
         streaming_conninfo, conninfo = self.config.get_wal_conninfo(check_strategy)
         if conninfo != self.config.conninfo:
-            with closing(StreamingConnection(streaming_conninfo)) as streaming, closing(
-                PostgreSQLConnection(conninfo, slot_name=self.config.slot_name)
-            ) as postgres:
+            with (
+                closing(StreamingConnection(streaming_conninfo)) as streaming,
+                closing(
+                    PostgreSQLConnection(conninfo, slot_name=self.config.slot_name)
+                ) as postgres,
+            ):
                 remote_status = postgres.get_remote_status()
                 remote_status.update(streaming.get_remote_status())
                 self._check_wal_streaming_preflight(check_strategy, remote_status)
@@ -1170,8 +1173,7 @@ class Server(RemoteStatusMixin):
                 self.config.name,
                 False,
                 hint=(
-                    "primary_conninfo should point to a primary server, "
-                    "not a standby"
+                    "primary_conninfo should point to a primary server, not a standby"
                 ),
             )
 
@@ -3385,8 +3387,7 @@ class Server(RemoteStatusMixin):
                 # Final verification of checksum presence for each file
                 if not validated_files[item.name]:
                     output.error(
-                        "Missing checksum for file '%s' "
-                        "in put-wal for server '%s'%s",
+                        "Missing checksum for file '%s' in put-wal for server '%s'%s",
                         item.name,
                         self.config.name,
                         source_suffix,
@@ -5138,8 +5139,7 @@ class Server(RemoteStatusMixin):
                         item_class=RsyncCopyController.PGDATA_CLASS,
                     )
                     _logger.info(
-                        "Synchronising with server %s backup %s: step 2/3: "
-                        "file copy",
+                        "Synchronising with server %s backup %s: step 2/3: file copy",
                         self.config.name,
                         backup_name,
                     )

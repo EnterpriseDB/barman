@@ -20,7 +20,6 @@ import json
 from datetime import datetime, timedelta
 
 import dateutil
-import dateutil.tz
 import mock
 import pytest
 from dateutil import tz
@@ -95,7 +94,6 @@ EXPECTED_MINIMAL = {
             "compression": None,
             "encryption": None,
             "name": "000000010000000000000002",
-            "encryption": None,
         },
         {
             "time": 1406019026.0,
@@ -103,7 +101,6 @@ EXPECTED_MINIMAL = {
             "compression": None,
             "encryption": None,
             "name": "000000010000000000000003",
-            "encryption": None,
         },
         {
             "time": 1406019329.9300001,
@@ -111,7 +108,6 @@ EXPECTED_MINIMAL = {
             "compression": None,
             "encryption": None,
             "name": "000000010000000000000004",
-            "encryption": None,
         },
         {
             "time": 1406019330.84,
@@ -119,7 +115,6 @@ EXPECTED_MINIMAL = {
             "compression": None,
             "encryption": None,
             "name": "000000010000000000000005",
-            "encryption": None,
         },
     ],
     "version": barman.__version__,

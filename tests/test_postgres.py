@@ -1984,10 +1984,7 @@ class TestStreamingConnection(object):
         server = build_real_server(
             main_conf={
                 "streaming_archiver": True,
-                "streaming_conninfo": "host=/test "
-                "port=5496 "
-                "user=test "
-                "dbname=test_db",
+                "streaming_conninfo": "host=/test port=5496 user=test dbname=test_db",
             }
         )
         assert server.streaming.conn_parameters["dbname"] == "replication"

@@ -333,8 +333,7 @@ def parse_arguments(args=None):
     parser.add_argument(
         "-h",
         "--host",
-        help="host or Unix socket for PostgreSQL connection "
-        "(default: libpq settings)",
+        help="host or Unix socket for PostgreSQL connection (default: libpq settings)",
     )
     parser.add_argument(
         "-p",

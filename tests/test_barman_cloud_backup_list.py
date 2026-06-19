@@ -61,8 +61,8 @@ class TestCloudBackupList(object):
                 begin_wal="000000010000000000000008",
             ),
         }
-        cloud_backup_catalog.get_keep_target.side_effect = (
-            lambda backup_id: backup_id == "backup_id_4"
+        cloud_backup_catalog.get_keep_target.side_effect = lambda backup_id: (
+            backup_id == "backup_id_4"
             and KeepManager.TARGET_FULL
             or backup_id == "backup_id_1"
             and KeepManager.TARGET_STANDALONE
