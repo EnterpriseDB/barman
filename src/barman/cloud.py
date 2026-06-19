@@ -416,6 +416,8 @@ class CloudUploadController(object):
             components.append(".snappy")
         elif self.compression == "lz4":
             components.append(".lz4")
+        elif self.compression == "zst":
+            components.append(".zst")
         return "".join(components)
 
     def _get_tar(self, name):
@@ -2429,6 +2431,8 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
                         info.compression = "snappy"
                     elif ext == "tar.lz4":
                         info.compression = "lz4"
+                    elif ext == "tar.zst":
+                        info.compression = "zstd"
                     else:
                         _logger.warning("Skipping unknown extension: %s", ext)
                         continue

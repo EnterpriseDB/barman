@@ -22,6 +22,7 @@ from abc import ABCMeta, abstractmethod
 from barman.compression import (
     _try_import_lz4,
     _try_import_snappy,
+    _try_import_zstd,
     get_internal_compressor,
 )
 from barman.utils import with_metaclass
@@ -166,14 +167,74 @@ class Lz4Compressor(ChunkedCompressor):
         return b""
 
 
+class ZstdCompressor(ChunkedCompressor):
+    """
+    A ChunkedCompressor implementation based on zstandard.
+
+    Uses zstandard's compressobj/decompressobj for streaming compression and
+    decompression. The compressor maintains state across add_chunk() calls and
+    requires flush() to be called at the end to finalize the compressed stream.
+    """
+
+    def __init__(self):
+        self.zstd = _try_import_zstd()
+        self._compressor = None
+        self._decompressor = None
+        self._flushed = False
+
+    def add_chunk(self, data):
+        """
+        Compresses the supplied data and returns the compressed bytes.
+
+        On the first call, this initializes the zstd compressor object.
+        Subsequent calls compress additional data within the same stream.
+
+        :param bytes data: The chunk of data to be compressed
+        :return: The compressed data
+        :rtype: bytes
+        """
+        if self._compressor is None:
+            self._compressor = self.zstd.ZstdCompressor().compressobj()
+        return self._compressor.compress(data)
+
+    def decompress(self, data):
+        """
+        Decompresses the supplied chunk of data and returns the uncompressed data.
+
+        The zstd decompressor handles streaming decompression automatically.
+
+        :param bytes data: The chunk of data to be decompressed
+        :return: The decompressed data
+        :rtype: bytes
+        """
+        if self._decompressor is None:
+            self._decompressor = self.zstd.ZstdDecompressor().decompressobj()
+        return self._decompressor.decompress(data)
+
+    def flush(self):
+        """
+        Flushes any remaining data and finalizes the compressed stream.
+
+        This must be called after all data has been compressed to ensure the
+        zstd stream is properly terminated. Subsequent calls return empty bytes.
+
+        :return: Any remaining compressed data
+        :rtype: bytes
+        """
+        if self._compressor is not None and not self._flushed:
+            self._flushed = True
+            return self._compressor.flush()
+        return b""
+
+
 def get_compressor(compression):
     """
     Helper function which returns a ChunkedCompressor for the specified compression
-    algorithm. Snappy and lz4 are supported. The other compression algorithms
+    algorithm. Snappy, lz4 and zstd are supported. The other compression algorithms
     supported by barman cloud use the decompression built into TarFile.
 
     :param str compression: The compression algorithm to use. Can be set to snappy,
-      lz4, or any compression supported by the TarFile mode string.
+      lz4, zst, or any compression supported by the TarFile mode string.
     :return: A ChunkedCompressor capable of compressing and decompressing using the
       specified compression.
     :rtype: ChunkedCompressor
@@ -182,6 +243,8 @@ def get_compressor(compression):
         return SnappyCompressor()
     if compression == "lz4":
         return Lz4Compressor()
+    if compression == "zst":
+        return ZstdCompressor()
     return None
 
 
@@ -194,12 +257,12 @@ def get_streaming_tar_mode(mode, compression):
 
     :param str mode: The file mode to use, either r or w.
     :param str compression: The compression algorithm to use. Can be set to snappy,
-      lz4, or any compression supported by the TarFile mode string.
+      lz4, zst, or any compression supported by the TarFile mode string.
     :return: The full filemode for a streaming tar file
     :rtype: str
     """
     # Compression algorithms that require manual handling (not built into TarFile)
-    if compression in ("snappy", "lz4") or compression is None:
+    if compression in ("snappy", "lz4", "zst") or compression is None:
         return "%s|" % mode
     else:
         return "%s|%s" % (mode, compression)
