@@ -26,6 +26,7 @@ from barman.clients.cloud_compression import (
     ChunkedCompressor,
     Lz4Compressor,
     SnappyCompressor,
+    ZstdCompressor,
     get_compressor,
     get_streaming_tar_mode,
 )
@@ -43,6 +44,11 @@ class TestGetCompressor:
         """Verify get_compressor returns Lz4Compressor for 'lz4'."""
         compressor = get_compressor("lz4")
         assert isinstance(compressor, Lz4Compressor)
+
+    def test_returns_zstd_compressor_for_zstd(self):
+        """Verify get_compressor returns ZstdCompressor for 'zst'."""
+        compressor = get_compressor("zst")
+        assert isinstance(compressor, ZstdCompressor)
 
     def test_returns_none_for_gzip(self):
         """Verify get_compressor returns None for TarFile-native compression."""
@@ -72,6 +78,8 @@ class TestGetStreamingTarMode:
             ("r", "snappy", "r|"),
             ("w", "lz4", "w|"),
             ("r", "lz4", "r|"),
+            ("w", "zst", "w|"),
+            ("r", "zst", "r|"),
             ("w", "gz", "w|gz"),
             ("r", "gz", "r|gz"),
             ("w", "bz2", "w|bz2"),
@@ -276,10 +284,176 @@ class TestSnappyCompressor:
         assert result == b""
 
 
+class TestZstdCompressor:
+    """Tests for the ZstdCompressor class."""
+
+    def test_inherits_from_chunked_compressor(self):
+        """Verify ZstdCompressor is a ChunkedCompressor."""
+        compressor = ZstdCompressor()
+        assert isinstance(compressor, ChunkedCompressor)
+
+    def test_compress_and_decompress_single_chunk(self):
+        """Verify round-trip compression/decompression of a single chunk."""
+        compressor = ZstdCompressor()
+        original_data = b"Hello, World! This is test data for zstd compression."
+
+        # WHEN compressing data
+        compressed = compressor.add_chunk(original_data)
+        compressed += compressor.flush()
+
+        # THEN decompressing should return the original data
+        decompressor = ZstdCompressor()
+        decompressed = decompressor.decompress(compressed)
+
+        assert decompressed == original_data
+
+    def test_compress_and_decompress_multiple_chunks(self):
+        """Verify round-trip compression/decompression of multiple chunks."""
+        compressor = ZstdCompressor()
+        chunks = [
+            b"First chunk of data. " * 100,
+            b"Second chunk of data. " * 100,
+            b"Third chunk of data. " * 100,
+        ]
+
+        # WHEN compressing all chunks
+        compressed_data = b""
+        for chunk in chunks:
+            compressed_data += compressor.add_chunk(chunk)
+        compressed_data += compressor.flush()
+
+        # THEN decompressing should return concatenated original chunks
+        decompressor = ZstdCompressor()
+        decompressed = decompressor.decompress(compressed_data)
+
+        assert decompressed == b"".join(chunks)
+
+    def test_flush_returns_bytes(self):
+        """Verify flush returns bytes object."""
+        compressor = ZstdCompressor()
+        compressor.add_chunk(b"test data")
+        result = compressor.flush()
+        assert isinstance(result, bytes)
+
+    def test_flush_without_compression_returns_empty_bytes(self):
+        """Verify flush returns empty bytes if no compression was done."""
+        compressor = ZstdCompressor()
+        result = compressor.flush()
+        assert result == b""
+
+    def test_streaming_decompression(self):
+        """Verify decompression works when data arrives in small chunks."""
+        compressor = ZstdCompressor()
+        original_data = b"Test data for streaming decompression. " * 50
+
+        # GIVEN compressed data
+        compressed = compressor.add_chunk(original_data)
+        compressed += compressor.flush()
+
+        # WHEN decompressing in small chunks (simulating streaming)
+        decompressor = ZstdCompressor()
+        decompressed = b""
+        chunk_size = 64
+        for i in range(0, len(compressed), chunk_size):
+            chunk = compressed[i : i + chunk_size]
+            decompressed += decompressor.decompress(chunk)
+
+        # THEN the decompressed data should match original
+        assert decompressed == original_data
+
+    def test_compression_ratio(self):
+        """Verify zstd actually compresses repetitive data."""
+        compressor = ZstdCompressor()
+        # GIVEN highly repetitive data
+        original_data = b"AAAA" * 10000
+
+        # WHEN compressing
+        compressed = compressor.add_chunk(original_data)
+        compressed += compressor.flush()
+
+        # THEN compressed data should be smaller than original
+        assert len(compressed) < len(original_data)
+
+    def test_large_data_compression(self):
+        """Verify zstd handles large data (simulating 10MB+ backup chunks)."""
+        compressor = ZstdCompressor()
+        # GIVEN 5MB of data
+        original_data = (
+            b"PostgreSQL backup data block %d. " % i for i in range(150000)
+        )
+        original_data = b"".join(original_data)
+
+        # WHEN compressing in multiple chunks (simulating CloudTarUploader behavior)
+        chunk_size = 1024 * 1024  # 1MB chunks
+        compressed_data = b""
+        for i in range(0, len(original_data), chunk_size):
+            chunk = original_data[i : i + chunk_size]
+            compressed_data += compressor.add_chunk(chunk)
+        compressed_data += compressor.flush()
+
+        # THEN decompressing should return the original data
+        decompressor = ZstdCompressor()
+        decompressed = decompressor.decompress(compressed_data)
+
+        assert decompressed == original_data
+
+    def test_empty_chunk_handling(self):
+        """Verify zstd handles empty chunks correctly."""
+        compressor = ZstdCompressor()
+
+        # GIVEN data with empty chunks interspersed
+        compressed = compressor.add_chunk(b"some data")
+        compressed += compressor.add_chunk(b"")
+        compressed += compressor.add_chunk(b" more data")
+        compressed += compressor.flush()
+
+        # WHEN decompressing
+        decompressor = ZstdCompressor()
+        decompressed = decompressor.decompress(compressed)
+
+        # THEN empty chunks should be handled gracefully
+        assert decompressed == b"some data more data"
+
+    def test_flush_called_multiple_times(self):
+        """Verify flush can be called multiple times safely."""
+        compressor = ZstdCompressor()
+        compressor.add_chunk(b"test data")
+
+        # WHEN calling flush multiple times
+        result1 = compressor.flush()
+        result2 = compressor.flush()
+
+        # THEN first flush should return bytes, subsequent should return empty
+        assert isinstance(result1, bytes)
+        assert result2 == b""
+
+    def test_decompressor_reuse(self):
+        """Verify separate decompressors can decompress separate frames."""
+        # GIVEN two separately compressed pieces of data
+        compressor1 = ZstdCompressor()
+        data1 = b"First piece of data"
+        compressed1 = compressor1.add_chunk(data1) + compressor1.flush()
+
+        compressor2 = ZstdCompressor()
+        data2 = b"Second piece of data"
+        compressed2 = compressor2.add_chunk(data2) + compressor2.flush()
+
+        # WHEN decompressing with separate decompressors
+        decompressor1 = ZstdCompressor()
+        decompressed1 = decompressor1.decompress(compressed1)
+
+        decompressor2 = ZstdCompressor()
+        decompressed2 = decompressor2.decompress(compressed2)
+
+        # THEN each should correctly decompress its data
+        assert decompressed1 == data1
+        assert decompressed2 == data2
+
+
 class TestChunkedCompressorInterface:
     """Tests for the ChunkedCompressor abstract interface."""
 
-    @pytest.mark.parametrize("compression", ["snappy", "lz4"])
+    @pytest.mark.parametrize("compression", ["snappy", "lz4", "zst"])
     def test_compressor_has_required_methods(self, compression):
         """Verify all compressors implement required interface methods."""
         compressor = get_compressor(compression)
@@ -290,7 +464,7 @@ class TestChunkedCompressorInterface:
         assert callable(compressor.decompress)
         assert callable(compressor.flush)
 
-    @pytest.mark.parametrize("compression", ["snappy", "lz4"])
+    @pytest.mark.parametrize("compression", ["snappy", "lz4", "zst"])
     def test_compressor_roundtrip(self, compression):
         """Verify all compressors can round-trip data correctly."""
         compressor = get_compressor(compression)
