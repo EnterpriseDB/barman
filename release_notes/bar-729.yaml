@@ -1,0 +1,12 @@
+---
+- summary: Add Zstd compression support for cloud backups
+  description: |
+    ``barman-cloud-backup`` now supports Zstd compression via the ``--zstd`` option.
+    Zstd offers a good balance between compression ratio and speed, making it
+    well-suited for cloud backup workloads.
+
+    Zstd compression requires the optional ``zstandard`` Python library to
+    be installed.
+  type: minor_change
+  jira_tickets:
+    - BAR-729
