@@ -48,9 +48,6 @@ jobs:
           # Full git history is needed to get a proper list of changed files within `super-linter`
           fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
-
       - name: Super-linter
         uses: super-linter/super-linter/slim@v8
         env:
@@ -65,9 +62,8 @@ jobs:
           DOCKERFILE_HADOLINT_FILE_NAME: .hadolint.yaml
           GITLEAKS_CONFIG_FILE: .gitleaks.toml
           MARKDOWN_CONFIG_FILE: .markdownlint.yml
-          PYTHON_BLACK_CONFIG_FILE: .python-black
-          PYTHON_FLAKE8_CONFIG_FILE: tox.ini
-          PYTHON_ISORT_CONFIG_FILE: .isort.cfg
+          PYTHON_RUFF_CONFIG_FILE: pyproject.toml
+          PYTHON_RUFF_FORMAT_CONFIG_FILE: pyproject.toml
           YAML_CONFIG_FILE: .yamllint.yml
           YAML_ERROR_ON_WARNING: false
           # On runs triggered by PRs we only lint the added/modified files.
@@ -84,9 +80,8 @@ jobs:
           VALIDATE_GITLEAKS: true
           # Validate all documentation files from the repo.
           VALIDATE_MARKDOWN: true
-          # Validate Python code.
-          VALIDATE_PYTHON_BLACK: true
-          VALIDATE_PYTHON_FLAKE8: true
-          VALIDATE_PYTHON_ISORT: true
           # Validate YAML files from workflows.
           VALIDATE_YAML: true
+          # Validate Python files with Ruff (linting and formatting).
+          VALIDATE_PYTHON_RUFF: true
+          VALIDATE_PYTHON_RUFF_FORMAT: true

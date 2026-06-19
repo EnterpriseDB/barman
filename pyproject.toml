@@ -115,8 +115,38 @@ docs = [
   "pydata-sphinx-theme",
   "myst-parser",
 ]
+lint = ["ruff"]
 dev = [
   "tox",
   {include-group = "test"},
   {include-group = "docs"},
+  {include-group = "lint"},
 ]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+# preview is required for CPY001 (copyright notice check), which is a
+# direct replacement for flake8-copyright. Scoped to lint only so that
+# ruff format is not affected.
+preview = true
+select = [
+  "CPY001", # missing copyright notice (replaces flake8-copyright)
+  "E",      # pycodestyle errors
+  "F",      # pyflakes
+  "I",      # isort (replaces flake8-isort)
+  "W",      # pycodestyle warnings
+]
+# E501 (line too long) is enforced by ruff format; ignoring here preserves
+# the same behaviour as the previous flake8 config (ignore = E501).
+# E203 and W503 were also ignored previously but do not exist in ruff.
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+# Ruff's isort defaults match isort's "black" profile (multi_line_output = 3,
+# use_parentheses = True, force_grid_wrap = 0) when line-length = 88, which
+# preserves the behaviour previously configured in .isort.cfg.
+
+[tool.ruff.lint.flake8-copyright]
+notice-rgx = "© Copyright EnterpriseDB UK Limited \\d{4}-2026"

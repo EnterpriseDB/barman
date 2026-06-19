@@ -1,8 +1,0 @@
-flake8==4.0.1
-flake8-mock
-flake8-string-format
-flake8-copyright
-flake8-isort
-# Keep the next line until a fix for the following issue is released
-# https://github.com/gforcada/flake8-isort/issues/88
-isort<5
