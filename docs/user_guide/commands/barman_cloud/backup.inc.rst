@@ -13,7 +13,7 @@
                   [ { { -v | --verbose } | { -q | --quiet } } ]
                   [ { -t | --test } ]
                   [ --cloud-provider { aws-s3 | azure-blob-storage | google-cloud-storage } ]
-                  [ { { -z | --gzip } | { -j | --bzip2 } | --snappy | --lz4 } ]
+                  [ { { -z | --gzip } | { -j | --bzip2 } | --snappy | --lz4 | --zstd } ]
                   [ { -h | --host } HOST ]
                   [ { -p | --port } PORT ]
                   [ { -U | --user } USER ]
@@ -123,6 +123,10 @@ uploaded to the cloud.
 ``--lz4``
   lz4-compress the backup while uploading to the cloud (requires optional
   ``lz4`` Python library).
+
+``--zstd``
+  zstd-compress the backup while uploading to the cloud (requires optional
+  ``zstandard`` Python library).
 
 ``-h`` / ``--host``
   Host or Unix socket for Postgres connection (default: libpq settings).
