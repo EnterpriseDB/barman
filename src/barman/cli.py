@@ -923,6 +923,12 @@ def rebuild_xlogdb(args):
             default=False,
         ),
         argument(
+            "--skip-archive-wal",
+            help="Do not archive staged WALs before the restore",
+            default=False,
+            action="store_true",
+        ),
+        argument(
             "--network-compression",
             help="Enable network compression during remote recovery.",
             dest="network_compression",
@@ -1458,6 +1464,7 @@ def restore(args):
                 recovery_option_port=args.recovery_option_port,
                 custom_restore_command=args.restore_command,
                 copy_partial=args.partial_wal,
+                skip_wal_archive=args.skip_archive_wal,
                 **snapshot_kwargs,
             )
         except RecoveryException as exc:

@@ -2899,6 +2899,7 @@ class Server(RemoteStatusMixin):
             when invoking ``barman-wal-restore``
         :kwparam str|None custom_restore_command: Custom restore command
             to override Barman's default (only used with get-wal mode)
+        :kwparam bool skip_archive_wal: whether to skip WAL archive before the restore
         """
         return self.backup_manager.recover(
             backup_info, dest, wal_dest, tablespaces, remote_command, **kwargs

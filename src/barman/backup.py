@@ -1210,12 +1210,13 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             when invoking ``barman-wal-restore``
         :kwparam str|None custom_restore_command: Custom restore command
             to override Barman's default (only used with get-wal mode)
+        :kwparam bool skip_archive_wal: whether to skip WAL archive before the restore
         """
+        if not kwargs.pop("skip_archive_wal", False):
+            # Archive every WAL files in the incoming directory of the server
+            self.server.archive_wal(verbose=False)
 
-        # Archive every WAL files in the incoming directory of the server
-        self.server.archive_wal(verbose=False)
         # Delegate the recovery operation to a RecoveryExecutor object
-
         command = unix_command_factory(remote_command, self.server.path)
 
         delta_restore = RecoveryOptions.DELTA_RESTORE in self.config.recovery_options
