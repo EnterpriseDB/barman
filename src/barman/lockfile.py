@@ -201,6 +201,9 @@ class LockFile(object):
                 # reading the previous locker PID
                 with open(self.filename, "r") as file_object:
                     return int(file_object.readline().strip())
+            except FileNotFoundError:
+                # The lock file might have been removed after the acquire attempt
+                return None
             except ValueError as e:
                 # This should not happen
                 raise LockFileParsingError(e)

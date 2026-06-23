@@ -235,6 +235,29 @@ class TestLockFileBehavior(object):
         # Pid should contain the current pid
         assert pid == os.getpid()
 
+    def test_owner_pid_lock_file_deleted_during_race(self, fcntl_mock, tmpdir):
+        """
+        Test that get_owner_pid handles a race condition where the lock file
+        is deleted between the acquire attempt and reading the owner PID.
+
+        This can happen when barman cron cleanup deletes a lock file while
+        a background process (e.g. archive-wal) tries to check its owner.
+        """
+        # GIVEN a lock file path
+        lock_file_path = tmpdir.join("test_lock_file1")
+
+        # AND a lock file that appears busy
+        _prepare_fcntl_mock(fcntl_mock, OSError(errno.EAGAIN, "", ""))
+        lock_file = LockFile(lock_file_path.strpath, raise_if_fail=False, wait=False)
+
+        # WHEN we try to get the owner PID but the file is deleted before we can
+        # read it (simulating race condition with lock cleanup)
+        with patch("builtins.open", side_effect=FileNotFoundError):
+            result = lock_file.get_owner_pid()
+
+        # THEN get_owner_pid returns None (no owner) instead of raising
+        assert result is None
+
 
 # noinspection PyMethodMayBeStatic
 @pytest.mark.timeout(1)
