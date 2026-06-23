@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# © Copyright EnterpriseDB UK Limited 2019-2025
+# © Copyright EnterpriseDB UK Limited 2019-2026
 #
 # This file is part of Barman.
 #

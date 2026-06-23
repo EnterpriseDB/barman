@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# © Copyright EnterpriseDB UK Limited 2013-2025
+# © Copyright EnterpriseDB UK Limited 2013-2026
 #
 # Client Utilities for Barman, Backup and Recovery Manager for PostgreSQL
 #
