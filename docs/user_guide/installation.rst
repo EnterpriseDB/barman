@@ -47,7 +47,7 @@ The minimal system requirements needed to run a Barman server are the following:
 
 * Linux operating system (Debian, Ubuntu, RHEL, Rocky, Fedora, etc.) or UNIX-like
   operating system (FreeBSD, OpenBSD, etc.)
-* Python version from 3.8 to 3.14
+* Python 3.12 to 3.14
 * Python modules:
 
   * ``psycopg2`` >= 2.4.2: Required to connect to the Postgres server
@@ -64,6 +64,10 @@ The minimal system requirements needed to run a Barman server are the following:
    Support for versions 3.6 and 3.7 of Python has been deprecated. It is known that
    Barman 3.14 does not work with Python 3.6. It may work with Python 3.7, but it's not
    being tested, nor supported for versions of Python prior to 3.8.
+
+.. deprecated:: 3.20
+   Support for versions 3.8 to 3.11 of Python has been deprecated. Barman 3.20
+   requires Python 3.12 or later.
 
 .. note::
    Users of RedHat Enterprise Linux, RockyLinux and AlmaLinux are required to install

@@ -7,10 +7,10 @@ directory.
 There is an automation through tox to build the docs, which takes care of
 installing all the required Python modules.
 
-From the root directory, install the dependencies of tox:
+From the root directory, install development dependencies (which include tox):
 
 ```bash
-pip install -r requirements-tox.txt
+uv sync --group dev
 ```
 
 Then, to generate the docs you can just use the tox environment `docs`:
