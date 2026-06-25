@@ -34,6 +34,7 @@ Synopsis
         [ --retry-times NUMBER ]
         [ --snapshot-recovery-instance INSTANCE_NAME ]
         [ --snapshot-recovery-zone GCP_ZONE ]
+        [ --skip-archive-wal ]
         [ --standby-mode ]
         [ --tablespace NAME:LOCATION [ --tablespace NAME:LOCATION ... ] ]
         [ --target-action { pause | shutdown | promote } ]
@@ -278,6 +279,12 @@ Parameters
     Recover to the specified transaction ID.
 
 .. _commands-barman-restore-staging-wal-directory:
+
+``--skip-archive-wal``
+    Skip archiving staged WAL files before starting the restore. By default, ``barman
+    restore`` archives any WAL files in the server's ``incoming``/ ``streaming``
+    directory before restoring to reduce RPO in DR scenarios. Use this option when you
+    want to skip this step.
 
 ``--staging-wal-directory``
     A staging directory on the destination host for WAL files when performing PITR. If
