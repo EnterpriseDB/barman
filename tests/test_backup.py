@@ -2006,6 +2006,84 @@ class TestBackup(object):
             any_order=True,
         )
 
+    @mock.patch("barman.backup.recovery_executor_factory")
+    @mock.patch("barman.backup.unix_command_factory")
+    def test_recover_calls_archive_wal_by_default(
+        self, remote_cmd_mock, rec_exec_fac_mock, tmpdir
+    ):
+        """
+        Test that recover() calls archive_wal() by default before restoring.
+        """
+        # GIVEN a backup manager and a backup
+        command = remote_cmd_mock.return_value
+        backup_manager = build_backup_manager(
+            main_conf={"backup_options": "concurrent_backup"}
+        )
+        destination = tmpdir.mkdir("data").strpath
+        command.list_dir_content.return_value = None
+        backup_info = build_test_backup_info()
+
+        executor = mock.Mock()
+        rec_exec_fac_mock.return_value = executor
+        executor.recover.return_value = {
+            "configuration_files": ["postgresql.conf", "postgresql.auto.conf"],
+            "tempdir": tmpdir.strpath,
+            "results": {
+                "changes": [],
+                "warnings": [],
+                "missing_files": [],
+                "get_wal": False,
+                "recovery_start_time": datetime.now(dateutil.tz.tzlocal()),
+            },
+            "target_datetime": "2015-06-03 16:11:03.71038+02",
+            "wal_dest": "/wherever",
+        }
+
+        # WHEN recover is called without skip_archive_wal
+        backup_manager.recover(backup_info, destination)
+
+        # THEN archive_wal is called
+        backup_manager.server.archive_wal.assert_called_once_with(verbose=False)
+
+    @mock.patch("barman.backup.recovery_executor_factory")
+    @mock.patch("barman.backup.unix_command_factory")
+    def test_recover_skips_archive_wal_when_flag_set(
+        self, remote_cmd_mock, rec_exec_fac_mock, tmpdir
+    ):
+        """
+        Test that recover() skips archive_wal() when skip_archive_wal=True.
+        """
+        # GIVEN a backup manager and a backup
+        command = remote_cmd_mock.return_value
+        backup_manager = build_backup_manager(
+            main_conf={"backup_options": "concurrent_backup"}
+        )
+        destination = tmpdir.mkdir("data").strpath
+        command.list_dir_content.return_value = None
+        backup_info = build_test_backup_info()
+
+        executor = mock.Mock()
+        rec_exec_fac_mock.return_value = executor
+        executor.recover.return_value = {
+            "configuration_files": ["postgresql.conf", "postgresql.auto.conf"],
+            "tempdir": tmpdir.strpath,
+            "results": {
+                "changes": [],
+                "warnings": [],
+                "missing_files": [],
+                "get_wal": False,
+                "recovery_start_time": datetime.now(dateutil.tz.tzlocal()),
+            },
+            "target_datetime": "2015-06-03 16:11:03.71038+02",
+            "wal_dest": "/wherever",
+        }
+
+        # WHEN recover is called with skip_archive_wal=True
+        backup_manager.recover(backup_info, destination, skip_archive_wal=True)
+
+        # THEN archive_wal is NOT called
+        backup_manager.server.archive_wal.assert_not_called()
+
     @mock.patch("barman.backup.unix_command_factory")
     def test_recover_check_pgdata_directory_is_empty(
         self, remote_cmd_mock, tmpdir, caplog
