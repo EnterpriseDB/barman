@@ -9,29 +9,21 @@ on:
 
 jobs:
   unit-tests:
-    name: "Python ${{ matrix.python-version }} ${{ matrix.tox-env }}"
+    name: "Python ${{ matrix.python-version }}"
     runs-on: ubuntu-22.04
     strategy:
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
-        tox-env: [""]
 
     steps:
       - name: Step 1 - Checkout repository
         uses: actions/checkout@v6
-      - name: Step 2 - Install python
-        uses: actions/setup-python@v6
+      - name: Step 2 - Install uv and Python ${{ matrix.python-version }}
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: "${{ matrix.python-version }}"
-      - name: Step 3 - Do some caching for python packages
-        uses: actions/cache@v5
-        id: cache-python-packages
-        with:
-          path: ${{ env.pythonLocation }}
-          key: ${{matrix.python-version}}-${{ hashFiles('uv.lock') }}-${{ env.pythonLocation }}
-          restore-keys: |
-            ${{matrix.python-version}}-${{ hashFiles('uv.lock') }}-
-      - name: Step 3.5 - Install system deps for extras
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+      - name: Step 3 - Install system deps for extras
         run: |
           sudo apt update && sudo apt-get install libsnappy-dev
 
@@ -39,17 +31,5 @@ jobs:
           # Ubuntu 22.04 runner is referencing libffi.so.7, which is not
           # available. This is a workaround to install the libffi7 package.
           sudo apt-get install libffi7
-      - name: Step 4 - Install dependencies to run tox
-        if: steps.cache-python-packages.outputs.cache-hit != 'true'
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install tox tox-gh-actions
-
-      - name: Step 5 - Run tox targets for ${{ matrix.python-version }} ${{matrix.tox-env}}
-        run: |
-          if [[ -z "${{ matrix.tox-env }}" ]]
-          then
-            python -m tox
-          else
-            python -m tox -e ${{ matrix.tox-env }}
-          fi
+      - name: Step 4 - Run tests
+        run: uv run --locked --all-extras pytest tests/

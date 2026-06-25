@@ -1,10 +1,8 @@
 # This Dockerfile resides in this path because it is the source docker image to build the
 # documentation via github actions. There is no other use for it.
 
-# Use Debian as the base image
-# debian:trixie ships Python 3.12, which is required by barman (requires-python
-# = ">=3.12"). debian:bookworm (previously used via debian:latest) ships Python
-# 3.11 and is incompatible.
+# Use Debian as the base image. uv manages the Python version as determined
+# by requires-python in pyproject.toml, independently of the system.
 FROM debian:trixie
 
 # Switch to the root user
@@ -16,12 +14,6 @@ RUN set -x \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y -o Acquire::Retries=10 --no-install-recommends \
   build-essential \
   libpq-dev \
-  python3 \
-  python3-dev \
-  python3-venv \
-  python3-pip \
-  python3-setuptools \
-  python3-sphinx \
   latexmk \
   tex-common \
   tex-gyre \
@@ -37,14 +29,14 @@ RUN set -x \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Set sphinx version
+# Install uv to manage Python dependencies and run the docs build.
+# Pinned to a specific version for reproducibility; update deliberately.
+COPY --from=ghcr.io/astral-sh/uv:0.11.19 /uv /uvx /bin/
 
-# Create virtual env to install python dependencies
-RUN python3 -m venv /opt/venv
+# Install Python into the image at build time so the docs build does not
+# download it at runtime. The version matches requires-python in pyproject.toml.
+RUN uv python install 3.12
 
-# Add virtual env bin path to PATH
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Install Sphinx and any additional Python dependencies
-RUN pip3 install --upgrade pip \
-  && pip3 install tox
+# Place the docs-build virtual environment inside the container rather than
+# in the mounted project directory, so the host's .venv is not overwritten.
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv

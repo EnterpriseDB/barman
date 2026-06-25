@@ -107,7 +107,7 @@ source-include = [
 # These are intentionally separate from [project.optional-dependencies], which
 # are user-facing extras installable via `pip install barman[extra]`.
 [dependency-groups]
-test = ["pytest", "mock"]
+test = ["pytest", "mock", "pytest-cov"]
 docs = [
   "sphinx",
   "sphinx-github-style",
@@ -117,7 +117,6 @@ docs = [
 ]
 lint = ["ruff"]
 dev = [
-  "tox",
   {include-group = "test"},
   {include-group = "docs"},
   {include-group = "lint"},
