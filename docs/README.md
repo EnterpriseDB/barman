@@ -4,33 +4,27 @@ The user documentation and the man pages for Barman are built using Sphinx.
 All the docs content and the configuration for Sphinx are found inside the `docs`
 directory.
 
-There is an automation through tox to build the docs, which takes care of
-installing all the required Python modules.
+The docs are built using Sphinx via `uv`, which manages the Python environment
+and installs all required dependencies automatically.
 
-From the root directory, install development dependencies (which include tox):
-
-```bash
-uv sync --group dev
-```
-
-Then, to generate the docs you can just use the tox environment `docs`:
+From the root directory, generate the docs:
 
 * For HTML docs:
 
 ```bash
-tox -e docs -- html
+uv run --locked --all-extras --no-dev --group docs make -C docs html
 ```
 
 * For man pages:
 
 ```bash
-tox -e docs -- man
+uv run --locked --all-extras --no-dev --group docs make -C docs man
 ```
 
 * For PDF docs:
 
 ```bash
-tox -e docs -- latexpdf
+uv run --locked --all-extras --no-dev --group docs make -C docs latexpdf
 ```
 
 Once the build finishes, you can read the built documentation:

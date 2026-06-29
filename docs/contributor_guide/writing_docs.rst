@@ -5,7 +5,7 @@ Writing and building documentation
 
 The documentation is written using `reStructuredText language <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
 and is built with `sphinx-build <https://www.sphinx-doc.org/en/master/man/sphinx-build.html>`_
-through a tox environment.
+via ``uv``.
 
 Style guide
 -----------
@@ -377,7 +377,8 @@ You can build the documentation in three different formats:
 * PDF: Same as HTML, excluding the section :ref:`contributor_guide`.
 * Linux man page: contains only the sections :ref:`configuration` and :ref:`commands`.
 
-The documentation is built through a tox environment named docs.
+The documentation is built via ``uv``, which manages the Python environment
+and installs all required dependencies automatically.
 
 HTML documentation
 ^^^^^^^^^^^^^^^^^^
@@ -386,7 +387,7 @@ To build the HTML documentation, run:
 
 .. code-block:: bash
 
-    tox -e docs -- html
+    uv run --locked --all-extras --no-dev --group docs make -C docs html
 
 To view the HTML documentation, open the file ``docs/_build/html/index.html`` using
 your web browser.
@@ -398,7 +399,7 @@ To build the PDF documentation, run:
 
 .. code-block:: bash
 
-    tox -e docs -- latexpdf
+    uv run --locked --all-extras --no-dev --group docs make -C docs latexpdf
 
 To view the PDF documentation, open the file ``docs/_build/latex/Barman.pdf``
 using your PDF reader.
@@ -410,7 +411,7 @@ To build the Linux man page, run:
 
 .. code-block:: bash
 
-    tox -e docs -- man
+    uv run --locked --all-extras --no-dev --group docs make -C docs man
 
 To view the Linux man page, run:
 
