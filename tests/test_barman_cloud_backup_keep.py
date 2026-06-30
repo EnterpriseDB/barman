@@ -93,10 +93,10 @@ class TestCloudBackupKeepArguments(object):
 
         _, err = capsys.readouterr()
 
-        # We need version dependent assertions because Python 3.12 and 3.13
-        # use `str` instead of `repr` on error message formatting, which causes
+        # We need version dependent assertions because version between Python 3.12 and
+        # 3.13.13 use `str` instead of `repr` on error message formatting, which causes
         # a different string output on the expected error message.
-        if sys.version_info < (3, 12) or sys.version_info >= (3, 14):
+        if sys.version_info < (3, 12) or sys.version_info > (3, 13, 13):
             assert (
                 "error: argument --target: invalid choice: 'unsupported_target' (choose from 'full', 'standalone')"
                 in err
