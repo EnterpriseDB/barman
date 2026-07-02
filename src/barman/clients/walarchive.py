@@ -68,9 +68,8 @@ def main(args=None):
         exit_with_error("Error executing ssh: %s" % exc)
         return  # never reached
 
-    # Wait for termination of every subprocess. If CTRL+C is pressed,
-    # terminate all of them
-    RemotePutWal.wait_for_all()
+    # Wait for termination of the SSH process. If CTRL+C is pressed, terminate it
+    ssh_process.wait()
 
     # If the command succeeded exit here
     if ssh_process.returncode == 0:
@@ -386,15 +385,10 @@ class ChecksumTarFile(tarfile.TarFile):
 
 class RemotePutWal(object):
     """
-    Spawn a process that sends a WAL to a remote Barman server.
+    Spawn an SSH process that sends a WAL to a remote Barman server.
 
     :param argparse.Namespace config: the configuration from command line
     :param wal_path: The name of WAL to upload
-    """
-
-    processes = set()
-    """
-    The list of processes that has been spawned by RemotePutWal
     """
 
     def __init__(self, config, wal_path):
@@ -406,9 +400,6 @@ class RemotePutWal(object):
         self.ssh_process = subprocess.Popen(
             build_ssh_command(config), stdin=subprocess.PIPE
         )
-
-        # Register the spawned processes in the class registry
-        self.processes.add(self.ssh_process)
 
         # Check if md5 flag was used.
         hash_settings = {True: ("md5", "MD5SUMS"), False: ("sha256", "SHA256SUMS")}
@@ -431,22 +422,14 @@ class RemotePutWal(object):
                 else:
                     tar.add(wal_path, filename)
 
-    @classmethod
-    def wait_for_all(cls):
+    def wait(self):
         """
-        Wait for the termination of all the registered spawned processes.
+        Wait for the termination of the SSH process.
         """
         try:
-            while cls.processes:
-                time.sleep(0.1)
-                for process in cls.processes.copy():
-                    if process.poll() is not None:
-                        cls.processes.remove(process)
+            return self.ssh_process.wait()
         except KeyboardInterrupt:
-            # If a SIGINT has been received, make sure that every subprocess
-            # terminate
-            for process in cls.processes:
-                process.kill()
+            self.ssh_process.kill()
             exit_with_error("SIGINT received! Terminating.")
 
     @property
@@ -456,9 +439,7 @@ class RemotePutWal(object):
 
         :return: exit code of the RemoteGetWal processes
         """
-        if self.ssh_process.returncode != 0:
-            return self.ssh_process.returncode
-        return 0
+        return self.ssh_process.returncode
 
 
 if __name__ == "__main__":
