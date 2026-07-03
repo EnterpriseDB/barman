@@ -2256,7 +2256,7 @@ def export_backup(args):
         skip_inactive=False,
         skip_disabled=False,
         inactive_is_error=False,
-        disabled_is_error=True,
+        disabled_is_error=False,
     )
 
     # Parse backup ID and validate backup exists
