@@ -26,13 +26,15 @@
 **Description**
 
 Verify that the WAL archive destination for a server is suitable for use with a new
-Postgres cluster. By default, the check will succeed if the WAL archive is empty or if
-the target bucket is not found. Any other conditions will result in a failure.
+Postgres cluster. By default, the check will succeed if the WAL archive is empty. If
+any WAL files are present in the archive, the check will fail, unless the ``--timeline``
+option is used and all existing WALs are from timelines earlier than the specified value.
 
 .. note::
   The ``barman-cloud-check-wal-archive`` command performs an initial ``HeadBucket`` call
   to verify whether the target bucket already exists in the S3 storage. If the bucket
-  does not exist, the command will attempt to automatically create it.
+  does not exist, the command will attempt to automatically create it before performing
+  the WAL archive check.
 
   This is the only Barman command that performs these operations (bucket existence check
   and automatic creation).
