@@ -311,7 +311,13 @@ def list_processes(args=None):
     """
     List all the active subprocesses started by the specified server.
     """
-    server = get_server(args)
+    server = get_server(
+        args,
+        skip_inactive=False,
+        inactive_is_error=False,
+        skip_disabled=False,
+        disabled_is_error=False,
+    )
     proc_manager = ProcessManager(server.config)
     processes = proc_manager.list()
     output.result("list_processes", processes, server.config.name)
@@ -328,7 +334,13 @@ def terminate_process(args):
     """
     Terminate a Barman server subprocess specified by task name.
     """
-    server = get_server(args)
+    server = get_server(
+        args,
+        skip_inactive=False,
+        inactive_is_error=False,
+        skip_disabled=False,
+        disabled_is_error=False,
+    )
     server.kill(args.task)
     output.close_and_exit()
 
@@ -1676,7 +1688,13 @@ def sync_info(args):
     Output the internal synchronisation status.
     Used to sync_backup with a passive node
     """
-    server = get_server(args)
+    server = get_server(
+        args,
+        skip_inactive=False,
+        inactive_is_error=False,
+        skip_disabled=False,
+        disabled_is_error=False,
+    )
     try:
         # if called with --primary option
         if getattr(args, "primary", False):
@@ -2142,7 +2160,13 @@ def check_backup(args):
     archived. This command is automatically invoked by the
     cron command and at the end of every backup operation.
     """
-    server = get_server(args)
+    server = get_server(
+        args,
+        skip_inactive=False,
+        inactive_is_error=False,
+        skip_disabled=False,
+        disabled_is_error=False,
+    )
 
     # Retrieves the backup
     backup_info = parse_backup_id(server, args)
@@ -2346,13 +2370,7 @@ def import_backup(args):
     Import a previously exported backup tarball into the Barman catalog.
     """
     # Get server
-    server = get_server(
-        args,
-        skip_inactive=False,
-        skip_disabled=False,
-        inactive_is_error=False,
-        disabled_is_error=True,
-    )
+    server = get_server(args, inactive_is_error=True)
 
     # Get tarball path from CLI
     input_tarball = args.input_tarball
@@ -2483,7 +2501,13 @@ def keep(args):
             "one of the arguments -r/--release -s/--status --target is required"
         )
         output.close_and_exit()
-    server = get_server(args)
+    server = get_server(
+        args,
+        skip_inactive=False,
+        inactive_is_error=False,
+        skip_disabled=False,
+        disabled_is_error=False,
+    )
     backup_info = parse_backup_id(server, args)
     backup_manager = server.backup_manager
     if args.status:
@@ -2535,7 +2559,13 @@ def check_wal_archive(args):
     If the --timeline option is used then any WALs on earlier timelines
     than that specified will not cause the check to fail.
     """
-    server = get_server(args)
+    server = get_server(
+        args,
+        skip_inactive=False,
+        inactive_is_error=False,
+        skip_disabled=False,
+        disabled_is_error=False,
+    )
     output.init("check_wal_archive", server.config.name)
 
     with server.xlogdb() as fxlogdb:
