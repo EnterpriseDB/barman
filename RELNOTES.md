@@ -17,7 +17,7 @@
   `00000001000000030000001A.00000028.backup.gz`, Barman would only locate the backup
   file and then write an error log like:
 
-  ```
+  ```text
   ERROR: WAL file 00000001000000030000001A for server pg does not exist
   ```
 
