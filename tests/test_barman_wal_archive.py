@@ -58,8 +58,25 @@ class TestMain(object):
         ["hash_algorithm", "SUMS_FILE", "flag"],
         [("sha256", "SHA256SUMS", ""), ("md5", "MD5SUMS", "--md5")],
     )
+    @mock.patch("barman.wal_archiver.ParallelWalArchiver._update_metadata")
+    @mock.patch("barman.wal_archiver.ParallelWalArchiver._get_wals_to_prefetch")
+    @mock.patch("barman.wal_archiver.ParallelWalArchiver._is_already_archived")
     @mock.patch("barman.clients.walarchive.subprocess.Popen")
-    def test_ok(self, popen_mock, hash_algorithm, SUMS_FILE, flag, tmpdir):
+    def test_ok(
+        self,
+        popen_mock,
+        mock_is_archived,
+        mock_get_prefetch,
+        mock_update_metadata,
+        hash_algorithm,
+        SUMS_FILE,
+        flag,
+        tmpdir,
+    ):
+        # Mock the parent class methods to bypass cache/prefetch logic
+        mock_is_archived.return_value = False
+        mock_get_prefetch.return_value = []
+
         # Prepare some content
         source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
         source.write("something", ensure=True)
@@ -112,8 +129,22 @@ class TestMain(object):
         assert second_content == "%s *000000080000ABFF000000C1\n" % source_hash
         assert tar.next() is None
 
+    @mock.patch("barman.wal_archiver.ParallelWalArchiver._update_metadata")
+    @mock.patch("barman.wal_archiver.ParallelWalArchiver._get_wals_to_prefetch")
+    @mock.patch("barman.wal_archiver.ParallelWalArchiver._is_already_archived")
     @mock.patch("barman.clients.walarchive.subprocess.Popen")
-    def test_ssh_port(self, popen_mock, tmpdir):
+    def test_ssh_port(
+        self,
+        popen_mock,
+        mock_is_archived,
+        mock_get_prefetch,
+        mock_update_metadata,
+        tmpdir,
+    ):
+        # Mock the parent class methods to bypass cache/prefetch logic
+        mock_is_archived.return_value = False
+        mock_get_prefetch.return_value = []
+
         # GIVEN a WAL file on disk
         source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
         source.write("something", ensure=True)
@@ -151,24 +182,120 @@ class TestMain(object):
             stdin=subprocess.PIPE,
         )
 
-    @mock.patch("barman.clients.walarchive.RemotePutWal")
-    def test_error_dir(self, rpw_mock, tmpdir, capsys):
+    @mock.patch("barman.clients.walarchive.RemoteWalArchiver")
+    def test_cache_hit_exits_success(self, archiver_mock, tmpdir):
+        """
+        main() should exit successfully as soon as the WAL is found in the
+        prefetch cache, without inspecting returncode (which stays None
+        because no remote process is spawned in that case).
+        """
+        # GIVEN a WAL file that was already found in the prefetch cache
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something", ensure=True)
+        archiver_mock.return_value.found_in_cache = True
+        archiver_mock.return_value.returncode = None
+
+        # WHEN barman-wal-archive is executed
+        # THEN it returns normally, without raising SystemExit
+        walarchive.main(["a.host", "a-server", source.strpath])
+
+    @mock.patch("barman.clients.walarchive.RemoteWalArchiver")
+    def test_default_prefetch_cache_dir(self, archiver_mock, tmpdir):
+        """
+        main() should use the default prefetch cache dir, templated with
+        the server name and a hash of the Barman destination, when
+        --prefetch-cache-dir is not specified.
+        """
+        # GIVEN a WAL file on disk
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something", ensure=True)
+        archiver_mock.return_value.found_in_cache = True
+
+        # WHEN barman-wal-archive is executed without --prefetch-cache-dir
+        walarchive.main(["a.host", "a-server", source.strpath])
+
+        # THEN RemoteWalArchiver is created with the default cache dir,
+        # hashing the destination (host, port and config file) it was
+        # invoked with
+        expected_hash = hashlib.sha256(b"a.host:None:None").hexdigest()[:16]
+        archiver_mock.assert_called_once_with(
+            "a-server",
+            walarchive.PREFETCH_CACHE_DIR.format(
+                server_name="a-server", computed_hash=expected_hash
+            ),
+            mock.ANY,
+        )
+
+    @mock.patch("barman.clients.walarchive.RemoteWalArchiver")
+    def test_default_prefetch_cache_dir_differs_per_destination(
+        self, archiver_mock, tmpdir
+    ):
+        """
+        main() should compute a different default prefetch cache dir for
+        each distinct Barman destination (host, port and config file), even
+        when the server name is the same, so that separate destinations do
+        not collide on the same cache.
+        """
+        # GIVEN a WAL file on disk
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something", ensure=True)
+        archiver_mock.return_value.found_in_cache = True
+
+        # WHEN barman-wal-archive is executed twice for the same server name
+        # but against different Barman destinations
+        walarchive.main(["a.host", "a-server", source.strpath])
+        first_cache_dir = archiver_mock.call_args[0][1]
+
+        archiver_mock.reset_mock()
+        walarchive.main(["--port", "2222", "a.host", "a-server", source.strpath])
+        second_cache_dir = archiver_mock.call_args[0][1]
+
+        # THEN the two invocations use different cache directories
+        assert first_cache_dir != second_cache_dir
+
+    @mock.patch("barman.clients.walarchive.RemoteWalArchiver")
+    def test_custom_prefetch_cache_dir(self, archiver_mock, tmpdir):
+        """
+        main() should use the user-provided --prefetch-cache-dir instead
+        of the default when it is specified.
+        """
+        # GIVEN a WAL file on disk
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something", ensure=True)
+        archiver_mock.return_value.found_in_cache = True
+
+        # WHEN barman-wal-archive is executed with a custom --prefetch-cache-dir
+        walarchive.main(
+            [
+                "--prefetch-cache-dir",
+                "/custom/cache/dir",
+                "a.host",
+                "a-server",
+                source.strpath,
+            ]
+        )
+
+        # THEN RemoteWalArchiver is created with the custom cache dir
+        archiver_mock.assert_called_once_with("a-server", "/custom/cache/dir", mock.ANY)
+
+    @mock.patch("barman.clients.walarchive.RemoteWalArchiver")
+    def test_error_dir(self, archiver_mock, tmpdir, capsys):
         with pytest.raises(SystemExit) as exc:
             walarchive.main(["a.host", "a-server", tmpdir.strpath])
 
         assert exc.value.code == 2
-        assert not rpw_mock.called
+        assert not archiver_mock.called
         out, err = capsys.readouterr()
         assert not out
         assert "WAL_PATH cannot be a directory" in err
 
-    @mock.patch("barman.clients.walarchive.RemotePutWal")
-    def test_error_io(self, rpw_mock, tmpdir, capsys):
+    @mock.patch("barman.clients.walarchive.RemoteWalArchiver")
+    def test_error_io(self, archiver_mock, tmpdir, capsys):
         # Prepare some content
         source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
         source.write("something", ensure=True)
 
-        rpw_mock.side_effect = EnvironmentError
+        archiver_mock.return_value.archive.side_effect = EnvironmentError
 
         with pytest.raises(SystemExit) as exc:
             walarchive.main(["a.host", "a-server", source.strpath])
@@ -178,13 +305,14 @@ class TestMain(object):
         assert not out
         assert "Error executing ssh" in err
 
-    @mock.patch("barman.clients.walarchive.RemotePutWal")
-    def test_error_ssh(self, rpw_mock, tmpdir, capsys):
+    @mock.patch("barman.clients.walarchive.RemoteWalArchiver")
+    def test_error_ssh(self, archiver_mock, tmpdir, capsys):
         # Prepare some content
         source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
         source.write("something", ensure=True)
 
-        rpw_mock.return_value.returncode = 255
+        archiver_mock.return_value.found_in_cache = False
+        archiver_mock.return_value.main_wal_returncode = 255
 
         with pytest.raises(SystemExit) as exc:
             walarchive.main(["a.host", "a-server", source.strpath])
@@ -194,13 +322,14 @@ class TestMain(object):
         assert not out
         assert "Connection problem with ssh" in err
 
-    @mock.patch("barman.clients.walarchive.RemotePutWal")
-    def test_error_barman(self, rpw_mock, tmpdir, capsys):
+    @mock.patch("barman.clients.walarchive.RemoteWalArchiver")
+    def test_error_barman(self, archiver_mock, tmpdir, capsys):
         # Prepare some content
         source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
         source.write("something", ensure=True)
 
-        rpw_mock.return_value.returncode = 1
+        archiver_mock.return_value.found_in_cache = False
+        archiver_mock.return_value.main_wal_returncode = 1
 
         with pytest.raises(SystemExit) as exc:
             walarchive.main(["a.host", "a-server", source.strpath])
@@ -243,6 +372,153 @@ class TestMain(object):
             "Command 'remote barman' returned non-zero "
             "exit status 255"
         ) in err
+
+
+# noinspection PyMethodMayBeStatic
+class TestRemoteWalArchiver(object):
+    """Tests for :class:`RemoteWalArchiver`."""
+
+    def _make_config(self, wal_path="/pg_wal/000000010000000000000001"):
+        """Return a mock config object."""
+        return mock.Mock(
+            server_name="test-server",
+            wal_path=wal_path,
+            user="barman",
+            barman_host="barman.example.com",
+            config=None,
+            port=None,
+            md5=False,
+            compression=None,
+            compression_level=None,
+        )
+
+    def test_init_sets_attributes(self):
+        """
+        __init__ should set the server_name, cache_dir, config, found_in_cache, and main_wal_returncode attributes.
+        """
+        # GIVEN a config
+        config = self._make_config()
+
+        # WHEN creating a RemoteWalArchiver
+        archiver = walarchive.RemoteWalArchiver("test-server", "/tmp/cache", config)
+
+        # THEN attributes are set correctly
+        assert archiver.server_name == "test-server"
+        assert archiver.cache_dir == "/tmp/cache"
+        assert archiver.config is config
+        assert archiver.found_in_cache is False
+        assert archiver.main_wal_returncode is None
+
+    @pytest.mark.parametrize("already_archived", [True, False])
+    @mock.patch("barman.wal_archiver.ParallelWalArchiver._is_already_archived")
+    def test_is_already_archived_tracks_found_in_cache(
+        self, mock_super_is_archived, already_archived
+    ):
+        """
+        _is_already_archived should store the parent class result in
+        found_in_cache and return it unchanged.
+        """
+        # GIVEN a RemoteWalArchiver and a parent class result
+        mock_super_is_archived.return_value = already_archived
+        config = self._make_config()
+        archiver = walarchive.RemoteWalArchiver("test-server", "/tmp/cache", config)
+
+        # WHEN checking whether a WAL file was already archived
+        result = archiver._is_already_archived("/pg_wal/000000010000000000000001")
+
+        # THEN the parent class result is returned unchanged
+        assert result is already_archived
+        # AND found_in_cache reflects that result
+        assert archiver.found_in_cache is already_archived
+
+    @mock.patch("barman.clients.walarchive.RemotePutWal")
+    def test_archive_single_wal_creates_remote_put_wal(self, mock_remote_put_wal):
+        """
+        _archive_single_wal should create a RemotePutWal and wait for it.
+        """
+        # GIVEN a RemoteWalArchiver
+        config = self._make_config()
+        archiver = walarchive.RemoteWalArchiver("test-server", "/tmp/cache", config)
+        mock_remote_put_wal.return_value.returncode = 0
+
+        # WHEN archiving a WAL file
+        archiver._archive_single_wal("/pg_wal/000000010000000000000002")
+
+        # THEN RemotePutWal was created with the config and path
+        mock_remote_put_wal.assert_called_once_with(
+            config, "/pg_wal/000000010000000000000002"
+        )
+
+        # AND wait() was called
+        mock_remote_put_wal.return_value.wait.assert_called_once()
+
+    @mock.patch("barman.clients.walarchive.RemotePutWal")
+    def test_archive_single_wal_tracks_main_wal_returncode(self, mock_remote_put_wal):
+        """
+        _archive_single_wal should track the main WAL process returncode when archiving
+        the WAL specified in config.wal_path.
+        """
+        # GIVEN a RemoteWalArchiver with a specific wal_path in config
+        wal_path = "/pg_wal/000000010000000000000001"
+        config = self._make_config(wal_path=wal_path)
+        archiver = walarchive.RemoteWalArchiver("test-server", "/tmp/cache", config)
+        mock_remote_put_wal.return_value.returncode = 0
+
+        # WHEN archiving the main WAL (matching config.wal_path)
+        archiver._archive_single_wal(wal_path)
+
+        # THEN main_wal_returncode is set
+        assert (
+            archiver.main_wal_returncode is mock_remote_put_wal.return_value.returncode
+        )
+
+    @mock.patch("barman.clients.walarchive.RemotePutWal")
+    def test_archive_single_wal_does_not_track_prefetch_wal(self, mock_remote_put_wal):
+        """
+        _archive_single_wal should NOT track prefetch WAL processes.
+        """
+        # GIVEN a RemoteWalArchiver
+        config = self._make_config(wal_path="/pg_wal/000000010000000000000001")
+        archiver = walarchive.RemoteWalArchiver("test-server", "/tmp/cache", config)
+        mock_remote_put_wal.return_value.returncode = 0
+
+        # WHEN archiving a prefetch WAL (NOT matching config.wal_path)
+        archiver._archive_single_wal("/pg_wal/000000010000000000000002")
+
+        # THEN main_wal_returncode is NOT set
+        assert archiver.main_wal_returncode is None
+
+    @mock.patch("barman.clients.walarchive.RemotePutWal")
+    def test_returncode_returns_main_process_returncode(self, mock_remote_put_wal):
+        """
+        returncode should return the exit code of the main WAL process.
+        """
+        # GIVEN a RemoteWalArchiver that has archived the main WAL
+        config = self._make_config(wal_path="/pg_wal/000000010000000000000001")
+        archiver = walarchive.RemoteWalArchiver("test-server", "/tmp/cache", config)
+        mock_remote_put_wal.return_value.returncode = 0
+
+        archiver._archive_single_wal("/pg_wal/000000010000000000000001")
+
+        # WHEN checking returncode
+        result = archiver.main_wal_returncode
+
+        # THEN it returns the process returncode
+        assert result == 0
+
+    def test_returncode_returns_none_when_no_main_process(self):
+        """
+        returncode should return None if no main WAL was archived yet.
+        """
+        # GIVEN a RemoteWalArchiver with no archival done
+        config = self._make_config()
+        archiver = walarchive.RemoteWalArchiver("test-server", "/tmp/cache", config)
+
+        # WHEN checking returncode
+        result = archiver.main_wal_returncode
+
+        # THEN it returns None
+        assert result is None
 
 
 # noinspection PyMethodMayBeStatic

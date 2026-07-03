@@ -16,10 +16,12 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 import io
+import logging
 import os
+import stat
 
 import pytest
-from mock import ANY, MagicMock, call, patch
+from mock import ANY, MagicMock, PropertyMock, call, patch
 from testing_helpers import build_backup_manager, build_test_backup_info, caplog_reset
 
 import barman.xlog
@@ -535,8 +537,10 @@ class TestFileWalArchiver(object):
         # This is an hack, instead of a WalFileInfo we use a simple string to
         # ease all the comparisons. The resulting string is the name enclosed
         # in colons. e.g. ":000000010000000000000001:"
-        from_file_mock.side_effect = lambda filename, compression_manager, unidentified_compression, encryption_manager, *args, **kwargs: (
-            ":%s:" % filename
+        from_file_mock.side_effect = (
+            lambda filename, compression_manager, unidentified_compression, encryption_manager, *args, **kwargs: (
+                ":%s:" % filename
+            )
         )
 
         backup_manager = build_backup_manager(name="TestServer")
@@ -945,8 +949,10 @@ class TestStreamingWalArchiver(object):
         # This is an hack, instead of a WalFileInfo we use a simple string to
         # ease all the comparisons. The resulting string is the name enclosed
         # in colons. e.g. ":000000010000000000000001:"
-        from_file_mock.side_effect = lambda filename, compression_manager, unidentified_compression, encryption_manager, *args, **kwargs: (
-            ":%s:" % filename
+        from_file_mock.side_effect = (
+            lambda filename, compression_manager, unidentified_compression, encryption_manager, *args, **kwargs: (
+                ":%s:" % filename
+            )
         )
 
         backup_manager = build_backup_manager(name="TestServer")
@@ -2694,14 +2700,14 @@ class TestParallelWalArchiver:
 
     @pytest.mark.parametrize(
         "wal_file",
-        ["/pg_wal/00000003.history", "00000001000000000000004.00000001.backup"],
+        ["/pg_wal/00000003.history", "000000010000000000000004.00000001.backup"],
     )
     @patch("barman.wal_archiver.ParallelWalArchiver._write_last_wal_archived")
     def test_update_metadata_does_not_cache_history_or_backup_file(
         self, mock_write_last_wal, wal_file, tmp_path
     ):
         """
-        Base _update_metadata must not write a .history file name to the cache.
+        Base _update_metadata must not write a .history or .backup file name to the cache.
         """
         archiver = self._make_archiver(tmp_path)
 
@@ -2809,15 +2815,36 @@ class TestParallelWalArchiver:
     def test_archive_skips_already_archived_wal(self, tmp_path):
         """
         archive() should return early without archiving when the WAL is already
-        in the last-archived cache.
+        in the last-archived cache and parallel archival is in use.
         """
         archiver = self._make_archiver(tmp_path)
 
         with patch.object(archiver, "_is_already_archived", return_value=True):
             with patch.object(archiver, "_archive_single_wal") as mock_archive:
-                archiver.archive("/pg_wal/000000010000000000000003")
+                archiver.archive("/pg_wal/000000010000000000000003", parallel=2)
 
         mock_archive.assert_not_called()
+
+    @patch("barman.wal_archiver.os.path.getsize")
+    def test_archive_does_not_check_cache_when_not_parallel(
+        self, mock_getsize, tmp_path
+    ):
+        """
+        archive() should not consult the last-archived cache when parallel <= 1;
+        the cache is only meaningful across concurrent parallel invocations.
+        """
+        mock_getsize.return_value = barman.xlog.DEFAULT_XLOG_SEG_SIZE
+        archiver = self._make_archiver(tmp_path)
+        wal_path = "/pg_wal/000000010000000000000003"
+
+        with patch.object(
+            archiver, "_is_already_archived", return_value=True
+        ) as mock_cached:
+            with patch.object(archiver, "_archive_single_wal") as mock_archive:
+                archiver.archive(wal_path, parallel=1)
+
+        mock_cached.assert_not_called()
+        mock_archive.assert_called_once_with(wal_path)
 
     @patch("barman.wal_archiver.os.path.getsize")
     @patch("barman.wal_archiver.WalPrefetchWorker")
@@ -2843,6 +2870,234 @@ class TestParallelWalArchiver:
                         archiver.archive(wal_path, parallel=2)
 
         mock_worker_cls.assert_not_called()
+
+    @patch("barman.wal_archiver.os.path.getsize")
+    def test_archive_skips_update_metadata_without_prefetch_workers(
+        self, mock_getsize, tmp_path
+    ):
+        """
+        archive() should not call _update_metadata when no prefetch workers ran,
+        since the last-archived cache is only meaningful for parallel archival.
+        """
+        mock_getsize.return_value = barman.xlog.DEFAULT_XLOG_SEG_SIZE
+        archiver = self._make_archiver(tmp_path)
+        wal_path = "/pg_wal/000000010000000000000001"
+
+        with patch.object(archiver, "_archive_single_wal"):
+            with patch.object(archiver, "_get_wals_to_prefetch", return_value=[]):
+                with patch.object(archiver, "_update_metadata") as mock_update:
+                    with patch.object(archiver, "_post_archive_exec") as mock_post:
+                        archiver.archive(wal_path, parallel=0)
+
+        mock_update.assert_not_called()
+        mock_post.assert_called_once_with(wal_path, [])
+
+    @patch("barman.wal_archiver.os.path.getsize")
+    @patch("barman.wal_archiver.WalPrefetchWorker")
+    def test_archive_calls_update_metadata_with_prefetch_workers(
+        self, mock_worker_cls, mock_getsize, tmp_path
+    ):
+        """
+        archive() should call _update_metadata when prefetch workers ran.
+        """
+        mock_getsize.return_value = barman.xlog.DEFAULT_XLOG_SEG_SIZE
+        archiver = self._make_archiver(tmp_path)
+        wal_path = "/pg_wal/000000010000000000000001"
+        prefetch_wal_path = "/pg_wal/000000010000000000000002"
+        mock_worker_cls.return_value = MagicMock(spec=WalPrefetchWorker)
+
+        with patch.object(archiver, "_archive_single_wal"):
+            with patch.object(
+                archiver, "_get_wals_to_prefetch", return_value=[prefetch_wal_path]
+            ):
+                with patch.object(archiver, "_update_metadata") as mock_update:
+                    with patch.object(archiver, "_post_archive_exec") as mock_post:
+                        archiver.archive(wal_path, parallel=2)
+
+        mock_update.assert_called_once_with(wal_path, [mock_worker_cls.return_value])
+        mock_post.assert_called_once_with(wal_path, [mock_worker_cls.return_value])
+
+    def test_ensure_cache_dir_creates_directory_with_restrictive_mode(self, tmp_path):
+        """
+        _ensure_cache_dir should create the cache directory with mode 0o700.
+        """
+        cache_dir = tmp_path / "cache"
+        archiver = self._make_archiver(cache_dir)
+
+        archiver._ensure_cache_dir()
+
+        assert cache_dir.is_dir()
+        assert stat.S_IMODE(os.stat(str(cache_dir)).st_mode) == 0o700
+
+    def test_ensure_cache_dir_swallows_oserror(self, tmp_path, caplog):
+        """
+        _ensure_cache_dir should not propagate errors when directory creation
+        fails, only log a warning.
+        """
+        # A path nested under a plain file can never be created
+        blocking_file = tmp_path / "not_a_dir"
+        blocking_file.write_text("content")
+        cache_dir = blocking_file / "cache"
+        archiver = self._make_archiver(cache_dir)
+
+        with caplog.at_level(logging.WARNING, logger="barman.wal_archiver"):
+            # THEN no exception is raised
+            archiver._ensure_cache_dir()
+
+        assert "Could not create cache directory" in caplog.text
+
+    def test_is_cache_dir_secure_true_for_owned_private_directory(self, tmp_path):
+        """
+        _is_cache_dir_secure should return True for a directory owned by the
+        current user and not writable by group/other (creating it if needed).
+        """
+        archiver = self._make_archiver(tmp_path / "cache")
+
+        assert archiver._is_cache_dir_secure is True
+
+    def test_is_cache_dir_secure_false_when_lstat_fails(self, tmp_path):
+        """
+        _is_cache_dir_secure should return False when the cache directory cannot
+        be created or stat-ed (e.g. a parent path component is not a directory).
+        """
+        blocking_file = tmp_path / "not_a_dir"
+        blocking_file.write_text("content")
+        cache_dir = blocking_file / "cache"
+        archiver = self._make_archiver(cache_dir)
+
+        assert archiver._is_cache_dir_secure is False
+
+    def test_is_cache_dir_secure_false_for_symlinked_directory(self, tmp_path, caplog):
+        """
+        _is_cache_dir_secure should refuse a cache directory that is actually a
+        symlink, even if it points at a directory owned by the current user,
+        since it could have been planted by another user.
+        """
+        real_dir = tmp_path / "real_cache"
+        real_dir.mkdir()
+        cache_dir = tmp_path / "cache_link"
+        os.symlink(str(real_dir), str(cache_dir))
+        archiver = self._make_archiver(cache_dir)
+
+        with caplog.at_level(logging.WARNING, logger="barman.wal_archiver"):
+            result = archiver._is_cache_dir_secure
+
+        assert result is False
+        assert "not a regular directory" in caplog.text
+
+    @patch("barman.wal_archiver.os.getuid")
+    def test_is_cache_dir_secure_false_when_not_owned_by_current_user(
+        self, mock_getuid, tmp_path, caplog
+    ):
+        """
+        _is_cache_dir_secure should refuse a cache directory not owned by the
+        current user.
+        """
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        # Make getuid() disagree with the directory's real owner
+        mock_getuid.return_value = os.stat(str(cache_dir)).st_uid + 1
+        archiver = self._make_archiver(cache_dir)
+
+        with caplog.at_level(logging.WARNING, logger="barman.wal_archiver"):
+            result = archiver._is_cache_dir_secure
+
+        assert result is False
+        assert "not owned by the current user" in caplog.text
+
+    def test_is_cache_dir_secure_false_when_group_or_other_writable(
+        self, tmp_path, caplog
+    ):
+        """
+        _is_cache_dir_secure should refuse a cache directory that is writable by
+        group or others.
+        """
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        os.chmod(str(cache_dir), 0o777)
+        archiver = self._make_archiver(cache_dir)
+
+        with caplog.at_level(logging.WARNING, logger="barman.wal_archiver"):
+            result = archiver._is_cache_dir_secure
+
+        assert result is False
+        assert "writable by group or others" in caplog.text
+
+    @patch("barman.wal_archiver.os.path.getsize")
+    def test_archive_disables_parallel_when_cache_dir_insecure(
+        self, mock_getsize, tmp_path, caplog
+    ):
+        """
+        archive() should disable parallel archival (and not raise) when the
+        cache directory is not secure, so concurrent workers never rely on an
+        untrusted cache.
+        """
+        mock_getsize.return_value = barman.xlog.DEFAULT_XLOG_SEG_SIZE
+        archiver = self._make_archiver(tmp_path)
+        wal_path = "/pg_wal/000000010000000000000001"
+
+        with patch.object(
+            type(archiver), "_is_cache_dir_secure", new_callable=PropertyMock
+        ) as mock_secure:
+            mock_secure.return_value = False
+            with patch.object(archiver, "_archive_single_wal") as mock_archive:
+                with patch.object(
+                    archiver, "_get_wals_to_prefetch"
+                ) as mock_get_prefetch:
+                    with caplog.at_level(logging.WARNING, logger="barman.wal_archiver"):
+                        archiver.archive(wal_path, parallel=4)
+
+        # THEN archival still proceeds, but without any prefetching
+        mock_archive.assert_called_once_with(wal_path)
+        mock_get_prefetch.assert_called_once_with(wal_path, 0, ANY)
+        assert "disabling parallel" in caplog.text
+
+    @patch("barman.wal_archiver.os.path.getsize")
+    @patch("barman.wal_archiver.WalPrefetchWorker")
+    def test_archive_keeps_parallel_when_cache_dir_secure(
+        self, mock_worker_cls, mock_getsize, tmp_path
+    ):
+        """
+        archive() should keep the requested parallelism when the cache
+        directory is secure.
+        """
+        mock_getsize.return_value = barman.xlog.DEFAULT_XLOG_SEG_SIZE
+        archiver = self._make_archiver(tmp_path)
+        wal_path = "/pg_wal/000000010000000000000001"
+
+        with patch.object(
+            type(archiver), "_is_cache_dir_secure", new_callable=PropertyMock
+        ) as mock_secure:
+            mock_secure.return_value = True
+            with patch.object(archiver, "_archive_single_wal"):
+                with patch.object(
+                    archiver, "_get_wals_to_prefetch"
+                ) as mock_get_prefetch:
+                    archiver.archive(wal_path, parallel=4)
+
+        # THEN the full prefetch count (parallel - 1) is requested
+        mock_get_prefetch.assert_called_once_with(wal_path, 3, ANY)
+
+    @patch("barman.wal_archiver.os.path.getsize")
+    def test_archive_does_not_check_cache_dir_security_when_not_parallel(
+        self, mock_getsize, tmp_path
+    ):
+        """
+        archive() should not even check the cache directory security when
+        parallel <= 1, since no shared cache reliance is involved.
+        """
+        mock_getsize.return_value = barman.xlog.DEFAULT_XLOG_SEG_SIZE
+        archiver = self._make_archiver(tmp_path)
+        wal_path = "/pg_wal/000000010000000000000001"
+
+        with patch.object(
+            type(archiver), "_is_cache_dir_secure", new_callable=PropertyMock
+        ) as mock_secure:
+            with patch.object(archiver, "_archive_single_wal"):
+                with patch.object(archiver, "_get_wals_to_prefetch", return_value=[]):
+                    archiver.archive(wal_path, parallel=1)
+
+        mock_secure.assert_not_called()
 
     def test_write_last_wal_archived_writes_atomically(self, tmp_path):
         """
@@ -2966,10 +3221,10 @@ class TestCloudWalArchiver:
             archiver.server.get_errors_dst.return_value,
         )
 
-    def test_update_metadata_stops_writing_at_first_worker_failure(self):
+    def test_post_archive_exec_stops_writing_at_first_worker_failure(self):
         """
-        _update_metadata should stop writing to xlogdb at the first failed worker,
-        to avoid gaps in the archive that would corrupt the last-archived cache.
+        _post_archive_exec should stop writing to xlogdb at the first failed
+        worker, to avoid gaps in the archive.
         """
         # GIVEN a main WAL path and three workers: first succeeds, second fails, third succeeds
         main_wal_path = "/pg_wal/000000010000000000000001"
@@ -2998,15 +3253,14 @@ class TestCloudWalArchiver:
         mock_fxlogdb = MagicMock()
         archiver.server.xlogdb.return_value.__enter__.return_value = mock_fxlogdb
 
-        with patch.object(archiver, "_write_last_wal_archived") as mock_write:
-            with patch.object(
-                archiver,
-                "_build_wal_info",
-                side_effect=[main_wal_info, worker_ok_wal_info],
-            ):
-                archiver._update_metadata(
-                    main_wal_path, [worker_ok, worker_fail, worker_after_fail]
-                )
+        with patch.object(
+            archiver,
+            "_build_wal_info",
+            side_effect=[main_wal_info, worker_ok_wal_info],
+        ):
+            archiver._post_archive_exec(
+                main_wal_path, [worker_ok, worker_fail, worker_after_fail]
+            )
 
         # THEN only main WAL and first successful worker's one are written to xlogdb
         # Neither the failed worker's WAL nor the one after it should be written
@@ -3014,19 +3268,14 @@ class TestCloudWalArchiver:
         mock_fxlogdb.write.assert_any_call("line1\n")
         mock_fxlogdb.write.assert_any_call("line2\n")
 
-        # AND the cache is updated with the last successfully written WAL
-        mock_write.assert_called_once_with("000000010000000000000002")
-
-    def test_update_metadata_does_not_cache_history_file(self):
+    def test_post_archive_exec_writes_history_file_to_xlogdb(self):
         """
-        _update_metadata must not write a .history file name to the
-        last-archived cache.
-
-        A .history file (e.g. "00000003.history") sorts lexicographically before
-        a WAL segment of the previous timeline (e.g.
-        "000000020000000000000001") because '.' (0x2e) < '0' (0x30). If the
-        .history name were cached, a delayed old-timeline WAL would satisfy
-        ``wal_name <= cached`` and be incorrectly skipped as already archived.
+        _post_archive_exec should write a .history file to xlogdb like any other
+        archived file. xlogdb records everything that was archived; it is only
+        the last-archived cache (see
+        TestParallelWalArchiver.test_update_metadata_does_not_cache_history_or_backup_file)
+        that deliberately excludes .history/.backup files, to avoid corrupting
+        cross-timeline detection.
         """
         # GIVEN the main "WAL" being archived is actually a .history file
         history_path = "/pg_wal/00000003.history"
@@ -3038,13 +3287,9 @@ class TestCloudWalArchiver:
         mock_fxlogdb = MagicMock()
         archiver.server.xlogdb.return_value.__enter__.return_value = mock_fxlogdb
 
-        # WHEN _update_metadata is called with no prefetch workers
-        with patch.object(archiver, "_write_last_wal_archived") as mock_write:
-            with patch.object(archiver, "_build_wal_info", return_value=history_info):
-                archiver._update_metadata(history_path, [])
+        # WHEN _post_archive_exec is called with no prefetch workers
+        with patch.object(archiver, "_build_wal_info", return_value=history_info):
+            archiver._post_archive_exec(history_path, [])
 
         # THEN the xlogdb entry is still written (history files are valid xlogdb entries)
         mock_fxlogdb.write.assert_called_once_with("history-line\n")
-
-        # AND the last-archived cache is NOT updated (would corrupt cross-timeline detection)
-        mock_write.assert_not_called()
