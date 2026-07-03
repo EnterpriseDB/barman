@@ -30,7 +30,6 @@ import os
 import subprocess
 import sys
 import tarfile
-import time
 from contextlib import closing
 from io import BytesIO
 from tempfile import TemporaryDirectory
@@ -38,9 +37,31 @@ from tempfile import TemporaryDirectory
 import barman
 from barman.compression import get_internal_compressor
 from barman.config import parse_compression_level
+from barman.exceptions import ArchiverFailure
+from barman.wal_archiver import ParallelWalArchiver
 
 DEFAULT_USER = "barman"
 BUFSIZE = 16 * 1024
+PREFETCH_CACHE_DIR = "/tmp/barman-{server_name}-{computed_hash}"
+
+
+def _default_prefetch_cache_dir(config):
+    """
+    Compute the default prefetch cache directory for a given configuration.
+
+    The cache records which WALs have already been archived, so it must be scoped
+    to the specific Barman destination (host, port and config file) as well as to
+    the server name.
+
+    :param argparse.Namespace config: the configuration from command line.
+    :return: the default cache directory path for this configuration.
+    :rtype: str
+    """
+    destination = "%s:%s:%s" % (config.barman_host, config.port, config.config)
+    computed_hash = hashlib.sha256(destination.encode()).hexdigest()[:16]
+    return PREFETCH_CACHE_DIR.format(
+        server_name=config.server_name, computed_hash=computed_hash
+    )
 
 
 def main(args=None):
@@ -63,24 +84,33 @@ def main(args=None):
 
     try:
         # Execute barman put-wal through the ssh connection
-        ssh_process = RemotePutWal(config, config.wal_path)
+        prefetch_cache_dir = config.prefetch_cache_dir or _default_prefetch_cache_dir(
+            config
+        )
+        archiver = RemoteWalArchiver(config.server_name, prefetch_cache_dir, config)
+        archiver.archive(config.wal_path, parallel=config.parallel)
     except EnvironmentError as exc:
         exit_with_error("Error executing ssh: %s" % exc)
         return  # never reached
+    except ArchiverFailure:
+        # Something went wrong with the archival. The exit code is already set in
+        # archiver.main_wal_returncode, so we can pass and let it be treated below.
+        pass
 
-    # Wait for termination of the SSH process. If CTRL+C is pressed, terminate it
-    ssh_process.wait()
+    # If the WAL file was found in the cache, we can exit with success
+    if archiver.found_in_cache:
+        return
 
-    # If the command succeeded exit here
-    if ssh_process.returncode == 0:
+    # If the requested WAL succeeded, we can exit with success
+    if archiver.main_wal_returncode == 0:
         return
 
     # Report the exit code, remapping ssh failure code (255) to 3
-    if ssh_process.returncode == 255:
+    if archiver.main_wal_returncode == 255:
         exit_with_error("Connection problem with ssh", 3)
-    else:
+    elif archiver.main_wal_returncode is not None:
         exit_with_error(
-            "Remote 'barman put-wal' command has failed!", ssh_process.returncode
+            "Remote 'barman put-wal' command has failed!", archiver.main_wal_returncode
         )
 
 
@@ -242,6 +272,22 @@ def parse_arguments(args=None):
         dest="compression_level",
         type=parse_compression_level,
         default=None,
+    )
+    parser.add_argument(
+        "-p",
+        "--parallel",
+        default=0,
+        type=int,
+        help="Specifies the maximum number of WALs to archive in parallel",
+    )
+    parser.add_argument(
+        "--prefetch-cache-dir",
+        metavar="PREFETCH_CACHE_DIR",
+        help="Directory where to store cache metadata when using --parallel. "
+        "Defaults to '%s'."
+        % PREFETCH_CACHE_DIR.format(
+            server_name="SERVER_NAME", computed_hash="COMPUTED_HASH"
+        ),
     )
     parser.add_argument(
         "barman_host",
@@ -435,11 +481,64 @@ class RemotePutWal(object):
     @property
     def returncode(self):
         """
-        Return the exit code of the RemoteGetWal processes.
+        Return the exit code of the RemotePutWal processes.
 
-        :return: exit code of the RemoteGetWal processes
+        :return: exit code of the RemotePutWal processes
         """
         return self.ssh_process.returncode
+
+
+class RemoteWalArchiver(ParallelWalArchiver):
+    def __init__(self, server_name, cache_dir, config):
+        """
+        Initialize a RemoteWalArchiver instance.
+
+        :param str server_name: The name of the Barman server.
+        :param str cache_dir: Directory where the last-archived cache file is stored.
+        :param argparse.Namespace config: The CLI configuration from command line.
+        """
+        super().__init__(server_name, cache_dir)
+        self.config = config
+        self.found_in_cache = False
+        self.main_wal_returncode = None
+
+    def _is_already_archived(self, wal_path):
+        """
+        Check if the WAL file has already been archived.
+
+        This method only overrides the parent class method to store the result in the
+        ``found_in_cache`` attribute so that it can be accessed later in
+        :func:`main()`.
+
+        :param str wal_path: The path of the WAL file to check.
+        :return: True if the WAL file is already archived, False otherwise.
+        """
+        ret = super()._is_already_archived(wal_path)
+        self.found_in_cache = ret
+        return ret
+
+    def _archive_single_wal(self, wal_path):
+        """
+        Archive a single WAL file to the remote Barman server.
+
+        :param wal_path: The name of WAL to upload
+        """
+        put_wal = RemotePutWal(self.config, wal_path)
+        put_wal.wait()
+
+        # Store the return code of the main WAL SSH process so it can be later checked
+        # in main() to determine the exit code of the script.
+        if wal_path == self.config.wal_path:
+            self.main_wal_returncode = put_wal.returncode
+
+        # Raise an exception if the SSH process was not successful. This is important so
+        # that ParallelWalArchiver can determine if the archival of this WAL was successful
+        # or not, which affects what gets written in the cache file.
+        if put_wal.returncode != 0:
+            raise ArchiverFailure(
+                "Remote 'barman put-wal' command has failed! (exit code %s)"
+                % put_wal.returncode
+            )
 
 
 if __name__ == "__main__":
