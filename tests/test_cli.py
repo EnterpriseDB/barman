@@ -41,6 +41,7 @@ from barman.cli import (
     backup,
     check,
     check_archived_wal_range,
+    check_backup,
     check_target_action,
     check_wal_archive,
     cloud_wal_archive,
@@ -67,6 +68,7 @@ from barman.cli import (
     restore,
     show_servers,
     status,
+    sync_info,
     terminate_process,
 )
 from barman.exceptions import (
@@ -2276,6 +2278,49 @@ class TestCli(object):
         mock_output.close_and_exit.assert_called_once()
 
     @patch("barman.cli.get_server")
+    @patch("barman.cli.ProcessManager")
+    @patch("barman.cli.output")
+    def test_list_processes_inactive_server(
+        self, mock_output, mock_process_manager, mock_get_server
+    ):
+        """
+        Verify that the `list-processes` command works with an inactive server.
+
+        An inactive server should allow read-only operations like listing
+        processes.
+        """
+        # GIVEN an inactive server
+        dummy_server = Mock()
+        dummy_server.config.name = "inactive_server"
+        dummy_server.config.active = False
+        mock_get_server.return_value = dummy_server
+
+        # AND some processes
+        processes_list = [{"PID": "9999", "Process": "receive-wal"}]
+        instance_proc_mgr = mock_process_manager.return_value
+        instance_proc_mgr.list.return_value = processes_list
+
+        # WHEN calling list-processes
+        args = Mock()
+        args.server_name = "inactive_server"
+        list_processes(args)
+
+        # THEN get_server should be called with skip_inactive=False
+        mock_get_server.assert_called_once_with(
+            args,
+            skip_inactive=False,
+            inactive_is_error=False,
+            skip_disabled=False,
+            disabled_is_error=False,
+        )
+
+        # AND the output should show the processes
+        mock_output.result.assert_called_once_with(
+            "list_processes", processes_list, "inactive_server"
+        )
+        mock_output.close_and_exit.assert_called_once()
+
+    @patch("barman.cli.get_server")
     @patch("barman.cli.output")
     def test_terminate_process(self, mock_output, mock_get_server):
         """
@@ -2295,6 +2340,119 @@ class TestCli(object):
 
         dummy_server.kill.assert_called_once_with(args.task)
         mock_output.close_and_exit.assert_called_once()
+
+    @patch("barman.cli.get_server")
+    @patch("barman.cli.output")
+    def test_terminate_process_inactive_server(self, mock_output, mock_get_server):
+        """
+        Verify that the `terminate-process` command works with an inactive server.
+
+        An inactive server should allow maintenance operations like terminating
+        lingering processes (e.g., orphaned receive-wal).
+        """
+        # GIVEN an inactive server
+        args = Mock()
+        args.server_name = "inactive_server"
+        args.task = "receive-wal"
+
+        dummy_server = Mock()
+        dummy_server.config.name = "inactive_server"
+        dummy_server.config.active = False
+        dummy_server.kill = MagicMock(return_value=True)
+        mock_get_server.return_value = dummy_server
+
+        # WHEN calling terminate-process
+        terminate_process(args)
+
+        # THEN get_server should be called with skip_inactive=False
+        mock_get_server.assert_called_once_with(
+            args,
+            skip_inactive=False,
+            inactive_is_error=False,
+            skip_disabled=False,
+            disabled_is_error=False,
+        )
+
+        # AND the server's kill method should be called
+        dummy_server.kill.assert_called_once_with(args.task)
+        mock_output.close_and_exit.assert_called_once()
+
+    @patch("barman.cli.get_server")
+    @patch("barman.cli.output")
+    def test_sync_info_inactive_server(self, mock_output, mock_get_server):
+        """
+        Verify that the `sync-info` command works with an inactive server.
+
+        An inactive server should allow read-only operations like sync-info.
+        """
+        # GIVEN an inactive server
+        dummy_server = Mock()
+        dummy_server.config.name = "inactive_server"
+        dummy_server.config.active = False
+        mock_get_server.return_value = dummy_server
+
+        # WHEN calling sync-info without --primary option
+        args = Mock()
+        args.server_name = "inactive_server"
+        args.primary = False
+        args.last_wal = None
+        args.last_position = None
+
+        sync_info(args)
+
+        # THEN get_server should be called with skip_inactive=False
+        mock_get_server.assert_called_once_with(
+            args,
+            skip_inactive=False,
+            inactive_is_error=False,
+            skip_disabled=False,
+            disabled_is_error=False,
+        )
+
+        # AND the server method should be called
+        dummy_server.sync_status.assert_called_once_with(None, None)
+        mock_output.close_and_exit.assert_called_once()
+
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    @patch("barman.cli.output")
+    def test_check_backup_inactive_server(
+        self, mock_output, mock_get_server, mock_parse_backup_id
+    ):
+        """
+        Verify that the `check-backup` command works with an inactive server.
+
+        An inactive server should allow maintenance operations like re-checking
+        the status of existing backups.
+        """
+        # GIVEN an inactive server and a backup
+        args = Mock()
+        args.server_name = "inactive_server"
+        args.backup_id = "test_backup_id"
+
+        dummy_server = Mock()
+        dummy_server.config.name = "inactive_server"
+        dummy_server.config.active = False
+        mock_get_server.return_value = dummy_server
+
+        mock_backup_info = Mock()
+        mock_backup_info.status = BackupInfo.DONE
+        mock_parse_backup_id.return_value = mock_backup_info
+
+        # WHEN calling check-backup
+        check_backup(args)
+
+        # THEN get_server should be called with skip_inactive=False
+        mock_get_server.assert_called_once_with(
+            args,
+            skip_inactive=False,
+            inactive_is_error=False,
+            skip_disabled=False,
+            disabled_is_error=False,
+        )
+
+        # AND the check_backup method should be called
+        dummy_server.check_backup.assert_called_once_with(mock_backup_info)
 
     @pytest.mark.parametrize(
         "arg_timeout, config_timeout, expected_timeout",
@@ -2615,6 +2773,49 @@ class TestKeepCli(object):
             "test_backup_id"
         )
 
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_barman_keep_inactive_server(
+        self,
+        mock_get_server,
+        mock_parse_backup_id,
+        mock_args,
+        monkeypatch_config,
+    ):
+        """
+        Verify that the `keep` command works with an inactive server.
+
+        An inactive server should allow maintenance operations like setting
+        retention flags on existing backups.
+        """
+        # GIVEN an inactive server and a backup
+        mock_args.target = "standalone"
+        mock_parse_backup_id.return_value.backup_id = "test_backup_id"
+        mock_parse_backup_id.return_value.status = BackupInfo.DONE
+        mock_parse_backup_id.return_value.is_incremental = False
+
+        dummy_server = Mock()
+        dummy_server.config.name = "inactive_server"
+        dummy_server.config.active = False
+        mock_get_server.return_value = dummy_server
+
+        # WHEN calling keep
+        keep(mock_args)
+
+        # THEN get_server should be called with skip_inactive=False
+        mock_get_server.assert_called_once_with(
+            mock_args,
+            skip_inactive=False,
+            inactive_is_error=False,
+            skip_disabled=False,
+            disabled_is_error=False,
+        )
+
+        # AND the keep_backup method should be called
+        dummy_server.backup_manager.keep_backup.assert_called_once_with(
+            "test_backup_id", "standalone"
+        )
+
 
 class TestCliHelp(object):
     """
@@ -2731,6 +2932,33 @@ class TestCheckWalArchiveCli(object):
         mock_check_archive_usable.assert_called_once_with(
             ["000000010000000000000001", "000000010000000000000002"],
             timeline=2,
+        )
+
+    @patch("barman.cli.get_server")
+    def test_check_wal_archive_inactive_server(self, mock_get_server, mock_args):
+        """
+        Verify that check-wal-archive works with an inactive server.
+
+        An inactive server should allow read-only operations like
+        check-wal-archive.
+        """
+        # GIVEN an inactive server
+        mock_server = MagicMock()
+        mock_server.config.name = "inactive_server"
+        mock_server.config.active = False
+        mock_server.xlogdb.return_value.__enter__.return_value = []
+        mock_get_server.return_value = mock_server
+
+        # WHEN check-wal-archive is called
+        check_wal_archive(mock_args)
+
+        # THEN get_server should be called with skip_inactive=False
+        mock_get_server.assert_called_once_with(
+            mock_args,
+            skip_inactive=False,
+            inactive_is_error=False,
+            skip_disabled=False,
+            disabled_is_error=False,
         )
 
     @patch("barman.cli.check_archive_usable")
@@ -4105,3 +4333,29 @@ class TestCheckArchivedWalRangeCli(object):
             skip_disabled=False,
             disabled_is_error=False,
         )
+
+    @patch("barman.cli.output.close_and_exit")
+    @patch("barman.cli.get_server")
+    def test_import_backup_inactive_server(
+        self, mock_get_server, mock_close_and_exit, mock_args
+    ):
+        """
+        Verify that import-backup is rejected on an inactive server.
+
+        An inactive server should NOT allow write operations that ingest new
+        data into the catalog, such as import-backup.
+        """
+        # GIVEN an inactive server
+        # When get_server is called with default parameters (skip_inactive=True),
+        # it will exit if the server is inactive
+        mock_get_server.side_effect = SystemExit(1)
+
+        # WHEN import_backup is called with an inactive server
+        # THEN get_server is called with default parameters (skip_inactive=True)
+        # and raises SystemExit, preventing import-backup from proceeding
+        with pytest.raises(SystemExit) as exc:
+            import_backup(mock_args)
+        assert exc.value.code == 1
+
+        # AND get_server was called treating inactive servers as an error
+        mock_get_server.assert_called_once_with(mock_args, inactive_is_error=True)
