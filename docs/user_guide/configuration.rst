@@ -102,9 +102,11 @@ These are general configurations options.
 **active**
 
 When this option is set to ``true`` (default), the server operates fully. If set to
-``false``, the server is restricted to diagnostic use only, meaning that operational
-commands such as backup execution or WAL archiving are temporarily disabled. When
-incorporating a new server into Barman, we recommend initially setting
+``false``, the server is restricted to operations that don't ingest new data. This
+means that operational commands such as backup execution or WAL archiving are
+temporarily disabled.
+
+When incorporating a new server into Barman, we recommend initially setting
 ``active = false``. Verify that barman check shows no issues before activating the
 server. This approach helps prevent excessive error logging in Barman during the
 initial setup.
