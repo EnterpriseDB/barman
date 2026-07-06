@@ -3,9 +3,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [master]
+    branches: [REL_3_X_master]
   push:
-    branches: [master]
+    branches: [REL_3_X_master]
 
 jobs:
   unit-tests:

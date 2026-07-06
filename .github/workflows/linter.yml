@@ -6,11 +6,11 @@ name: Linters
 on:
   pull_request:
     branches:
-      - master
+      - REL_3_X_master
 
   push:
     branches:
-      - master
+      - REL_3_X_master
 
   schedule:
     # Lint code base every Monday 12:00 am. The idea here is to catch possible
@@ -21,7 +21,7 @@ on:
     inputs:
       source-ref:
         description: Source code branch/ref name
-        default: master
+        default: REL_3_X_master
         required: true
         type: string
 
