@@ -1482,7 +1482,7 @@ def restore(args):
                 recovery_option_port=args.recovery_option_port,
                 custom_restore_command=args.restore_command,
                 copy_partial=args.partial_wal,
-                skip_wal_archive=args.skip_archive_wal,
+                skip_archive_wal=args.skip_archive_wal,
                 **snapshot_kwargs,
             )
         except RecoveryException as exc:
