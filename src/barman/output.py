@@ -1396,6 +1396,38 @@ class ConsoleOutputWriter(object):
             for proc in process_list:
                 self.info("%s %s", proc.pid, proc.task)
 
+    def init_check_archived_wal_range(self, server_name, begin_wal, end_wal):
+        """
+        Init the check-archived-wal-range command output.
+
+        :param str server_name: the server being checked
+        :param str begin_wal: first WAL segment in the requested range
+        :param str end_wal: last WAL segment in the requested range
+        """
+        self.info(self.SERVER_OUTPUT_PREFIX % server_name)
+        self.debug("\tChecking WAL sequence from %s to %s", begin_wal, end_wal)
+
+    def result_check_archived_wal_range(self, server_name, missing_wals):
+        """
+        Output the results of the check-archived-wal-range command.
+
+        :param str server_name: the server being checked
+        :param list[str] missing_wals: WAL segment names absent from the archive
+        """
+        if not missing_wals:
+            self.info(
+                "\tWAL sequence check for server %s: all segments are present",
+                server_name,
+            )
+        else:
+            self.info(
+                "\tWAL sequence check for server %s: %d missing segment(s):",
+                server_name,
+                len(missing_wals),
+            )
+            for wal in missing_wals:
+                self.info("\t\t%s", wal)
+
 
 class JsonOutputWriter(ConsoleOutputWriter):
     def __init__(self, *args, **kwargs):
@@ -1531,8 +1563,11 @@ class JsonOutputWriter(ConsoleOutputWriter):
                     datetime.datetime.now(tz.tzlocal()) - results["recovery_start_time"]
                 ),
                 "recovery_elapsed_time_seconds": (
-                    datetime.datetime.now(tz.tzlocal()) - results["recovery_start_time"]
-                ).total_seconds(),
+                    (
+                        datetime.datetime.now(tz.tzlocal())
+                        - results["recovery_start_time"]
+                    ).total_seconds()
+                ),
             }
         )
 
@@ -2113,6 +2148,28 @@ class JsonOutputWriter(ConsoleOutputWriter):
                 self.json_output[server_name].append(
                     {"pid": proc.pid, "name": proc.task}
                 )
+
+    def init_check_archived_wal_range(self, server_name, begin_wal, end_wal):
+        """
+        Init the check-archived-wal-range command output for JSON.
+
+        :param str server_name: the server being checked
+        :param str begin_wal: first WAL segment in the requested range
+        :param str end_wal: last WAL segment in the requested range
+        """
+        self.json_output[server_name] = {
+            "begin_wal": begin_wal,
+            "end_wal": end_wal,
+        }
+
+    def result_check_archived_wal_range(self, server_name, missing_wals):
+        """
+        Output the results of the check-archived-wal-range command in JSON format.
+
+        :param str server_name: the server being checked
+        :param list[str] missing_wals: WAL segment names absent from the archive
+        """
+        self.json_output[server_name]["missing_wals"] = missing_wals
 
 
 class NagiosOutputWriter(ConsoleOutputWriter):

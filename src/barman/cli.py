@@ -50,6 +50,7 @@ from barman.exceptions import (
     RecoveryException,
     SyncError,
     WalArchiveContentError,
+    WalRangeCheckError,
 )
 from barman.infofile import BackupInfo, WalFileInfo
 from barman.lockfile import ConfigUpdateLock
@@ -72,7 +73,12 @@ from barman.utils import (
     parse_log_level,
     parse_target_tli,
 )
-from barman.xlog import check_archive_usable, is_any_xlog_file
+from barman.xlog import (
+    check_archive_usable,
+    decode_segment_name,
+    is_any_xlog_file,
+    is_wal_file,
+)
 
 if sys.version_info.major < 3:
     from argparse import Action, _ActionsContainer, _SubParsersAction
@@ -2548,6 +2554,98 @@ def check_wal_archive(args):
             _logger.error(msg)
             output.error(msg)
             output.close_and_exit()
+
+
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command",
+        ),
+        argument(
+            "begin_wal",
+            help="first WAL segment in the range to verify (inclusive)",
+        ),
+        argument(
+            "end_wal",
+            help="last WAL segment in the range to verify (inclusive)",
+        ),
+    ]
+)
+def check_archived_wal_range(args):
+    """
+    Verify that all WAL segments between begin_wal and end_wal are present
+    in the server's WAL archive.
+
+    Returns exit code 0 when the sequence is complete. Returns a non-zero
+    exit code and lists any missing segments when gaps are found.
+    """
+    server = get_server(
+        args,
+        skip_inactive=False,
+        inactive_is_error=False,
+        skip_disabled=False,
+        disabled_is_error=False,
+    )
+
+    if not is_wal_file(args.begin_wal):
+        output.error("Invalid WAL segment name: %s", args.begin_wal)
+        output.close_and_exit()
+        return
+    if not is_wal_file(args.end_wal):
+        output.error("Invalid WAL segment name: %s", args.end_wal)
+        output.close_and_exit()
+        return
+
+    begin_tli, _, _ = decode_segment_name(args.begin_wal)
+    end_tli, _, _ = decode_segment_name(args.end_wal)
+    if begin_tli != end_tli:
+        output.error(
+            "begin_wal (%s) and end_wal (%s) must be on the same timeline",
+            args.begin_wal,
+            args.end_wal,
+        )
+        output.close_and_exit()
+        return
+
+    if args.begin_wal > args.end_wal:
+        output.error(
+            "begin_wal (%s) must not be greater than end_wal (%s)",
+            args.begin_wal,
+            args.end_wal,
+        )
+        output.close_and_exit()
+        return
+
+    output.init(
+        "check_archived_wal_range",
+        server.config.name,
+        args.begin_wal,
+        args.end_wal,
+    )
+
+    try:
+        with closing(server):
+            missing_wals = server.check_archived_wal_range(args.begin_wal, args.end_wal)
+    except WalRangeCheckError as e:
+        output.error(str(e))
+        output.close_and_exit()
+        return
+
+    output.result("check_archived_wal_range", server.config.name, missing_wals)
+
+    if missing_wals:
+        output.error(
+            "WAL sequence check failed for server '%s': "
+            "%d missing segment(s) in range %s..%s",
+            server.config.name,
+            len(missing_wals),
+            args.begin_wal,
+            args.end_wal,
+        )
+
+    output.close_and_exit()
 
 
 @command(

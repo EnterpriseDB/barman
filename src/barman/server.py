@@ -80,6 +80,7 @@ from barman.exceptions import (
     SyncToBeDeleted,
     TimeoutError,
     UnknownBackupIdException,
+    WalRangeCheckError,
 )
 from barman.infofile import BackupInfo, LocalBackupInfo, WalFileInfo
 from barman.lockfile import (
@@ -4255,6 +4256,56 @@ class Server(RemoteStatusMixin):
                 self.config.name,
             )
             output.close_and_exit()
+
+    def check_archived_wal_range(self, begin_wal, end_wal):
+        """
+        Verify that all WAL segments in the closed range [begin_wal, end_wal]
+        are present in the server's WAL archive.
+
+        The expected sequence is generated using the xlog segment size from the
+        most recent backup in the catalog. Raises :exc:`WalRangeCheckError` if
+        no backup is available, as the segment size cannot be determined without
+        one.
+
+        Each expected segment is checked individually via the WAL storage
+        abstraction, so the check works for both local and cloud storage.
+
+        :param str begin_wal: name of the first WAL segment in the range
+        :param str end_wal: name of the last WAL segment in the range
+        :return list[str]: names of WAL segments missing from the archive
+            in sequence order (empty list when the range is complete)
+        :raises WalRangeCheckError: if no backup exists in the catalog
+        """
+        # Determine the xlog segment size from the most recent backup.
+        # The check requires a backup to be available in order to guarantee
+        # the correct segment size is used.
+        last_backup_id = self.get_last_backup_id()
+        if last_backup_id is None:
+            raise WalRangeCheckError(
+                "No backup found for server '%s': cannot determine WAL segment size"
+                % self.config.name
+            )
+        backup_info = self.get_backup(last_backup_id)
+        if backup_info is None:
+            raise WalRangeCheckError(
+                "No backup found for server '%s': cannot determine WAL segment size"
+                % self.config.name
+            )
+        xlog_segment_size = backup_info.xlog_segment_size
+
+        # Check each expected segment individually using the wal_storage
+        # abstraction so that the scan scales with the requested range
+        # rather than the total archive size, and works for both local
+        # and cloud WAL storage.
+        missing_wals = [
+            segment
+            for segment in xlog.generate_segment_names(
+                begin_wal, end_wal, xlog_segment_size=xlog_segment_size
+            )
+            if not self.wal_storage.exists(self.wal_storage.get_full_path(segment))
+        ]
+
+        return missing_wals
 
     @staticmethod
     def _build_path(path_prefix=None):

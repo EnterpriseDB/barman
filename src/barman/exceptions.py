@@ -79,6 +79,14 @@ class LockFileException(BarmanException):
     """
 
 
+class WalRangeCheckError(BarmanException):
+    """
+    Exception raised when a WAL range check cannot be performed,
+    for example because no backup is available to determine the
+    xlog segment size.
+    """
+
+
 class SyncException(BarmanException):
     """
     Base Exception for synchronisation functions
