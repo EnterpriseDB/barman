@@ -58,6 +58,7 @@ quickly navigate to it.
 
 .. include:: commands/barman/archive_wal.inc.rst
 .. include:: commands/barman/backup.inc.rst
+.. include:: commands/barman/check_archived_wal_range.inc.rst
 .. include:: commands/barman/check_backup.inc.rst
 .. include:: commands/barman/check.inc.rst
 .. include:: commands/barman/cloud_wal_archive.inc.rst
