@@ -40,6 +40,7 @@ from barman.cli import (
     argument,
     backup,
     check,
+    check_archived_wal_range,
     check_target_action,
     check_wal_archive,
     cloud_wal_archive,
@@ -68,7 +69,11 @@ from barman.cli import (
     status,
     terminate_process,
 )
-from barman.exceptions import BadXlogSegmentName, WalArchiveContentError
+from barman.exceptions import (
+    BadXlogSegmentName,
+    WalArchiveContentError,
+    WalRangeCheckError,
+)
 from barman.infofile import BackupInfo
 from barman.server import Server
 
@@ -3805,3 +3810,298 @@ class TestImportBackup(object):
         )
         # AND close_and_exit is called
         mock_close_and_exit.assert_called_once_with()
+
+
+class TestCheckArchivedWalRangeCli(object):
+    """Tests for the check-archived-wal-range CLI command."""
+
+    _BEGIN_WAL = "000000010000000100000001"
+    _END_WAL = "000000010000000100000003"
+
+    @pytest.fixture
+    def mock_args(self):
+        args = Mock()
+        args.server_name = "main"
+        args.begin_wal = self._BEGIN_WAL
+        args.end_wal = self._END_WAL
+        return args
+
+    @patch("barman.cli.output.close_and_exit")
+    @patch("barman.cli.output.result")
+    @patch("barman.cli.output.init")
+    @patch("barman.cli.get_server")
+    def test_complete_sequence_succeeds(
+        self,
+        mock_get_server,
+        mock_output_init,
+        mock_output_result,
+        mock_close_and_exit,
+        mock_args,
+    ):
+        """
+        When all WAL segments are present, output.result is called with an
+        empty missing list and the command does not call output.error.
+        """
+        # GIVEN a server with a complete WAL archive
+        mock_server = build_mocked_server(name="main")
+        mock_server.check_archived_wal_range.return_value = []
+        mock_get_server.return_value = mock_server
+
+        # WHEN check_archived_wal_range is invoked
+        check_archived_wal_range(mock_args)
+
+        # THEN output.init is called with the correct arguments
+        mock_output_init.assert_called_once_with(
+            "check_archived_wal_range",
+            mock_server.config.name,
+            self._BEGIN_WAL,
+            self._END_WAL,
+        )
+        # AND output.result is called with an empty list
+        mock_output_result.assert_called_once_with(
+            "check_archived_wal_range", mock_server.config.name, []
+        )
+        # AND close_and_exit is called once
+        mock_close_and_exit.assert_called_once_with()
+
+    @patch("barman.cli.output.close_and_exit")
+    @patch("barman.cli.output.error")
+    @patch("barman.cli.output.result")
+    @patch("barman.cli.output.init")
+    @patch("barman.cli.get_server")
+    def test_missing_wals_triggers_error(
+        self,
+        mock_get_server,
+        mock_output_init,
+        mock_output_result,
+        mock_output_error,
+        mock_close_and_exit,
+        mock_args,
+    ):
+        """
+        When WAL segments are missing, output.error is called and the command
+        passes the missing list to output.result.
+        """
+        # GIVEN a server whose archive is missing the middle segment
+        missing = ["000000010000000100000002"]
+        mock_server = build_mocked_server(name="main")
+        mock_server.check_archived_wal_range.return_value = missing
+        mock_get_server.return_value = mock_server
+
+        # WHEN check_archived_wal_range is invoked
+        check_archived_wal_range(mock_args)
+
+        # THEN output.result is called with the list of missing WALs
+        mock_output_result.assert_called_once_with(
+            "check_archived_wal_range", mock_server.config.name, missing
+        )
+        # AND output.error is called with the missing-segments message
+        mock_output_error.assert_called_once_with(
+            "WAL sequence check failed for server '%s': "
+            "%d missing segment(s) in range %s..%s",
+            mock_server.config.name,
+            len(missing),
+            self._BEGIN_WAL,
+            self._END_WAL,
+        )
+        # AND close_and_exit is called once
+        mock_close_and_exit.assert_called_once_with()
+
+    @patch("barman.cli.output.close_and_exit")
+    @patch("barman.cli.output.error")
+    @patch("barman.cli.output.init")
+    @patch("barman.cli.get_server")
+    def test_invalid_begin_wal_name_triggers_error(
+        self,
+        mock_get_server,
+        mock_output_init,
+        mock_output_error,
+        mock_close_and_exit,
+        mock_args,
+    ):
+        """
+        When begin_wal is not a valid WAL segment name, output.error is called
+        and the command exits immediately.
+        """
+        # GIVEN an invalid begin_wal value
+        mock_args.begin_wal = "not-a-wal-name"
+        mock_get_server.return_value = build_mocked_server(name="main")
+
+        # WHEN check_archived_wal_range is invoked
+        check_archived_wal_range(mock_args)
+
+        # THEN output.error is called with the expected message
+        mock_output_error.assert_called_once_with(
+            "Invalid WAL segment name: %s", mock_args.begin_wal
+        )
+        # AND close_and_exit is called
+        mock_close_and_exit.assert_called_once_with()
+
+    @patch("barman.cli.output.close_and_exit")
+    @patch("barman.cli.output.error")
+    @patch("barman.cli.output.init")
+    @patch("barman.cli.get_server")
+    def test_invalid_end_wal_name_triggers_error(
+        self,
+        mock_get_server,
+        mock_output_init,
+        mock_output_error,
+        mock_close_and_exit,
+        mock_args,
+    ):
+        """
+        When end_wal is not a valid WAL segment name, output.error is called
+        and the command exits immediately.
+        """
+        # GIVEN an invalid end_wal value
+        mock_args.end_wal = "not-a-wal-name"
+        mock_get_server.return_value = build_mocked_server(name="main")
+
+        # WHEN check_archived_wal_range is invoked
+        check_archived_wal_range(mock_args)
+
+        # THEN output.error is called with the expected message
+        mock_output_error.assert_called_once_with(
+            "Invalid WAL segment name: %s", mock_args.end_wal
+        )
+        # AND close_and_exit is called
+        mock_close_and_exit.assert_called_once_with()
+
+    @patch("barman.cli.output.close_and_exit")
+    @patch("barman.cli.output.error")
+    @patch("barman.cli.output.init")
+    @patch("barman.cli.get_server")
+    def test_begin_wal_after_end_wal_triggers_error(
+        self,
+        mock_get_server,
+        mock_output_init,
+        mock_output_error,
+        mock_close_and_exit,
+        mock_args,
+    ):
+        """
+        When begin_wal is lexicographically greater than end_wal (arguments
+        are swapped), output.error is called and the command exits immediately
+        without checking the archive.
+        """
+        # GIVEN begin_wal and end_wal are swapped
+        mock_args.begin_wal = self._END_WAL
+        mock_args.end_wal = self._BEGIN_WAL
+        mock_get_server.return_value = build_mocked_server(name="main")
+
+        # WHEN check_archived_wal_range is invoked
+        check_archived_wal_range(mock_args)
+
+        # THEN output.error is called with the expected message
+        mock_output_error.assert_called_once_with(
+            "begin_wal (%s) must not be greater than end_wal (%s)",
+            self._END_WAL,
+            self._BEGIN_WAL,
+        )
+        # AND close_and_exit is called once
+        mock_close_and_exit.assert_called_once_with()
+        # AND output.init is never reached
+        mock_output_init.assert_not_called()
+
+    @patch("barman.cli.output.close_and_exit")
+    @patch("barman.cli.output.error")
+    @patch("barman.cli.output.init")
+    @patch("barman.cli.get_server")
+    def test_different_timelines_triggers_error(
+        self,
+        mock_get_server,
+        mock_output_init,
+        mock_output_error,
+        mock_close_and_exit,
+        mock_args,
+    ):
+        """
+        When begin_wal and end_wal are on different timelines, output.error is
+        called and the command exits before reaching output.init or server logic.
+        """
+        # GIVEN begin_wal and end_wal are on different timelines
+        mock_args.begin_wal = "000000020000000100000001"
+        mock_args.end_wal = "000000010000000100000003"
+        mock_get_server.return_value = build_mocked_server(name="main")
+
+        # WHEN check_archived_wal_range is invoked
+        check_archived_wal_range(mock_args)
+
+        # THEN output.error is called with the expected message
+        mock_output_error.assert_called_once_with(
+            "begin_wal (%s) and end_wal (%s) must be on the same timeline",
+            mock_args.begin_wal,
+            mock_args.end_wal,
+        )
+        # AND close_and_exit is called once
+        mock_close_and_exit.assert_called_once_with()
+        # AND output.init is never reached
+        mock_output_init.assert_not_called()
+
+    @patch("barman.cli.output.close_and_exit")
+    @patch("barman.cli.output.error")
+    @patch("barman.cli.output.init")
+    @patch("barman.cli.get_server")
+    def test_no_backup_raises_wal_range_check_error(
+        self,
+        mock_get_server,
+        mock_output_init,
+        mock_output_error,
+        mock_close_and_exit,
+        mock_args,
+    ):
+        """
+        When the server raises WalRangeCheckError (e.g. no backup in catalog),
+        output.error is called with the exception message and the command exits.
+        """
+        # GIVEN a server whose check_archived_wal_range raises WalRangeCheckError
+        mock_server = build_mocked_server(name="main")
+        mock_server.check_archived_wal_range.side_effect = WalRangeCheckError(
+            "No backup found for server 'main': cannot determine WAL segment size"
+        )
+        mock_server.use_wal_cloud_storage = False
+        mock_get_server.return_value = mock_server
+
+        # WHEN check_archived_wal_range is invoked
+        check_archived_wal_range(mock_args)
+
+        # THEN output.error is called with the exception message
+        mock_output_error.assert_called_once_with(
+            "No backup found for server 'main': cannot determine WAL segment size"
+        )
+        # AND close_and_exit is called
+        mock_close_and_exit.assert_called_once_with()
+
+    @patch("barman.cli.output.close_and_exit")
+    @patch("barman.cli.output.result")
+    @patch("barman.cli.output.init")
+    @patch("barman.cli.get_server")
+    def test_get_server_allows_inactive_and_disabled(
+        self,
+        mock_get_server,
+        mock_output_init,
+        mock_output_result,
+        mock_close_and_exit,
+        mock_args,
+    ):
+        """
+        Verify that check_archived_wal_range calls get_server with flags that
+        allow both inactive and disabled servers, since the command is read-only
+        and does not require an active PostgreSQL connection.
+        """
+        # GIVEN a (possibly inactive or disabled) server
+        mock_server = build_mocked_server(name="main")
+        mock_server.check_archived_wal_range.return_value = []
+        mock_get_server.return_value = mock_server
+
+        # WHEN check_archived_wal_range is invoked
+        check_archived_wal_range(mock_args)
+
+        # THEN get_server was called with the correct flags
+        mock_get_server.assert_called_once_with(
+            mock_args,
+            skip_inactive=False,
+            inactive_is_error=False,
+            skip_disabled=False,
+            disabled_is_error=False,
+        )

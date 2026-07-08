@@ -37,7 +37,7 @@ from testing_helpers import (
     build_test_backup_info,
 )
 
-from barman import output
+from barman import output, xlog
 from barman.config import BackupOptions
 from barman.exceptions import (
     CommandFailedException,
@@ -49,6 +49,7 @@ from barman.exceptions import (
     PostgresReplicationSlotsFull,
     PostgresSuperuserRequired,
     PostgresUnsupportedFeature,
+    WalRangeCheckError,
 )
 from barman.infofile import BackupInfo, WalFileInfo
 from barman.lockfile import (
@@ -5282,6 +5283,184 @@ class TestServer(object):
         server.move_wal_file_to_errors_directory(src, filename, suffix)
         mock_shutil.move.assert_called_once_with(src, error_dst)
         mock_shutil.copy.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # check_archived_wal_range
+    # ------------------------------------------------------------------
+
+    def _make_backup_info_with_seg_size(self, xlog_segment_size=None):
+        """Return a MagicMock backup_info with the given xlog_segment_size."""
+        if xlog_segment_size is None:
+            xlog_segment_size = xlog.DEFAULT_XLOG_SEG_SIZE
+        backup_info = MagicMock()
+        backup_info.xlog_segment_size = xlog_segment_size
+        return backup_info
+
+    def _mock_wal_storage(self, server, present_wals):
+        """
+        Replace *server.wal_storage* with a MagicMock whose ``exists`` method
+        returns True for paths whose basename is in *present_wals*, and whose
+        ``get_full_path`` returns the WAL name itself as the path.
+        """
+        present = set(present_wals)
+        server.wal_storage = MagicMock()
+        server.wal_storage.get_full_path.side_effect = lambda name: name
+        server.wal_storage.exists.side_effect = lambda path: path in present
+
+    @patch("barman.server.Server.get_backup")
+    @patch("barman.server.Server.get_last_backup_id")
+    def test_check_archived_wal_range_complete_sequence(
+        self, mock_last_backup_id, mock_get_backup
+    ):
+        """
+        Check that an empty list is returned when all WAL segments in the
+        requested range are present in the archive.
+        """
+        wal_1 = "000000010000000100000001"
+        wal_2 = "000000010000000100000002"
+        wal_3 = "000000010000000100000003"
+
+        # GIVEN a server whose archive contains the full expected sequence
+        server = build_real_server()
+        mock_last_backup_id.return_value = "1234567890"
+        mock_get_backup.return_value = self._make_backup_info_with_seg_size()
+        self._mock_wal_storage(server, [wal_1, wal_2, wal_3])
+
+        # WHEN check_archived_wal_range is called for that exact range
+        result = server.check_archived_wal_range(wal_1, wal_3)
+
+        # THEN no missing WALs are reported
+        assert result == []
+
+    @patch("barman.server.Server.get_backup")
+    @patch("barman.server.Server.get_last_backup_id")
+    def test_check_archived_wal_range_missing_wals_returned_in_order(
+        self, mock_last_backup_id, mock_get_backup
+    ):
+        """
+        Check that missing WAL segments are returned in sequence order when
+        gaps exist in the archive.
+        """
+        wal_1 = "000000010000000100000001"
+        wal_2 = "000000010000000100000002"
+        wal_3 = "000000010000000100000003"
+
+        # GIVEN an archive that is missing the middle segment
+        server = build_real_server()
+        mock_last_backup_id.return_value = "1234567890"
+        mock_get_backup.return_value = self._make_backup_info_with_seg_size()
+        self._mock_wal_storage(server, [wal_1, wal_3])
+
+        # WHEN the range spanning all three segments is checked
+        result = server.check_archived_wal_range(wal_1, wal_3)
+
+        # THEN only the missing middle segment is reported
+        assert result == [wal_2]
+
+    @patch("barman.server.Server.get_backup")
+    @patch("barman.server.Server.get_last_backup_id")
+    def test_check_archived_wal_range_empty_archive(
+        self, mock_last_backup_id, mock_get_backup
+    ):
+        """
+        Check that all expected segments are reported when the archive is empty.
+        """
+        wal_1 = "000000010000000100000001"
+        wal_2 = "000000010000000100000002"
+
+        # GIVEN an archive with no WAL files at all
+        server = build_real_server()
+        mock_last_backup_id.return_value = "1234567890"
+        mock_get_backup.return_value = self._make_backup_info_with_seg_size()
+        self._mock_wal_storage(server, [])
+
+        # WHEN a two-segment range is checked
+        result = server.check_archived_wal_range(wal_1, wal_2)
+
+        # THEN both segments are reported as missing
+        assert result == [wal_1, wal_2]
+
+    @patch("barman.server.Server.get_last_backup_id")
+    def test_check_archived_wal_range_no_backup_raises(self, mock_last_backup_id):
+        """
+        Check that WalRangeCheckError is raised when no backup exists in the
+        catalog, since the segment size cannot be determined without one.
+        """
+        wal_1 = "000000010000000100000001"
+        wal_2 = "000000010000000100000002"
+
+        # GIVEN a server with no backups in the catalog
+        server = build_real_server()
+        mock_last_backup_id.return_value = None
+
+        # WHEN the range is checked
+        # THEN WalRangeCheckError is raised
+        with pytest.raises(WalRangeCheckError):
+            server.check_archived_wal_range(wal_1, wal_2)
+
+    @patch("barman.server.Server.get_backup")
+    @patch("barman.server.Server.get_last_backup_id")
+    def test_check_archived_wal_range_single_segment_present_and_absent(
+        self, mock_last_backup_id, mock_get_backup
+    ):
+        """
+        Check that a range containing a single segment works correctly for
+        both present and absent cases.
+        """
+        wal_1 = "000000010000000100000001"
+
+        server = build_real_server()
+        mock_last_backup_id.return_value = "1234567890"
+        mock_get_backup.return_value = self._make_backup_info_with_seg_size()
+
+        # GIVEN the single segment is present
+        self._mock_wal_storage(server, [wal_1])
+
+        # WHEN the single-segment range is checked
+        result = server.check_archived_wal_range(wal_1, wal_1)
+
+        # THEN no missing segments are reported
+        assert result == []
+
+        # GIVEN the single segment is absent
+        self._mock_wal_storage(server, [])
+
+        # WHEN the same range is checked again
+        result = server.check_archived_wal_range(wal_1, wal_1)
+
+        # THEN the one missing segment is reported
+        assert result == [wal_1]
+
+    @patch("barman.server.Server.get_backup")
+    @patch("barman.server.Server.get_last_backup_id")
+    def test_check_archived_wal_range_uses_segment_size_from_latest_backup(
+        self, mock_last_backup_id, mock_get_backup
+    ):
+        """
+        Check that the xlog segment size from the most recent backup is used
+        when computing the sequence, so that non-default segment sizes are
+        handled correctly.
+        """
+        # GIVEN a server whose latest backup uses 1 GiB segments
+        server = build_real_server()
+        mock_last_backup_id.return_value = "1234567890"
+        large_seg_size = 1 << 30  # 1 GiB
+        mock_get_backup.return_value = self._make_backup_info_with_seg_size(
+            large_seg_size
+        )
+
+        # AND the archive only holds the first of two expected segments
+        wal_a = "000000010000000100000001"
+        wal_b = "000000010000000100000002"
+        self._mock_wal_storage(server, [wal_a])
+
+        # WHEN the two-segment range is checked
+        result = server.check_archived_wal_range(wal_a, wal_b)
+
+        # THEN the segment size from the backup is used and the missing WAL
+        # is correctly identified
+        assert result == [wal_b]
+        mock_get_backup.assert_called_once_with("1234567890")
 
 
 class TestCheckStrategy(object):

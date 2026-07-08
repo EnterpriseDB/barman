@@ -1690,6 +1690,74 @@ class TestConsoleWriter(object):
         assert out == expected
         assert err == ""
 
+    def test_init_check_archived_wal_range(self, capsys):
+        """
+        Verify that init_check_archived_wal_range prints the server header to
+        stdout. The WAL range detail is emitted at debug level and does not
+        appear in normal (non-debug) output.
+        """
+        server_name = "main"
+        begin_wal = "000000010000000100000001"
+        end_wal = "000000010000000100000003"
+
+        # GIVEN a console output writer (debug mode off)
+        writer = output.ConsoleOutputWriter()
+
+        # WHEN the init method is called
+        writer.init_check_archived_wal_range(server_name, begin_wal, end_wal)
+        writer.close()
+        out, err = capsys.readouterr()
+
+        # THEN the server name appears in stdout
+        assert server_name in out
+        # AND the WAL range detail is not printed in normal output
+        assert begin_wal not in out
+        assert end_wal not in out
+        # AND nothing is written to stderr (debug is off)
+        assert err == ""
+
+    def test_result_check_archived_wal_range_complete(self, capsys):
+        """
+        Verify that result_check_archived_wal_range prints a success message
+        when the missing list is empty.
+        """
+        server_name = "main"
+
+        # GIVEN a console output writer
+        writer = output.ConsoleOutputWriter()
+
+        # WHEN the result method is called with no missing WALs
+        writer.result_check_archived_wal_range(server_name, [])
+        writer.close()
+        out, err = capsys.readouterr()
+
+        # THEN a success message containing the server name is printed
+        assert server_name in out
+        assert "present" in out
+        assert err == ""
+
+    def test_result_check_archived_wal_range_missing(self, capsys):
+        """
+        Verify that result_check_archived_wal_range lists each missing WAL
+        segment and includes the count when there are gaps.
+        """
+        server_name = "main"
+        missing_wal = "000000010000000100000002"
+
+        # GIVEN a console output writer
+        writer = output.ConsoleOutputWriter()
+
+        # WHEN the result method is called with one missing WAL
+        writer.result_check_archived_wal_range(server_name, [missing_wal])
+        writer.close()
+        out, err = capsys.readouterr()
+
+        # THEN the missing WAL name appears in the output
+        assert missing_wal in out
+        # AND the count is mentioned in context
+        assert "1 missing segment(s)" in out
+        assert err == ""
+
 
 # noinspection PyMethodMayBeStatic
 class TestJsonWriter(object):
@@ -2632,6 +2700,65 @@ class TestJsonWriter(object):
         ]
         assert json_output["test_server"] == expected
         assert err == ""
+
+    def test_init_check_archived_wal_range(self, capsys):
+        """
+        Verify that init_check_archived_wal_range seeds the JSON output with
+        the begin_wal and end_wal keys for the server.
+        """
+        server_name = "main"
+        begin_wal = "000000010000000100000001"
+        end_wal = "000000010000000100000003"
+
+        # GIVEN a JSON output writer
+        writer = output.JsonOutputWriter()
+
+        # WHEN the init method is called
+        writer.init_check_archived_wal_range(server_name, begin_wal, end_wal)
+
+        # THEN the server entry exists in json_output with the WAL range
+        assert server_name in writer.json_output
+        assert writer.json_output[server_name]["begin_wal"] == begin_wal
+        assert writer.json_output[server_name]["end_wal"] == end_wal
+
+    def test_result_check_archived_wal_range_complete(self, capsys):
+        """
+        Verify that result_check_archived_wal_range stores an empty list in the
+        JSON output when no WALs are missing.
+        """
+        server_name = "main"
+        begin_wal = "000000010000000100000001"
+        end_wal = "000000010000000100000003"
+
+        # GIVEN a JSON output writer already initialised for this server
+        writer = output.JsonOutputWriter()
+        writer.init_check_archived_wal_range(server_name, begin_wal, end_wal)
+
+        # WHEN the result method is called with no missing WALs
+        writer.result_check_archived_wal_range(server_name, [])
+
+        # THEN the missing_wals list in the JSON output is empty
+        assert writer.json_output[server_name]["missing_wals"] == []
+
+    def test_result_check_archived_wal_range_missing(self, capsys):
+        """
+        Verify that result_check_archived_wal_range stores the missing WAL
+        names in the JSON output.
+        """
+        server_name = "main"
+        begin_wal = "000000010000000100000001"
+        end_wal = "000000010000000100000003"
+        missing_wal = "000000010000000100000002"
+
+        # GIVEN a JSON output writer already initialised for this server
+        writer = output.JsonOutputWriter()
+        writer.init_check_archived_wal_range(server_name, begin_wal, end_wal)
+
+        # WHEN the result method is called with one missing WAL
+        writer.result_check_archived_wal_range(server_name, [missing_wal])
+
+        # THEN the missing WAL is stored in the JSON output
+        assert writer.json_output[server_name]["missing_wals"] == [missing_wal]
 
 
 # noinspection PyMethodMayBeStatic
