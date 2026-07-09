@@ -239,7 +239,7 @@ When retention policy is applied:
 * If the root backup is marked as ``KEEP:FULL``, all associated incremental backups are
   marked as ``VALID``, regardless of whether the root backup is within the retention
   policy.
-* If the root backup is marked as ``KEEP:STANDALONE``and is still within the retention
+* If the root backup is marked as ``KEEP:STANDALONE`` and is still within the retention
   policy, all associated incremental backups are marked as ``VALID``. However, if the
   root backup is outside the retention policy, all associated incremental backups are
   marked as ``OBSOLETE``.
