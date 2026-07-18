@@ -27,6 +27,7 @@ from barman.cloud import (
     CloudProviderError,
     CloudSnapshotInterface,
     DecompressingStreamingIO,
+    ReadAheadIO,
     SnapshotMetadata,
     SnapshotsInfo,
     VolumeMetadata,
@@ -274,9 +275,10 @@ class GoogleCloudInterface(CloudInterface):
             _logger.debug("Key: {} does not exist".format(key))
             return None
         blob_reader = blob.open("rb")
+        fileobj = ReadAheadIO(blob_reader)
         if decompressor:
-            return DecompressingStreamingIO(blob_reader, decompressor)
-        return blob_reader
+            return DecompressingStreamingIO(fileobj, decompressor)
+        return fileobj
 
     def _get_blob_object(self, key, override_tags=None):
         tags = override_tags or self.tags

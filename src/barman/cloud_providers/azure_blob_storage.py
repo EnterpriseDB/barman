@@ -30,6 +30,7 @@ from barman.cloud import (
     CloudProviderError,
     CloudSnapshotInterface,
     DecompressingStreamingIO,
+    ReadAheadIO,
     SnapshotMetadata,
     SnapshotsInfo,
     VolumeMetadata,
@@ -350,10 +351,11 @@ class AzureCloudInterface(CloudInterface):
         try:
             obj = self.container_client.download_blob(key)
             resp = StreamingBlobIO(obj)
+            fileobj = ReadAheadIO(resp)
             if decompressor:
-                return DecompressingStreamingIO(resp, decompressor)
+                return DecompressingStreamingIO(fileobj, decompressor)
             else:
-                return resp
+                return fileobj
         except ResourceNotFoundError:
             return None
 

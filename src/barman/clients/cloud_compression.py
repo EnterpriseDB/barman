@@ -17,6 +17,8 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 
+import bz2
+import zlib
 from abc import ABCMeta, abstractmethod
 
 from barman.compression import (
@@ -65,6 +67,132 @@ class ChunkedCompressor(with_metaclass(ABCMeta, object)):
         :return: Any remaining compressed data
         :rtype: bytes
         """
+        return b""
+
+
+class GzipCompressor(ChunkedCompressor):
+    """
+    A ChunkedCompressor implementation based on zlib.
+
+    Uses zlib's compressobj/decompressobj with a gzip-compatible window size
+    for streaming compression and decompression. The compressor maintains
+    state across add_chunk() calls and requires flush() to be called at the
+    end to write the gzip trailer.
+    """
+
+    # 16 + MAX_WBITS instructs zlib to produce/consume a gzip header and
+    # trailer rather than a raw zlib or zlib-wrapped stream.
+    _GZIP_WBITS = 16 + zlib.MAX_WBITS
+
+    def __init__(self):
+        self._compressor = None
+        self._decompressor = None
+        self._flushed = False
+
+    def add_chunk(self, data):
+        """
+        Compresses the supplied data and returns the compressed bytes.
+
+        On the first call, this initializes the zlib compressor object.
+        Subsequent calls compress additional data within the same stream.
+
+        :param bytes data: The chunk of data to be compressed
+        :return: The compressed data
+        :rtype: bytes
+        """
+        if self._compressor is None:
+            self._compressor = zlib.compressobj(
+                zlib.Z_DEFAULT_COMPRESSION, zlib.DEFLATED, self._GZIP_WBITS
+            )
+        return self._compressor.compress(data)
+
+    def decompress(self, data):
+        """
+        Decompresses the supplied chunk of data and returns the uncompressed data.
+
+        The zlib decompressor handles streaming decompression automatically.
+
+        :param bytes data: The chunk of data to be decompressed
+        :return: The decompressed data
+        :rtype: bytes
+        """
+        if self._decompressor is None:
+            self._decompressor = zlib.decompressobj(self._GZIP_WBITS)
+        return self._decompressor.decompress(data)
+
+    def flush(self):
+        """
+        Flushes any remaining data and writes the gzip trailer.
+
+        This must be called after all data has been compressed to ensure the
+        gzip stream is properly terminated. Subsequent calls return empty bytes.
+
+        :return: Any remaining compressed data
+        :rtype: bytes
+        """
+        if self._compressor is not None and not self._flushed:
+            self._flushed = True
+            return self._compressor.flush()
+        return b""
+
+
+class Bz2Compressor(ChunkedCompressor):
+    """
+    A ChunkedCompressor implementation based on bz2.
+
+    Uses bz2.BZ2Compressor/BZ2Decompressor for streaming compression and
+    decompression. The compressor maintains state across add_chunk() calls
+    and requires flush() to be called at the end to finalize the compressed
+    stream.
+    """
+
+    def __init__(self):
+        self._compressor = None
+        self._decompressor = None
+        self._flushed = False
+
+    def add_chunk(self, data):
+        """
+        Compresses the supplied data and returns the compressed bytes.
+
+        On the first call, this initializes the bz2 compressor object.
+        Subsequent calls compress additional data within the same stream.
+
+        :param bytes data: The chunk of data to be compressed
+        :return: The compressed data
+        :rtype: bytes
+        """
+        if self._compressor is None:
+            self._compressor = bz2.BZ2Compressor()
+        return self._compressor.compress(data)
+
+    def decompress(self, data):
+        """
+        Decompresses the supplied chunk of data and returns the uncompressed data.
+
+        The bz2 decompressor handles streaming decompression automatically.
+
+        :param bytes data: The chunk of data to be decompressed
+        :return: The decompressed data
+        :rtype: bytes
+        """
+        if self._decompressor is None:
+            self._decompressor = bz2.BZ2Decompressor()
+        return self._decompressor.decompress(data)
+
+    def flush(self):
+        """
+        Flushes any remaining data and finalizes the compressed stream.
+
+        This must be called after all data has been compressed to ensure the
+        bz2 stream is properly terminated. Subsequent calls return empty bytes.
+
+        :return: Any remaining compressed data
+        :rtype: bytes
+        """
+        if self._compressor is not None and not self._flushed:
+            self._flushed = True
+            return self._compressor.flush()
         return b""
 
 
@@ -230,11 +358,9 @@ class ZstdCompressor(ChunkedCompressor):
 def get_compressor(compression):
     """
     Helper function which returns a ChunkedCompressor for the specified compression
-    algorithm. Snappy, lz4 and zstd are supported. The other compression algorithms
-    supported by barman cloud use the decompression built into TarFile.
+    algorithm. Snappy, lz4, zstd, gzip and bzip2 are supported.
 
-    :param str compression: The compression algorithm to use. Can be set to snappy,
-      lz4, zst, or any compression supported by the TarFile mode string.
+    :param str compression: The compression extension of the compression algorithm.
     :return: A ChunkedCompressor capable of compressing and decompressing using the
       specified compression.
     :rtype: ChunkedCompressor
@@ -245,6 +371,10 @@ def get_compressor(compression):
         return Lz4Compressor()
     if compression == "zst":
         return ZstdCompressor()
+    if compression == "gz":
+        return GzipCompressor()
+    if compression == "bz2":
+        return Bz2Compressor()
     return None
 
 

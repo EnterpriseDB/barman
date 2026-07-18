@@ -25,8 +25,10 @@ import logging
 import multiprocessing
 import operator
 import os
+import queue
 import shutil
 import signal
+import subprocess
 import sys
 import tarfile
 import threading
@@ -48,6 +50,7 @@ from barman.exceptions import (
     BackupException,
     BackupPreconditionException,
     BarmanException,
+    CommandFailedException,
     ConfigurationException,
 )
 from barman.fs import UnixLocalCommand, path_allowed
@@ -75,6 +78,8 @@ except ImportError:
     # Python 2.x
     from Queue import Empty as EmptyQueue
 
+# Default pipe buffer size on most Linux systems
+KERNEL_PIPE_SIZE = 65536
 
 BUFSIZE = 16 * 1024
 LOGGING_FORMAT = "%(asctime)s [%(process)s] %(levelname)s: %(message)s"
@@ -210,9 +215,12 @@ class CloudTarUploader(object):
         self.counter = 0
         self.compressor = None
         self.staging_dir = staging_dir
-        # Some supported compressions (e.g. snappy) require CloudTarUploader to apply
-        # compression manually rather than relying on the tar file.
-        self.compressor = cloud_compression.get_compressor(compression)
+        # gz and bz2 compression is performed natively by tar via tar_mode below.
+        # Other supported compressions (e.g. snappy, lz4, zst) require
+        # CloudTarUploader to apply compression manually rather than relying
+        # on the tar file.
+        if compression not in ("gz", "bz2"):
+            self.compressor = cloud_compression.get_compressor(compression)
         # If the compression is supported by tar then it will be added to the filemode
         # passed to tar_mode.
         tar_mode = cloud_compression.get_streaming_tar_mode("w", compression)
@@ -635,10 +643,11 @@ class DecompressingStreamingIO(RawIOBase):
     provider responses without requiring it to know anything about the compression.
     """
 
-    # The value of 65536 for the chunk size is based on comments in the python-snappy
-    # library which suggest it should be good for almost every scenario.
-    # See: https://github.com/andrix/python-snappy/blob/0.6.0/snappy/snappy.py#L300
-    COMPRESSED_CHUNK_SIZE = 65536
+    # The default chunk size for decompression should be as small as possible, as it
+    # will grow once decompressed. There is no need to handle more data than we can return.
+    # Considering the read pattern of _extract_tar_with_subprocess, which reads in 64k
+    # chunks, a chunk size of 8k should be good enough in order to avoid extra decompression.
+    COMPRESSED_CHUNK_SIZE = 8192
 
     def __init__(self, streaming_response, decompressor):
         """
@@ -655,7 +664,7 @@ class DecompressingStreamingIO(RawIOBase):
         """
         self.streaming_response = streaming_response
         self.decompressor = decompressor
-        self.buffer = bytes()
+        self.buffer = bytearray()
 
     def _read_from_uncompressed_buffer(self, n):
         """
@@ -667,7 +676,7 @@ class DecompressingStreamingIO(RawIOBase):
 
         :param int n: The number of bytes to read
         :return: The bytes read from the local buffer
-        :rtype: bytes
+        :rtype: bytearray
         """
         if n <= len(self.buffer):
             return_bytes = self.buffer[:n]
@@ -675,7 +684,7 @@ class DecompressingStreamingIO(RawIOBase):
             return return_bytes
         else:
             return_bytes = self.buffer
-            self.buffer = bytes()
+            self.buffer = bytearray()
             return return_bytes
 
     def read(self, n=-1):
@@ -694,18 +703,112 @@ class DecompressingStreamingIO(RawIOBase):
         """
         uncompressed_bytes = self._read_from_uncompressed_buffer(n)
         if len(uncompressed_bytes) == n:
-            return uncompressed_bytes
+            return bytes(uncompressed_bytes)
 
         while len(uncompressed_bytes) < n:
             compressed_bytes = self.streaming_response.read(self.COMPRESSED_CHUNK_SIZE)
+            if not compressed_bytes:
+                # The wrapped stream is exhausted. Do not call decompress()
+                # again here: if a previous chunk already completed the
+                # compression frame, the decompressor object will reject a
+                # further call even with empty input.
+                break
             uncompressed_bytes += self.decompressor.decompress(compressed_bytes)
             if len(compressed_bytes) < self.COMPRESSED_CHUNK_SIZE:
                 # If we got fewer bytes than we asked for then we're done
                 break
 
-        return_bytes = uncompressed_bytes[:n]
+        return_bytes = bytes(uncompressed_bytes[:n])
         self.buffer = uncompressed_bytes[n:]
         return return_bytes
+
+    def close(self):
+        self.streaming_response.close()
+        super(DecompressingStreamingIO, self).close()
+
+
+class ReadAheadIO(RawIOBase):
+    """
+    Wrap a blocking, file-like stream so that reads are prefetched on a
+    background thread into a bounded buffer.
+
+    This lets the consumer (e.g. decompression and tar extraction) overlap
+    its CPU/disk work on chunk N with the network I/O wait for chunk N+1,
+    instead of blocking on the network before any further processing can
+    happen.
+
+    .. note::
+      The background thread is started as a daemon thread and is never
+      explicitly stopped or joined. It only exits on its own once it hits
+      EOF or an error. Running it as a daemon thread means that the main
+      thread isn't blocked by this thread i.e. the main process can exit
+      normally regardless of the status of this thread, without waiting for
+      it to be joined or stopped.
+    """
+
+    _SENTINEL = object()
+
+    def __init__(self, stream, chunk_size=KERNEL_PIPE_SIZE, queue_depth=16):
+        """
+        :param RawIOBase stream: A readable, file-like object.
+        :param int chunk_size: The number of bytes to read from the wrapped stream
+            at a time. This is the size of each chunk that is prefetched into the
+            bounded buffer.
+        :param int queue_depth: Maximum number of chunks buffered ahead of
+          the consumer. Bounds the memory used for read-ahead.
+        """
+        self._src_stream = stream
+        self._chunk_size = chunk_size
+        self._queue = queue.Queue(maxsize=queue_depth)
+        self._buffer = bytearray()
+        self._eof = False
+        self._error = None
+        self._thread = threading.Thread(target=self._read_ahead, daemon=True)
+        self._thread.start()
+
+    def readable(self):
+        return True
+
+    def _read_ahead(self):
+        try:
+            while True:
+                chunk = self._src_stream.read(self._chunk_size)
+                if not chunk:
+                    break
+                self._queue.put(chunk)
+        except Exception as exc:
+            self._error = exc
+        finally:
+            self._queue.put(self._SENTINEL)
+
+    def read(self, n=-1):
+        """
+        Read up to n bytes, blocking only if the read-ahead buffer is empty.
+
+        :param int n: The number of bytes required. A negative value reads
+          until the wrapped stream is exhausted.
+        :rtype: bytes
+        """
+        while not self._eof and (n < 0 or len(self._buffer) < n):
+            item = self._queue.get()
+            if item is self._SENTINEL:
+                self._eof = True
+                if self._error is not None:
+                    raise self._error
+                break
+            self._buffer += item
+
+        # All data requested, return all data in buffer
+        if n < 0:
+            return_bytes, self._buffer = bytes(self._buffer), bytearray()
+        # Buffer has more data than requested, return the requested length only
+        else:
+            return_bytes, self._buffer = bytes(self._buffer[:n]), self._buffer[n:]
+        return return_bytes
+
+    def close(self):
+        self._src_stream.close()
+        super(ReadAheadIO, self).close()
 
 
 class CloudInterface(with_metaclass(ABCMeta)):
@@ -1120,12 +1223,48 @@ class CloudInterface(with_metaclass(ABCMeta)):
         :param str dst: Path of the directory into which the tar archive should
           be extracted
         """
-        extension = os.path.splitext(key)[-1]
-        compression = "" if extension == ".tar" else extension[1:]
-        tar_mode = cloud_compression.get_streaming_tar_mode("r", compression)
-        fileobj = self.remote_open(key, cloud_compression.get_compressor(compression))
-        with tarfile.open(fileobj=fileobj, mode=tar_mode) as tf:
-            tf.extractall(path=dst)
+        comp_extension = os.path.splitext(key)[-1]
+        comp_extension = "" if comp_extension == ".tar" else comp_extension[1:]
+        compressor = cloud_compression.get_compressor(comp_extension)
+        fileobj = self.remote_open(key, compressor)
+        self._extract_tar_with_subprocess(fileobj, dst)
+
+    def _extract_tar_with_subprocess(self, fileobj, dst):
+        """
+        Extract a tar stream into dst using the system's ``tar`` binary.
+
+        :param fileobj: A file-like object providing the tar content, already
+          decompressed if the backup was compressed.
+        :param str dst: Directory to extract the tar archive into. Created if
+          it does not already exist.
+        :raises CommandFailedException: if the tar process exits non-zero, or
+          if the ``tar`` executable could not be found.
+        """
+        os.makedirs(dst, exist_ok=True)
+        args = ["tar", "--extract", "--file", "-", "--directory", dst]
+        try:
+            tar_process = subprocess.Popen(args, stdin=subprocess.PIPE)
+        except FileNotFoundError:
+            raise CommandFailedException(
+                "tar command not found: the tar package must be installed "
+                "to extract this backup"
+            )
+        try:
+            # We perform the copy in chunks of KERNEL_PIPE_SIZE to avoid processing
+            # more data than the kernel pipe buffer can hold
+            shutil.copyfileobj(fileobj, tar_process.stdin, length=KERNEL_PIPE_SIZE)
+        except BrokenPipeError:
+            # tar exited early (e.g. on a malformed archive) - the real
+            # error is surfaced below via the exit code check.
+            pass
+        finally:
+            fileobj.close()
+            tar_process.stdin.close()
+            return_code = tar_process.wait()
+            if return_code != 0:
+                raise CommandFailedException(
+                    "tar extraction into %s exited with code %s" % (dst, return_code)
+                )
 
     @abstractmethod
     def _reinit_session(self):

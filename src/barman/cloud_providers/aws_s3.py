@@ -34,6 +34,7 @@ from barman.cloud import (
     CloudProviderError,
     CloudSnapshotInterface,
     DecompressingStreamingIO,
+    ReadAheadIO,
     SnapshotMetadata,
     SnapshotsInfo,
     VolumeMetadata,
@@ -411,10 +412,11 @@ class S3CloudInterface(CloudInterface):
         try:
             obj = self.s3.Object(self.bucket_name, key)
             resp = StreamingBodyIO(obj.get(**self._extra_sse_c_args)["Body"])
+            fileobj = ReadAheadIO(resp)
             if decompressor:
-                return DecompressingStreamingIO(resp, decompressor)
+                return DecompressingStreamingIO(fileobj, decompressor)
             else:
-                return resp
+                return fileobj
         except ClientError as exc:
             error_code = exc.response["Error"]["Code"]
             if error_code == "NoSuchKey":
