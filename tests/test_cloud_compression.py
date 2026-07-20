@@ -23,7 +23,9 @@ Tests for barman.clients.cloud_compression module.
 import pytest
 
 from barman.clients.cloud_compression import (
+    Bz2Compressor,
     ChunkedCompressor,
+    GzipCompressor,
     Lz4Compressor,
     SnappyCompressor,
     ZstdCompressor,
@@ -50,15 +52,15 @@ class TestGetCompressor:
         compressor = get_compressor("zst")
         assert isinstance(compressor, ZstdCompressor)
 
-    def test_returns_none_for_gzip(self):
-        """Verify get_compressor returns None for TarFile-native compression."""
+    def test_returns_gzip_compressor_for_gz(self):
+        """Verify get_compressor returns GzipCompressor for 'gz'."""
         compressor = get_compressor("gz")
-        assert compressor is None
+        assert isinstance(compressor, GzipCompressor)
 
-    def test_returns_none_for_bzip2(self):
-        """Verify get_compressor returns None for TarFile-native compression."""
+    def test_returns_bz2_compressor_for_bz2(self):
+        """Verify get_compressor returns Bz2Compressor for 'bz2'."""
         compressor = get_compressor("bz2")
-        assert compressor is None
+        assert isinstance(compressor, Bz2Compressor)
 
     def test_returns_none_for_none(self):
         """Verify get_compressor returns None for None compression."""
@@ -447,6 +449,266 @@ class TestZstdCompressor:
 
         # THEN each should correctly decompress its data
         assert decompressed1 == data1
+        assert decompressed2 == data2
+
+
+class TestGzipCompressor:
+    """Tests for the GzipCompressor class."""
+
+    def test_inherits_from_chunked_compressor(self):
+        """Verify GzipCompressor is a ChunkedCompressor."""
+        compressor = GzipCompressor()
+        assert isinstance(compressor, ChunkedCompressor)
+
+    def test_compress_and_decompress_single_chunk(self):
+        """Verify round-trip compression/decompression of a single chunk."""
+        compressor = GzipCompressor()
+        original_data = b"Hello, World! This is test data for gzip compression."
+
+        # Compress
+        compressed = compressor.add_chunk(original_data)
+        compressed += compressor.flush()
+
+        # Decompress with a new compressor instance
+        decompressor = GzipCompressor()
+        decompressed = decompressor.decompress(compressed)
+
+        assert decompressed == original_data
+
+    def test_compress_and_decompress_multiple_chunks(self):
+        """Verify round-trip compression/decompression of multiple chunks."""
+        compressor = GzipCompressor()
+        chunks = [
+            b"First chunk of data. " * 100,
+            b"Second chunk of data. " * 100,
+            b"Third chunk of data. " * 100,
+        ]
+
+        # Compress all chunks
+        compressed_data = b""
+        for chunk in chunks:
+            compressed_data += compressor.add_chunk(chunk)
+        compressed_data += compressor.flush()
+
+        # Decompress
+        decompressor = GzipCompressor()
+        decompressed = decompressor.decompress(compressed_data)
+
+        assert decompressed == b"".join(chunks)
+
+    def test_flush_returns_bytes(self):
+        """Verify flush returns bytes object."""
+        compressor = GzipCompressor()
+        compressor.add_chunk(b"test data")
+        result = compressor.flush()
+        assert isinstance(result, bytes)
+
+    def test_flush_without_compression_returns_empty_bytes(self):
+        """Verify flush returns empty bytes if no compression was done."""
+        compressor = GzipCompressor()
+        result = compressor.flush()
+        assert result == b""
+
+    def test_streaming_decompression(self):
+        """Verify decompression works when data arrives in small chunks."""
+        compressor = GzipCompressor()
+        original_data = b"Test data for streaming decompression. " * 50
+
+        # Compress
+        compressed = compressor.add_chunk(original_data)
+        compressed += compressor.flush()
+
+        # Decompress in small chunks (simulating streaming)
+        decompressor = GzipCompressor()
+        decompressed = b""
+        chunk_size = 64
+        for i in range(0, len(compressed), chunk_size):
+            chunk = compressed[i : i + chunk_size]
+            decompressed += decompressor.decompress(chunk)
+
+        assert decompressed == original_data
+
+    def test_compression_ratio(self):
+        """Verify gzip actually compresses repetitive data."""
+        compressor = GzipCompressor()
+        original_data = b"AAAA" * 10000
+
+        compressed = compressor.add_chunk(original_data)
+        compressed += compressor.flush()
+
+        assert len(compressed) < len(original_data)
+
+    def test_empty_chunk_handling(self):
+        """Verify gzip handles empty chunks correctly."""
+        compressor = GzipCompressor()
+
+        compressed = compressor.add_chunk(b"some data")
+        compressed += compressor.add_chunk(b"")
+        compressed += compressor.add_chunk(b" more data")
+        compressed += compressor.flush()
+
+        decompressor = GzipCompressor()
+        decompressed = decompressor.decompress(compressed)
+
+        assert decompressed == b"some data more data"
+
+    def test_flush_called_multiple_times(self):
+        """Verify flush can be called multiple times safely."""
+        compressor = GzipCompressor()
+        compressor.add_chunk(b"test data")
+
+        result1 = compressor.flush()
+        assert isinstance(result1, bytes)
+
+        result2 = compressor.flush()
+        assert result2 == b""
+
+    def test_decompressor_reuse(self):
+        """Verify separate decompressors can decompress separate streams."""
+        compressor1 = GzipCompressor()
+        data1 = b"First piece of data"
+        compressed1 = compressor1.add_chunk(data1) + compressor1.flush()
+
+        compressor2 = GzipCompressor()
+        data2 = b"Second piece of data"
+        compressed2 = compressor2.add_chunk(data2) + compressor2.flush()
+
+        decompressor1 = GzipCompressor()
+        decompressed1 = decompressor1.decompress(compressed1)
+        assert decompressed1 == data1
+
+        decompressor2 = GzipCompressor()
+        decompressed2 = decompressor2.decompress(compressed2)
+        assert decompressed2 == data2
+
+
+class TestBz2Compressor:
+    """Tests for the Bz2Compressor class."""
+
+    def test_inherits_from_chunked_compressor(self):
+        """Verify Bz2Compressor is a ChunkedCompressor."""
+        compressor = Bz2Compressor()
+        assert isinstance(compressor, ChunkedCompressor)
+
+    def test_compress_and_decompress_single_chunk(self):
+        """Verify round-trip compression/decompression of a single chunk."""
+        compressor = Bz2Compressor()
+        original_data = b"Hello, World! This is test data for bzip2 compression."
+
+        # Compress
+        compressed = compressor.add_chunk(original_data)
+        compressed += compressor.flush()
+
+        # Decompress with a new compressor instance
+        decompressor = Bz2Compressor()
+        decompressed = decompressor.decompress(compressed)
+
+        assert decompressed == original_data
+
+    def test_compress_and_decompress_multiple_chunks(self):
+        """Verify round-trip compression/decompression of multiple chunks."""
+        compressor = Bz2Compressor()
+        chunks = [
+            b"First chunk of data. " * 100,
+            b"Second chunk of data. " * 100,
+            b"Third chunk of data. " * 100,
+        ]
+
+        # Compress all chunks
+        compressed_data = b""
+        for chunk in chunks:
+            compressed_data += compressor.add_chunk(chunk)
+        compressed_data += compressor.flush()
+
+        # Decompress
+        decompressor = Bz2Compressor()
+        decompressed = decompressor.decompress(compressed_data)
+
+        assert decompressed == b"".join(chunks)
+
+    def test_flush_returns_bytes(self):
+        """Verify flush returns bytes object."""
+        compressor = Bz2Compressor()
+        compressor.add_chunk(b"test data")
+        result = compressor.flush()
+        assert isinstance(result, bytes)
+
+    def test_flush_without_compression_returns_empty_bytes(self):
+        """Verify flush returns empty bytes if no compression was done."""
+        compressor = Bz2Compressor()
+        result = compressor.flush()
+        assert result == b""
+
+    def test_streaming_decompression(self):
+        """Verify decompression works when data arrives in small chunks."""
+        compressor = Bz2Compressor()
+        original_data = b"Test data for streaming decompression. " * 50
+
+        # Compress
+        compressed = compressor.add_chunk(original_data)
+        compressed += compressor.flush()
+
+        # Decompress in small chunks (simulating streaming)
+        decompressor = Bz2Compressor()
+        decompressed = b""
+        chunk_size = 64
+        for i in range(0, len(compressed), chunk_size):
+            chunk = compressed[i : i + chunk_size]
+            decompressed += decompressor.decompress(chunk)
+
+        assert decompressed == original_data
+
+    def test_compression_ratio(self):
+        """Verify bzip2 actually compresses repetitive data."""
+        compressor = Bz2Compressor()
+        original_data = b"AAAA" * 10000
+
+        compressed = compressor.add_chunk(original_data)
+        compressed += compressor.flush()
+
+        assert len(compressed) < len(original_data)
+
+    def test_empty_chunk_handling(self):
+        """Verify bzip2 handles empty chunks correctly."""
+        compressor = Bz2Compressor()
+
+        compressed = compressor.add_chunk(b"some data")
+        compressed += compressor.add_chunk(b"")
+        compressed += compressor.add_chunk(b" more data")
+        compressed += compressor.flush()
+
+        decompressor = Bz2Compressor()
+        decompressed = decompressor.decompress(compressed)
+
+        assert decompressed == b"some data more data"
+
+    def test_flush_called_multiple_times(self):
+        """Verify flush can be called multiple times safely."""
+        compressor = Bz2Compressor()
+        compressor.add_chunk(b"test data")
+
+        result1 = compressor.flush()
+        assert isinstance(result1, bytes)
+
+        result2 = compressor.flush()
+        assert result2 == b""
+
+    def test_decompressor_reuse(self):
+        """Verify separate decompressors can decompress separate streams."""
+        compressor1 = Bz2Compressor()
+        data1 = b"First piece of data"
+        compressed1 = compressor1.add_chunk(data1) + compressor1.flush()
+
+        compressor2 = Bz2Compressor()
+        data2 = b"Second piece of data"
+        compressed2 = compressor2.add_chunk(data2) + compressor2.flush()
+
+        decompressor1 = Bz2Compressor()
+        decompressed1 = decompressor1.decompress(compressed1)
+        assert decompressed1 == data1
+
+        decompressor2 = Bz2Compressor()
+        decompressed2 = decompressor2.decompress(compressed2)
         assert decompressed2 == data2
 
 

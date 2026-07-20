@@ -62,6 +62,7 @@ from barman.cloud import (
     CloudUploadingError,
     CloudWalDownloader,
     FileUploadStatistics,
+    ReadAheadIO,
 )
 from barman.cloud_providers import (
     CloudProviderOptionUnsupported,
@@ -80,6 +81,7 @@ from barman.cloud_providers.google_cloud_storage import GoogleCloudInterface
 from barman.exceptions import (
     BackupPreconditionException,
     BarmanException,
+    CommandFailedException,
     ConfigurationException,
 )
 from barman.infofile import BackupInfo, WalFileInfo
@@ -135,6 +137,199 @@ def _compression_helper(src, compression):
         dest.write(src.read())
     dest.seek(0)
     return dest
+
+
+class _FakeStream(object):
+    """A minimal readable, file-like object backed by an in-memory buffer."""
+
+    def __init__(self, data):
+        self.data = data
+        self.pos = 0
+
+    def read(self, n=-1):
+        n = len(self.data) - self.pos if n is None or n < 0 else n
+        chunk = self.data[self.pos : self.pos + n]
+        self.pos += len(chunk)
+        return chunk
+
+    def close(self):
+        pass
+
+
+class TestReadAheadIO(object):
+    """Tests for ReadAheadIO's background read-ahead buffering."""
+
+    def test_read_reassembles_original_data(self):
+        """Verifies that reading in arbitrary chunk sizes reproduces the source data exactly."""
+        # GIVEN a stream of pseudo-random data
+        data = os.urandom(500000)
+        read_ahead = ReadAheadIO(_FakeStream(data), chunk_size=4096, queue_depth=4)
+
+        # WHEN it is read back using a mix of arbitrary chunk sizes - the
+        # last of which is large enough to drain whatever remains
+        out = bytearray()
+        for n in (1, 100, 4096, 5000, 3, 999999):
+            chunk = read_ahead.read(n)
+            if not chunk:
+                break
+            out += chunk
+
+        # THEN the reassembled data matches the original exactly
+        assert bytes(out) == data
+
+    def test_read_does_not_eagerly_drain_the_entire_stream(self):
+        """
+        Regression test: a small read() must only pull a bounded amount of
+        data ahead into the buffer, not drain the entire wrapped stream.
+        """
+        # GIVEN a stream much bigger than a single read-ahead chunk
+        data = b"x" * 1000000
+        read_ahead = ReadAheadIO(_FakeStream(data), chunk_size=65536, queue_depth=4)
+
+        # WHEN a small amount of data is read
+        first = read_ahead.read(100)
+
+        # THEN only the requested data is returned
+        assert first == data[:100]
+        # AND the internal buffer holds exactly one chunk's worth of
+        # read-ahead (minus what was already returned) - not the entire
+        # remaining stream. A buggy implementation that fails to re-check
+        # how much data is still needed would keep pulling from the queue
+        # until EOF, leaving nearly the whole stream sitting in the buffer.
+        assert len(read_ahead._buffer) == 65536 - 100
+
+        # Now drain to EOF so the background thread can exit
+        read_ahead.read()
+
+    def test_read_negative_n_reads_until_exhausted(self):
+        """Verifies that read(-1) reads the wrapped stream through to EOF."""
+        # GIVEN a stream of data
+        data = b"some arbitrary content" * 100
+        read_ahead = ReadAheadIO(_FakeStream(data), chunk_size=64, queue_depth=4)
+
+        # WHEN read() is called with no size limit
+        result = read_ahead.read()
+
+        # THEN the entire stream content is returned
+        assert result == data
+
+    def test_read_propagates_error_from_background_thread(self):
+        """
+        Verifies that an exception raised by the wrapped stream on the
+        background thread is re-raised to the caller of read().
+        """
+
+        # GIVEN a stream which raises when read
+        class _FailingStream(object):
+            def read(self, n=-1):
+                raise ValueError("boom")
+
+        read_ahead = ReadAheadIO(_FailingStream(), chunk_size=64, queue_depth=4)
+
+        # WHEN/THEN read() re-raises that same error
+        with pytest.raises(ValueError, match="boom"):
+            read_ahead.read(10)
+
+    def test_close_closes_wrapped_stream(self):
+        """Verifies that closing a ReadAheadIO also closes the wrapped stream."""
+        # GIVEN an empty (already exhausted) wrapped stream
+        stream = mock.MagicMock()
+        stream.read.return_value = b""
+        read_ahead = ReadAheadIO(stream, chunk_size=64, queue_depth=4)
+        # Drain to EOF so the background thread has already finished
+        read_ahead.read()
+
+        # WHEN the ReadAheadIO is closed
+        read_ahead.close()
+
+        # THEN the wrapped stream is also closed
+        stream.close.assert_called_once()
+
+
+class TestExtractTarWithSubprocess(object):
+    """Tests for CloudInterface._extract_tar_with_subprocess."""
+
+    @staticmethod
+    def _get_cloud_interface():
+        return S3CloudInterface("s3://bucket/path", encryption=None)
+
+    def test_creates_destination_directory_if_missing(self, tmpdir):
+        """
+        Regression test: extraction must create the destination directory
+        if it does not already exist - tar itself refuses to extract into a
+        non-existent --directory.
+        """
+        # GIVEN a destination directory which does not exist yet
+        dst = os.path.join(str(tmpdir), "does", "not", "exist", "yet")
+        assert not os.path.exists(dst)
+        cloud_interface = self._get_cloud_interface()
+
+        # AND a valid tar stream
+        fileobj = _tar_helper(content="some content", content_filename="a_file")
+
+        # WHEN a tar is extracted into that destination
+        cloud_interface._extract_tar_with_subprocess(fileobj, dst)
+
+        # THEN the destination directory was created and the content extracted
+        with open(os.path.join(dst, "a_file"), "r") as f:
+            assert f.read() == "some content"
+
+    @mock.patch("barman.cloud.subprocess.Popen")
+    def test_raises_command_failed_exception_on_nonzero_exit(self, popen_mock, tmpdir):
+        """Verifies a non-zero tar exit code raises CommandFailedException."""
+        # GIVEN a tar subprocess which exits with a non-zero return code
+        process_mock = popen_mock.return_value
+        process_mock.stdin = BytesIO()
+        process_mock.wait.return_value = 2
+
+        cloud_interface = self._get_cloud_interface()
+        dst = str(tmpdir.join("dst"))
+
+        # WHEN/THEN extraction raises CommandFailedException referencing
+        # the exit code
+        with pytest.raises(CommandFailedException, match="exited with code 2"):
+            cloud_interface._extract_tar_with_subprocess(BytesIO(b""), dst)
+
+    @mock.patch("barman.cloud.subprocess.Popen")
+    def test_broken_pipe_error_is_not_propagated(self, popen_mock, tmpdir):
+        """
+        Verifies that a BrokenPipeError raised while copying into tar's
+        stdin (e.g. because tar exited early on a malformed archive) is
+        swallowed, and the real error surfaces via the exit code check
+        instead.
+        """
+        # GIVEN a tar subprocess whose stdin raises BrokenPipeError on
+        # write, and which exits with a non-zero return code
+        process_mock = popen_mock.return_value
+        stdin_mock = mock.MagicMock()
+        stdin_mock.write.side_effect = BrokenPipeError()
+        process_mock.stdin = stdin_mock
+        process_mock.wait.return_value = 2
+
+        cloud_interface = self._get_cloud_interface()
+        dst = str(tmpdir.join("dst"))
+
+        # WHEN extraction hits the BrokenPipeError
+        # THEN it is not raised directly - CommandFailedException is raised
+        # via the exit code check instead
+        with pytest.raises(CommandFailedException):
+            cloud_interface._extract_tar_with_subprocess(BytesIO(b"some bytes"), dst)
+
+        # AND stdin was still closed despite the error
+        stdin_mock.close.assert_called_once()
+
+    @mock.patch("barman.cloud.subprocess.Popen")
+    def test_raises_command_failed_exception_if_tar_not_found(self, popen_mock, tmpdir):
+        """Verifies a clear error is raised if the tar executable is missing."""
+        # GIVEN a tar executable which cannot be found
+        popen_mock.side_effect = FileNotFoundError()
+
+        cloud_interface = self._get_cloud_interface()
+        dst = str(tmpdir.join("dst"))
+
+        # WHEN/THEN extraction raises a CommandFailedException with a clear message
+        with pytest.raises(CommandFailedException, match="tar command not found"):
+            cloud_interface._extract_tar_with_subprocess(BytesIO(b""), dst)
 
 
 class TestCloudInterface(object):
