@@ -59,6 +59,8 @@ The minimal system requirements needed to run a Barman server are the following:
 * ``boto3`` >= 1.29.1: Required when using ``backup_method = snapshot`` together with
   the snapshot lock feature on AWS
 * ``file`` POSIX command, generally provided by the ``file`` package
+* ``tar`` command, generally provided by the ``tar`` package: Required whenever
+  restoring compressed or cloud backups.
 
 .. deprecated:: 3.14
    Support for versions 3.6 and 3.7 of Python has been deprecated. It is known that
