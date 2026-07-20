@@ -1250,13 +1250,13 @@ class TestServer(object):
         assert "000000020000000000000006.partial" in wal_names
 
     @patch("barman.server.Server._get_latest_timeline")
-    def test_get_required_xlog_files_timeline_is_latest_if_doing_pitr_and_postgres_at_least_12(
+    def test_get_required_xlog_files_timeline_is_latest_if_postgres_at_least_12(
         self,
         mock_get_latest_timeline,
         tmpdir,
     ):
         """
-        Test that when doing PITR without specifying target_tli and Postgres >= 12,
+        Test that when restoring without specifying target_tli on Postgres >= 12,
         get_required_xlog_files defaults to the latest timeline from xlogdb.
 
         PostgreSQL 12+ changed the default for recovery_target_timeline from
@@ -1267,11 +1267,12 @@ class TestServer(object):
         wals_dir = tmpdir.mkdir("wals")
         streaming_dir = tmpdir.mkdir("streaming")
 
-        # GIVEN a backup on timeline 1
+        # GIVEN a backup on timeline 1 taken on Postgres 12
         backup = build_test_backup_info(
             begin_wal="000000010000000000000001",
             end_wal="000000010000000000000003",
             timeline=1,
+            version=120000,
         )
         server = build_real_server(
             global_conf={"barman_lock_directory": tmpdir.mkdir("lock").strpath},
@@ -1280,8 +1281,6 @@ class TestServer(object):
                 "streaming_wals_directory": streaming_dir.strpath,
             },
         )
-        # AND Postgres version is 12 or later
-        server.postgres = mock.Mock(server_version=120000)
         # AND xlogdb contains WAL files on timeline 1 and timeline 2 (latest)
         wal_tli1_1 = create_fake_info_file("000000010000000000000001", 42, 50)
         wal_tli1_2 = create_fake_info_file("000000010000000000000002", 42, 51)
@@ -1295,14 +1294,12 @@ class TestServer(object):
         wals_dir.join(server.xlogdb_file_name).write(walstring)
         mock_get_latest_timeline.return_value = 2
 
-        # WHEN get_required_xlog_files runs with PITR options but no target_tli
-        wals = list(
-            server.get_required_xlog_files(backup, target_time="2024-01-01 12:00:00")
-        )
+        # WHEN get_required_xlog_files runs with no target_tli
+        wals = list(server.get_required_xlog_files(backup))
         wal_names = [w.name for w in wals]
 
         # THEN WAL files from both timeline 1 and timeline 2 are returned
-        # (because latest timeline is 2, and PITR options don't restrict timeline)
+        # (because latest timeline is 2)
         assert "000000010000000000000001" in wal_names
         assert "000000010000000000000002" in wal_names
         assert "000000010000000000000003" in wal_names

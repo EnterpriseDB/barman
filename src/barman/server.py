@@ -2579,9 +2579,6 @@ class Server(RemoteStatusMixin):
         """
         begin = backup.begin_wal
         end = backup.end_wal
-        is_pitr = any(
-            [target_tli, target_time, target_xid, target_lsn, target_immediate]
-        )
 
         # Calculate the integer value of TLI if a keyword is provided
         calculated_target_tli = parse_target_tli(
@@ -2589,15 +2586,13 @@ class Server(RemoteStatusMixin):
         )
 
         # If timeline isn't specified, the default depends on the Postgres version
-        # and on whether this is a PITR or not
         if not target_tli:
-            # If this is a PITR and version is newer than 12, then the default timeline
-            # is the latest one. This mimics the behavior of Postgres >= 12 (which has
-            # recovery_target_timeline = 'latest' as default)
-            if is_pitr and self.postgres.server_version >= 120000:
+            # Postgres >= 12 has recovery_target_timeline = 'latest' as default
+            # We mimic that behavior by defaulting to the latest timeline here
+            if backup.version >= 120000:
                 target_tli = self._get_latest_timeline()
-            # For older versions or when not doing PITR, the default timeline is that
-            # of the current backup (i.e. the timeline of the end WAL segment)
+            # For older versions, the default timeline is that of the current backup
+            # (i.e. the timeline of the end WAL segment)
             else:
                 target_tli, _, _ = xlog.decode_segment_name(end)
             calculated_target_tli = target_tli
