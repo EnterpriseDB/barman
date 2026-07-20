@@ -1,0 +1,15 @@
+---
+- summary: Performance improvements for restoring compressed backups from cloud storage
+  description: |
+    Restoring a compressed backup from cloud storage could take significantly
+    longer than necessary, because downloading, decompressing and extracting
+    the backup ran sequentially instead of overlapping. This has been fixed by
+    reworking the restore pipeline so these stages now run concurrently,
+    which is expected to noticeably improve restore performance for compressed
+    backups.
+
+    As a result of this change, the `tar` package is now a required
+    dependency whenever restoring a backup stored in the cloud.
+  type: notable_change
+  jira_tickets:
+    - BAR-1546
