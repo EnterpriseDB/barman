@@ -8,10 +8,6 @@
     corrupted `backup.info` file being written to disk. This prevented retention
     policies from correctly associating incremental backups with their parent,
     leading to the crash.
-
-    Note: this fix is prospective and applies to backups synced after upgrading.
-    Passive nodes with already-corrupted `backup.info` files require manual
-    remediation.
   type: bugfix
   jira_tickets:
     - BAR-927
