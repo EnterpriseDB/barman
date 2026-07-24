@@ -27,7 +27,7 @@ DISTDIR="${DOCDIR}/dist"
 
 USERMAP=$(docker run --rm -v "${BASEDIR}":"${BASEDIR}" "${SPHINX_IMAGE}" \
   stat -c %u:%g "${BASEDIR}")
-docker run --rm -u "${USERMAP}" -w "$(pwd)" -v "${BASEDIR}:${BASEDIR}" \
+docker run --rm -u "${USERMAP}" -w "${BASEDIR}" -v "${BASEDIR}:${BASEDIR}" \
   "$SPHINX_IMAGE" bash -c "uv run --locked --all-extras --no-dev --group docs make -C docs html latexpdf"
 
 pwd
