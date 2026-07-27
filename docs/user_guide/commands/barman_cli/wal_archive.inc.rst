@@ -18,6 +18,8 @@ Synopsis
         [ { -c | --config } CONFIG ]
         [ { -t | --test } ]
         [ --md5 ]
+        [ { -p | --parallel } JOBS ]
+        [ --prefetch-cache-dir PREFETCH_CACHE_DIR ]
         BARMAN_HOST SERVER_NAME WAL_PATH
     
 Description
@@ -100,6 +102,14 @@ Parameters
     file when transmitting it to the Barman server. This is used to maintain
     compatibility with older server versions, as older versions of Barman server used to
     support only MD5.
+
+``-p`` / ``--parallel``
+    Specify the maximum number of WAL files to archive in parallel. Defaults to ``0``
+    (no parallelism).
+
+``--prefetch-cache-dir``
+    Directory where to store cache metadata when using ``--parallel``. Defaults to
+    ``/tmp/barman-SERVER_NAME-COMPUTED_HASH``.
 
 .. note::
   When compression is enabled in ``barman-wal-archive``, it takes precedence over the
