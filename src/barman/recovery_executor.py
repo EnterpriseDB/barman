@@ -1893,6 +1893,7 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
         recovery_conf_filename=None,
         recovery_option_port=None,
         custom_restore_command=None,
+        copy_partial=False,
         recovery_instance=None,
     ):
         """
@@ -1926,6 +1927,9 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
             when invoking ``barman-wal-restore``
         :param str|None custom_restore_command: Custom command to use for the
             restore command (only works when get-wal is enabled)
+        :param bool copy_partial: when ``True``, ``.partial`` WAL files are copied to
+            the recovery destination with the ``.partial`` suffix stripped. Defaults
+            to ``False``.
         :param str|None recovery_instance: The name of the recovery node as it
             is known by the cloud provider
         """
@@ -1963,6 +1967,7 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
             recovery_conf_filename=recovery_conf_filename,
             recovery_option_port=recovery_option_port,
             custom_restore_command=custom_restore_command,
+            copy_partial=copy_partial,
         )
 
     def _start_backup_copy_message(self):
