@@ -2739,7 +2739,59 @@ class TestSnapshotRecoveryExecutor(object):
             recovery_conf_filename=None,
             recovery_option_port=None,
             custom_restore_command=None,
+            copy_partial=False,
         )
+
+    @mock.patch("barman.recovery_executor.RecoveryExecutor.recover")
+    @mock.patch("barman.recovery_executor.fs")
+    @mock.patch("barman.recovery_executor.get_snapshot_interface_from_backup_info")
+    def test_recover_copy_partial_forwarded(
+        self,
+        mock_get_snapshot_interface,
+        _mock_fs,
+        mock_superclass_recover,
+    ):
+        """Verify that copy_partial is accepted and forwarded to the superclass."""
+        # GIVEN a SnapshotRecoveryExecutor
+        mock_backup_manager = mock.Mock()
+        executor = SnapshotRecoveryExecutor(mock_backup_manager)
+        # AND a mock backup_info with snapshots
+        backup_info = mock.Mock(
+            snapshots_info=mock.Mock(
+                snapshots=[
+                    mock.Mock(
+                        identifier="snapshot0",
+                        device="/dev/dev0",
+                        mount_point="/opt/disk0",
+                        mount_options="rw,noatime",
+                    ),
+                ]
+            )
+        )
+        # AND the correct volume is attached
+        attached_volumes = {"disk0": mock.Mock(source_snapshot="snapshot0")}
+
+        def mock_resolve_mounted_volume(_cmd):
+            attached_volumes["disk0"].mount_point = "/opt/disk0"
+            attached_volumes["disk0"].mount_options = "rw,noatime"
+
+        attached_volumes[
+            "disk0"
+        ].resolve_mounted_volume.side_effect = mock_resolve_mounted_volume
+        mock_get_snapshot_interface.return_value.get_attached_volumes.return_value = (
+            attached_volumes
+        )
+
+        # WHEN recover is called with copy_partial=True
+        executor.recover(
+            backup_info,
+            "/path/to/dest",
+            recovery_instance="test_instance",
+            copy_partial=True,
+        )
+
+        # THEN the superclass recovery method was called with copy_partial=True
+        assert mock_superclass_recover.call_args.kwargs["copy_partial"] is True
 
     @pytest.mark.parametrize(
         (
