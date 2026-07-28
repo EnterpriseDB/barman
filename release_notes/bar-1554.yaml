@@ -1,0 +1,15 @@
+---
+- summary: Fix `barman restore` failing when restoring from a snapshot backup
+  description: |
+    Restoring from a snapshot backup failed immediately with an internal error,
+    before any recovery work was performed, making recovery from snapshot
+    backups impossible.
+
+    This has been fixed. Restores from snapshot backups also honour
+    `--partial-wal` now, copying a `.partial` WAL file to the recovery
+    destination as already happened for other backup types.
+
+    Restores from other backup types were never affected.
+  type: bugfix
+  jira_tickets:
+    - BAR-1554
