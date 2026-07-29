@@ -47,6 +47,7 @@ from barman.exceptions import (
     BarmanException,
     CommandException,
     ConfigurationException,
+    FsOperationFailed,
     SnapshotBackupException,
     SnapshotInstanceNotFoundException,
 )
@@ -3795,12 +3796,13 @@ class TestAwsVolumeMetadata(object):
             ("/dev/sdf", "xvdf", "hvm"),
             # Devices mapped to hdf should be found with paravirtualization
             ("/dev/sdf", "hdf", "paravirtual"),
+            # Device names must be matched by removing the /dev/ prefix, not by
+            # stripping those characters: "/dev/vdb" must yield "vdb", not "b"
+            ("/dev/vdb", "vdb", "hvm"),
         ),
     )
-    @mock.patch("os.listdir")
     def test_resolve_mounted_volume(
         self,
-        mock_listdir,
         device_name_from_api,
         device_name_on_instance,
         virtualization_type,
@@ -3822,13 +3824,17 @@ class TestAwsVolumeMetadata(object):
 
         mock_cmd.findmnt.side_effect = mock_findmnt
 
-        mock_listdir.return_value = [device_name_on_instance]
+        # AND the block devices are listed on the instance the volume is attached to
+        mock_cmd.list_dir_content.return_value = device_name_on_instance
         # WHEN resolve_mounted_volume is called
         volume.resolve_mounted_volume(mock_cmd)
 
         # THEN the expected mount data is set on the volume metadata
         assert volume.mount_point == "mount_point"
         assert volume.mount_options == "mount_options"
+
+        # AND the block devices were read on that instance, not on this host
+        mock_cmd.list_dir_content.assert_called_once_with("/sys/block")
 
     @pytest.mark.parametrize(
         (
@@ -3876,6 +3882,8 @@ class TestAwsVolumeMetadata(object):
         # AND a findmnt response which returns mount data for the mapped device name
         mock_cmd = mock.Mock()
         mock_cmd.findmnt.side_effect = mock_findmnt
+        # AND the instance reports no block devices
+        mock_cmd.list_dir_content.return_value = ""
 
         # WHEN resolve_mounted_volume is called
         # THEN a SnapshotBackupException is raised
@@ -3885,10 +3893,19 @@ class TestAwsVolumeMetadata(object):
         # AND the exception has the expected error message
         assert str(exc.value) == expected_exception_msg
 
-    @mock.patch("os.listdir")
-    def test_resolve_mounted_volume_nvme(self, mock_listdir):
+    @pytest.mark.parametrize(
+        "device_name_on_api",
+        (
+            # The AWS device name may be renameable to a device on the instance...
+            "/dev/sdf",
+            # ...or absent from it entirely, which is the case for a volume attached
+            # during a recovery: only the NVMe device exists, so the volume can be
+            # identified by its serial number alone.
+            "/dev/xvdf",
+        ),
+    )
+    def test_resolve_mounted_volume_nvme(self, device_name_on_api):
         device_name_on_instance = "nvme1n1"
-        device_name_on_api = "/dev/sdf"
         volume_id_on_instance = "vol0123"
         volume_id_on_api = "vol-0123"
         # GIVEN AwsVolumeMetadata with the API-reported device name and virtualization
@@ -3902,7 +3919,10 @@ class TestAwsVolumeMetadata(object):
         # AND a findmnt response which returns mount data for the mapped device name
         mock_cmd = mock.Mock()
 
-        mock_listdir.return_value = [device_name_on_instance]
+        # AND the instance reports the NVMe device and its serial number
+        mock_cmd.list_dir_content.return_value = device_name_on_instance
+        mock_cmd.exists.return_value = True
+        mock_cmd.get_file_content.return_value = volume_id_on_instance
 
         def mock_findmnt(device):
             if device == device_name_on_instance:
@@ -3912,15 +3932,40 @@ class TestAwsVolumeMetadata(object):
 
         mock_cmd.findmnt.side_effect = mock_findmnt
 
-        # Mock the file existence (os.path.isfile should return True)
-        with mock.patch("os.path.isfile", return_value=True):
-            # Mock open() to simulate the content of the file
-            with mock.patch(
-                "builtins.open", mock.mock_open(read_data=volume_id_on_instance)
-            ):
-                # WHEN resolve_mounted_volume is called
-                volume.resolve_mounted_volume(mock_cmd)
+        # WHEN resolve_mounted_volume is called
+        volume.resolve_mounted_volume(mock_cmd)
 
         # THEN the expected mount data is set on the volume metadata
         assert volume.mount_point == "mount_point"
         assert volume.mount_options == "mount_options"
+
+        # AND both the device list and the serial number were read on the instance the
+        # volume is attached to, which is not necessarily this host
+        mock_cmd.list_dir_content.assert_called_once_with("/sys/block")
+        mock_cmd.get_file_content.assert_called_once_with(
+            "/sys/block/%s/device/serial" % device_name_on_instance
+        )
+
+    def test_resolve_mounted_volume_nvme_serial_unreadable(self):
+        """
+        Verify that a device whose serial number cannot be read is skipped rather than
+        aborting the resolution with an unhandled error.
+        """
+        # GIVEN AwsVolumeMetadata for a volume attached as a device which does not exist
+        # on the instance
+        attachment_metadata = {"VolumeId": "vol-0123", "Device": "/dev/xvdf"}
+        volume = AwsVolumeMetadata(attachment_metadata, "hvm")
+        mock_cmd = mock.Mock()
+        # AND an NVMe device whose serial number cannot be read
+        mock_cmd.list_dir_content.return_value = "nvme1n1"
+        mock_cmd.exists.return_value = True
+        mock_cmd.get_file_content.side_effect = FsOperationFailed("permission denied")
+        mock_cmd.findmnt.return_value = (None, None)
+
+        # WHEN resolve_mounted_volume is called
+        # THEN the failure is reported as a SnapshotBackupException, not the underlying
+        # filesystem error
+        with pytest.raises(SnapshotBackupException) as exc:
+            volume.resolve_mounted_volume(mock_cmd)
+
+        assert str(exc.value) == "Could not find device /dev/xvdf at any mount point"
