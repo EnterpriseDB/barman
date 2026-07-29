@@ -1221,8 +1221,17 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
         delta_restore = RecoveryOptions.DELTA_RESTORE in self.config.recovery_options
 
+        # Recovering a snapshot backup requires the disks cloned from the backup
+        # snapshots to be attached and mounted before the restore is started, so the
+        # destinations are expected to already hold the data being recovered. Barman
+        # copies no data in that case, only the backup label, and the mount points are
+        # validated against the snapshot metadata by the recovery executor. Checking
+        # that the destinations are empty would therefore reject every snapshot
+        # recovery.
+        skip_empty_check = delta_restore or backup_info.snapshots_info is not None
+
         # Avoid overwriting PGDATA files when restoring a backup without delta restore.
-        if not delta_restore:
+        if not skip_empty_check:
             # Ensure the PGDATA destination directory is empty.
             dest_dir = command.list_dir_content(dest)
             if dest_dir:
@@ -1242,7 +1251,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                     location = tablespaces[tablespace.name]
                 # Avoid overwriting TABLESPACE files when restoring a backup without
                 # delta restore.
-                if not delta_restore:
+                if not skip_empty_check:
                     tbs_dir = command.list_dir_content(location)
                     if tbs_dir:
                         output.error(
