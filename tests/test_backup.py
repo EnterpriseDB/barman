@@ -2195,6 +2195,58 @@ class TestBackup(object):
 
         executor.recover.assert_called()
 
+    @mock.patch("barman.backup.recovery_executor_factory")
+    @mock.patch("barman.backup.unix_command_factory")
+    def test_recover_snapshot_backup_skips_empty_destination_check(
+        self, remote_cmd_mock, rec_exec_fac_mock, tmpdir
+    ):
+        """
+        Test that a snapshot backup is recovered even though its destinations are not
+        empty, without requiring the delta restore option.
+
+        Recovering a snapshot backup requires the disks cloned from the backup snapshots
+        to be attached and mounted before the restore starts, so both the PGDATA and the
+        tablespace destinations always hold the data being recovered. Checking that they
+        are empty would reject every snapshot recovery.
+        """
+        # GIVEN a snapshot backup with tablespaces
+        command = remote_cmd_mock.return_value
+        backup_manager = build_backup_manager(
+            main_conf={"backup_options": "concurrent_backup"}
+        )
+        destination = tmpdir.mkdir("data").strpath
+        backup_info = build_test_backup_info(
+            snapshots_info=mock.Mock(snapshots=[mock.Mock(identifier="test_snapshot")]),
+        )
+
+        # AND every destination is non-empty
+        command.list_dir_content.return_value = "non-empty"
+
+        executor = mock.Mock()
+        rec_exec_fac_mock.return_value = executor
+        executor.recover.return_value = {
+            "configuration_files": ["postgresql.conf", "postgresql.auto.conf"],
+            "tempdir": tmpdir.strpath,
+            "results": {
+                "changes": [],
+                "warnings": [],
+                "missing_files": [],
+                "get_wal": False,
+                "recovery_start_time": datetime.now(dateutil.tz.tzlocal()),
+            },
+            "target_datetime": "2015-06-03 16:11:03.71038+02",
+            "wal_dest": "/wherever",
+        }
+
+        # WHEN recover is called
+        backup_manager.recover(backup_info, destination)
+
+        # THEN the restore is not halted and the recovery executor runs
+        executor.recover.assert_called()
+
+        # AND the destinations were never checked for content
+        command.list_dir_content.assert_not_called()
+
 
 class TestWalCleanup(object):
     """Test cleanup of WALs by BackupManager"""
