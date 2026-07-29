@@ -43,6 +43,7 @@ from barman.cloud import (
 from barman.cloud_providers import ObjectKeyAlreadyExists
 from barman.exceptions import (
     CommandException,
+    FsOperationFailed,
     SnapshotBackupException,
     SnapshotInstanceNotFoundException,
 )
@@ -1647,8 +1648,11 @@ class AwsVolumeMetadata(VolumeMetadata):
 
         # OS sysfs virtual filesystem blocks path.
         sys_block_path = "/sys/block"
-        # Get block names from the OS sysfs virtual filesystem.
-        blocks = os.listdir(sys_block_path)
+        # Get block names from the OS sysfs virtual filesystem. These are read through
+        # the command wrapper, not directly, because the volume is attached to the
+        # instance the wrapper acts on, which is not this host when recovering with
+        # ``--remote-ssh-command``.
+        blocks = cmd.list_dir_content(sys_block_path).split()
         device_prefix = "/dev/sd"
         for block in blocks:
             device = "/dev/%s" % block
@@ -1667,9 +1671,15 @@ class AwsVolumeMetadata(VolumeMetadata):
             # which can be found at the `/sys/block/{block}/device/serial` path and use
             # itto find the correct device name.
             serial_number_path = "%s/%s/device/serial" % (sys_block_path, block)
-            if "nvme" in device and os.path.isfile(serial_number_path):
-                with open(serial_number_path, "r") as file:
-                    serial_number = file.readline().strip()
+            if "nvme" in device and cmd.exists(serial_number_path):
+                try:
+                    serial_number = cmd.get_file_content(serial_number_path).strip()
+                except FsOperationFailed as e:
+                    # A device whose serial cannot be read simply cannot be matched.
+                    _logger.debug(
+                        "Cannot read serial number at %s: %s", serial_number_path, e
+                    )
+                    continue
                 # ``self.id`` format: `vol-{HASH}`.
                 vol_id = serial_number.replace("vol", "vol-")
                 # If the volumes match, device ``name`` is found.
@@ -1682,7 +1692,7 @@ class AwsVolumeMetadata(VolumeMetadata):
             # volumes attached after instance launch include the `/dev/` prefix, while
             # NVMe device names for volumes attached during instance launch do not
             # include the `/dev/` prefix.
-            for dev_name in [name, name.lstrip("/dev/")]:
+            for dev_name in [name, name.removeprefix("/dev/")]:
                 mount_point, mount_options = cmd.findmnt(dev_name)
                 if mount_point is not None:
                     self._mount_point = mount_point
