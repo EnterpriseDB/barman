@@ -19,6 +19,7 @@
 import ast
 import collections
 import inspect
+import io
 import logging
 import os
 import re
@@ -1320,6 +1321,23 @@ class CloudLocalBackupInfo(LocalBackupInfo):
         self._backup_cloud_interface = server.get_backup_cloud_interface()
         self._wal_cloud_interface = server.get_wal_cloud_interface()
         super(CloudLocalBackupInfo, self).__init__(server, *args, **kwargs)
+        if not os.path.exists(self.get_filename()):
+            # If not present locally, check the backup manager's cache
+            # Sometimes cloud backup info only exists in the cache and not locally.
+            # e.g. when restoring a cloud backup to a new Barman instance
+            self._load_from_cache()
+
+    def _load_from_cache(self):
+        """
+        Load the backup info from the backup manager's cache if available.
+        """
+        cached_backup_info = self.backup_manager.get_backup(self.backup_id)
+        if cached_backup_info:
+            fileobj = io.BytesIO()
+            cached_backup_info.save(file_object=fileobj)
+            fileobj.seek(0)
+            self.load(file_object=fileobj)
+            self.filename = self.get_filename()
 
     def save(self, filename=None, file_object=None):
         super(CloudLocalBackupInfo, self).save(

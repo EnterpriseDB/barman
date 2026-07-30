@@ -1687,8 +1687,12 @@ class TestCloudLocalBackupInfo:
     Unit tests for the :class:`CloudLocalBackupInfo` class.
     """
 
+    @patch("barman.infofile.os.path.exists", return_value=True)
+    @patch(
+        "barman.infofile.LocalBackupInfo.get_filename", return_value="/fake/backup.info"
+    )
     @patch("barman.infofile.LocalBackupInfo.__init__", return_value=None)
-    def test__init__(self, mock_parent_init):
+    def test__init__(self, mock_parent_init, mock_get_filename, mock_exists):
         # Mock the server and its methods to return mock cloud interfaces
         backup_cloud_interface, wal_cloud_interface = mock.Mock(), mock.Mock()
         server = mock.Mock(
@@ -1703,8 +1707,12 @@ class TestCloudLocalBackupInfo:
         # AND the parent __init__ method is called
         mock_parent_init.assert_called_once_with(server)
 
+    @patch("barman.infofile.os.path.exists", return_value=True)
+    @patch(
+        "barman.infofile.LocalBackupInfo.get_filename", return_value="/fake/backup.info"
+    )
     @patch("barman.infofile.LocalBackupInfo.__init__", return_value=None)
-    def test_get_base_directory(self, _):
+    def test_get_base_directory(self, _, mock_get_filename, mock_exists):
         # Initialize CloudLocalBackupInfo with a mock server and backup_id
         backup_info = CloudLocalBackupInfo(server=mock.Mock(), backup_id="fake_id")
         # Set the backup cloud interface path and config name
@@ -1715,19 +1723,27 @@ class TestCloudLocalBackupInfo:
         # It should be <cloud_interface_path>/<server_name>/base
         assert backup_info.get_base_directory() == "barman-backups/my-server/base"
 
+    @patch("barman.infofile.os.path.exists", return_value=True)
+    @patch(
+        "barman.infofile.LocalBackupInfo.get_filename", return_value="/fake/backup.info"
+    )
     @patch(
         "barman.infofile.LocalBackupInfo.get_basebackup_directory",
         return_value="/fake/base/directory",
     )
     @patch("barman.infofile.LocalBackupInfo.__init__", return_value=None)
-    def test_get_data_directory(self, _, __):
+    def test_get_data_directory(self, _, __, mock_get_filename, mock_exists):
         # Initialize CloudLocalBackupInfo with a mock server and backup_id
         backup_info = CloudLocalBackupInfo(server=mock.Mock(), backup_id="fake_id")
         # Assert that the data directory is the same as the base backup directory
         assert backup_info.get_data_directory() == "/fake/base/directory"
 
+    @patch("barman.infofile.os.path.exists", return_value=True)
+    @patch(
+        "barman.infofile.LocalBackupInfo.get_filename", return_value="/fake/backup.info"
+    )
     @patch("barman.infofile.LocalBackupInfo.__init__", return_value=None)
-    def test_get_manifest_path(self, _):
+    def test_get_manifest_path(self, _, mock_get_filename, mock_exists):
         # Mock the server and its meta_directory attribute
         server = mock.Mock(meta_directory="/fake/meta/directory")
         # Initialize CloudLocalBackupInfo. We need to set the server and backup_id
@@ -1739,6 +1755,90 @@ class TestCloudLocalBackupInfo:
         # It should be <meta_directory>/<backup_id>-backup_manifest
         expected_manifest_path = "/fake/meta/directory/fake_id-backup_manifest"
         assert backup_info.get_backup_manifest_path() == expected_manifest_path
+
+    @patch("barman.infofile.os.path.exists", return_value=False)
+    @patch("barman.infofile.CloudLocalBackupInfo._load_from_cache")
+    def test_init_loads_from_backup_manager_cache_when_file_missing(
+        self, load_from_cache_mock, _exists_mock
+    ):
+        """
+        Ensure :meth:`CloudLocalBackupInfo.__init__` falls back to the cached
+        backup info in the :class:`BackupManager` when the ``backup.info``
+        file is not present on the filesystem, e.g. when a backup info file
+        fetched from cloud storage has been cached but not yet persisted
+        locally on a new instance.
+        """
+        # WHEN a new CloudLocalBackupInfo is created for a backup ID with no
+        # corresponding backup.info file on disk
+        CloudLocalBackupInfo(build_mocked_server(), backup_id="backup_id")
+
+        # THEN the _load_from_cache method is called to load the backup info from the cache
+        load_from_cache_mock.assert_called_once_with()
+
+    def test_load_from_cache_with_cached_backup_info(self):
+        """
+        Ensure :meth:`CloudLocalBackupInfo._load_from_cache` loads the backup
+        info from the BackupManager's cache when one is available for the
+        current backup ID, by serializing it into an in-memory file and
+        loading that file back into ``self``.
+        """
+        # GIVEN a CloudLocalBackupInfo instance whose BackupManager has a
+        # cached backup info for the current backup ID
+        backup_info = CloudLocalBackupInfo.__new__(CloudLocalBackupInfo)
+        backup_info.backup_id = "backup_id"
+        backup_info.backup_manager = mock.Mock()
+        cached_backup_info = mock.Mock()
+        cached_backup_info.save.side_effect = lambda file_object: file_object.write(
+            b"cached content"
+        )
+        backup_info.backup_manager.get_backup.return_value = cached_backup_info
+        backup_info.load = mock.Mock()
+        backup_info.get_filename = mock.Mock(return_value="/fake/backup.info")
+
+        # WHEN _load_from_cache is called
+        backup_info._load_from_cache()
+
+        # THEN the cache was consulted for the current backup ID
+        backup_info.backup_manager.get_backup.assert_called_once_with("backup_id")
+
+        # AND the cached backup info was serialized into an in-memory file
+        cached_backup_info.save.assert_called_once()
+        fileobj = cached_backup_info.save.call_args.kwargs["file_object"]
+        assert isinstance(fileobj, io.BytesIO)
+        assert fileobj.getvalue() == b"cached content"
+
+        # AND that same file was rewound and loaded back into self
+        backup_info.load.assert_called_once_with(file_object=fileobj)
+        assert fileobj.tell() == 0
+
+        # AND the filename was reset to the default backup.info path
+        assert backup_info.filename == "/fake/backup.info"
+
+    def test_load_from_cache_without_cached_backup_info(self):
+        """
+        Ensure :meth:`CloudLocalBackupInfo._load_from_cache` does nothing
+        when the BackupManager has no cached backup info for the current
+        backup ID.
+        """
+        # GIVEN a CloudLocalBackupInfo instance whose BackupManager has no
+        # cached backup info for the current backup ID
+        backup_info = CloudLocalBackupInfo.__new__(CloudLocalBackupInfo)
+        backup_info.backup_id = "backup_id"
+        backup_info.backup_manager = mock.Mock()
+        backup_info.backup_manager.get_backup.return_value = None
+        backup_info.load = mock.Mock()
+        backup_info.get_filename = mock.Mock(return_value="/fake/backup.info")
+        backup_info.filename = "/original/path"
+
+        # WHEN _load_from_cache is called
+        backup_info._load_from_cache()
+
+        # THEN the cache was consulted for the current backup ID
+        backup_info.backup_manager.get_backup.assert_called_once_with("backup_id")
+
+        # AND nothing was loaded and the filename was left untouched
+        backup_info.load.assert_not_called()
+        assert backup_info.filename == "/original/path"
 
     def test_is_orphan_cloud(self, tmpdir):
         """
@@ -1789,8 +1889,12 @@ class TestCloudLocalBackupInfo:
         )
 
     @pytest.mark.parametrize("target", ["full", "standalone", "data", "wal"])
+    @patch("barman.infofile.os.path.exists", return_value=True)
+    @patch(
+        "barman.infofile.LocalBackupInfo.get_filename", return_value="/fake/backup.info"
+    )
     @patch("barman.infofile.LocalBackupInfo.__init__", return_value=None)
-    def test_get_directory_entries(self, _, target):
+    def test_get_directory_entries(self, _, mock_get_filename, mock_exists, target):
         """
         Assert that `get_directory_entries` yields the correct files for all targets
         (full, standalone, data, wal).
