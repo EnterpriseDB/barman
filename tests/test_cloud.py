@@ -1844,6 +1844,54 @@ class TestS3CloudInterface(object):
 
         mock_delete_obj.assert_not_called()
 
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface._delete_object")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_objects_botocore_exceptions_ClientError_none_message(
+        self, boto_mock, mock_delete_obj, client_error_factory
+    ):
+        """
+        Test that ``S3CloudInterface.delete_objects`` does not raise
+        ``AttributeError`` when botocore returns a ``ClientError`` whose
+        ``Message`` field is ``None``.
+
+        Non-compliant S3-compatible storage may return an empty ``<Message/>``
+        XML element in the error response.  Botocore's XML parser sets the
+        value of that element to ``None``, so any code that calls
+        ``e.response["Error"]["Message"].lower()`` would raise
+        ``AttributeError`` before reaching the ``raise`` statement.
+
+        The fix guards against this with ``(e.response["Error"].get("Message")
+        or "").lower()``, which evaluates to an empty string for both ``None``
+        and absent ``Message`` values.
+
+        Asserts
+        -------
+        - ``ClientError`` (not ``AttributeError``) is raised when the error
+          code is ``AccessDenied`` and ``Message`` is ``None``.
+        - Individual deletion is *not* attempted for ``AccessDenied``.
+        """
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_keys = ["path/to/object/1", "path/to/object/2"]
+
+        # GIVEN a ClientError with Message=None (non-compliant S3-compatible storage
+        # that returns an empty <Message/> element, parsed as None by botocore)
+        s3_client.delete_objects.side_effect = client_error_factory(
+            code="AccessDenied",
+            message=None,
+        )
+
+        # WHEN delete_objects is called
+        # THEN ClientError should be raised, not AttributeError
+        with pytest.raises(botocore.exceptions.ClientError) as exc:
+            cloud_interface.delete_objects(mock_keys)
+
+        assert "AccessDenied" in str(exc.value)
+        mock_delete_obj.assert_not_called()
+
     @pytest.mark.parametrize("prefix", ["/", "", "/something/prefix"])
     def test_delete_under_prefix_raise_ValueError(self, prefix, caplog):
         """
@@ -6250,6 +6298,55 @@ class TestS3ObjectLock(object):
         # Verify no deletion was attempted
         s3_cloud_interface.s3.meta.client.delete_objects.assert_not_called()
         assert "No unlocked objects to delete" in caplog.text
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_objects_batch_client_error_none_message(
+        self, boto_mock, s3_cloud_interface
+    ):
+        """
+        Test that ``_delete_objects_batch`` with Object Lock enabled does not
+        raise ``AttributeError`` when botocore returns a ``ClientError`` whose
+        ``Message`` field is ``None``.
+
+        Non-compliant S3-compatible storage may return an empty ``<Message/>``
+        XML element, which botocore parses as ``None``.  The fix guards with
+        ``(e.response["Error"].get("Message") or "").lower()`` so that the
+        error is propagated correctly as a ``ClientError`` rather than
+        crashing with ``AttributeError``.
+
+        Asserts
+        -------
+        - ``ClientError`` (not ``AttributeError``) is raised when the error
+          code is ``AccessDenied`` and ``Message`` is ``None``.
+        - Individual deletion fallback is *not* attempted.
+        """
+        # GIVEN unlocked objects to delete
+        s3_cloud_interface._filter_locked_objects = mock.Mock(
+            return_value=["key1", "key2"]
+        )
+
+        # AND a ClientError with Message=None (non-compliant S3-compatible storage
+        # that returns an empty <Message/> element, parsed as None by botocore)
+        error_response = {
+            "Error": {"Code": "AccessDenied", "Message": None},
+            "ResponseMetadata": {"RequestId": "ABC123", "HTTPStatusCode": 403},
+        }
+        s3_cloud_interface.s3.meta.client.delete_objects.side_effect = (
+            botocore.exceptions.ClientError(
+                error_response=error_response, operation_name="DeleteObjects"
+            )
+        )
+        s3_cloud_interface._delete_object = mock.Mock()
+
+        # WHEN _delete_objects_batch is called with check_locks=True
+        # THEN ClientError should be raised, not AttributeError
+        with pytest.raises(botocore.exceptions.ClientError) as exc:
+            s3_cloud_interface._delete_objects_batch(
+                ["key1", "key2"], check_locks=True, atomic=False
+            )
+
+        assert "AccessDenied" in str(exc.value)
+        s3_cloud_interface._delete_object.assert_not_called()
 
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_delete_under_prefix_with_check_locks_enabled(

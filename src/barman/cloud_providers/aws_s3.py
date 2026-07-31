@@ -748,9 +748,12 @@ class S3CloudInterface(CloudInterface):
             # Note: The S3 protocol returns a 'MissingContentMD5' error code in that
             # situation. Some "S3-compatible" storage systems are not fully compatible,
             # and return "InvalidRequest" instead, so we also check the message in that.
+            # Note: Non-compliant S3-compatible storage may return an empty <Message/>
+            # XML element, which botocore parses as None. The `or ""` guard prevents
+            # AttributeError when calling .lower() on a None value.
             if (
                 e.response["Error"]["Code"] == "MissingContentMD5"
-                or "content-md5" in e.response["Error"]["Message"].lower()
+                or "content-md5" in (e.response["Error"].get("Message") or "").lower()
             ):
                 for path in paths:
                     self._delete_object(path)
@@ -890,9 +893,12 @@ class S3CloudInterface(CloudInterface):
             # Note: The S3 protocol returns a 'MissingContentMD5' error code in that
             # situation. Some "S3-compatible" storage systems are not fully compatible,
             # and return "InvalidRequest" instead, so we also check the message in that.
+            # Note: Non-compliant S3-compatible storage may return an empty <Message/>
+            # XML element, which botocore parses as None. The `or ""` guard prevents
+            # AttributeError when calling .lower() on a None value.
             if (
                 e.response["Error"]["Code"] == "MissingContentMD5"
-                or "content-md5" in e.response["Error"]["Message"].lower()
+                or "content-md5" in (e.response["Error"].get("Message") or "").lower()
             ):
                 for obj in unlocked_objects:
                     self._delete_object(obj.key)
