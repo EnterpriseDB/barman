@@ -261,15 +261,16 @@ when creating the backup.
     To delete a locked backup, you must first manually remove the lock in the AWS
     console.
 
-To lock a snapshot during backup creation, you need to configure the following options:
+To lock a snapshot during backup creation, you need to configure the following
+options:
 
-1. Choose the snapshot lock mode: either ``compliance`` or ``governance``.
-2. Set either the lock duration or the expiration date (not both). Lock duration is
-   specified in days, ranging from 1 to 36,500. If you choose an expiration date, it must
-   be at least 1 day after the snapshot creation date and time, using the format
-   ``YYYY-MM-DDTHH:MM:SS.sssZ``.
-3. Optionally, set a cool-off period (in hours), from 1 to 72. This option only applies
-   when the lock mode is set to ``compliance``.
+a. Choose the snapshot lock mode: either ``compliance`` or ``governance``.
+b. Set either the lock duration or the expiration date (not both). Lock duration
+   is specified in days, ranging from 1 to 36,500. If you choose an expiration
+   date, it must be at least 1 day after the snapshot creation date and time,
+   using the format ``YYYY-MM-DDTHH:MM:SS.sssZ``.
+c. Optionally, set a cool-off period (in hours), from 1 to 72. This option only
+   applies when the lock mode is set to ``compliance``.
 
 .. code-block:: text
 
@@ -285,6 +286,15 @@ To lock a snapshot during backup creation, you need to configure the following o
 
 For the concepts behind AWS Snapshot Lock, refer to the
 `Amazon EBS snapshot lock concepts <https://docs.aws.amazon.com/ebs/latest/userguide/snapshot-lock-concepts.html>`_.
+
+6. **AWS Outposts**
+
+If the target instance is attached to an AWS Outpost, Barman automatically
+detects this and creates the EBS snapshots locally on the Outpost instead of
+the parent AWS Region, with no additional configuration required. Refer to
+:ref:`AWS Outposts <aws-outposts-ebs-snapshots>` for the AWS-side
+prerequisites this requires, including a limitation on combining it with
+snapshot lock.
 
 Backup Process
 --------------

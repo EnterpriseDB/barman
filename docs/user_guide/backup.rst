@@ -143,11 +143,10 @@ safely stored in the cloud.
 
 .. note::
 
-  In addition to a plain bucket name, the destination URL can specify an S3
-  access point ARN in place of the bucket name, including an Amazon S3 on
-  Outposts access point ARN (e.g.
-  ``s3://arn:aws:s3-outposts:region:account-id:outpost/outpost-id/accesspoint/name/path``),
-  using the same convention as the AWS CLI's own S3 commands.
+  The destination URL can specify an S3 access point ARN in place of a bucket
+  name, including an S3 on Outposts access point. Refer to
+  :ref:`AWS Outposts <aws-outposts-s3>` for the AWS-side prerequisites this
+  requires.
 
 .. note::
 
@@ -345,11 +344,10 @@ The ``basebackups_directory`` must be an S3 storage URL (e.g., ``s3://bucket/pat
 Similarly, ``wals_directory`` should point to an S3 storage location for WAL archiving.
 
 .. note::
-    In addition to a plain bucket name, the destination URL can specify an S3
-    access point ARN in place of the bucket name, including an Amazon S3 on
-    Outposts access point ARN (e.g.
-    ``s3://arn:aws:s3-outposts:region:account-id:outpost/outpost-id/accesspoint/name/path``),
-    using the same convention as the AWS CLI's own S3 commands.
+    The destination URL can specify an S3 access point ARN in place of a
+    bucket name, including an S3 on Outposts access point. Refer to
+    :ref:`AWS Outposts <aws-outposts-s3>` for the AWS-side prerequisites this
+    requires.
 
 .. note::
     It's recommended to use the same bucket and path for both ``basebackups_directory``

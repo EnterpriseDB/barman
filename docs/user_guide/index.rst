@@ -23,6 +23,7 @@ DBAs during the recovery phase.
    barman_check
    backup
    cloud_snapshot_backup
+   aws_outposts
    wal_archiving
    catalog
    recovery
