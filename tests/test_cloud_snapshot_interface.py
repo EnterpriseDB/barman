@@ -2601,26 +2601,23 @@ class TestAwsCloudSnapshotInterface(object):
 
         return mock_fun
 
-    def _get_mock_describe_instances_resp(self, disks, virtualization_type="hvm"):
+    def _get_mock_describe_instances_resp(
+        self, disks, virtualization_type="hvm", outpost_arn=None
+    ):
         """Helper which returns a mock describe_instances response."""
         block_device_mappings = [
             {"DeviceName": disk["device"], "Ebs": {"VolumeId": disk["id"]}}
             for disk in disks
         ]
-        return {
-            "Reservations": [
-                {
-                    "Instances": [
-                        {
-                            "BlockDeviceMappings": block_device_mappings,
-                            "InstanceId": self.aws_instance_id,
-                            "RootDeviceName": "/dev/xvda",
-                            "VirtualizationType": virtualization_type,
-                        }
-                    ]
-                }
-            ]
+        instance = {
+            "BlockDeviceMappings": block_device_mappings,
+            "InstanceId": self.aws_instance_id,
+            "RootDeviceName": "/dev/xvda",
+            "VirtualizationType": virtualization_type,
         }
+        if outpost_arn is not None:
+            instance["OutpostArn"] = outpost_arn
+        return {"Reservations": [{"Instances": [instance]}]}
 
     def _get_mock_describe_volumes_resp(self, disks):
         """Helper which returns a mock describe_volumes response."""
@@ -2926,6 +2923,80 @@ class TestAwsCloudSnapshotInterface(object):
             assert snapshot.mount_options == disk["mount_options"]
             assert snapshot.mount_point == disk["mount_point"]
 
+    def test_take_snapshot_backup_outpost_arn(self, mock_ec2_client):
+        """
+        Verify that take_snapshot_backup reads OutpostArn from the instance
+        metadata and passes it through to every create_snapshot call, so
+        snapshots of an Outposts-attached instance's volumes stay local to the
+        Outpost instead of silently being copied back to the parent AWS Region.
+        """
+        # GIVEN a set of disks, represented as VolumeMetadata
+        disks = self.aws_disks
+        volumes = self._get_mock_volumes(disks)
+        # AND a backup_info for a given server name and backup ID
+        backup_info = mock.Mock(backup_id=self.backup_id, server_name=self.server_name)
+        # AND a mock EC2 client which returns an instance attached to an Outpost
+        outpost_arn = (
+            "arn:aws:outposts:us-west-2:0123456789:outpost/op-0123456789abcdef0"
+        )
+        mock_ec2_client.describe_instances.return_value = (
+            self._get_mock_describe_instances_resp(disks, outpost_arn=outpost_arn)
+        )
+        # AND the mock EC2 client returns successful create_snapshot responses
+        mock_ec2_client.create_snapshot.side_effect = self._get_mock_create_snapshot(
+            disks
+        )
+        # AND a new AwsCloudSnapshotInterface
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+
+        # WHEN take_snapshot_backup is called
+        snapshot_interface.take_snapshot_backup(
+            backup_info, self.aws_instance_id, volumes
+        )
+
+        # THEN every create_snapshot call included the instance's OutpostArn
+        assert mock_ec2_client.create_snapshot.call_count == len(disks)
+        for call in mock_ec2_client.create_snapshot.call_args_list:
+            assert call.kwargs["OutpostArn"] == outpost_arn
+
+    def test_take_snapshot_backup_outpost_arn_with_lock_mode(self, mock_ec2_client):
+        """
+        Verify that take_snapshot_backup raises a clear SnapshotBackupException
+        instead of attempting to lock a snapshot when the instance is attached
+        to an Outpost and a snapshot lock_mode is set. AWS does not support
+        locking local EBS snapshots on Outposts, so without this guard the
+        backup would fail with a less clear error from the LockSnapshot API
+        after already creating the (unlockable) snapshot.
+        """
+        # GIVEN a set of disks, represented as VolumeMetadata
+        disks = self.aws_disks
+        volumes = self._get_mock_volumes(disks)
+        # AND a mock EC2 client which returns an instance attached to an Outpost
+        outpost_arn = (
+            "arn:aws:outposts:us-west-2:0123456789:outpost/op-0123456789abcdef0"
+        )
+        mock_ec2_client.describe_instances.return_value = (
+            self._get_mock_describe_instances_resp(disks, outpost_arn=outpost_arn)
+        )
+        # AND a new AwsCloudSnapshotInterface configured with a snapshot lock_mode
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+        snapshot_interface.lock_mode = "governance"
+
+        # WHEN take_snapshot_backup is called
+        # THEN a SnapshotBackupException is raised
+        with pytest.raises(SnapshotBackupException) as exc:
+            snapshot_interface.take_snapshot_backup(
+                mock.Mock(), self.aws_instance_id, volumes
+            )
+
+        # AND the exception message identifies the instance, the Outpost, and
+        # the reason
+        assert self.aws_instance_id in str(exc.value)
+        assert outpost_arn in str(exc.value)
+        assert "aws_snapshot_lock_mode" in str(exc.value)
+        # AND no snapshot was created
+        mock_ec2_client.create_snapshot.assert_not_called()
+
     def test_take_snapshot_backup_instance_not_found(self, mock_ec2_client):
         """
         Verify that a SnapshotBackupException is raised if the instance cannot be
@@ -2947,6 +3018,55 @@ class TestAwsCloudSnapshotInterface(object):
 
         # AND the exception contains the expected message
         assert str(exc.value) == "Cannot find instance {}".format(self.aws_instance_id)
+
+    @pytest.mark.parametrize(
+        "outpost_arn",
+        (
+            None,
+            "arn:aws:outposts:us-west-2:0123456789:outpost/op-0123456789abcdef0",
+        ),
+    )
+    def test_create_snapshot_outpost_arn(self, outpost_arn):
+        """
+        Verify that _create_snapshot includes OutpostArn in the create_snapshot
+        call only when one is supplied, so snapshots of Outposts-attached volumes
+        are created locally on the Outpost instead of being copied back to the
+        parent AWS Region.
+        """
+        # GIVEN a new AwsCloudSnapshotInterface
+        snapshot_interface = AwsCloudSnapshotInterface()
+        # AND a backup_info for a given server name and backup ID
+        backup_info = mock.Mock(backup_id=self.backup_id, server_name=self.server_name)
+        # AND a mock create_snapshot function which returns a successful response
+        mock_ec2_client = self._mock_boto3.Session.return_value.client.return_value
+        mock_resp = mock_ec2_client.create_snapshot.return_value
+        mock_resp["State"] = "pending"
+
+        # WHEN _create_snapshot is called, optionally with an outpost_arn
+        volume_name = "my-pgdata-volume"
+        volume_id = "vol-0123456789abcdef01"
+        snapshot_interface._create_snapshot(
+            backup_info, volume_name, volume_id, outpost_arn
+        )
+
+        # THEN create_snapshot is called with OutpostArn only if one was supplied
+        expected_kwargs = {
+            "TagSpecifications": [
+                {
+                    "ResourceType": "snapshot",
+                    "Tags": [
+                        {
+                            "Key": "Name",
+                            "Value": f"{volume_name}-{self.backup_id.lower()}",
+                        },
+                    ],
+                }
+            ],
+            "VolumeId": volume_id,
+        }
+        if outpost_arn:
+            expected_kwargs["OutpostArn"] = outpost_arn
+        mock_ec2_client.create_snapshot.assert_called_once_with(**expected_kwargs)
 
     def test_take_snapshot_backup_disks_not_attached(self, mock_ec2_client):
         """
