@@ -1266,7 +1266,7 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
                     )
         return requested_volumes
 
-    def _create_snapshot(self, backup_info, volume_name, volume_id):
+    def _create_snapshot(self, backup_info, volume_name, volume_id, outpost_arn=None):
         """
         Create a snapshot of an EBS volume in AWS.
 
@@ -1280,6 +1280,9 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
             when creating the snapshot name.
         :param str volume_id: The AWS volume ID. Used when calling the AWS API to
             create the snapshot.
+        :param str|None outpost_arn: The ARN of the Outpost the volume is attached
+            to, if any. When set, the snapshot is created locally on the Outpost
+            instead of being copied back to the parent AWS Region.
         :rtype: (str, dict)
         :return: The snapshot name and the snapshot metadata returned by AWS.
         """
@@ -1301,15 +1304,19 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
             for key, value in self.tags:
                 tags.append({"Key": key, "Value": value})
 
-        resp = self.ec2_client.create_snapshot(
-            TagSpecifications=[
+        create_snapshot_kwargs = {
+            "TagSpecifications": [
                 {
                     "ResourceType": "snapshot",
                     "Tags": tags,
                 }
             ],
-            VolumeId=volume_id,
-        )
+            "VolumeId": volume_id,
+        }
+        if outpost_arn:
+            create_snapshot_kwargs["OutpostArn"] = outpost_arn
+
+        resp = self.ec2_client.create_snapshot(**create_snapshot_kwargs)
 
         if resp["State"] == "error":
             raise CloudProviderError(
@@ -1325,6 +1332,10 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
         Creates a snapshot for each named disk and saves the required metadata
         to backup_info.snapshots_info as an AwsSnapshotsInfo object.
 
+        If the instance is attached to an AWS Outpost, its ``OutpostArn`` is
+        passed through to each snapshot so they are created locally on the
+        Outpost rather than being copied back to the parent AWS Region.
+
         :param barman.infofile.LocalBackupInfo backup_info: Backup information.
         :param str instance_identifier: The instance ID or name of the VM instance to
             which the disks to be backed up are attached.
@@ -1333,6 +1344,16 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
         """
         instance_metadata = self._get_instance_metadata(instance_identifier)
         attachment_metadata = instance_metadata["BlockDeviceMappings"]
+        outpost_arn = instance_metadata.get("OutpostArn")
+        if outpost_arn and self.lock_mode:
+            raise SnapshotBackupException(
+                "Cannot use aws_snapshot_lock_mode with instance %s: it is "
+                "attached to Outpost %s, and AWS does not support locking "
+                "local EBS snapshots on Outposts. Remove "
+                "aws_snapshot_lock_mode, or take this backup from an "
+                "instance that is not attached to an Outpost."
+                % (instance_identifier, outpost_arn)
+            )
         snapshots = []
         for volume_identifier, volume_metadata in volumes.items():
             attached_volumes = [
@@ -1348,7 +1369,7 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
             assert len(attached_volumes) == 1
 
             snapshot_name, snapshot_resp = self._create_snapshot(
-                backup_info, volume_identifier, volume_metadata.id
+                backup_info, volume_identifier, volume_metadata.id, outpost_arn
             )
             # Apply lock on snapshot if lock mode is specified
             if self.lock_mode:
