@@ -75,7 +75,7 @@ from barman.cloud_providers import (
     validate_google_cloud_url,
     validate_s3_url,
 )
-from barman.cloud_providers.aws_s3 import S3CloudInterface
+from barman.cloud_providers.aws_s3 import S3CloudInterface, _parse_bucket_name_and_path
 from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
 from barman.cloud_providers.google_cloud_storage import GoogleCloudInterface
 from barman.exceptions import (
@@ -762,6 +762,32 @@ class TestS3CloudInterface(object):
 
     @mock.patch("barman.cloud_providers.aws_s3.Config")
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_uploader_access_point_arn(self, boto_mock, config_mock):
+        """Test that the constructor round-trips an access point ARN correctly.
+
+        _parse_bucket_name_and_path is covered directly elsewhere, but this
+        verifies the actual public API (the S3CloudInterface constructor)
+        wires it in correctly end-to-end, in case that wiring ever regresses.
+        """
+        # GIVEN an s3 url using an access point ARN in place of a bucket name
+        bucket_url = (
+            "s3://arn:aws:s3-outposts:us-west-2:123456789012:outpost/"
+            "op-0123456789abcdef0/accesspoint/my-ap/path/to/dir"
+        )
+
+        # WHEN an S3CloudInterface is created with that url
+        cloud_interface = S3CloudInterface(url=bucket_url, encryption=None)
+
+        # THEN the cloud interface bucket_name is set to the full ARN, kept intact
+        assert cloud_interface.bucket_name == (
+            "arn:aws:s3-outposts:us-west-2:123456789012:outpost/"
+            "op-0123456789abcdef0/accesspoint/my-ap"
+        )
+        # AND the cloud interface path is set to the trailing key only
+        assert cloud_interface.path == "path/to/dir"
+
+    @mock.patch("barman.cloud_providers.aws_s3.Config")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_uploader_minimal_read_timeout(self, boto_mock, config_mock):
         # GIVEN an s3 bucket url
         bucket_url = "s3://bucket/path/to/dir"
@@ -960,6 +986,39 @@ class TestS3CloudInterface(object):
         bucket_mock.assert_called_once_with(cloud_interface.bucket_name)
         # Expect the create() method of the bucket object to be called
         bucket_mock.return_value.create.assert_called_once()
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_setup_bucket_create_access_point_arn(self, boto_mock):
+        """Test that auto-creating a "bucket" fails clearly for an access point ARN.
+
+        Access points cannot be created via CreateBucket - the underlying
+        bucket they front must already exist. Without this guard, boto3
+        itself raises a much less clear EndpointResolutionError.
+        """
+        # GIVEN an s3 url using an access point ARN in place of a bucket name
+        bucket_url = (
+            "s3://arn:aws:s3:us-west-2:123456789012:accesspoint/my-ap/path/to/dir"
+        )
+        cloud_interface = S3CloudInterface(bucket_url, encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+        # AND a mock head_bucket which simulates a 404 'not found' response,
+        # as would happen for an access point that does not exist
+        s3_client.head_bucket.side_effect = ClientError(
+            error_response={"Error": {"Code": "404"}}, operation_name="load"
+        )
+
+        # WHEN setup_bucket is called
+        # THEN a CloudProviderError is raised instead of attempting to create
+        # a bucket literally named after the ARN
+        with pytest.raises(CloudProviderError) as exc:
+            cloud_interface.setup_bucket()
+        # AND the error message identifies the ARN and explains the problem
+        assert cloud_interface.bucket_name in str(exc.value)
+        assert "access point" in str(exc.value)
+        # AND no attempt was made to create a bucket
+        s3_mock.Bucket.assert_not_called()
 
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_upload_fileobj(self, boto_mock):
@@ -6325,6 +6384,97 @@ class TestS3ObjectLock(object):
 def test_validate_s3_url(url, is_valid):
     """Test the ``validate_s3_url`` function."""
     assert validate_s3_url(url) == is_valid
+
+
+@pytest.mark.parametrize(
+    ("url", "expected_bucket_name", "expected_path"),
+    (
+        # GIVEN a plain bucket name with no path
+        ("s3://my-bucket", "my-bucket", ""),
+        # AND a plain bucket name with a path
+        ("s3://my-bucket/path/to/dir", "my-bucket", "path/to/dir"),
+        # AND an S3 access point ARN with no path
+        (
+            "s3://arn:aws:s3:us-west-2:123456789012:accesspoint/my-ap",
+            "arn:aws:s3:us-west-2:123456789012:accesspoint/my-ap",
+            "",
+        ),
+        # AND an S3 access point ARN with a path
+        (
+            "s3://arn:aws:s3:us-west-2:123456789012:accesspoint/my-ap/my-object",
+            "arn:aws:s3:us-west-2:123456789012:accesspoint/my-ap",
+            "my-object",
+        ),
+        # AND an S3 on Outposts access point ARN with no path
+        (
+            "s3://arn:aws:s3-outposts:us-west-2:123456789012:outpost/"
+            "op-0123456789abcdef0/accesspoint/my-ap",
+            "arn:aws:s3-outposts:us-west-2:123456789012:outpost/"
+            "op-0123456789abcdef0/accesspoint/my-ap",
+            "",
+        ),
+        # AND an S3 on Outposts access point ARN with a path
+        (
+            "s3://arn:aws:s3-outposts:us-west-2:123456789012:outpost/"
+            "op-0123456789abcdef0/accesspoint/my-ap/backups/server/base",
+            "arn:aws:s3-outposts:us-west-2:123456789012:outpost/"
+            "op-0123456789abcdef0/accesspoint/my-ap",
+            "backups/server/base",
+        ),
+        # AND an S3 access point ARN using the colon-separated resource form
+        (
+            "s3://arn:aws:s3:us-west-2:123456789012:accesspoint:my-ap/my-object",
+            "arn:aws:s3:us-west-2:123456789012:accesspoint:my-ap",
+            "my-object",
+        ),
+        # AND an S3 on Outposts access point ARN using the colon-separated
+        # resource form throughout
+        (
+            "s3://arn:aws:s3-outposts:us-west-2:123456789012:outpost:"
+            "op-0123456789abcdef0:accesspoint:my-ap/my-object",
+            "arn:aws:s3-outposts:us-west-2:123456789012:outpost:"
+            "op-0123456789abcdef0:accesspoint:my-ap",
+            "my-object",
+        ),
+        # AND an S3 access point ARN in the aws-cn partition
+        (
+            "s3://arn:aws-cn:s3:cn-north-1:123456789012:accesspoint/my-ap/my-object",
+            "arn:aws-cn:s3:cn-north-1:123456789012:accesspoint/my-ap",
+            "my-object",
+        ),
+        # AND an S3 on Outposts access point ARN in the aws-us-gov partition
+        (
+            "s3://arn:aws-us-gov:s3-outposts:us-gov-west-1:123456789012:outpost/"
+            "op-0123456789abcdef0/accesspoint/my-ap/my-object",
+            "arn:aws-us-gov:s3-outposts:us-gov-west-1:123456789012:outpost/"
+            "op-0123456789abcdef0/accesspoint/my-ap",
+            "my-object",
+        ),
+    ),
+)
+def test_parse_bucket_name_and_path(url, expected_bucket_name, expected_path):
+    """Test that ``_parse_bucket_name_and_path`` keeps access point ARNs intact.
+
+    Access point ARNs (including S3 on Outposts ones) contain ``/``
+    characters as part of their own structure, so a naive ``urlparse``
+    netloc/path split truncates them. This verifies the ARN is recognized
+    and kept whole, with only the trailing object key treated as the path.
+    """
+    # WHEN the url is parsed
+    bucket_name, path = _parse_bucket_name_and_path(url)
+
+    # THEN the bucket name and path are split correctly
+    assert bucket_name == expected_bucket_name
+    assert path == expected_path
+
+
+def test_parse_bucket_name_and_path_invalid_url():
+    """Test that ``_parse_bucket_name_and_path`` rejects non-``s3://`` URLs."""
+    # GIVEN a non-s3 URL
+    # WHEN the url is parsed
+    # THEN a ValueError is raised
+    with pytest.raises(ValueError):
+        _parse_bucket_name_and_path("http://my-bucket/my-object")
 
 
 @pytest.mark.parametrize(
