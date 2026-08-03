@@ -195,6 +195,15 @@ Install it using pip:
 All disks involved in the snapshot backup must be non-root EBS volumes attached to the
 same VM instance.
 
+.. note::
+    If the VM instance is attached to an AWS Outpost, Barman automatically detects
+    this and creates the snapshots locally on the Outpost instead of copying them
+    back to the parent AWS Region. No additional configuration is required.
+
+    AWS does not support locking local EBS snapshots on Outposts. Because of this,
+    ``aws_snapshot_lock_mode`` cannot be used together with an instance attached to
+    an Outpost; Barman will raise an error rather than attempt an unsupported lock.
+
 3. **Access Control**
 
 Barman needs to access AWS so you must configure the AWS credentials with the ``awscli``
