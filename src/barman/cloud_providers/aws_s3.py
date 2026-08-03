@@ -21,6 +21,7 @@ import json
 import logging
 import math
 import os
+import re
 import shutil
 from datetime import datetime
 from io import RawIOBase
@@ -82,6 +83,71 @@ class StreamingBodyIO(RawIOBase):
     def read(self, n=-1):
         n = None if n < 0 else n
         return self.body.read(n)
+
+
+# S3 access point ARNs (including S3 Object Lambda access points), e.g.
+# arn:aws:s3:us-west-2:123456789012:accesspoint/my-access-point
+# The access point name itself cannot contain "/", so the match is
+# unambiguous even though the ARN as a whole contains "/" characters.
+_S3_ACCESS_POINT_ARN_RE = re.compile(
+    r"^arn:(aws|aws-cn|aws-us-gov).*:(s3|s3-object-lambda):[a-z\-0-9]*:"
+    r"[0-9]{12}:accesspoint[/:][a-zA-Z0-9\-.]{1,63}"
+)
+
+# S3 on Outposts access point ARNs, e.g.
+# arn:aws:s3-outposts:us-west-2:123456789012:outpost/op-xxx/accesspoint/name
+_S3_OUTPOSTS_ACCESS_POINT_ARN_RE = re.compile(
+    r"^arn:(aws|aws-cn|aws-us-gov).*:s3-outposts:[a-z\-0-9]+:"
+    r"[0-9]{12}:outpost[/:][a-zA-Z0-9\-]{1,63}[/:]accesspoint[/:][a-zA-Z0-9\-]{1,63}"
+)
+
+
+def _is_access_point_arn(bucket_name):
+    """
+    Determine whether *bucket_name* is an S3 access point ARN (including an
+    S3 on Outposts access point ARN), as opposed to a plain bucket name.
+
+    :param str bucket_name: The value of :attr:`S3CloudInterface.bucket_name`
+    :rtype: bool
+    """
+    for pattern in (_S3_OUTPOSTS_ACCESS_POINT_ARN_RE, _S3_ACCESS_POINT_ARN_RE):
+        match = pattern.match(bucket_name)
+        if match and match.end() == len(bucket_name):
+            return True
+    return False
+
+
+def _parse_bucket_name_and_path(url):
+    """
+    Split an ``s3://`` destination URL into a bucket identifier and object
+    key path.
+
+    Access point ARNs (including S3 on Outposts access points) contain
+    ``/`` characters as part of their own structure (e.g. ``outpost/op-xxx/
+    accesspoint/name``), so a plain ``urlparse``-based split of the netloc
+    from the path would truncate the ARN at its first ``/``. This function
+    recognizes those ARNs explicitly so they are kept intact as a single
+    bucket identifier, with only the trailing object key treated as the
+    path.
+
+    :param str url: Full URL of the cloud destination/source
+    :rtype: tuple[str, str]
+    :return: A ``(bucket_name, path)`` tuple
+    :raises ValueError: if *url* is not a validly formed ``s3://`` URL
+    """
+    parsed_url = urlparse(url)
+    if parsed_url.netloc == "" or parsed_url.scheme != "s3":
+        raise ValueError("Invalid s3 URL address: %s" % url)
+    # Recombine netloc and path so the ARN regexes can be matched against
+    # the full remainder of the URL, regardless of where urlparse decided
+    # to split it.
+    remainder = parsed_url.netloc + parsed_url.path
+    arn_match = _S3_OUTPOSTS_ACCESS_POINT_ARN_RE.match(
+        remainder
+    ) or _S3_ACCESS_POINT_ARN_RE.match(remainder)
+    if arn_match:
+        return arn_match.group(0), remainder[arn_match.end() :].lstrip("/")
+    return parsed_url.netloc, parsed_url.path.lstrip("/")
 
 
 class S3CloudInterface(CloudInterface):
@@ -172,13 +238,8 @@ class S3CloudInterface(CloudInterface):
         self.addressing_style = addressing_style
 
         # Extract information from the destination URL
-        parsed_url = urlparse(url)
-        # If netloc is not present, the s3 url is badly formatted.
-        if parsed_url.netloc == "" or parsed_url.scheme != "s3":
-            raise ValueError("Invalid s3 URL address: %s" % url)
-        self.bucket_name = parsed_url.netloc
+        self.bucket_name, self.path = _parse_bucket_name_and_path(url)
         self.bucket_exists = None
-        self.path = parsed_url.path.lstrip("/")
 
         # initialize the config object to be used in uploads
         self.config = TransferConfig(multipart_threshold=self.MULTIPART_THRESHOLD)
@@ -323,7 +384,20 @@ class S3CloudInterface(CloudInterface):
     def _create_bucket(self):
         """
         Create the bucket in cloud storage
+
+        :raises CloudProviderError: if *bucket_name* is an access point ARN.
+            Access points cannot be created this way - the underlying bucket
+            they front must already exist, so a missing access point is a
+            configuration error rather than something Barman can fix by
+            creating a bucket.
         """
+        if _is_access_point_arn(self.bucket_name):
+            raise CloudProviderError(
+                "Cannot create bucket '%s': this looks like an S3 access "
+                "point ARN rather than a plain bucket name. An access "
+                "point cannot be auto-created - check that the access "
+                "point name is correct and that it already exists." % self.bucket_name
+            )
         # Get the current region from client.
         # Do not use session.region_name here because it may be None
         region = self.s3.meta.client.meta.region_name
