@@ -1,0 +1,19 @@
+---
+- summary: Fix restoring incremental backups on a new Barman instance
+  description: |
+    Fixed an issue where restoring an incremental backup from the cloud on a new
+    Barman instance, which is not the same that originally took the backup, would
+    fail with a message like:
+
+    ```
+    pg_combinebackup: error: backup at "/tmp/barman-download2628030/20260804T180402/data" is an incremental backup, but the first backup should be a full backup
+    ```
+
+    The issue is fixed and incremental backups can now be restored normally.
+
+    NOTE: This only affected incremental backups taken with a Barman server
+    (not barman-cloud-* script) and only when restoring on a new Barman instance
+    (not the same that took the backup).
+  type: bugfix
+  jira_tickets:
+    - BAR-1553
