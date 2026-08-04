@@ -3,7 +3,7 @@
 # breaking changes for minor-version bumps, so pinning to the current minor
 # prevents unexpected breakage. Raise the bound when the new minor is
 # validated. See: https://docs.astral.sh/uv/concepts/build-backend/
-requires = ["uv_build>=0.11.17,<0.12"]
+requires = ["uv_build>=0.11.17,<0.13"]
 build-backend = "uv_build"
 
 [project]
