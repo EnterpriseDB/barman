@@ -19,7 +19,7 @@ jobs:
       - name: Step 1 - Checkout repository
         uses: actions/checkout@v7
       - name: Step 2 - Install uv and Python ${{ matrix.python-version }}
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
