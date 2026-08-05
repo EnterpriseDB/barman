@@ -97,6 +97,7 @@ class TestCloudBackup(object):
             min_chunk_size=expected_min_chunk_size,
             max_bandwidth=expected_max_bandwidth,
             cloud_interface=cloud_interface_mock.return_value,
+            keepalive_interval=60,
         )
         uploader.backup.assert_called_once()
 
@@ -549,6 +550,41 @@ class TestCloudBackup(object):
 
         captured = capsys.readouterr()
         assert "argument --tags: not allowed with argument --tag" in captured.err
+
+    @pytest.mark.parametrize(
+        ("cli_args", "expected_keepalive_interval"),
+        (
+            # Default: 60 seconds when no flag is passed
+            ([], 60),
+            # Explicit value overrides the default
+            (["--keepalive-interval", "30"], 30),
+            # Zero disables the mechanism
+            (["--keepalive-interval", "0"], 0),
+        ),
+    )
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
+    @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
+    @mock.patch("barman.clients.cloud_backup.CloudBackupUploader")
+    def test_keepalive_interval_cli_arg(
+        self,
+        uploader_mock,
+        _cloud_interface_mock,
+        _postgres_connection,
+        _rmtree_mock,
+        _tempfile_mock,
+        cli_args,
+        expected_keepalive_interval,
+    ):
+        """Verify that --keepalive-interval is forwarded to CloudBackupUploader."""
+        # GIVEN barman-cloud-backup is called with the provided CLI args
+        cloud_backup.main(["cloud_storage_url", "test_server"] + cli_args)
+
+        # THEN CloudBackupUploader receives the expected keepalive_interval
+        _, kwargs = uploader_mock.call_args
+        assert kwargs["keepalive_interval"] == expected_keepalive_interval
 
 
 @mock.patch("barman.clients.cloud_backup.tempfile")

@@ -5556,6 +5556,7 @@ class TestCloudBackupUploader(object):
 
     server_name = "test_server"
 
+    @mock.patch("barman.cloud.PostgresKeepAlive")
     @mock.patch("barman.cloud.os.stat")
     @mock.patch("barman.cloud.CloudUploadController")
     @mock.patch("barman.cloud.ConcurrentBackupStrategy")
@@ -5566,9 +5567,10 @@ class TestCloudBackupUploader(object):
         mock_backup_strategy,
         mock_cloud_upload_controller,
         _mock_os_stat,
+        _mock_keepalive,
     ):
         """Test the happy path for backups."""
-        # GIVEN a CloudBackupUploademock_backup_info.r
+        # GIVEN a CloudBackupUploader
         mock_cloud_interface = MagicMock(
             MAX_ARCHIVE_SIZE=99999, MIN_CHUNK_SIZE=2, path="/"
         )
@@ -5651,6 +5653,7 @@ class TestCloudBackupUploader(object):
         )
 
     @pytest.mark.parametrize("backup_should_fail", (False, True))
+    @mock.patch("barman.cloud.PostgresKeepAlive")
     @mock.patch("barman.cloud.CloudBackupUploader.create_upload_controller")
     @mock.patch("barman.cloud.CloudBackupUploader._backup_data_files")
     @mock.patch("barman.cloud.ConcurrentBackupStrategy")
@@ -5661,6 +5664,7 @@ class TestCloudBackupUploader(object):
         _mock_backup_strategy,
         _mock_backup_data_files,
         _mockcreate_upload_controller,
+        _mock_keepalive,
         backup_should_fail,
     ):
         """Verifies backup name is added to backup info if it is set."""
@@ -5692,6 +5696,7 @@ class TestCloudBackupUploader(object):
         )
 
     @pytest.mark.parametrize("backup_should_fail", (False, True))
+    @mock.patch("barman.cloud.PostgresKeepAlive")
     @mock.patch("barman.cloud.CloudBackupUploader.create_upload_controller")
     @mock.patch("barman.cloud.CloudBackupUploader._backup_data_files")
     @mock.patch("barman.cloud.ConcurrentBackupStrategy")
@@ -5702,6 +5707,7 @@ class TestCloudBackupUploader(object):
         _mock_backup_strategy,
         _mock_backup_data_files,
         _mockcreate_upload_controller,
+        _mock_keepalive,
         backup_should_fail,
     ):
         """Verifies backup name is added to backup info if it is set."""
@@ -7488,6 +7494,7 @@ class TestCoordinateBackupStartedUpload(object):
 
     server_name = "test_server"
 
+    @mock.patch("barman.cloud.PostgresKeepAlive")
     @mock.patch("barman.cloud.CloudBackupUploader.create_upload_controller")
     @mock.patch("barman.cloud.CloudBackupUploader._backup_data_files")
     @mock.patch("barman.cloud.ConcurrentBackupStrategy")
@@ -7498,6 +7505,7 @@ class TestCoordinateBackupStartedUpload(object):
         mock_backup_strategy,
         _mock_backup_data_files,
         _mock_create_upload_controller,
+        _mock_keepalive,
     ):
         """
         Verify that backup.info is uploaded with status=STARTED immediately
@@ -7551,6 +7559,7 @@ class TestCoordinateBackupStartedUpload(object):
             "got %s" % upload_calls[0]
         )
 
+    @mock.patch("barman.cloud.PostgresKeepAlive")
     @mock.patch("barman.cloud.CloudBackupUploader.create_upload_controller")
     @mock.patch("barman.cloud.CloudBackupUploader._backup_data_files")
     @mock.patch("barman.cloud.ConcurrentBackupStrategy")
@@ -7561,6 +7570,7 @@ class TestCoordinateBackupStartedUpload(object):
         mock_backup_strategy,
         mock_backup_data_files,
         _mock_create_upload_controller,
+        _mock_keepalive,
     ):
         """
         Verify that backup.info is uploaded with status=FAILED in the finally
@@ -7682,3 +7692,94 @@ class TestGetBackupIdUsingShortcutSkipsStarted(object):
         }
         catalog = self._make_catalog(backups)
         assert catalog._get_backup_id_using_shortcut("last-failed") == "20250101T100000"
+
+
+class TestCloudBackupUploaderKeepalive(object):
+    """Tests for PostgresKeepAlive integration in CloudBackupUploader.backup()."""
+
+    server_name = "test_server"
+
+    @mock.patch("barman.cloud.CloudBackupUploader.coordinate_backup")
+    @mock.patch("barman.cloud.CloudBackupUploader.create_upload_controller")
+    @mock.patch("barman.cloud.BackupInfo")
+    @mock.patch("barman.cloud.PostgresKeepAlive")
+    def test_postgres_keepalive_wraps_coordinate_backup_with_positive_interval(
+        self,
+        mock_keepalive,
+        mock_backup_info,
+        _mock_create_upload_controller,
+        mock_coordinate_backup,
+    ):
+        """
+        Verify that PostgresKeepAlive is started with the configured interval
+        and wraps coordinate_backup() when keepalive_interval > 0.
+        """
+        # GIVEN a CloudBackupUploader with keepalive_interval=60
+        mock_cloud_interface = MagicMock(MAX_ARCHIVE_SIZE=99999, MIN_CHUNK_SIZE=2)
+        mock_postgres = MagicMock(server_major_version=150000)
+        mock_backup_info.return_value.backup_label = None
+        mock_backup_info.return_value.backup_id = "20250101T120000"
+        mock_backup_info.STARTED = BackupInfo.STARTED
+        mock_backup_info.DONE = BackupInfo.DONE
+
+        uploader = CloudBackupUploader(
+            self.server_name,
+            mock_cloud_interface,
+            99999,
+            mock_postgres,
+            keepalive_interval=60,
+        )
+
+        # WHEN backup() is called
+        uploader.backup()
+
+        # THEN PostgresKeepAlive is instantiated with the postgres connection,
+        # the configured interval, and raise_exception=True
+        mock_keepalive.assert_called_once_with(mock_postgres, 60, raise_exception=True)
+        # AND the context manager was entered and exited, confirming coordinate_backup
+        # ran inside the with block rather than merely after it
+        mock_keepalive.return_value.__enter__.assert_called_once()
+        mock_keepalive.return_value.__exit__.assert_called_once()
+
+        # AND coordinate_backup was called inside the keepalive context
+        mock_coordinate_backup.assert_called_once()
+
+    @mock.patch("barman.cloud.CloudBackupUploader.coordinate_backup")
+    @mock.patch("barman.cloud.CloudBackupUploader.create_upload_controller")
+    @mock.patch("barman.cloud.BackupInfo")
+    @mock.patch("barman.cloud.PostgresKeepAlive")
+    def test_postgres_keepalive_passes_zero_interval_when_disabled(
+        self,
+        mock_keepalive,
+        mock_backup_info,
+        _mock_create_upload_controller,
+        mock_coordinate_backup,
+    ):
+        """
+        Verify that PostgresKeepAlive is instantiated with interval=0 when
+        keepalive_interval=0 (disabled), which makes it a no-op.
+        """
+        # GIVEN a CloudBackupUploader with keepalive_interval=0 (disabled)
+        mock_cloud_interface = MagicMock(MAX_ARCHIVE_SIZE=99999, MIN_CHUNK_SIZE=2)
+        mock_postgres = MagicMock(server_major_version=150000)
+        mock_backup_info.return_value.backup_label = None
+        mock_backup_info.return_value.backup_id = "20250101T120000"
+        mock_backup_info.STARTED = BackupInfo.STARTED
+        mock_backup_info.DONE = BackupInfo.DONE
+
+        uploader = CloudBackupUploader(
+            self.server_name,
+            mock_cloud_interface,
+            99999,
+            mock_postgres,
+            keepalive_interval=0,
+        )
+
+        # WHEN backup() is called
+        uploader.backup()
+
+        # THEN PostgresKeepAlive is instantiated with interval=0
+        mock_keepalive.assert_called_once_with(mock_postgres, 0, raise_exception=True)
+
+        # AND coordinate_backup was still called
+        mock_coordinate_backup.assert_called_once()
