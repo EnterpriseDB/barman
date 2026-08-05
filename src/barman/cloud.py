@@ -55,6 +55,7 @@ from barman.exceptions import (
 )
 from barman.fs import UnixLocalCommand, path_allowed
 from barman.infofile import BackupInfo, WalFileInfo
+from barman.postgres import PostgresKeepAlive
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
 from barman.utils import (
     BarmanEncoder,
@@ -1758,6 +1759,7 @@ class CloudBackupUploader(CloudBackup):
         backup_name=None,
         min_chunk_size=None,
         max_bandwidth=None,
+        keepalive_interval=60,
     ):
         """
         Base constructor.
@@ -1774,6 +1776,9 @@ class CloudBackupUploader(CloudBackup):
         :param int min_chunk_size: the minimum size of a single upload part
         :param int max_bandwidth: the maximum amount of data per second that should
           be uploaded during the backup
+        :param int keepalive_interval: interval in seconds at which a heartbeat query
+          is sent to the PostgreSQL server during the upload phase to prevent idle
+          connection timeouts. A value of 0 disables the mechanism.
         """
         super(CloudBackupUploader, self).__init__(
             server_name,
@@ -1786,6 +1791,7 @@ class CloudBackupUploader(CloudBackup):
         self.max_archive_size = max_archive_size
         self.min_chunk_size = min_chunk_size
         self.max_bandwidth = max_bandwidth
+        self._keepalive_interval = keepalive_interval
 
         # Object properties set at backup time
         self.controller = None
@@ -1999,6 +2005,14 @@ class CloudBackupUploader(CloudBackup):
     def backup(self):
         """
         Upload a Backup to cloud storage directly from a live PostgreSQL server.
+
+        .. note::
+            The backup coordination with PostgreSQL is wrapped inside a keepalive
+            context to prevent the libpq connection from going idle long enough to
+            be dropped by an intermediate network device (e.g. a NAT gateway or
+            load balancer). This is critical because ``pg_backup_start()`` and
+            ``pg_backup_stop()`` must be called within the same session, and the
+            upload phase between them can last hours on large databases.
         """
         server_name = "cloud"
         self.backup_info = self._get_backup_info(server_name)
@@ -2006,7 +2020,10 @@ class CloudBackupUploader(CloudBackup):
 
         self._check_postgres_version()
 
-        self.coordinate_backup()
+        with PostgresKeepAlive(
+            self.postgres, self._keepalive_interval, raise_exception=True
+        ):
+            self.coordinate_backup()
 
 
 class CloudBackupUploaderBarman(CloudBackupUploader):

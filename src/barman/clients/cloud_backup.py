@@ -50,6 +50,7 @@ from barman.utils import (
     check_aws_snapshot_lock_cool_off_period_range,
     check_aws_snapshot_lock_duration_range,
     check_backup_name,
+    check_non_negative,
     check_positive,
     check_size,
     check_tag,
@@ -264,6 +265,7 @@ def main(args=None):
                         uploader = CloudBackupUploader(
                             postgres=postgres,
                             backup_name=config.backup_name,
+                            keepalive_interval=config.keepalive_interval,
                             **uploader_kwargs,
                         )
                         uploader.backup()
@@ -363,6 +365,15 @@ def parse_arguments(args=None):
         type=check_positive,
         help="number of subprocesses to upload data to cloud storage (default: 2)",
         default=2,
+    )
+    parser.add_argument(
+        "--keepalive-interval",
+        type=check_non_negative,
+        help="an interval, in seconds, at which a heartbeat query is sent to the "
+        "PostgreSQL server to keep the connection alive during the upload phase "
+        "(default: 60)",
+        default=60,
+        dest="keepalive_interval",
     )
     parser.add_argument(
         "-S",
