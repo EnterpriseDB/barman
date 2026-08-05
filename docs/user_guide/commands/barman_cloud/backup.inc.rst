@@ -24,6 +24,7 @@
                   [ --immediate-checkpoint ]
                   [ --min-chunk-size MIN_CHUNK_SIZE ]
                   [ --max-bandwidth MAX_BANDWIDTH ]
+                  [ --keepalive-interval KEEPALIVE_INTERVAL ]
                   [ --snapshot-instance SNAPSHOT_INSTANCE ]
                   [ --snapshot-disk NAME [ --snapshot-disk NAME ... ] ]
                   [ --snapshot-zone GCP_ZONE ]
@@ -162,6 +163,11 @@ uploaded to the cloud.
 ``--max-bandwidth``
   The maximum amount of data to be uploaded per second when backing up to object
   storages (default: ``0`` - no limit).
+
+``--keepalive-interval``
+  An interval, in seconds, at which a heartbeat query is sent to the PostgreSQL server
+  to keep the connection alive during the upload phase (default: ``60``). A value of
+  ``0`` disables the heartbeat.
 
 ``--snapshot-instance``
   Instance where the disks to be backed up as snapshots are attached.
