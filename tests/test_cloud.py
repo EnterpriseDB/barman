@@ -1021,6 +1021,58 @@ class TestS3CloudInterface(object):
         s3_mock.Bucket.assert_not_called()
 
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_setup_bucket_access_denied(self, boto_mock):
+        """
+        Test that a permission-denied response from HeadBucket raises a
+        CloudProviderError with a descriptive message.
+        """
+        # GIVEN a cloud interface
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+        # AND head_bucket raises a 403 permission-denied error
+        s3_client.head_bucket.side_effect = ClientError(
+            error_response={"Error": {"Code": "403", "Message": "Forbidden"}},
+            operation_name="HeadBucket",
+        )
+        # WHEN setup_bucket is called
+        # THEN a CloudProviderError is raised with a descriptive message
+        with pytest.raises(CloudProviderError) as exc:
+            cloud_interface.setup_bucket()
+        # AND the message mentions the bucket name and permissions
+        assert "bucket" in str(exc.value)
+        assert "permission" in str(exc.value).lower()
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_setup_bucket_bad_request(self, boto_mock):
+        """
+        Test that a 400 Bad Request response from HeadBucket raises a
+        CloudProviderError suggesting invalid or misconfigured credentials.
+
+        .. note::
+            Some S3-compatible providers (e.g. IBM COS) return 400 instead
+            of 403 when credentials are invalid or misconfigured.
+        """
+        # GIVEN a cloud interface
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+        # AND head_bucket raises a 400 error
+        s3_client.head_bucket.side_effect = ClientError(
+            error_response={"Error": {"Code": "400", "Message": "Bad Request"}},
+            operation_name="HeadBucket",
+        )
+        # WHEN setup_bucket is called
+        # THEN a CloudProviderError is raised with a message about credentials
+        with pytest.raises(CloudProviderError) as exc:
+            cloud_interface.setup_bucket()
+        # AND the message mentions the bucket name and credentials
+        assert "bucket" in str(exc.value)
+        assert "credentials" in str(exc.value).lower()
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_upload_fileobj(self, boto_mock):
         """
         Tests synchronous file upload with boto3
