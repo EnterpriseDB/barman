@@ -378,6 +378,22 @@ class S3CloudInterface(CloudInterface):
             error_code = exc.response["Error"]["Code"]
             if error_code == "404":
                 return False
+            # Permission denied
+            if error_code in ("AccessDenied", "Forbidden", "403"):
+                raise CloudProviderError(
+                    "Permission denied when accessing bucket '%s'. "
+                    "Verify that the configured credentials have sufficient "
+                    "permissions: %s"
+                    % (self.bucket_name, exc.response["Error"]["Message"])
+                )
+            # Bad request - some S3-compatible providers (e.g. IBM COS) return
+            # 400 instead of 403 when credentials are invalid or misconfigured
+            if error_code == "400":
+                raise CloudProviderError(
+                    "Bad request when accessing bucket '%s'. "
+                    "This may indicate invalid or misconfigured credentials: %s"
+                    % (self.bucket_name, exc.response["Error"]["Message"])
+                )
             # Otherwise there is nothing else to do than re-raise the original
             # exception
             raise
