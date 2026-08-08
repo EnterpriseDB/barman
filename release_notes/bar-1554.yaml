@@ -1,15 +1,39 @@
 ---
-- summary: Fix `barman restore` failing when restoring from a snapshot backup
+- summary: Fix `barman restore` failing to restore snapshot backups
   description: |
-    Restoring from a snapshot backup failed immediately with an internal error,
-    before any recovery work was performed, making recovery from snapshot
-    backups impossible.
+    Restoring a snapshot backup could fail in a few ways:
 
-    This has been fixed. Restores from snapshot backups also honour
-    `--partial-wal` now, copying a `.partial` WAL file to the recovery
-    destination as already happened for other backup types.
+    - On AWS instances that present their disks as NVMe devices, Barman
+      failed to locate the disk while checking mount points, even though it
+      was correctly attached and mounted:
 
-    Restores from other backup types were never affected.
+      ```
+      ERROR: Error checking mount points: Error finding mount point for disk vol-04f4a47f8a04a7067: Could not find device /dev/sdd at any mount point
+      ```
+
+      The same error also caused the corresponding `barman check` snapshot
+      checks to fail with a similar message.
+
+    - Barman refused to restore, even though a snapshot recovery is expected
+      to already contain data (the disks cloned from the backup snapshots
+      are attached and mounted before the restore begins):
+
+      ```
+      ERROR: The restore operation cannot proceed because the destination folder '/pg-volume/18/data' is not empty. To prevent accidental data loss, the destination must be empty. Please choose a different location or manually empty the folder.
+      ```
+
+    - Restoring from a snapshot backup could failed immediately with an internal
+      error when using the `--delta-restore` flag, before any recovery work was performed,
+      making recovery from snapshot backups impossible.
+
+    All of these issues have been fixed, and restoring snapshot backups now
+    works end to end.
+
+    Restores from other backup types were never affected by any of the
+    above, and still require an empty destination for both the data
+    directory and any tablespaces.
   type: bugfix
   jira_tickets:
     - BAR-1554
+    - BAR-1556
+    - BAR-1558
