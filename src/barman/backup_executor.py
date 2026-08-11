@@ -2737,8 +2737,7 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
                     "timeline", int(start_info["file_name"][0:8], 16)
                 )
 
-    @staticmethod
-    def _backup_info_from_stop_location(backup_info, stop_info):
+    def _backup_info_from_stop_location(self, backup_info, stop_info):
         """
         Fill a backup info with information from a backup stop location
 
@@ -2755,10 +2754,11 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
             # Take a copy of stop_info because we are going to update it
             stop_info = stop_info.copy()
             # Get the timeline from the stop_info if available, otherwise
-            # Use the one from the backup_label
+            # fetch the live one from PostgreSQL
             timeline = stop_info.get("timeline")
             if timeline is None:
-                timeline = backup_info.timeline
+                # Fallback to the backup's start timeline, in case the query fails
+                timeline = self.postgres.current_timeline or backup_info.timeline
             stop_info.update(
                 xlog.location_to_xlogfile_name_offset(
                     stop_info["location"], timeline, backup_info.xlog_segment_size

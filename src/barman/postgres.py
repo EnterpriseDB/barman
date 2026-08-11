@@ -785,6 +785,36 @@ class PostgreSQLConnection(PostgreSQL):
         return None
 
     @property
+    def current_timeline(self):
+        """
+        Get the timeline currently in effect on this PostgreSQL server.
+
+        On a standby this is the timeline currently being replayed.
+
+        .. note::
+            On a primary, the checkpoint's ``timeline_id`` always matches the
+            current timeline, since the primary is the one generating WAL and
+            checkpoints on it. On a standby, the checkpoint's timeline can lag
+            behind the timeline actually being replayed (e.g. right after
+            following a promoted node on a new timeline), so
+            ``min_recovery_end_timeline`` is used instead, as it is the field
+            Postgres maintains to track the timeline currently being replayed.
+
+        :rtype: int|None
+        """
+        try:
+            cur = self._cursor()
+            cur.execute(
+                "SELECT CASE WHEN pg_is_in_recovery() "
+                "THEN min_recovery_end_timeline ELSE timeline_id END "
+                "FROM pg_control_checkpoint(), pg_control_recovery()"
+            )
+            return cur.fetchone()[0]
+        except (PostgresConnectionError, psycopg2.Error) as e:
+            _logger.debug("Error retrieving current timeline: %s", force_str(e).strip())
+        return None
+
+    @property
     def xlog_segment_size(self):
         """
         Retrieve the size of one WAL file.
