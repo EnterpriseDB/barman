@@ -810,6 +810,30 @@ class TestPostgres(object):
         cursor_mock.execute.side_effect = psycopg2.ProgrammingError
         assert server.postgres.current_xlog_info is None
 
+    @patch("barman.postgres.PostgreSQLConnection.connect")
+    def test_current_timeline(self, conn_mock):
+        """
+        Test the current_timeline property
+        """
+        # Build and configure a server using a mock
+        server = build_real_server()
+        cursor_mock = conn_mock.return_value.cursor.return_value
+        cursor_mock.fetchone.return_value = (2,)
+
+        assert server.postgres.current_timeline == 2
+        cursor_mock.execute.assert_called_once_with(
+            "SELECT CASE WHEN pg_is_in_recovery() "
+            "THEN min_recovery_end_timeline ELSE timeline_id END "
+            "FROM pg_control_checkpoint(), pg_control_recovery()"
+        )
+
+        # Test error management
+        cursor_mock.execute.side_effect = PostgresConnectionError
+        assert server.postgres.current_timeline is None
+
+        cursor_mock.execute.side_effect = psycopg2.ProgrammingError
+        assert server.postgres.current_timeline is None
+
     @pytest.mark.parametrize(
         "pg_server_version, xlog_file_name",
         [(170000, "000000010000000200000019"), (160000, "000000010000000200000018")],

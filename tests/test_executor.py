@@ -743,6 +743,66 @@ class TestStrategy(object):
         assert backup_info.end_offset == 10231544
         assert backup_info.end_time == stop_time
 
+    def test_backup_info_from_stop_location_uses_stop_info_timeline(self):
+        """
+        When stop_info already carries a timeline (e.g. as returned by the
+        concurrent backup API), it must be used as-is and PostgreSQL must
+        not be queried again for the current timeline.
+        """
+        # GIVEN a backup_info whose timeline was set from the backup_label
+        # written at the start of the backup, and a PostgreSQL connection
+        # that fails the test if queried for the current timeline
+        mock_postgres = mock.Mock()
+        type(mock_postgres).current_timeline = mock.PropertyMock(
+            side_effect=AssertionError("current_timeline should not be queried")
+        )
+        strategy = PostgresBackupStrategy(mock_postgres, "test server")
+        backup_info = build_test_backup_info(timeline=1)
+
+        # WHEN the backup stops on a later timeline, as reported live by
+        # PostgreSQL, and file_name/file_offset are not directly available
+        stop_info = {
+            "location": "0/12000090",
+            "file_name": None,
+            "file_offset": None,
+            "timestamp": datetime.datetime(2015, 10, 26, 14, 38),
+            "timeline": 2,
+        }
+        strategy._backup_info_from_stop_location(backup_info, stop_info)
+
+        # THEN end_wal is computed using the timeline carried by stop_info,
+        # not the stale one recorded in backup_info.timeline
+        assert backup_info.end_wal == "000000020000000000000012"
+
+    def test_backup_info_from_stop_location_fetches_current_timeline(self):
+        """
+        A backup taken from a standby can be stopped after the standby has
+        followed the primary through a failover, landing on a newer timeline
+        than the one recorded in the backup_label at the start of the
+        backup. When stop_info carries no timeline (e.g. current_xlog_info
+        on a standby), the live timeline must be fetched from PostgreSQL
+        rather than falling back to the stale backup_info.timeline.
+        """
+        # GIVEN a backup_info whose timeline was set from the backup_label
+        # written at the start of the backup
+        mock_postgres = mock.Mock()
+        mock_postgres.current_timeline = 2
+        strategy = PostgresBackupStrategy(mock_postgres, "test server")
+        backup_info = build_test_backup_info(timeline=1)
+
+        # WHEN the backup stops without stop_info carrying a timeline
+        stop_info = {
+            "location": "0/12000090",
+            "file_name": None,
+            "file_offset": None,
+            "timestamp": datetime.datetime(2015, 10, 26, 14, 38),
+        }
+        strategy._backup_info_from_stop_location(backup_info, stop_info)
+
+        # THEN end_wal is computed using the live timeline fetched from
+        # PostgreSQL, not the stale one recorded in backup_info.timeline
+        assert backup_info.end_wal == "000000020000000000000012"
+
     def test_stop_backup_for_old_pg(self):
         """
         Test concurrent stop backup when postgres version older then 9.6
