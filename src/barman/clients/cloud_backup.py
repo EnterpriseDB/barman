@@ -258,6 +258,7 @@ def main(args=None):
                             config.snapshot_instance,
                             config.snapshot_disks,
                             config.backup_name,
+                            keepalive_interval=config.keepalive_interval,
                         )
                         snapshot_backup.backup()
                     # Otherwise upload everything to the object store

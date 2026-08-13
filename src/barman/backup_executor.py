@@ -336,6 +336,7 @@ class CloudBackupExecutor(BackupExecutor):
                     max_bandwidth=_get_bandwidth_limit_in_bytes(
                         self.config.bandwidth_limit
                     ),
+                    keepalive_interval=self.config.keepalive_interval,
                 )
 
                 # Set the backup_info that was already started by BackupExecutor.
@@ -2400,6 +2401,26 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
         """
         for volume in volumes.values():
             volume.resolve_mounted_volume(remote_cmd)
+
+    def backup(self, *args, **kwargs):
+        """
+        Perform a snapshot backup.
+
+        .. note::
+            This method currently only calls the parent backup method but inside a keepalive
+            context to ensure the connection does not become idle long enough to get dropped
+            by a firewall, for instance. This is important to ensure that ``pg_backup_start()``
+            and ``pg_backup_stop()`` are called within the same session.
+        """
+        try:
+            with PostgresKeepAlive(
+                self.server.postgres, self.config.keepalive_interval, True
+            ):
+                super(SnapshotBackupExecutor, self).backup(*args, **kwargs)
+        except PostgresConnectionLost:
+            raise BackupException(
+                "Connection to the Postgres server was lost during the backup."
+            )
 
     def backup_copy(self, backup_info):
         """
