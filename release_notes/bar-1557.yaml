@@ -2,14 +2,17 @@
 - summary: Add keepalive support to barman-cloud-backup
   description: |
     `barman-cloud-backup` now sends periodic heartbeat queries (`SELECT 1`) to the
-    PostgreSQL server during the data upload phase to prevent idle connection
+    PostgreSQL server during the backup phase to prevent idle connection
     timeouts caused by intermediate network devices such as firewalls and load
     balancers. This ensures the backup session remains valid so that
     `pg_backup_stop()` can be successfully executed after the data transfer
-    is complete.
+    or snapshot creation is complete.
+
+    This applies to both the standard data upload path and the snapshot backup path.
 
     The interval can be configured via the `--keepalive-interval` flag (default:
     60 seconds). Setting the value to `0` disables the mechanism.
   type: minor_change
   jira_tickets:
     - BAR-1557
+    - BAR-1571
