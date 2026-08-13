@@ -83,6 +83,7 @@ from barman.exceptions import (
     BarmanException,
     CommandFailedException,
     ConfigurationException,
+    PostgresConnectionLost,
 )
 from barman.infofile import BackupInfo, WalFileInfo
 
@@ -6009,12 +6010,14 @@ class TestCloudBackupSnapshot(object):
             **{"snapshot_instance": self.instance_name}
         )
 
+    @mock.patch("barman.cloud.PostgresKeepAlive")
     @mock.patch("barman.cloud.CloudBackup._get_backup_info")
     @mock.patch("barman.cloud.ConcurrentBackupStrategy")
     def test_backup(
         self,
         mock_concurrent_backup_strategy,
         mock_get_backup_info,
+        mock_keepalive,
         cloud_interface,
         snapshot_interface,
         mock_postgres,
@@ -6085,7 +6088,13 @@ class TestCloudBackupSnapshot(object):
         # WHEN backup is called
         snapshot_backup.backup()
 
-        # THEN take_snapshot_backup is called with the expected args
+        # THEN the keepalive context was entered and exited, confirming
+        # coordinate_backup ran inside the with block
+        mock_keepalive.assert_called_once_with(mock_postgres, 60, raise_exception=True)
+        mock_keepalive.return_value.__enter__.assert_called_once()
+        mock_keepalive.return_value.__exit__.assert_called_once()
+
+        # AND take_snapshot_backup is called with the expected args
         snapshot_interface.take_snapshot_backup.assert_called_once_with(
             backup_info,
             self.instance_name,
@@ -7844,24 +7853,26 @@ class TestGetBackupIdUsingShortcutSkipsStarted(object):
 
 
 class TestCloudBackupUploaderKeepalive(object):
-    """Tests for PostgresKeepAlive integration in CloudBackupUploader.backup()."""
+    """Tests for PostgresKeepAlive integration in CloudBackup.coordinate_backup()."""
 
     server_name = "test_server"
 
-    @mock.patch("barman.cloud.CloudBackupUploader.coordinate_backup")
-    @mock.patch("barman.cloud.CloudBackupUploader.create_upload_controller")
-    @mock.patch("barman.cloud.BackupInfo")
     @mock.patch("barman.cloud.PostgresKeepAlive")
-    def test_postgres_keepalive_wraps_coordinate_backup_with_positive_interval(
+    @mock.patch("barman.cloud.CloudBackupUploader.create_upload_controller")
+    @mock.patch("barman.cloud.CloudBackupUploader._backup_data_files")
+    @mock.patch("barman.cloud.ConcurrentBackupStrategy")
+    @mock.patch("barman.cloud.BackupInfo")
+    def test_postgres_keepalive_called_with_configured_interval(
         self,
-        mock_keepalive,
         mock_backup_info,
+        _mock_backup_strategy,
+        _mock_backup_data_files,
         _mock_create_upload_controller,
-        mock_coordinate_backup,
+        mock_keepalive,
     ):
         """
         Verify that PostgresKeepAlive is started with the configured interval
-        and wraps coordinate_backup() when keepalive_interval > 0.
+        inside coordinate_backup() when keepalive_interval > 0.
         """
         # GIVEN a CloudBackupUploader with keepalive_interval=60
         mock_cloud_interface = MagicMock(MAX_ARCHIVE_SIZE=99999, MIN_CHUNK_SIZE=2)
@@ -7882,27 +7893,26 @@ class TestCloudBackupUploaderKeepalive(object):
         # WHEN backup() is called
         uploader.backup()
 
-        # THEN PostgresKeepAlive is instantiated with the postgres connection,
-        # the configured interval, and raise_exception=True
+        # THEN PostgresKeepAlive is instantiated inside coordinate_backup() with
+        # the postgres connection, the configured interval, and raise_exception=True
         mock_keepalive.assert_called_once_with(mock_postgres, 60, raise_exception=True)
-        # AND the context manager was entered and exited, confirming coordinate_backup
-        # ran inside the with block rather than merely after it
+        # AND the context manager was entered and exited, confirming the critical
+        # backup operations ran inside the keepalive context
         mock_keepalive.return_value.__enter__.assert_called_once()
         mock_keepalive.return_value.__exit__.assert_called_once()
 
-        # AND coordinate_backup was called inside the keepalive context
-        mock_coordinate_backup.assert_called_once()
-
-    @mock.patch("barman.cloud.CloudBackupUploader.coordinate_backup")
-    @mock.patch("barman.cloud.CloudBackupUploader.create_upload_controller")
-    @mock.patch("barman.cloud.BackupInfo")
     @mock.patch("barman.cloud.PostgresKeepAlive")
+    @mock.patch("barman.cloud.CloudBackupUploader.create_upload_controller")
+    @mock.patch("barman.cloud.CloudBackupUploader._backup_data_files")
+    @mock.patch("barman.cloud.ConcurrentBackupStrategy")
+    @mock.patch("barman.cloud.BackupInfo")
     def test_postgres_keepalive_passes_zero_interval_when_disabled(
         self,
-        mock_keepalive,
         mock_backup_info,
+        _mock_backup_strategy,
+        _mock_backup_data_files,
         _mock_create_upload_controller,
-        mock_coordinate_backup,
+        mock_keepalive,
     ):
         """
         Verify that PostgresKeepAlive is instantiated with interval=0 when
@@ -7930,5 +7940,57 @@ class TestCloudBackupUploaderKeepalive(object):
         # THEN PostgresKeepAlive is instantiated with interval=0
         mock_keepalive.assert_called_once_with(mock_postgres, 0, raise_exception=True)
 
-        # AND coordinate_backup was still called
-        mock_coordinate_backup.assert_called_once()
+    @mock.patch("barman.cloud.PostgresKeepAlive")
+    @mock.patch("barman.cloud.CloudBackupUploader.create_upload_controller")
+    @mock.patch("barman.cloud.CloudBackupUploader._backup_data_files")
+    @mock.patch("barman.cloud.ConcurrentBackupStrategy")
+    @mock.patch("barman.cloud.BackupInfo")
+    def test_postgres_connection_lost_produces_descriptive_error(
+        self,
+        mock_backup_info,
+        _mock_backup_strategy,
+        _mock_backup_data_files,
+        _mock_create_upload_controller,
+        mock_keepalive,
+    ):
+        """
+        Verify that PostgresConnectionLost raised inside the keepalive context is
+        converted into a BackupException with a descriptive message before being
+        handled by the generic error handler in coordinate_backup().
+        """
+        # GIVEN a CloudBackupUploader
+        mock_cloud_interface = MagicMock(MAX_ARCHIVE_SIZE=99999, MIN_CHUNK_SIZE=2)
+        mock_postgres = MagicMock(server_major_version=150000)
+        mock_backup_info.return_value.backup_label = None
+        mock_backup_info.return_value.backup_id = "20250101T120000"
+        mock_backup_info.STARTED = BackupInfo.STARTED
+        mock_backup_info.DONE = BackupInfo.DONE
+
+        uploader = CloudBackupUploader(
+            self.server_name,
+            mock_cloud_interface,
+            99999,
+            mock_postgres,
+        )
+
+        # AND the keepalive context raises PostgresConnectionLost on entry
+        mock_keepalive.return_value.__enter__.side_effect = PostgresConnectionLost(
+            "Connection lost"
+        )
+
+        # WHEN backup() is called, the generic handler in coordinate_backup() converts
+        # the BackupException to SystemExit(1)
+        with pytest.raises(SystemExit):
+            uploader.backup()
+
+        # THEN the backup_info error field contains the descriptive message
+        error_call_args = [
+            call
+            for call in mock_backup_info.return_value.set_attribute.call_args_list
+            if call[0][0] == "error"
+        ]
+        assert len(error_call_args) == 1
+        assert (
+            "Connection to the Postgres server was lost during the backup."
+            in error_call_args[0][0][1]
+        )

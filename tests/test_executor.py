@@ -2861,6 +2861,7 @@ class TestCloudBackupExecutor(object):
         mock_config.cloud_upload_max_archive_size = 100 * 1024 * 1024 * 1024  # 100 GiB
         mock_config.cloud_upload_min_chunk_size = 5 * 1024 * 1024  # 5 MiB
         mock_config.bandwidth_limit = None
+        mock_config.keepalive_interval = 60
         executor.config = mock_config
 
         # Mock the postgres connection and cloud interface
@@ -2900,6 +2901,7 @@ class TestCloudBackupExecutor(object):
             backup_name="test_backup",
             min_chunk_size=5 * 1024 * 1024,  # 5 MiB
             max_bandwidth=None,
+            keepalive_interval=60,
         )
 
         # AND the backup_info is set on the uploader
@@ -2980,6 +2982,7 @@ class TestCloudBackupExecutor(object):
         mock_config.cloud_upload_max_archive_size = 100 * 1024 * 1024 * 1024  # 100 GiB
         mock_config.cloud_upload_min_chunk_size = 5 * 1024 * 1024  # 5 MiB
         mock_config.bandwidth_limit = 100  # 100 kB/s
+        mock_config.keepalive_interval = 60
         executor.config = mock_config
 
         # Mock the postgres connection and cloud interface
@@ -3019,6 +3022,7 @@ class TestCloudBackupExecutor(object):
             backup_name="test_backup",
             min_chunk_size=5 * 1024 * 1024,  # 5 MiB
             max_bandwidth=100000,  # 100 kB/s converted to 100000 B/s
+            keepalive_interval=60,
         )
 
 
@@ -3544,6 +3548,40 @@ class TestSnapshotBackupExecutor(object):
         # AND the exepcted hint was written to the output
         out, _err = capsys.readouterr()
         assert expected_error_msg.format(**core_snapshot_options) in out
+
+    @patch("barman.backup_executor.PostgresKeepAlive")
+    @patch("barman.backup_executor.get_snapshot_interface_from_server_config")
+    @patch("barman.backup_executor.ExternalBackupExecutor.backup")
+    def test_backup_wraps_with_keepalive(
+        self,
+        mock_super_backup,
+        _mock_get_snapshot_interface,
+        mock_keepalive,
+        core_snapshot_options,
+    ):
+        """
+        Verify that SnapshotBackupExecutor.backup() wraps the parent backup call
+        inside a PostgresKeepAlive context using the configured interval.
+        """
+        # GIVEN a SnapshotBackupExecutor with keepalive_interval configured
+        server = build_mocked_server(
+            main_conf={**core_snapshot_options, "keepalive_interval": 30}
+        )
+        executor = SnapshotBackupExecutor(server.backup_manager)
+        backup_info = mock.Mock()
+
+        # WHEN backup is called
+        executor.backup(backup_info)
+
+        # THEN PostgresKeepAlive is started with the server's postgres connection
+        # and the configured interval
+        mock_keepalive.assert_called_once_with(
+            server.postgres, server.config.keepalive_interval, True
+        )
+        # AND the parent backup method ran inside the keepalive context
+        mock_keepalive.return_value.__enter__.assert_called_once()
+        mock_keepalive.return_value.__exit__.assert_called_once()
+        mock_super_backup.assert_called_once_with(backup_info)
 
 
 class TestBackupExecutor(object):

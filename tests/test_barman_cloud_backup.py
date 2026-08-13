@@ -337,9 +337,54 @@ class TestCloudBackup(object):
                 "disk0",
             ],
             None,
+            keepalive_interval=60,
         )
         # AND its backup function was called exactly once
         mock_snapshot_backup.backup.assert_called_once()
+
+    @pytest.mark.parametrize(
+        ("cli_args", "expected_keepalive_interval"),
+        (
+            # Default: 60 seconds when no flag is passed
+            ([], 60),
+            # Explicit value overrides the default
+            (["--keepalive-interval", "30"], 30),
+            # Zero disables the mechanism
+            (["--keepalive-interval", "0"], 0),
+        ),
+    )
+    @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
+    @mock.patch("barman.clients.cloud_backup.get_snapshot_interface")
+    @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
+    @mock.patch("barman.clients.cloud_backup.CloudBackupSnapshot")
+    def test_keepalive_interval_forwarded_to_snapshot_uploader(
+        self,
+        mock_cloud_backup_snapshot,
+        _mock_get_cloud_interface,
+        _mock_get_snapshot_interface,
+        _postgres_connection,
+        _rmtree_mock,
+        _tempfile_mock,
+        cli_args,
+        expected_keepalive_interval,
+    ):
+        """Verify that --keepalive-interval is forwarded to CloudBackupSnapshot."""
+        # GIVEN barman-cloud-backup is called with snapshot args and the provided CLI args
+        cloud_backup.main(
+            [
+                "cloud_storage_url",
+                "test_server",
+                "--snapshot-disk",
+                "disk0",
+                "--snapshot-instance",
+                "test_instance",
+            ]
+            + cli_args
+        )
+
+        # THEN CloudBackupSnapshot receives the expected keepalive_interval
+        _, kwargs = mock_cloud_backup_snapshot.call_args
+        assert kwargs["keepalive_interval"] == expected_keepalive_interval
 
     @pytest.mark.parametrize(
         ("aws_cli_args", "expected_cloud_interface_kwargs"),
