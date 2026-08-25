@@ -1951,27 +1951,44 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         # Get the basic info for the backup
         begin_wal = backup_info.begin_wal
         end_wal = backup_info.end_wal
-        timeline = begin_wal[:8]
 
         # Case 0: there is nothing to check for this backup, as it is
         # currently in progress
         if not end_wal:
             return
 
-        # Case 1: Barman still doesn't know about the timeline the backup
+        # Case 1: the backup spans multiple timelines, which is not supported. We must
+        # mark the backup as FAILED with a proper error message
+        begin_timeline = begin_wal[:8]
+        end_timeline = end_wal[:8]
+        if begin_timeline != end_timeline:
+            backup_info.error = (
+                "Backups spanning multiple timelines are not supported. "
+                "The backup starts in timeline %s and ends in timeline %s."
+                % (begin_timeline, end_timeline)
+            )
+            backup_info.status = BackupInfo.FAILED
+            backup_info.save()
+            output.error(
+                "This backup has been marked as FAILED due to the "
+                "following reason: %s" % backup_info.error
+            )
+            return
+
+        # Case 2: Barman still doesn't know about the timeline the backup
         # started with. We still haven't archived any WAL corresponding
         # to the backup, so we can't proceed with checking the existence
         # of the required WAL files
-        if not timelines or timeline not in timelines:
+        if not timelines or begin_timeline not in timelines:
             backup_info.status = BackupInfo.WAITING_FOR_WALS
             backup_info.save()
             return
 
         # Find the most recent archived WAL for this server in the timeline
         # where the backup was taken
-        last_archived_wal = timelines[timeline].name
+        last_archived_wal = timelines[begin_timeline].name
 
-        # Case 2: the most recent WAL file archived is older than the
+        # Case 3: the most recent WAL file archived is older than the
         # start of the backup. We must wait for the archiver to receive
         # and/or process the WAL files.
         if last_archived_wal < begin_wal:
@@ -1993,7 +2010,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 break
 
         if missing_wal:
-            # Case 3: the most recent WAL file archived is more recent than
+            # Case 4: the most recent WAL file archived is more recent than
             # the one corresponding to the start of a backup. If WAL
             # file is missing, then we can't recover from the backup so we
             # must mark the backup as FAILED.
@@ -2012,13 +2029,13 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             return
 
         if end_wal <= last_archived_wal:
-            # Case 4: if the most recent WAL file archived is more recent or
+            # Case 5: if the most recent WAL file archived is more recent or
             # equal than the one corresponding to the end of the backup and
             # every WAL that will be required by the recovery is available,
             # we can mark the backup as DONE.
             backup_info.status = BackupInfo.DONE
         else:
-            # Case 5: if the most recent WAL file archived is older than
+            # Case 6: if the most recent WAL file archived is older than
             # the one corresponding to the end of the backup but
             # all the WAL files until that point are present.
             backup_info.status = BackupInfo.WAITING_FOR_WALS
