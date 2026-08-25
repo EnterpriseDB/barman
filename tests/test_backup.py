@@ -1243,6 +1243,44 @@ class TestBackup(object):
         assert latest["00000001"].name == "000000010000000100000001"
         assert latest["00000002"].name == "000000020000000000000003"
 
+    @patch("barman.backup.output")
+    @patch("barman.infofile.LocalBackupInfo.save")
+    def test_check_backup_cross_timeline_marks_failed(
+        self, mock_save, mock_output, tmpdir
+    ):
+        """
+        Test that a backup starting and ending on different timelines
+        (e.g. because a switchover/failover happened while it was running)
+        is marked as FAILED with an explanatory error message.
+        """
+        # GIVEN a backup that begins on timeline 1 and ends on timeline 2
+        backup_manager = build_backup_manager(
+            main_conf={"backup_directory": tmpdir.strpath}
+        )
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            status=BackupInfo.WAITING_FOR_WALS,
+            begin_wal="000000010000000000000001",
+            end_wal="000000020000000000000005",
+        )
+
+        # WHEN check_backup is called
+        backup_manager.check_backup(backup_info)
+
+        # THEN the backup is marked as FAILED with an error describing the
+        # timeline mismatch, and the error is reported to the user
+        err_msg = (
+            "Backups spanning multiple timelines are not supported. "
+            "The backup starts in timeline 00000001 and ends in timeline 00000002."
+        )
+        assert backup_info.status == BackupInfo.FAILED
+        assert backup_info.error == err_msg
+        mock_save.assert_called_once()
+        mock_output.error.assert_called_once_with(
+            "This backup has been marked as FAILED due to the "
+            "following reason: %s" % err_msg
+        )
+
     def test_backup_manager_has_keep_manager_capability(self, tmpdir):
         """
         Verifies that KeepManagerMixin methods are available in BackupManager
