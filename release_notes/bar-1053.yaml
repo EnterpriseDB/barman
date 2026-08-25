@@ -1,0 +1,11 @@
+---
+- summary: Mark backups starting and ending on different timelines as FAILED
+  description: |
+    If a switchover or failover occurred while a backup of a standby was
+    running, causing it to start on one PostgreSQL timeline and end on
+    another, that backup remained in status `WAITING_FOR_WALS` forever,
+    never transitioning to `DONE`. Such backups are currently not supported
+    and are now detected and immediately marked as `FAILED`.
+  type: bugfix
+  jira_tickets:
+    - BAR-1053
