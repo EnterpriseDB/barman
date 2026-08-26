@@ -1,9 +1,0 @@
----
-- summary: Barman now requires Python 3.12 or later
-  description: |
-    The minimum supported Python version has been raised to 3.12. Installations
-    running on Python 3.8, 3.9, 3.10, or 3.11 must upgrade their Python
-    interpreter before upgrading Barman.
-  type: notable_change
-  jira_tickets:
-    - BAR-1332
