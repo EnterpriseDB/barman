@@ -1,5 +1,6 @@
 '\" t
-.\" Man page generated from reStructuredText.
+.\" Man page generated from reStructuredText
+.\" by the Docutils 0.22.4 manpage writer.
 .
 .
 .nr rst2man-indent-level 0
@@ -28,7 +29,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN" "5" "May 20, 2026" "3.19" "Barman"
+.TH "BARMAN" "5" "Aug 27, 2026" "3.20" "Barman"
 .SH NAME
 barman \- Barman Configurations
 .sp
@@ -47,7 +48,7 @@ model\-specific settings that is made up of three scopes:
 barman system, such as the main directory, system user, log file, and other general
 options. Default location is \fB/etc/barman.conf\fP and it can be overridden on a per\-user
 level by \fB~/.barman.conf\fP or by specifying a \fB\&.conf\fP file using the \fB\-c\fP /
-\fB\-\-config\fP with the \fI\%barman command\fP directly in the CLI.
+\fB\-\-config\fP with the barman command \%<#\:commands-barman> directly in the CLI.
 .sp
 Barman searches for its configuration file in a predefined order and uses the first one
 it finds. The search order is as follows:
@@ -74,7 +75,7 @@ Default location is \fB/etc/barman.d\fP and must use the \fB\&.conf\fP suffix. T
 \fBconfiguration_files_directory\fP override option from the server configuration applies for
 models. You may have one or multiple files for models.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Historically, you could have a single configuration file containing global, server, and
@@ -88,7 +89,7 @@ in square brackets. Each section can include various options.
 Models and servers must have unique identifiers, and reserved words cannot be used as
 names.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 \fBComment Handling\fP: Only line comments are supported (lines starting with \fB#\fP or \fB;\fP).
@@ -122,7 +123,7 @@ Configuration options can be of the following types:
 \fBBoolean\fP: Can be \fBon\fP, \fBtrue\fP, \fB1\fP (true) or \fBoff\fP, \fBfalse\fP, \fB0\fP
 (false).
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 2.0
 .INDENT 3.5
 Some enums allow \fBoff\fP, but not \fBfalse\fP\&.
@@ -143,12 +144,28 @@ These are general configurations options.
 \fBactive\fP
 .sp
 When this option is set to \fBtrue\fP (default), the server operates fully. If set to
-\fBfalse\fP, the server is restricted to diagnostic use only, meaning that operational
-commands such as backup execution or WAL archiving are temporarily disabled. When
-incorporating a new server into Barman, we recommend initially setting
+\fBfalse\fP, the server is restricted to operations that don\(aqt ingest new data. This
+means that operational commands such as backup execution or WAL archiving are
+temporarily disabled.
+.sp
+When incorporating a new server into Barman, we recommend initially setting
 \fBactive = false\fP\&. Verify that barman check shows no issues before activating the
 server. This approach helps prevent excessive error logging in Barman during the
 initial setup.
+.sp
+\fBImportant:\fP
+.INDENT 0.0
+.INDENT 3.5
+Setting \fBactive = false\fP for a server disables operational commands (such as
+\fBbackup\fP, \fBput\-wal\fP, \fBreceive\-wal\fP, and cron\-driven actions) for that server.
+Diagnostics and read\-only commands (like \fBcheck\fP, \fBlist\-backups\fP, \fBstatus\fP,
+\fBshow\-servers\fP, \fBdiagnose\fP, \fBlist\-processes\fP, and some options for
+\fBreceive\-wal\fP maintenance subcommands) remain available.
+.sp
+If the server is marked as inactive, \fBbarman cron\fP will kill any background
+\fBreceive\-wal\fP processes and skip any other tasks.
+.UNINDENT
+.UNINDENT
 .sp
 Scope: Server / Model.
 .sp
@@ -160,7 +177,7 @@ will manage WAL files that Postgres stores in the incoming directory
 (\fBincoming_wals_directory\fP), including their checks, handling, and compression. When
 set to \fBfalse\fP (default), continuous archiving is disabled.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 If neither \fBarchiver\fP nor \fBstreaming_archiver\fP is configured, Barman will
@@ -186,7 +203,7 @@ Scope: Global / Server / Model.
 Specifies the maximum transfer rate in kilobytes per second for backup and recovery
 operations. A value of \fB0\fP indicates no limit (default).
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Applies only when \fBbackup_method = postgres | rsync | local\-to\-cloud\fP\&.
@@ -205,7 +222,7 @@ Scope: Global.
 .sp
 Specifies the directory for lock files. The default is \fBbarman_home\fP\&.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 The \fBbarman_lock_directory\fP should be on a non\-network local filesystem. If using
@@ -230,7 +247,7 @@ Tag the server or model to an associated cluster name. Barman uses this associat
 override configuration for all servers/models in this cluster. If omitted for servers,
 it defaults to the server\(aqs name.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Must be specified for configuration models to group applicable servers.
@@ -260,10 +277,10 @@ Scope: Global.
 Specifies the connection string used by Barman to connect to the Postgres server.
 This is a libpq connection string. Commonly used keys include: \fBhost\fP, \fBhostaddr\fP,
 \fBport\fP, \fBdbname\fP, \fBuser\fP and \fBpassword\fP\&. See the
-\X'tty: link https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING'\fI\%libpq\-connstring\fP\X'tty: link'
+libpq\-connstring \%<https://\:www\:.postgresql\:.org/\:docs/\:current/\:libpq-connect\:.html#\:LIBPQ-CONNSTRING>
 PostgreSQL documentation for details.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Multi\-host connection strings (e.g. \fBhost=primary_db,replica_db\fP) and
@@ -310,7 +327,7 @@ values are:
 .IP \(bu 2
 \fBnone\fP (default): No encryption is applied.
 .IP \(bu 2
-\fBgpg\fP: Uses \fI\%GPG\fP for encryption. Requires \fI\%GPG\fP to be installed
+\fBgpg\fP: Uses GPG \%<#\:term-GPG> for encryption. Requires GPG \%<#\:term-GPG> to be installed
 and properly configured on the system.
 .UNINDENT
 .sp
@@ -319,7 +336,7 @@ Scope: Global / Server / Model.
 \fBencryption_key_id\fP
 .sp
 Specifies the encryption key ID used for encrypting backups and WAL files. This option
-is required when \fBencryption = gpg\fP and must correspond to a valid \fI\%GPG\fP key ID
+is required when \fBencryption = gpg\fP and must correspond to a valid GPG \%<#\:term-GPG> key ID
 available on the system.
 .sp
 Scope: Global / Server / Model.
@@ -403,7 +420,7 @@ Scope: Global / Server / Model.
 Controls the number of parallel workers used to copy files during backup or recovery.
 It must be a positive integer. Default is \fB1\fP\&.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Applies only when \fBbackup_method = rsync\fP\&.
@@ -420,7 +437,7 @@ is \fB10\fP and \fBparallel_jobs_start_batch_period\fP is \fB1\fP, this will yie
 effective rate limit of \fB10\fP jobs per second, because there is a maximum of \fB10\fP
 jobs that can be started within \fB1\fP second.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Applies only when \fBbackup_method = rsync\fP\&.
@@ -436,7 +453,7 @@ Defines the maximum number of parallel jobs to start in a single batch. Default 
 is \fB10\fP and \fBparallel_jobs_start_batch_period\fP is \fB2\fP, this will yield a maximum
 of \fB10\fP jobs that can be started within \fB2\fP seconds.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Applies only when \fBbackup_method = rsync\fP\&.
@@ -466,7 +483,7 @@ Scope: Server / Model.
 Connection string for Barman to connect to the primary Postgres server during a
 standby backup.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Multi\-host connection strings are not supported. See \fBconninfo\fP for details.
@@ -498,7 +515,7 @@ Scope: Server / Model.
 .sp
 Enables Postgres\(aq streaming protocol for WAL files. Defaults to \fBfalse\fP\&.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 If neither \fBarchiver\fP nor \fBstreaming_archiver\fP is configured, Barman will
@@ -532,7 +549,7 @@ Scope: Global / Server / Model.
 .sp
 Connection string for streaming replication protocol. Defaults to \fBconninfo\fP\&.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Multi\-host connection strings are not supported. See \fBconninfo\fP for details.
@@ -546,7 +563,7 @@ Scope: Server / Model.
 Maximum transfer rate for specific tablespaces for backup and recovery operations.
 A value of \fB0\fP indicates no limit (default).
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Applies only when \fBbackup_method = rsync\fP\&.
@@ -564,10 +581,10 @@ This is a boolean option that allows for the automatic creation of backup manife
 files. The manifest file, which is a JSON document, lists all files included in the
 backup. It is generated upon completion of the backup and saved in the backup
 directory. The format of the manifest file adheres to the specifications outlined in the
-\X'tty: link https://www.postgresql.org/docs/current/backup-manifest-format.html'\fI\%backup manifest format\fP\X'tty: link'
+backup manifest format \%<https://\:www\:.postgresql\:.org/\:docs/\:current/\:backup-manifest-format\:.html>
 PostgreSQL documentation and is compatible with the \fBpg_verifybackup\fP tool. Default is \fBfalse\fP\&.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 This option is ignored if the \fBbackup_method\fP is not \fBrsync\fP\&.
@@ -582,7 +599,7 @@ Specifies the compression method for the backup process. It can be set to \fBgzi
 \fBlz4\fP, \fBzstd\fP, or \fBnone\fP\&. Ensure that the CLI tool for the chosen compression
 method is available on both the Barman and Postgres servers.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Note that \fBlz4\fP and \fBzstd\fP require Postgres version 15 or later. Unsetting this
@@ -600,7 +617,7 @@ Options are \fBplain\fP or \fBtar\fP, with \fBtar\fP as the default if unset. Th
 format is available only if Postgres version 15 or later is in use and
 \fBbackup_compression_location\fP is set to \fBserver\fP\&.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method = postgres\fP\&.
@@ -614,7 +631,7 @@ Scope: Global / Server / Model.
 Defines the level of compression for backups as an integer. The permissible values
 depend on the compression method specified in \fBbackup_compression\fP\&.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method = postgres\fP\&.
@@ -629,7 +646,7 @@ Specifies where compression should occur during the backup: either \fBclient\fP 
 \fBserver\fP\&. The \fBserver\fP option is available only if Postgres version 15 or later is
 being used.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method = postgres\fP\&.
@@ -644,7 +661,7 @@ Sets the number of threads used for compression during the backup process. This 
 applicable only when \fBbackup_compression=zstd\fP\&. The default value is 0, which uses
 the standard compression behavior.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method = postgres\fP\&.
@@ -659,7 +676,7 @@ Specifies the integer identifier for a WarehousePG database. When set, this valu
 passed to \fBpg_basebackup\fP via the \fB\-\-target\-gp\-dbid\fP parameter for WarehousePG
 compatibility. This option is required when backing up WarehousePG segments.
 .sp
-\fBIMPORTANT:\fP
+\fBImportant:\fP
 .INDENT 0.0
 .INDENT 3.5
 This option is only relevant for WarehousePG databases and should not be set for
@@ -671,7 +688,7 @@ managed externally by the user.
 .UNINDENT
 .UNINDENT
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method = postgres\fP\&.
@@ -724,7 +741,7 @@ versions older than 15. This option will be removed in the future.
 during backup execution.
 .UNINDENT
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 \fBexclusive_backup\fP and \fBconcurrent_backup\fP cannot be used together.
@@ -737,9 +754,9 @@ Scope: Global / Server / Model.
 .sp
 Destination for base backup files. It can be a local path if storing backups locally,
 or a cloud storage URL if streaming backups to the cloud as described in
-\fI\%Streaming backups to the cloud\fP\&. Defaults to \fB<backup_directory>/base\fP\&.
+Streaming backups to the cloud \%<#\:backup-streaming-backup-cloud>\&. Defaults to \fB<backup_directory>/base\fP\&.
 .sp
-\fBWARNING:\fP
+\fBWarning:\fP
 .INDENT 0.0
 .INDENT 3.5
 Changing the value of \fBbasebackups_directory\fP on an active server is discouraged.
@@ -760,7 +777,7 @@ Scope: Server.
 Sets the number of seconds to wait after a failed base backup copy before retrying.
 Default is \fB30\fP seconds. Must be a non\-negative integer.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 This applies to both backup and recovery operations.
@@ -774,7 +791,7 @@ Scope: Global / Server / Model.
 Defines the number of retry attempts for a base backup copy after an error occurs.
 Default is \fB0\fP (no retries). Must be a non\-negative integer.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 This applies to both backup and recovery operations.
@@ -798,7 +815,7 @@ creating a copy of the unchanged files (just for backup time reduction)
 creating a hard link of the unchanged files (for backup space and time reduction)
 .UNINDENT
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 This option will be ignored when \fBbackup_method=postgres\fP\&.
@@ -823,7 +840,7 @@ Specifies the duration in seconds to wait for AWS snapshots to be created before
 timeout occurs. The default value is \fB3600\fP seconds. This must be a positive
 integer.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = aws\fP\&.
@@ -837,7 +854,7 @@ Scope: Global / Server / Model.
 The name of the AWS profile to use when authenticating with AWS (e.g. \fBINI\fP section
 in AWS credentials file).
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = aws\fP, or
@@ -857,7 +874,7 @@ located.
 When using \fBbackup_method = postgres\fP or \fBlocal\-to\-cloud\fP pointing to S3, indicates
 the AWS region where the S3 bucket is located.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = aws\fP, or
@@ -874,7 +891,7 @@ When set to \fBtrue\fP, Barman will check for S3 Object Lock before attempting t
 delete base backup files from S3 storage. If an object is locked, the deletion
 is aborted. Defaults to \fBfalse\fP\&.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method\fP is \fBpostgres\fP or \fBlocal\-to\-cloud\fP,
@@ -900,7 +917,7 @@ Allowed options:
 .sp
 If not set, S3\(aqs default encryption settings for the bucket will be used.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method\fP is \fBpostgres\fP or \fBlocal\-to\-cloud\fP, and
@@ -935,7 +952,52 @@ aws_sse_kms_key_id = arn:aws:kms:us\-east\-1:123456789012:key/abcd1234\-5678\-90
 .UNINDENT
 .UNINDENT
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only supported when \fBbackup_method\fP is \fBpostgres\fP or \fBlocal\-to\-cloud\fP, and
+\fBbasebackups_directory\fP and/or \fBwals_directory\fP point to S3.
+.UNINDENT
+.UNINDENT
+.sp
+Scope: Global / Server / Model.
+.sp
+\fBaws_sse_customer_key\fP
+.sp
+Specifies a customer\-provided encryption key for AWS S3 SSE\-C (Server\-Side
+Encryption with Customer Keys). The value must be a \fBfile://\fP URI pointing to a file
+containing a base64\-encoded 256\-bit (32\-byte) key.
+.sp
+When set, Barman passes the key to boto3 for all upload and download operations,
+including base backups and WAL files. The same key must be provided for both
+backup and restore operations.
+.sp
+Cannot be used together with \fBaws_encryption\fP or \fBaws_sse_kms_key_id\fP\&.
+.sp
+Example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+[myserver]
+backup_method = local\-to\-cloud
+basebackups_directory = s3://my\-bucket/barman/backups
+aws_sse_customer_key = file:///etc/barman/sse\-c.b64
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+\fBImportant:\fP
+.INDENT 0.0
+.INDENT 3.5
+All backups and WAL files for a given server must be encrypted with the same SSE\-C
+key. Mixing SSE\-C\-encrypted and unencrypted objects, or using different keys across
+backups, will cause barman commands to fail when S3 rejects requests with a
+mismatched or missing key.
+.UNINDENT
+.UNINDENT
+.sp
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method\fP is \fBpostgres\fP or \fBlocal\-to\-cloud\fP, and
@@ -955,7 +1017,7 @@ applies.
 This option is useful for advanced and non\-standard S3 workflows where the default
 timeout may not be sufficient.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method\fP is \fBpostgres\fP or \fBlocal\-to\-cloud\fP, and
@@ -978,7 +1040,7 @@ Allowed options:
 \fBgovernance\fP\&.
 .UNINDENT
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = aws\fP\&.
@@ -993,7 +1055,7 @@ The lock duration is the period of time (in days) for which the snapshot is to r
 locked, ranging from 1 to 36,500. Set either the lock duration or the expiration date
 (not both).
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = aws\fP\&.
@@ -1007,7 +1069,7 @@ Scope: Global / Server / Model.
 The cooling\-off period is an optional period of time (in hours) that you can specify
 when you lock a snapshot in \fBcompliance\fP mode, ranging from 1 to 72.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = aws\fP\&.
@@ -1023,7 +1085,7 @@ The lock duration is determined by an expiration date in the future. It must be 
 \fBYYYY\-MM\-DDTHH:MM:SS.sssZ\fP\&. Set either the lock duration or the expiration date (not
 both).
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = aws\fP\&.
@@ -1038,7 +1100,7 @@ Specifies the type of Azure credential to use for authentication, either \fBazur
 \fBmanaged\-identity\fP or \fBdefault\fP\&. If not provided, the default Azure authentication
 method will be used.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = azure\fP\&.
@@ -1052,7 +1114,7 @@ Scope: Global / Server / Model.
 Specifies the name of the Azure resource group containing the compute instance and
 disks defined by \fBsnapshot_instance\fP and \fBsnapshot_disks\fP\&.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = azure\fP\&.
@@ -1066,7 +1128,7 @@ Scope: Global / Server / Model.
 Identifies the Azure subscription that owns the instance and storage volumes defined by
 \fBsnapshot_instance\fP and \fBsnapshot_disks\fP\&.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = azure\fP\&.
@@ -1082,7 +1144,7 @@ operations on cloud storage. This option is relevant for both backup and WAL fil
 deletions. The default value is \fB1000\fP for S3, \fB256\fP for Azure Blob, and \fB100\fP for
 GCS.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method\fP is \fBpostgres\fP or \fBlocal\-to\-cloud\fP, and
@@ -1103,7 +1165,7 @@ is an integer greater than zero, with an optional SI or IEC suffix. k stands for
 kilo with k = 1000, while Ki stands for kilobytes Ki = 1024. The rest of the options
 have the same reasoning for greater units of measure.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method\fP is \fBpostgres\fP or \fBlocal\-to\-cloud\fP, and
@@ -1125,7 +1187,7 @@ is an integer greater than zero, with an optional SI or IEC suffix. k stands for
 kilo with k = 1000, while Ki stands for kilobytes Ki = 1024. The rest of the options
 have the same reasoning for greater units of measure.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method\fP is \fBpostgres\fP or \fBlocal\-to\-cloud\fP, and
@@ -1165,7 +1227,7 @@ Scope: Global / Server / Model.
 Specifies the ID of the GCP project that owns the instance and storage volumes defined
 by \fBsnapshot_instance\fP and \fBsnapshot_disks\fP\&.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = gcp\fP\&.
@@ -1179,7 +1241,7 @@ Scope: Global / Server / Model.
 Indicates the availability zone where the compute instance and disks are located for
 snapshot backups.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only supported when \fBbackup_method = snapshot\fP and \fBsnapshot_provider = gcp\fP\&.
@@ -1192,7 +1254,7 @@ Scope: Server / Model.
 .sp
 This option is a comma\-separated list of disks to include in cloud snapshot backups.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Required when \fBbackup_method = snapshot\fP\&.
@@ -1209,7 +1271,7 @@ Scope: Server / Model.
 .sp
 The name of the VM or compute instance where the storage volumes are attached.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Required when \fBbackup_method = snapshot\fP\&.
@@ -1223,7 +1285,7 @@ Scope: Server / Model.
 The name of the cloud provider to use for creating snapshots. Supported value:
 \fBaws\fP, \fBazure\fP and \fBgcp\fP\&.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Required when \fBbackup_method = snapshot\fP\&.
@@ -1411,7 +1473,7 @@ Deprecated since version 3.17: The \fBcustom\fP compression option and related c
 release. Use one of the built\-in compression algorithms instead.
 
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 All of these options require the module to be installed in the location where the
@@ -1443,7 +1505,7 @@ will be used internally to create a bash command and it will prefix to the
 following string \fB> \(dq$2\(dq < \(dq$1\(dq;\fP\&. Write to standard output and do not delete input
 files.
 .sp
-\fBTIP:\fP
+\fBTip:\fP
 .INDENT 0.0
 .INDENT 3.5
 \fBcustom_compression_filter = \(dqxz \-c\(dq\fP
@@ -1464,7 +1526,7 @@ files. If this is set, Barman will avoid applying custom compression to WALs tha
 already been compressed with the specified algorithm. If not configured, Barman will
 apply custom compression to all WAL files, even those pre\-compressed.
 .sp
-\fBTIP:\fP
+\fBTip:\fP
 .INDENT 0.0
 .INDENT 3.5
 For example, in the \fBxz\fP compression algorithm, the magic number is used to detect
@@ -1489,7 +1551,7 @@ custom_compression_magic = 0xfd377a585a00
 .UNINDENT
 .UNINDENT
 .sp
-Reference: \X'tty: link https://tukaani.org/xz/xz-file-format-1.0.4.txt'\fI\%xz\-file\-format\fP\X'tty: link'
+Reference: xz\-file\-format \%<https://\:tukaani\:.org/\:xz/\:xz-file-format-1\:.0\:.4\:.txt>
 .UNINDENT
 .UNINDENT
 .sp
@@ -1505,7 +1567,7 @@ Specifies a custom decompression algorithm for compressed WAL files. It must be 
 prefix to the following string \fB> \(dq$2\(dq < \(dq$1\(dq;\fP\&. It must correspond with the
 compression algorithm used.
 .sp
-\fBTIP:\fP
+\fBTip:\fP
 .INDENT 0.0
 .INDENT 3.5
 \fBcustom_compression_filter = \(dqxz \-c \-d\(dq\fP
@@ -1622,7 +1684,7 @@ are ready in \fBpg_wal/archive_status\fP are uploaded concurrently in background
 processes after the primary WAL has been successfully archived. Defaults to \fB0\fP
 (disabled).
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 This option only applies when using the \fBlocal\-to\-cloud\fP backup method with
@@ -1660,7 +1722,7 @@ Scope: Global / Server / Model.
 .sp
 Directory for streaming WAL files. Defaults to \fB<backup_directory>/streaming\fP\&.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 This option is applicable when \fBstreaming_archiver\fP is activated.
@@ -1707,9 +1769,9 @@ Scope: Server / Model.
 .sp
 Destination for archived WAL files. It can be a local path if storing WAL files locally,
 or a cloud storage URL if storing WAL files in the cloud as described in
-\fI\%Streaming backups to the cloud\fP\&. Defaults to \fB<backup_directory>/wals\fP\&.
+Streaming backups to the cloud \%<#\:backup-streaming-backup-cloud>\&. Defaults to \fB<backup_directory>/wals\fP\&.
 .sp
-\fBWARNING:\fP
+\fBWarning:\fP
 .INDENT 0.0
 .INDENT 3.5
 Changing the value of \fBwals_directory\fP on an active server is discouraged. Even if
@@ -1741,7 +1803,7 @@ Specifies the local path for combining block\-level incremental backups during r
 This location must have sufficient space to temporarily store the new synthetic backup.
 Required for recovery from a block\-level incremental backup.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Applies only when \fBbackup_method = postgres\fP\&.
@@ -1771,7 +1833,7 @@ Scope: Global / Server / Model.
 Specifies the path on the recovery host for staging files from compressed backups. This
 location must have sufficient space to temporarily store the compressed backup.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Applies only for compressed backups.
@@ -1823,7 +1885,7 @@ On some file systems this gives results similar to \fBclone\fP, sharing physical
 blocks, while on others it may still copy blocks, but do so via an optimized path.
 .UNINDENT
 .sp
-Refer to the \X'tty: link https://www.postgresql.org/docs/current/app-pgcombinebackup.html'\fI\%pg_combinebackup documentation\fP\X'tty: link'
+Refer to the pg_combinebackup documentation \%<https://\:www\:.postgresql\:.org/\:docs/\:current/\:app-pgcombinebackup\:.html>
 for more details and restrictions of each mode.
 .sp
 Scope: Global / Server / Model.
@@ -1923,7 +1985,7 @@ If you wish to remove the overrides, the deletion of the model configuration fil
 will not have any effect, so you can do so by using the \fB\-\-reset\fP argument with the
 command, as follows: \fBbarman config\-switch SERVER_NAME \-\-reset\fP\&.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 The \fBconfig\-switch\fP command will only succeed if model name exists and is associated
@@ -1947,9 +2009,8 @@ overrides.
 Flexibility: Allows the use of multiple model files, providing the ability to define
 various sets of overrides as necessary.
 .UNINDENT
-.SH AUTHOR
+.SH Author
 EnterpriseDB
-.SH COPYRIGHT
+.SH Copyright
 © Copyright EnterpriseDB UK Limited 2011-2026
-.\" Generated by docutils manpage writer.
-.
+.\" End of generated man page.

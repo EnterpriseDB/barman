@@ -1,5 +1,6 @@
 '\" t
-.\" Man page generated from reStructuredText.
+.\" Man page generated from reStructuredText
+.\" by the Docutils 0.22.4 manpage writer.
 .
 .
 .nr rst2man-indent-level 0
@@ -28,7 +29,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN" "1" "May 20, 2026" "3.19" "Barman"
+.TH "BARMAN" "1" "Aug 27, 2026" "3.20" "Barman"
 .SH NAME
 barman \- Barman Commands
 .sp
@@ -58,7 +59,7 @@ barman
 .UNINDENT
 .UNINDENT
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 This is the syntax for the synopsis:
@@ -313,7 +314,7 @@ Execute a block\-level incremental backup. You must provide a \fBBACKUP_ID\fP or
 shortcut to a previous backup, which will serve as the parent backup for the
 incremental backup.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 7.0
 .INDENT 3.5
 The backup to be and the parent backup must have \fBbackup_method=postgres\fP\&.
@@ -390,7 +391,7 @@ unchanged files (reduces backup time).
 hard links to unchanged files (saves both backup time and space).
 .UNINDENT
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 7.0
 .INDENT 3.5
 This will only have any effect if the last available backup was
@@ -423,6 +424,42 @@ T}	T{
 All available servers
 T}
 .TE
+.SS \fBbarman check\-archived\-wal\-range\fP
+.SS Synopsis
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+check\-archived\-wal\-range
+    [ { \-h | \-\-help } ]
+    SERVER_NAME BEGIN_WAL END_WAL
+.EE
+.UNINDENT
+.UNINDENT
+.SS Description
+.sp
+Check that all WAL segments in the range from \fBBEGIN_WAL\fP to \fBEND_WAL\fP (inclusive)
+are present in the WAL archive of the specified server. If any segments are missing,
+they are listed and the command exits with a non\-zero status. Exits with status 0 when
+the sequence is complete.
+.sp
+This command scans the WAL archive directory directly, so it reflects the actual
+state of the storage rather than Barman\(aqs internal index.
+.SS Parameters
+.INDENT 0.0
+.TP
+.B \fBSERVER_NAME\fP
+Name of the server in barman node.
+.TP
+.B \fBBEGIN_WAL\fP
+Name of the first WAL segment in the range to verify (inclusive).
+.TP
+.B \fBEND_WAL\fP
+Name of the last WAL segment in the range to verify (inclusive).
+.TP
+.B \fB\-h\fP / \fB\-\-help\fP
+Show a help message and exit. Provides information about command usage.
+.UNINDENT
 .SS \fBbarman check\-backup\fP
 .SS Synopsis
 .INDENT 0.0
@@ -556,7 +593,7 @@ Push a WAL file from the local disk to a configured cloud object storage. This c
 is intended to be used in the \fBarchive_command\fP of a Postgres server when using the
 \fBlocal\-to\-cloud\fP backup method for taking base backups.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 The compression algorithm and level used for the WAL files can be configured in the
@@ -634,7 +671,7 @@ Directory used for staging extra WALs fetched when using \fB\-\-parallel\fP\&. D
 \fB/var/tmp/walrestore\fP\&.
 .UNINDENT
 .sp
-\fBTIP:\fP
+\fBTip:\fP
 .INDENT 0.0
 .INDENT 3.5
 When using \fB\-\-parallel\fP and both the \fBpg_wal\fP directory and the spool directory
@@ -661,7 +698,7 @@ configuration will combine or override the server\(aqs existing settings with th
 specified in the model. You can reset the server configurations with the \fB\-\-reset\fP
 argument.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Only one model can be active at a time for a given server.
@@ -702,7 +739,7 @@ should be a JSON string containing an array of documents. Each document must inc
 \fBmodel_name\fP key, depending on the scope value. Additionally, the document should
 include other keys representing Barman configuration options and their desired values.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 The barman \fBconfig\-update\fP command writes configuration options to a file named
@@ -862,15 +899,15 @@ Export the specified backup as a single tarball, suitable for hand\-off to an
 external archival system. The tarball is self\-contained: it bundles the
 backup data files, any tablespaces, the WAL segments required to bring the
 backup to a consistent state, and the Barman metadata needed to re\-register
-the backup with \fI\%barman import\-backup\fP later.
+the backup with barman import\-backup \%<#\:commands-barman-import-backup> later.
 .sp
 The generated file is named using the pattern
 \fBbackup\-export\-SERVER_NAME\-BACKUP_ID\-TIMESTAMP\-CHECKSUM.tar[.gz|.bz2|.xz]\fP\&.
 The filename is part of the integrity contract — do not rename the tarball,
-or \fI\%barman import\-backup\fP will refuse it.
+or barman import\-backup \%<#\:commands-barman-import-backup> will refuse it.
 .sp
 Only full backups in \fBDONE\fP state on a server using local storage can be
-exported. See \fI\%Backup export and import\fP for the full feature
+exported. See Backup export and import \%<#\:user-guide-export-import> for the full feature
 description.
 .SS Parameters
 .INDENT 0.0
@@ -898,7 +935,7 @@ Compression level to pass to the chosen algorithm. Valid levels are
 Defaults to the algorithm\(aqs own default level. Requires
 \fB\-\-compression\fP to be set.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 7.0
 .INDENT 3.5
 Passing an explicit \fB\-\-compression\-level\fP requires Python 3.12 or
@@ -1035,7 +1072,7 @@ Barman for WAL retrieval. When this option is used, the required \fBWAL_NAME\fP
 argument is disregarded.
 .UNINDENT
 .sp
-\fBWARNING:\fP
+\fBWarning:\fP
 .INDENT 0.0
 .INDENT 3.5
 \fB\-z\fP / \fB\-\-gzip\fP and \fB\-j\fP /  \fB\-\-bzip2\fP options are deprecated and will be
@@ -1059,14 +1096,14 @@ import\-backup
 .sp
 Register a previously exported backup tarball back into the Barman catalog of
 \fBSERVER_NAME\fP\&. The tarball is expected to be the output of
-\fI\%barman export\-backup\fP (or a file restored to disk verbatim by
+barman export\-backup \%<#\:commands-barman-export-backup> (or a file restored to disk verbatim by
 an external archival system from such an export). After a successful import,
-the backup is fully usable: it appears in \fI\%barman list\-backups\fP,
-its metadata is available via \fI\%barman show\-backup\fP, and it can
-be restored with \fI\%barman restore\fP\&.
+the backup is fully usable: it appears in barman list\-backups \%<#\:commands-barman-list-backups>,
+its metadata is available via barman show\-backup \%<#\:commands-barman-show-backup>, and it can
+be restored with barman restore \%<#\:commands-barman-restore>\&.
 .sp
 Imported backups are automatically protected from retention by applying the
-\fBKEEP:STANDALONE\fP annotation (see \fI\%barman keep\fP). If you want
+\fBKEEP:STANDALONE\fP annotation (see barman keep \%<#\:commands-barman-keep>). If you want
 the imported backup to participate in retention again, remove the annotation
 explicitly.
 .sp
@@ -1074,7 +1111,7 @@ Import is performed atomically: the tarball is extracted into a staging
 directory under \fBbasebackups_directory\fP, verified end\-to\-end, and only
 then moved into place. If any step fails, the staging area is cleaned up
 and the catalog and WAL archive are left untouched. See this section
-\fI\%Backup export and import\fP for the full feature description.
+Backup export and import \%<#\:user-guide-export-import> for the full feature description.
 .SS Parameters
 .INDENT 0.0
 .TP
@@ -1104,7 +1141,7 @@ indefinitely, overriding any active retention policies. You can also check the k
 \fBstatus\fP of a backup and \fBrelease\fP the keep mark from a backup. You can use a
 shortcut instead of \fBBACKUP_ID\fP\&.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 Incremental backups are not eligible for the \fBkeep\fP command. This restriction exists
@@ -1206,7 +1243,7 @@ list\-backups
 .sp
 Display the available backups for a server. This command is useful for retrieving both
 the backup ID and the backup type. You can find details about this command in
-\fI\%Catalog usage\fP\&.
+Catalog usage \%<#\:catalog-usage-list-backups>\&.
 .SS Parameters
 .INDENT 0.0
 .TP
@@ -1471,10 +1508,10 @@ T}
 .TE
 .SS \fBbarman recover\fP
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
-This command is deprecated. Use the \fI\%barman restore\fP command instead.
+This command is deprecated. Use the barman restore \%<#\:commands-barman-restore> command instead.
 .UNINDENT
 .UNINDENT
 .SS \fBbarman receive\-wal\fP
@@ -1528,12 +1565,12 @@ of the server.
 Stop the process for the server.
 .UNINDENT
 .sp
-\fBWARNING:\fP
+\fBWarning:\fP
 .INDENT 0.0
 .INDENT 3.5
 The \fB\-\-stop\fP option for the \fBbarman receive\-wal\fP command will be obsoleted
 in a future release. Users should favor using the
-\fI\%terminate\-process\fP command instead, which
+terminate\-process \%<#\:commands-barman-terminate-process> command instead, which
 is the new way of handling this feature.
 .UNINDENT
 .UNINDENT
@@ -1569,6 +1606,7 @@ restore
     [ \-\-retry\-times NUMBER ]
     [ \-\-snapshot\-recovery\-instance INSTANCE_NAME ]
     [ \-\-snapshot\-recovery\-zone GCP_ZONE ]
+    [ \-\-skip\-archive\-wal ]
     [ \-\-standby\-mode ]
     [ \-\-tablespace NAME:LOCATION [ \-\-tablespace NAME:LOCATION ... ] ]
     [ \-\-target\-action { pause | shutdown | promote } ]
@@ -1589,7 +1627,7 @@ Execute a PostreSQL server restore operation. Barman will restore the backup fro
 server in the destination directory. The restoration can be performed locally (on the
 barman node itself) or remotely (on another machine accessible via SSH). The location is
 determined by whether or not the \fB\-\-remote\-ssh\-command\fP option is used. More
-information on this command can be found in the \fI\%Recovery\fP section. You can use a
+information on this command can be found in the Recovery \%<#\:recovery> section. You can use a
 shortcut instead of \fBBACKUP_ID\fP\&.
 .SS Parameters
 .INDENT 0.0
@@ -1635,7 +1673,7 @@ configuration.
 Enable/disable usage of \fBget\-wal\fP for WAL fetching during recovery. Default is based on
 \fBrecovery_options\fP setting.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 7.0
 .INDENT 3.5
 When \fBwals_directory\fP is configured to use cloud storage (e.g. S3, Azure,
@@ -1655,7 +1693,7 @@ compressed or encrypted). Only applicable when using \fB\-\-no\-get\-wal\fP\&. W
 \fB\-\-get\-wal\fP is used, \fB\&.partial\fP files are already handled transparently and
 this option has no effect. The flag also has no effect when \fB\-\-target\-immediate\fP
 is used, since recovery stops at the first consistent state before any partial WAL
-would be needed. See \fI\%Partial WAL files during recovery\fP for details.
+would be needed. See Partial WAL files during recovery \%<#\:recovery-partial-wal-files> for details.
 .TP
 .B \fB\-h\fP / \fB\-\-help\fP
 Show a help message and exit. Provides information about command usage.
@@ -1747,7 +1785,7 @@ On some file systems this gives results similar to \fBclone\fP, sharing physical
 blocks, while on others it may still copy blocks, but do so via an optimized path.
 .UNINDENT
 .sp
-Refer to the \X'tty: link https://www.postgresql.org/docs/current/app-pgcombinebackup.html'\fI\%pg_combinebackup documentation\fP\X'tty: link'
+Refer to the pg_combinebackup documentation \%<https://\:www\:.postgresql\:.org/\:docs/\:current/\:app-pgcombinebackup\:.html>
 for more details and restrictions of each mode.
 .TP
 .B \fB\-\-remote\-ssh\-command\fP
@@ -1826,6 +1864,12 @@ time the backup was taken.
 Recover to the specified transaction ID.
 .UNINDENT
 .INDENT 0.0
+.TP
+.B \fB\-\-skip\-archive\-wal\fP
+Skip archiving staged WAL files before starting the restore. By default, \fBbarman
+restore\fP archives any WAL files in the server\(aqs \fBincoming\fP/ \fBstreaming\fP
+directory before restoring to reduce RPO in DR scenarios. Use this option when you
+want to skip this step.
 .TP
 .B \fB\-\-staging\-wal\-directory\fP
 A staging directory on the destination host for WAL files when performing PITR. If
@@ -1954,7 +1998,7 @@ show\-backup
 .SS Description
 .sp
 Display detailed information about a specific backup. You can find details about this command in
-\fI\%Catalog usage\fP\&. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
+Catalog usage \%<#\:catalog-usage-show-backup>\&. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
 .SS Parameters
 .INDENT 0.0
 .TP
@@ -2124,7 +2168,7 @@ available on standby servers.
 .B \fB\-\-force\fP
 Forces the switch by executing a CHECKPOINT before \fBpg_switch_wal()\fP\&.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 7.0
 .INDENT 3.5
 Running a CHECKPOINT may increase I/O load on the Postgres server, so use this
@@ -2292,7 +2336,7 @@ by this command.
 .sp
 You can also use the output of \fBbarman list\-processes\fP to display all active processes
 for a given server and determine which tasks can be terminated. More details about this
-command can be found in \fI\%barman list\-processes\fP\&.
+command can be found in barman list\-processes \%<#\:commands-barman-list-processes>\&.
 .SS Parameters
 .INDENT 0.0
 .TP
@@ -2320,6 +2364,12 @@ Runs \fBpg_verifybackup\fP on a backup manifest file (available since Postgres v
 For rsync backups, it can be used after creating a manifest file using the
 \fBgenerate\-manifest\fP command. Requires \fBpg_verifybackup\fP to be installed on the
 backup server. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
+.sp
+Starting with Postgres 18, tar\-format backups taken with the \fBpostgres\fP backup
+method can also be verified, including those compressed with \fBgzip\fP, \fBlz4\fP or
+\fBzstd\fP\&. Verifying tar or compressed backups requires \fBpg_verifybackup\fP from
+Postgres 18 or newer to be available on the backup server, otherwise the command
+will fail with an error. Encrypted backups are not supported by this command.
 .SS Parameters
 .INDENT 0.0
 .TP
@@ -2394,6 +2444,8 @@ barman\-wal\-archive
     [ { \-c | \-\-config } CONFIG ]
     [ { \-t | \-\-test } ]
     [ \-\-md5 ]
+    [ { \-p | \-\-parallel } JOBS ]
+    [ \-\-prefetch\-cache\-dir PREFETCH_CACHE_DIR ]
     BARMAN_HOST SERVER_NAME WAL_PATH
 .EE
 .UNINDENT
@@ -2464,7 +2516,7 @@ A compression level to be used by the selected compression algorithm. Valid
 values are integers within the supported range of the chosen algorithm or one
 of the predefined labels: \fBlow\fP, \fBmedium\fP, and \fBhigh\fP\&. The range of each
 algorithm as well as what level each predefined label maps to can be found in
-\fI\%compression_level\fP\&.
+compression_level \%<#\:configuration-options-compression-level>\&.
 .TP
 .B \fB\-c\fP /  \fB\-\-config\fP
 Specify the configuration file on the Barman server.
@@ -2479,9 +2531,17 @@ Use MD5 instead of SHA256 as the hash algorithm to calculate the checksum of the
 file when transmitting it to the Barman server. This is used to maintain
 compatibility with older server versions, as older versions of Barman server used to
 support only MD5.
+.TP
+.B \fB\-p\fP / \fB\-\-parallel\fP
+Specify the maximum number of WAL files to archive in parallel. Defaults to \fB0\fP
+(no parallelism).
+.TP
+.B \fB\-\-prefetch\-cache\-dir\fP
+Directory where to store cache metadata when using \fB\-\-parallel\fP\&. Defaults to
+\fB/tmp/barman\-SERVER_NAME\-COMPUTED_HASH\fP\&.
 .UNINDENT
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 When compression is enabled in \fBbarman\-wal\-archive\fP, it takes precedence over the
@@ -2489,7 +2549,7 @@ compression settings configured on the Barman server, if they differ.
 .UNINDENT
 .UNINDENT
 .sp
-\fBIMPORTANT:\fP
+\fBImportant:\fP
 .INDENT 0.0
 .INDENT 3.5
 When compression is enabled in \fBbarman\-wal\-archive\fP, it is performed on the client
@@ -2605,7 +2665,7 @@ ensure it is ready to receive WAL files. This option ignores the mandatory argum
 \fBWAL_NAME\fP and \fBWAL_DEST\fP\&.
 .UNINDENT
 .sp
-\fBWARNING:\fP
+\fBWarning:\fP
 .INDENT 0.0
 .INDENT 3.5
 \fB\-z\fP / \fB\-\-gzip\fP and \fB\-j\fP /  \fB\-\-bzip2\fP options are deprecated and will be
@@ -2613,9 +2673,8 @@ removed in the future. For WAL compression, please make sure to enable it direct
 on the Barman server via the \fBcompression\fP configuration option.
 .UNINDENT
 .UNINDENT
-.SH AUTHOR
+.SH Author
 EnterpriseDB
-.SH COPYRIGHT
+.SH Copyright
 © Copyright EnterpriseDB UK Limited 2011-2026
-.\" Generated by docutils manpage writer.
-.
+.\" End of generated man page.

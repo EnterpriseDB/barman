@@ -8,7 +8,7 @@ build-backend = "uv_build"
 
 [project]
 name = "barman"
-version = "3.19.1"
+version = "3.20.0"
 description = "Backup and Recovery Manager for PostgreSQL"
 readme = "README.rst"
 license = "GPL-3.0-only"

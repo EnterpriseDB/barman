@@ -1,3 +1,4 @@
+'\" t
 .\" Man page generated from reStructuredText
 .\" by the Docutils 0.22.4 manpage writer.
 .
@@ -28,25 +29,26 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-SYNC-WALS" "1" "Aug 27, 2026" "3.20" "Barman"
+.TH "BARMAN-LIST-BACKUPS" "1" "Aug 27, 2026" "3.20" "Barman"
 .SH NAME
-barman-sync-wals \- Barman Sub-Commands
+barman-list-backups \- Barman Sub-Commands
 .SH SYNOPSIS
 .INDENT 0.0
 .INDENT 3.5
 .sp
 .EX
-sync\-wals
+list\-backups
     [ { \-h | \-\-help } ]
+    [ \-\-minimal ]
     SERVER_NAME
 .EE
 .UNINDENT
 .UNINDENT
 .SH DESCRIPTION
 .sp
-This command synchronizes a passive node with its primary by copying all archived WAL
-files from the server node. It is available only for passive nodes and utilizes the
-\fBprimary_ssh_command\fP option to establish a secure connection with the primary node.
+Display the available backups for a server. This command is useful for retrieving both
+the backup ID and the backup type. You can find details about this command in
+Catalog usage \%<#\:catalog-usage-list-backups>\&.
 .SH PARAMETERS
 .INDENT 0.0
 .TP
@@ -55,7 +57,28 @@ Name of the server in barman node
 .TP
 .B \fB\-h\fP / \fB\-\-help\fP
 Show a help message and exit. Provides information about command usage.
+.TP
+.B \fB\-\-minimal\fP
+Machine readable output.
 .UNINDENT
+.SH SHORTCUTS
+.sp
+Use shortcuts instead of \fBSERVER_NAME\fP\&.
+.TS
+box center;
+l|l.
+T{
+\fBShortcut\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\fBall\fP
+T}	T{
+All available servers
+T}
+.TE
 .SH Author
 EnterpriseDB
 .SH Copyright

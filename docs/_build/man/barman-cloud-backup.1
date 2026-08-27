@@ -1,4 +1,5 @@
-.\" Man page generated from reStructuredText.
+.\" Man page generated from reStructuredText
+.\" by the Docutils 0.22.4 manpage writer.
 .
 .
 .nr rst2man-indent-level 0
@@ -27,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CLOUD-BACKUP" "1" "May 20, 2026" "3.19" "Barman"
+.TH "BARMAN-CLOUD-BACKUP" "1" "Aug 27, 2026" "3.20" "Barman"
 .SH NAME
 barman-cloud-backup \- Barman-cloud Commands
 .sp
@@ -42,7 +43,7 @@ barman\-cloud\-backup
                 [ { { \-v | \-\-verbose } | { \-q | \-\-quiet } } ]
                 [ { \-t | \-\-test } ]
                 [ \-\-cloud\-provider { aws\-s3 | azure\-blob\-storage | google\-cloud\-storage } ]
-                [ { { \-z | \-\-gzip } | { \-j | \-\-bzip2 } | \-\-snappy | \-\-lz4 } ]
+                [ { { \-z | \-\-gzip } | { \-j | \-\-bzip2 } | \-\-snappy | \-\-lz4 | \-\-zstd } ]
                 [ { \-h | \-\-host } HOST ]
                 [ { \-p | \-\-port } PORT ]
                 [ { \-U | \-\-user } USER ]
@@ -53,6 +54,7 @@ barman\-cloud\-backup
                 [ \-\-immediate\-checkpoint ]
                 [ \-\-min\-chunk\-size MIN_CHUNK_SIZE ]
                 [ \-\-max\-bandwidth MAX_BANDWIDTH ]
+                [ \-\-keepalive\-interval KEEPALIVE_INTERVAL ]
                 [ \-\-snapshot\-instance SNAPSHOT_INSTANCE ]
                 [ \-\-snapshot\-disk NAME [ \-\-snapshot\-disk NAME ... ] ]
                 [ \-\-snapshot\-zone GCP_ZONE ]
@@ -65,6 +67,7 @@ barman\-cloud\-backup
                 [ \-\-read\-timeout READ_TIMEOUT ]
                 [ { \-e | \-\-encryption } { AES256 | aws:kms } ]
                 [ \-\-sse\-kms\-key\-id SSE_KMS_KEY_ID ]
+                [ \-\-sse\-customer\-key SSE_CUSTOMER_KEY ]
                 [ \-\-aws\-region AWS_REGION ]
                 [ \-\-aws\-await\-snapshots\-timeout AWS_AWAIT_SNAPSHOTS_TIMEOUT ]
                 [ \-\-aws\-snapshot\-lock\-mode { compliance | governance } ]
@@ -97,7 +100,7 @@ supported by the selected cloud provider, the backup will be performed using sna
 of the specified disks (\fB\-\-snapshot\-disk\fP). The backup label and metadata will also be
 uploaded to the cloud.
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 For GCP, only authentication with \fBGOOGLE_APPLICATION_CREDENTIALS\fP env is supported.
@@ -106,7 +109,7 @@ To use an alternative GCP universe (e.g. S3NS/T\-Systems), set the
 .UNINDENT
 .UNINDENT
 .sp
-\fBIMPORTANT:\fP
+\fBImportant:\fP
 .INDENT 0.0
 .INDENT 3.5
 The cloud upload may fail if any file larger than the configured \fB\-\-max\-archive\-size\fP
@@ -169,6 +172,10 @@ snappy\-compress the backup while uploading to the cloud (requires optional
 lz4\-compress the backup while uploading to the cloud (requires optional
 \fBlz4\fP Python library).
 .TP
+.B \fB\-\-zstd\fP
+zstd\-compress the backup while uploading to the cloud (requires optional
+\fBzstandard\fP Python library).
+.TP
 .B \fB\-h\fP / \fB\-\-host\fP
 Host or Unix socket for Postgres connection (default: libpq settings).
 .TP
@@ -203,6 +210,11 @@ for \fBaws\-s3\fP, \fB64KB\fP for \fBazure\-blob\-storage\fP, not applicable for
 The maximum amount of data to be uploaded per second when backing up to object
 storages (default: \fB0\fP \- no limit).
 .TP
+.B \fB\-\-keepalive\-interval\fP
+An interval, in seconds, at which a heartbeat query is sent to the PostgreSQL server
+to keep the connection alive during the upload phase (default: \fB60\fP). A value of
+\fB0\fP disables the heartbeat.
+.TP
 .B \fB\-\-snapshot\-instance\fP
 Instance where the disks to be backed up as snapshots are attached.
 .TP
@@ -218,7 +230,7 @@ Tags to be added to all uploaded files in cloud storage, and/or to snapshots cre
 if snapshots are used.
 .UNINDENT
 .sp
-\fBNOTE:\fP
+\fBNote:\fP
 .INDENT 0.0
 .INDENT 3.5
 If you are using \fB\-\-tags\fP before positional arguments, you must insert \fB\-\-\fP after
@@ -277,6 +289,22 @@ Allowed options:
 The AWS KMS key ID that should be used for encrypting the uploaded data in S3. Can be
 specified using the key ID on its own or using the full ARN for the key. Only allowed if
 \fB\-e\fP / \fB\-\-encryption\fP is set to \fBaws:kms\fP\&.
+.TP
+.B \fB\-\-sse\-customer\-key\fP
+The customer\-provided encryption key (SSE\-C) to use for encrypting and decrypting
+data in S3. The value must be a \fBfile://\fP URI pointing to a file containing a
+base64\-encoded 256\-bit (32\-byte) key (e.g. \fBfile:///etc/barman/sse\-c.b64\fP). Cannot
+be used together with \fB\-\-sse\-kms\-key\-id\fP or \fB\-e\fP / \fB\-\-encryption\fP\&.
+.sp
+\fBImportant:\fP
+.INDENT 7.0
+.INDENT 3.5
+All backups and WAL files for a given server must be encrypted with the same SSE\-C
+key. Mixing SSE\-C\-encrypted and unencrypted objects, or using different keys across
+backups, will cause barman commands to fail when S3 rejects requests with a
+mismatched or missing key.
+.UNINDENT
+.UNINDENT
 .TP
 .B \fB\-\-aws\-region\fP
 The name of the AWS region containing the EC2 VM and storage volumes defined by the
@@ -367,9 +395,8 @@ Zone of the disks from which snapshots should be taken.
 .B \fB\-\-snapshot\-zone\fP (deprecated)
 Zone of the disks from which snapshots should be taken \- replaced by \fB\-\-gcp\-zone\fP\&.
 .UNINDENT
-.SH AUTHOR
+.SH Author
 EnterpriseDB
-.SH COPYRIGHT
+.SH Copyright
 © Copyright EnterpriseDB UK Limited 2011-2026
-.\" Generated by docutils manpage writer.
-.
+.\" End of generated man page.
