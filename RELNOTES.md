@@ -2,6 +2,405 @@
 
 © Copyright EnterpriseDB UK Limited 2025 - All rights reserved.
 
+## 3.20.0 (2026-08-27)
+
+### Notable changes
+
+- Barman now requires Python 3.12 or later
+
+  The minimum supported Python version has been raised to 3.12. Installations
+  running on Python 3.8, 3.9, 3.10, or 3.11 must upgrade their Python
+  interpreter before upgrading Barman.
+
+  References: BAR-1332.
+
+- Add support for AWS S3 SSE-C (Server-Side Encryption with Customer Keys)
+
+  Barman now supports SSE-C (Server-Side Encryption with Customer-Provided Keys)
+  for AWS S3. The `--sse-customer-key` option is available across all backup, restore,
+  and WAL management `barman-cloud-*` commands. The key is supplied as a `file://` URI
+  pointing to a file containing a base64-encoded 256-bit (32-byte) key
+  (e.g. `file:///etc/barman/sse-c.b64`). SSE-C cannot be used together with
+  `--encryption` or `--sse-kms-key-id`. The equivalent server configuration parameter
+  `aws_sse_customer_key` is also supported when using `backup_method = local-to-cloud`
+  or `postgres` with cloud destination directories.
+
+  All backups and WAL files for a given server must be encrypted with the same SSE-C
+  key. Mixing SSE-C-encrypted and unencrypted objects, or using different keys, will
+  cause commands to fail.
+
+  References: BAR-1006.
+
+- Stop WAL receiver on inactive servers through `barman cron`
+
+  When a server is switched to `active = false`, the next run of
+  `barman cron` now stops any background `receive-wal` subprocess that
+  is still streaming for that server, and skips all other cron work.
+  Previously inactive servers were silently filtered out at the cron
+  level, which meant a receiver spawned while the server was active
+  kept running indefinitely until it was stopped manually.
+
+  Note however that, while the server remains inactive, the upstream
+  Postgres server will retain WAL on its side for the still-existing slot,
+  so on re-enabling the Barman server the next cron run will resume streaming
+  from where the slot left off.
+
+  References: BAR-1139.
+
+- Make command handling consistent for inactive servers
+
+  Inactive servers (configured with `active = false`) are Barman instances
+  that no longer actively manage backups, but their existing catalogs remain
+  fully accessible for inspection, verification, and maintenance.
+
+  The behavior of Barman commands has been made consistent with this principle.
+
+  Now the following commands work on inactive servers: read-only commands for
+  inspection, like check-wal-archive, list-processes and sync-info.
+
+  Also the following maintenance commands for catalog management work on inactive
+  servers: terminate-process, keep and check-backup.
+
+  Commands that ingest new data remain rejected on inactive servers.
+  Specifically, import-backup now cannot be used with inactive servers.
+
+  References: BAR-1343.
+
+- Add support for parallel uploads to Google Cloud Storage
+
+  Previously, backups to Google Cloud Storage required the entire tarball
+  to be written locally before upload could begin. This was because the GCS
+  implementation did not support multipart uploads, resulting in slower
+  backups and higher disk space usage compared to AWS S3 and Azure Blob Storage.
+
+  Multipart upload is now supported for GCS backups. Data is now streamed in chunks
+  and uploaded in parallel using multiple workers (specified via `-J` / `--jobs`
+  in `barman-cloud-backup`), matching the behavior of the other cloud providers.
+
+  References: BAR-972.
+
+- Performance improvements for restoring compressed backups from cloud storage
+
+  Restoring a compressed backup from cloud storage could take significantly
+  longer than necessary, because downloading, decompressing and extracting
+  the backup ran sequentially instead of overlapping. This has been fixed by
+  reworking the restore pipeline so these stages now run concurrently,
+  which is expected to noticeably improve restore performance for compressed
+  backups.
+
+  As a result of this change, the `tar` package is now a required
+  dependency whenever restoring a backup stored in the cloud.
+
+  References: BAR-1546.
+
+- Add parallel WAL prefetching support to `barman-wal-archive`
+
+  The `barman-wal-archive` script now supports a `--parallel` option, which
+  enables opportunistic prefetching of additional WAL files during archival. When
+  `--parallel N` is set (N > 1), up to N - 1 extra WAL files that are ready in
+  `pg_wal/archive_status` are archived concurrently in background worker processes
+  after the primary WAL has been successfully archived. This can significantly
+  reduce WAL archival backlog during periods of high WAL generation.
+
+  Using `--parallel` requires a writable cache directory to store metadata about the
+  WAL files being parallelized. By default, this cache directory is located at
+  `/tmp/barman-SERVER_NAME-COMPUTED_HASH`, where `SERVER_NAME` is the name of the
+  PostgreSQL server being archived, and `COMPUTED_HASH` is a hash of the
+  destination (barman host, port, and config). The cache directory can be overridden
+  with the `--prefetch-cache-dir` option.
+
+  References: BAR-551.
+
+### Minor changes
+
+- Script `barman-cloud-wal-restore` now exits with code 2 on network failures
+
+  `barman-cloud-wal-restore` previously always exited with code 4
+  (general error) when a WAL download failed, regardless of the cause.
+  It now exits with code 2 when the failure is caused by a loss of
+  connectivity to the cloud provider, consistent with the behaviour of
+  `barman-cloud-check-wal-archive`. This allows callers such as
+  CloudNativePG to apply different retry policies for transient network
+  errors versus permanent failures.
+
+  References: BAR-1325.
+
+- Deprecate `--stop` option of `barman receive-wal`
+
+  The `--stop` option of `barman receive-wal` is deprecated and will be removed in a future
+  release. Use `barman terminate-process <server> receive-wal` instead.
+
+  References: BAR-724.
+
+- Add check-archived-wal-range command to detect gaps in the WAL archive
+
+  A new `check-archived-wal-range` command has been added to Barman. It accepts a
+  server name, a `begin_wal`, and an `end_wal`, and verifies that every WAL segment
+  in that range is present in the archive. Missing segments are listed on exit, and
+  the command returns a non-zero status if any are found.
+
+  References: BAR-1324.
+
+- Support S3 access point ARNs, including S3 on Outposts, as cloud storage destinations
+
+  Barman's S3 cloud storage support previously required a plain bucket name
+  in the destination URL. This prevented using S3 access points as a backup
+  or WAL archive destination, including Amazon S3 on Outposts access
+  points, since access point ARNs contain characters that were not handled
+  correctly, causing the ARN to be silently truncated and the destination
+  never reached.
+
+  Destination URLs can now specify an S3 access point ARN in place of a
+  bucket name, using the same ``s3://<access-point-arn>/<key>`` convention
+  already used by the AWS CLI's own S3 commands. This applies to all
+  `barman-cloud-*` commands, as well as to ``basebackups_directory`` and
+  ``wals_directory`` when configured with a cloud storage URL (for example
+  with ``backup_method = local-to-cloud`` or ``backup_method = postgres``
+  with streaming backups to the cloud).
+
+  If the destination is an access point ARN that does not exist (for
+  example due to a typo), Barman now raises a clear error explaining that
+  access points cannot be auto-created and that the underlying bucket must
+  already exist, instead of failing with a confusing, low-level error from
+  the AWS SDK.
+
+  References: BAR-1561.
+
+- Store EBS snapshots locally on the Outpost for AWS Outposts-hosted instances
+
+  As part of AWS Outposts support, Barman now detects when a PostgreSQL
+  instance targeted for a snapshot backup is running on an AWS Outpost,
+  and creates its EBS snapshots locally on that Outpost rather than in the
+  instance's parent AWS Region. This preserves the data residency and
+  latency benefits of running on Outposts. No additional configuration is
+  required.
+
+  AWS does not support locking local EBS snapshots on Outposts, so
+  ``aws_snapshot_lock_mode`` cannot be combined with a snapshot backup of an
+  Outposts-attached instance. Barman now raises a clear error for this
+  combination instead of attempting an unsupported lock.
+
+  References: BAR-1562.
+
+- Add keepalive support to barman-cloud-backup
+
+  `barman-cloud-backup` now sends periodic heartbeat queries (`SELECT 1`) to the
+  PostgreSQL server during the backup phase to prevent idle connection
+  timeouts caused by intermediate network devices such as firewalls and load
+  balancers. This ensures the backup session remains valid so that
+  `pg_backup_stop()` can be successfully executed after the data transfer
+  or snapshot creation is complete.
+
+  This applies to both the standard data upload path and the snapshot backup path.
+
+  The interval can be configured via the `--keepalive-interval` flag (default:
+  60 seconds). Setting the value to `0` disables the mechanism.
+
+  References: BAR-1557, BAR-1571.
+
+- Add Zstd compression support for cloud backups
+
+  ``barman-cloud-backup`` now supports Zstd compression via the ``--zstd`` option.
+  Zstd offers a good balance between compression ratio and speed, making it
+  well-suited for cloud backup workloads.
+
+  Zstd compression requires the optional ``zstandard`` Python library to
+  be installed.
+
+  References: BAR-729.
+
+- Add --skip-archive-wal flag to ``barman restore`` command
+
+  Added a new `--skip-archive-wal` CLI argument for `barman restore` which allows
+  users to skip the archiving of staged WAL files before initiating the restore process.
+  By default, `barman restore` archives any WAL files in the server's incoming or
+  streaming directories to reduce RPO in DR scenarios. Use this flag when you want
+  to skip this step.
+
+  References: BAR-1329.
+
+- Improve error messages when bucket access is denied or returns a bad request
+
+  When a `barman-cloud-*` command fails to access the configured bucket due to
+  a permission error (HTTP 403 / AccessDenied / Forbidden) or a bad request
+  (HTTP 400), Barman now raises a clear, actionable error message instead of
+  a generic cloud provider exception.
+
+  The 400 case is particularly relevant for S3-compatible providers,
+  which returns a 400 response instead of a 403 when credentials
+  are invalid or misconfigured.
+
+  References: BAR-1135.
+
+### Bugfixes
+
+- Fix `AttributeError` in `barman-cloud-backup-delete` with S3-compatible storage
+
+  When using `barman-cloud-backup-delete` against S3-compatible object storage,
+  an `AttributeError` could occur if the provider returned an error response with
+  an empty or absent `Message` field. This prevented the delete operation from
+  completing and obscured the underlying error code. The issue has been fixed and
+  such errors should no longer occur.
+
+  References: BAR-1207.
+
+- Fix restore not defaulting to the latest timeline for Postgres 12 and later
+
+  Release 3.19 attempted to make PITR restores of Postgres 12 and later
+  default to the latest timeline, mirroring Postgres own
+  `recovery_target_timeline = 'latest'` default. However, that change
+  only took effect when the PITR was specified with `--target-lsn`, i.e. restoring
+  using `--target-time` or `--target-xid` still defaulted to the timeline of the
+  backup itself, potentially missing WAL files from a later timeline.
+
+  Barman now always defaults to the latest timeline for all backups taken on Postgres
+  12 or later and, even when not doing PITR.
+
+  Note: This change is only relevant for restores performed in `--no-get-wal` mode (default).
+
+  References: BAR-1373.
+
+- Fix `barman restore` incorrectly requiring live connection to the source PG server
+
+  Release 3.19 introduced a regression that caused `barman restore` in `--no-get-wal`
+  mode (default) to require a live connection to the source Postgres server, creating
+  a dependency that is not necessary for the restore operation.
+
+  This has been fixed and no connection to the source server is required.
+
+  References: BAR-1373.
+
+- Fix wrong end_wal recorded for postgres-method backups after a timeline switch
+
+  For backups taken with `backup_method = postgres`, the `end_wal` stored
+  in `backup.info` was computed using the timeline the backup started on,
+  rather than the server's current timeline at the time the backup
+  stopped. If a switchover or failover happened while such a backup was
+  running, this produced an incorrect `end_wal`, referring to a WAL
+  segment that was never generated on that timeline.
+
+  Barman now queries the PostgreSQL server for its current timeline when
+  computing `end_wal`, so backups that span a timeline switch are
+  recorded correctly. Though multi-timeline backups are not supported and
+  they will be marked as `FAILED`.
+
+  References: BAR-1570.
+
+- Fix restoring incremental backups on a new Barman instance
+
+  Fixed an issue where restoring an incremental backup from the cloud on a new
+  Barman instance, which is not the same that originally took the backup, would
+  fail with a message like:
+
+  ```text
+  pg_combinebackup: error: backup at "/tmp/barman-download2628030/20260804T180402/data" is an incremental backup, but the first backup should be a full backup
+  ```
+
+  The issue is fixed and incremental backups can now be restored normally.
+
+  NOTE: This only affected incremental backups taken with a Barman server
+  (not barman-cloud-* script) and only when restoring on a new Barman instance
+  (not the same that took the backup).
+
+  References: BAR-1553.
+
+- Fix `barman restore` failing to restore snapshot backups
+
+  Restoring a snapshot backup could fail in a few ways:
+
+  - On AWS instances that present their disks as NVMe devices, Barman
+    failed to locate the disk while checking mount points, even though it
+    was correctly attached and mounted:
+
+    ```text
+    ERROR: Error checking mount points: Error finding mount point for disk vol-04f4a47f8a04a7067: Could not find device /dev/sdd at any mount point
+    ```
+
+    The same error also caused the corresponding `barman check` snapshot
+    checks to fail with a similar message.
+
+  - Barman refused to restore, even though a snapshot recovery is expected
+    to already contain data (the disks cloned from the backup snapshots
+    are attached and mounted before the restore begins):
+
+    ```text
+    ERROR: The restore operation cannot proceed because the destination folder '/pg-volume/18/data' is not empty. To prevent accidental data loss, the destination must be empty. Please choose a different location or manually empty the folder.
+    ```
+
+  - Restoring from a snapshot backup could failed immediately with an internal
+    error when using the `--delta-restore` flag, before any recovery work was performed,
+    making recovery from snapshot backups impossible.
+
+  All of these issues have been fixed, and restoring snapshot backups now
+  works end to end.
+
+  Restores from other backup types were never affected by any of the
+  above, and still require an empty destination for both the data
+  directory and any tablespaces.
+
+  References: BAR-1554, BAR-1556, BAR-1558.
+
+- Mark backups starting and ending on different timelines as FAILED
+
+  If a switchover or failover occurred while a backup of a standby was
+  running, causing it to start on one PostgreSQL timeline and end on
+  another, that backup remained in status `WAITING_FOR_WALS` forever,
+  never transitioning to `DONE`. Such backups are currently not supported
+  and are now detected and immediately marked as `FAILED`.
+
+  References: BAR-1053.
+
+- Fix possible encryption passphrase leakage in debug log file
+
+  Fixed an issue where the stdout of `encryption_passphrase_command` could be logged
+  to the Barman log file when running in debug mode, potentially exposing sensitive
+  information. The passphrase command output is now captured without any logging to
+  prevent accidental exposure.
+
+  References: BAR-1320.
+
+- Fix "cannot pickle '_thread.lock' object" error on rsync backups and restores
+
+  Python 3.14 changes the default subprocess start method from "fork"
+  to "forkserver" on POSIX platforms, which requires pickling objects to pass
+  them to worker processes. This change caused errors like the one below whenever
+  performing rsync-related operations using Python >= 3.14, e.g. performing a backup
+  with `backup_method = rsync` or restoring a backup locally or remotely.
+
+  ```text
+  ERROR: Backup failed copying files.
+  DETAILS: cannot pickle '_thread.lock' object
+  ```
+
+  The issue has been fixed by properly handling serialization of lock objects and
+  such errors should no longer occur regardless of the Python version.
+
+  References: BAR-1296.
+
+- Fix passive node crash with KeyError when running retention on incremental backups
+
+  Fixed a bug where passive nodes would crash with a `KeyError` when running
+  retention policies on servers that have incremental backups. The crash was
+  caused by a serialization issue: when syncing backup metadata from the primary,
+  the list of child backup IDs was not correctly deserialized, resulting in a
+  corrupted `backup.info` file being written to disk. This prevented retention
+  policies from correctly associating incremental backups with their parent,
+  leading to the crash.
+
+  References: BAR-927.
+
+- Fix WAL queue count when no `.partial` file is present
+
+  Previously, `barman check` could report an incorrect number of WAL
+  files queued for archiving. The previous logic always subtracted
+  one from the file count to compensate for the `.partial` file that the WAL
+  receiver normally keeps in the directory, but no such file exists when
+  streaming is not active or when WALs are shipped via `archive_command`.
+  Now, `.partial` files are ignored when computing the queue size, so the
+  count reflects only complete WAL segments waiting to be archived.
+
+  References: BAR-1294.
+
 ## 3.19.1 (2026-05-26)
 
 ### Bugfixes
