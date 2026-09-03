@@ -457,6 +457,21 @@ class LocalWalStorageStrategy(WalStorageStrategy):
     def delete(self, wals_to_delete):
         wals_deleted = []
         for wal_dir, wal_list in wals_to_delete.items():
+            if not os.path.isdir(wal_dir):
+                # The directory has already gone, so there is nothing to unlink.
+                # Warn and carry on rather than aborting the whole delete, which
+                # would leave the backup half removed. This mirrors how
+                # _delete_wal_file() treats an OSError on an individual file.
+                error = (
+                    "Ignoring deletion of WAL directory %s for server %s: "
+                    "directory does not exist" % (wal_dir, self.config.name)
+                )
+                output.warning(error)
+                for wal_info in wal_list:
+                    self._run_pre_delete_wal_scripts(wal_info)
+                    self._run_post_delete_wal_scripts(wal_info, error)
+                    wals_deleted.append(wal_info.name)
+                continue
             delete_directory = False
             # Each directory can contain up to 256 WAL files. If the deletion list
             # contains 256 entries, the entire directory can be safely deleted
