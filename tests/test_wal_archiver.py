@@ -1944,7 +1944,10 @@ class TestLocalWalStorageStrategy:
 
     @patch("barman.wal_archiver.LocalWalStorageStrategy._delete_wal_file")
     @patch("barman.wal_archiver.os.listdir")
-    def test_delete_wal_files_individually(self, mock_listdir, mock_delete_file):
+    @patch("barman.wal_archiver.os.path.isdir", return_value=True)
+    def test_delete_wal_files_individually(
+        self, _mock_isdir, mock_listdir, mock_delete_file
+    ):
         """
         Test that :meth:`delete` correctly deletes specified WAL files individually
         when the whole WAL directory can not be deleted altogether.
@@ -1968,9 +1971,60 @@ class TestLocalWalStorageStrategy:
         # THEN delete_wal_file is called for each requested WAL file
         mock_delete_file.assert_has_calls([call(wal_info1), call(wal_info2)])
 
+    @patch("barman.wal_archiver.LocalWalStorageStrategy._run_post_delete_wal_scripts")
+    @patch("barman.wal_archiver.LocalWalStorageStrategy._run_pre_delete_wal_scripts")
+    @patch("barman.wal_archiver.LocalWalStorageStrategy._delete_wal_directory")
+    @patch("barman.wal_archiver.LocalWalStorageStrategy._delete_wal_file")
+    @patch("barman.wal_archiver.os.listdir")
+    @patch("barman.wal_archiver.os.path.isdir", return_value=False)
+    def test_delete_missing_directory(
+        self,
+        _mock_isdir,
+        mock_listdir,
+        mock_delete_file,
+        mock_delete_directory,
+        mock_pre_scripts,
+        mock_post_scripts,
+        capsys,
+    ):
+        """
+        Test that :meth:`delete` warns and carries on when the WAL directory has
+        already been removed by other means, instead of raising (GH-1213).
+        """
+        # GIVEN two WALs whose directory no longer exists
+        wal_info1, wal_info2 = MagicMock(), MagicMock()
+        wal_info1.name = "000000010000000000000001"
+        wal_info2.name = "000000010000000000000002"
+        wals_to_delete = {"/server/wals/0000000100000001": [wal_info1, wal_info2]}
+        wal_storage = LocalWalStorageStrategy(
+            build_backup_manager(name="TestServer"), None
+        )
+
+        # WHEN delete is called
+        wals_deleted = wal_storage.delete(wals_to_delete)
+
+        # THEN the directory is never listed or removed, and no file is unlinked
+        mock_listdir.assert_not_called()
+        mock_delete_directory.assert_not_called()
+        mock_delete_file.assert_not_called()
+        # AND both WALs are reported as deleted, as they are already gone
+        assert wals_deleted == [wal_info1.name, wal_info2.name]
+        # AND a warning names the directory
+        _, err = capsys.readouterr()
+        assert "/server/wals/0000000100000001" in err
+        assert "directory does not exist" in err
+        # AND the hook scripts still run for every WAL, with the error passed on
+        mock_pre_scripts.assert_has_calls([call(wal_info1), call(wal_info2)])
+        assert mock_post_scripts.call_count == 2
+        for mock_call in mock_post_scripts.call_args_list:
+            assert mock_call.args[1] is not None
+
     @patch("barman.wal_archiver.LocalWalStorageStrategy._delete_wal_directory")
     @patch("barman.wal_archiver.os.listdir")
-    def test_delete_whole_directory(self, mock_listdir, mock_delete_directory):
+    @patch("barman.wal_archiver.os.path.isdir", return_value=True)
+    def test_delete_whole_directory(
+        self, _mock_isdir, mock_listdir, mock_delete_directory
+    ):
         """
         Test that :meth:`delete` correctly deletes the whole wal directory
         when suitable.
