@@ -149,6 +149,48 @@ class TestCloudCheckWalArchive(object):
         assert 4 == exc.value.code
         assert "Barman cloud WAL archive check exception: oh dear" in caplog.text
 
+    @mock.patch("barman.clients.cloud_check_wal_archive.check_archive_usable")
+    @mock.patch("barman.clients.cloud_check_wal_archive.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_check_wal_archive.get_cloud_interface")
+    def test_check_wal_archive_assume_bucket_exists(
+        self,
+        mock_cloud_interface,
+        mock_cloud_backup_catalog,
+        mock_check_archive_usable,
+        cloud_backup_catalog,
+    ):
+        """Verify --assume-bucket-exists skips connectivity test and bucket setup"""
+        cloud_object_interface_mock = mock_cloud_interface.return_value
+        mock_cloud_backup_catalog.return_value = cloud_backup_catalog
+        cloud_check_wal_archive.main(
+            ["cloud_storage_url", "test_server", "--assume-bucket-exists"]
+        )
+        cloud_object_interface_mock.test_connectivity.assert_not_called()
+        cloud_object_interface_mock.setup_bucket.assert_not_called()
+        mock_check_archive_usable.assert_called_once_with(
+            ["000000010000000000000001"],
+            timeline=None,
+        )
+
+    @mock.patch("barman.clients.cloud_check_wal_archive.get_cloud_interface")
+    def test_check_wal_archive_assume_bucket_exists_with_test_warns(
+        self, mock_cloud_interface, caplog
+    ):
+        """Verify -t/--test is a no-op and outputs a warning when
+        --assume-bucket-exists is set"""
+        with pytest.raises(SystemExit) as exc:
+            cloud_check_wal_archive.main(
+                [
+                    "cloud_storage_url",
+                    "test_server",
+                    "-t",
+                    "--assume-bucket-exists",
+                ]
+            )
+        assert 0 == exc.value.code
+        mock_cloud_interface.return_value.test_connectivity.assert_not_called()
+        assert "--test has no effect when --assume-bucket-exists is set" in caplog.text
+
     @mock.patch("barman.clients.cloud_check_wal_archive.get_cloud_interface")
     def test_check_wal_archive_failed_connectivity(self, mock_cloud_interface, caplog):
         """Verify the check errors if we cannot connect to the cloud provider"""

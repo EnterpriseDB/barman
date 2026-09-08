@@ -12,6 +12,7 @@
                   [ --help ]
                   [ { { -v | --verbose } | { -q | --quiet } } ]
                   [ { -t | --test } ]
+                  [ --assume-bucket-exists ]
                   [ --cloud-provider { aws-s3 | azure-blob-storage | google-cloud-storage } ]
                   [ --endpoint-url ENDPOINT_URL ]
                   [ { -P | --aws-profile } AWS_PROFILE ]
@@ -31,13 +32,14 @@ any WAL files are present in the archive, the check will fail, unless the ``--ti
 option is used and all existing WALs are from timelines earlier than the specified value.
 
 .. note::
-  The ``barman-cloud-check-wal-archive`` command performs an initial ``HeadBucket`` call
-  to verify whether the target bucket already exists in the S3 storage. If the bucket
-  does not exist, the command will attempt to automatically create it before performing
-  the WAL archive check.
+  By default, the ``barman-cloud-check-wal-archive`` command performs an initial
+  ``HeadBucket`` call to verify whether the target bucket already exists in the S3
+  storage. If the bucket does not exist, the command will attempt to automatically
+  create it before performing the WAL archive check.
 
   This is the only Barman command that performs these operations (bucket existence check
-  and automatic creation).
+  and automatic creation). These operations can be skipped using the
+  ``--assume-bucket-exists`` flag.
 
 .. note::
   For GCP, only authentication with ``GOOGLE_APPLICATION_CREDENTIALS`` env is supported.
@@ -66,6 +68,10 @@ option is used and all existing WALs are from timelines earlier than the specifi
 
 ``-t`` / ``--test``
   Test cloud connectivity and exit.
+
+``--assume-bucket-exists``
+  Assumes the bucket exists and can be accessed by the executing principal, skipping
+  connectivity test and bucket creation.
 
 ``--cloud-provider``
   The cloud provider to use as a storage backend.

@@ -47,15 +47,20 @@ def main(args=None):
 
     try:
         cloud_interface = get_cloud_interface(config)
-        if not cloud_interface.test_connectivity():
-            # Deliberately raise an error if we cannot connect
-            raise NetworkErrorExit()
-        # If test is requested, just exit after connectivity test
+        if not config.assume_bucket_exists:
+            if not cloud_interface.test_connectivity():
+                # Deliberately raise an error if we cannot connect
+                raise NetworkErrorExit()
+            # If test is requested, just exit after connectivity test
+            elif config.test:
+                raise SystemExit(0)
         elif config.test:
+            _logger.warning("--test has no effect when --assume-bucket-exists is set")
             raise SystemExit(0)
 
         with closing(cloud_interface):
-            cloud_interface.setup_bucket()
+            if not config.assume_bucket_exists:
+                cloud_interface.setup_bucket()
 
             catalog = CloudBackupCatalog(cloud_interface, config.server_name)
             wals = list(catalog.get_wal_paths().keys())
@@ -92,6 +97,13 @@ def parse_arguments(args=None):
         "--timeline",
         help="The earliest timeline whose WALs should cause the check to fail",
         type=check_positive,
+    )
+    parser.add_argument(
+        "--assume-bucket-exists",
+        help="Assumes the bucket exists and can be accessed by the executing "
+        "principal, skipping connectivity test and bucket creation.",
+        action="store_true",
+        default=False,
     )
     return parser.parse_args(args=args)
 
