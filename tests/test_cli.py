@@ -2397,6 +2397,41 @@ class TestCli(object):
 
     @patch("barman.cli.parse_backup_id")
     @patch("barman.cli.get_server")
+    @patch("barman.cli.output")
+    def test_list_files_failed_backup(
+        self,
+        mock_output,
+        mock_get_server,
+        mock_parse_backup,
+    ):
+        """
+        Test that `list_files` refuses a FAILED backup instead of
+        emitting an unbounded WAL list (see #1217).
+        """
+        args = Mock()
+        args.sever_name = "test_server"
+        args.backup_id = "test_backup_id"
+        args.target = "wal"
+        args.list_empty_directories = False
+        dummy_server = Mock()
+        dummy_server.config.name = "test_server"
+        mock_get_server.return_value = dummy_server
+
+        mock_parse_backup.return_value.backup_id = "test_backup_id"
+        mock_parse_backup.return_value.status = BackupInfo.FAILED
+
+        list_files(args)
+        mock_output.error.assert_called_once_with(
+            "Cannot list files of backup '%s' of server '%s': backup status is '%s'",
+            "test_backup_id",
+            "test_server",
+            BackupInfo.FAILED,
+        )
+        mock_output.close_and_exit.assert_called_once_with()
+        mock_parse_backup.return_value.get_directory_entries.assert_not_called()
+
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
     def test_list_files_bad_xlog_segment_name(
         self, mock_get_server, mock_parse_backup_id, capsys
     ):

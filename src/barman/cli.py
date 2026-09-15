@@ -1812,6 +1812,16 @@ def list_files(args):
 
     # Retrieves the backup
     backup_info = parse_backup_id(server, args)
+    # A failed backup has no usable file set: WAL ranges derived from it
+    # are unbounded and the output is meaningless (see #1217).
+    if backup_info.status == BackupInfo.FAILED:
+        output.error(
+            "Cannot list files of backup '%s' of server '%s': backup status is '%s'",
+            backup_info.backup_id,
+            server.config.name,
+            backup_info.status,
+        )
+        output.close_and_exit()
     try:
         for line in backup_info.get_directory_entries(
             args.target, empty_dirs=args.list_empty_directories
