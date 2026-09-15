@@ -2419,8 +2419,12 @@ class TestCli(object):
 
         mock_parse_backup.return_value.backup_id = "test_backup_id"
         mock_parse_backup.return_value.status = BackupInfo.FAILED
+        # The real close_and_exit raises SystemExit: emulate it so the
+        # test fails if list_files proceeds past the guard.
+        mock_output.close_and_exit.side_effect = SystemExit(0)
 
-        list_files(args)
+        with pytest.raises(SystemExit):
+            list_files(args)
         mock_output.error.assert_called_once_with(
             "Cannot list files of backup '%s' of server '%s': backup status is '%s'",
             "test_backup_id",
