@@ -17,6 +17,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+import os
 import re
 import shutil
 import sys
@@ -163,26 +164,7 @@ class UnixLocalCommand(object):
         """
         if not self.exists(path):
             raise FsOperationFailed("Following path does not exist: %s" % path)
-        args = ["-c", "%a", path]
-        if self.is_osx():
-            print("is osx")
-            args = ["-f", "%Lp", path]
-        cmd_ret = self.cmd("stat", args=args)
-        if cmd_ret != 0:
-            raise FsOperationFailed(
-                "Failed to get file mode for %s: %s" % (path, self.internal_cmd.err)
-            )
-        return self.internal_cmd.out.strip()
-
-    def is_osx(self):
-        """
-        Identify whether is is a Linux or Darwin system
-        :return: True is it is osx os
-        """
-        self.cmd("uname", args=["-s"])
-        if self.internal_cmd.out.strip() == "Darwin":
-            return True
-        return False
+        return str(oct(os.stat(path).st_mode)[-3:])
 
     def validate_file_mode(self, path, mode):
         """
@@ -421,9 +403,7 @@ class UnixLocalCommand(object):
         """
         Get the device number of the filesystem containing the given path.
 
-        This method checks if the specified path exists and retrieves the device number
-        using the `stat` command. It handles platform-specific differences between
-        macOS (darwin) and other Unix-like systems.
+        This method checks if the specified path exists and retrieves the device number. 
 
         :param str path: The filesystem path for which to retrieve the device number.
         :raises `FsOperationFailed`: If the path does not exist or the stat command
@@ -434,15 +414,7 @@ class UnixLocalCommand(object):
         """
         if not self.exists(path):
             raise FsOperationFailed("Following path does not exist: %s" % path)
-        args = ["-c", "%d", path]
-        if self.is_osx():
-            args = ["-f", "%d", path]
-        cmd_ret = self.cmd("stat", args=args)
-        if cmd_ret != 0:
-            raise FsOperationFailed(
-                "Failed to get file mode for %s: %s" % (path, self.internal_cmd.err)
-            )
-        return self.internal_cmd.out.strip()
+        return str(os.stat(path).st_dev)
 
 
 class UnixRemoteCommand(UnixLocalCommand):
