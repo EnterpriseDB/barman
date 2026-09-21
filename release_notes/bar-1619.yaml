@@ -1,0 +1,10 @@
+---
+- summary: Fix Azure disk snapshot creation with recent versions of the Azure SDK
+  description: |
+    Creating Azure snapshots backups could fail with recent versions of the
+    `azure-mgmt-compute` SDK (>= 38.0), which changed its API interface.
+    This issue has been addressed to ensure compatibility with the updated SDK.
+    Please update your `azure-mgmt-compute` lib to a version >= 38.0 for this release.
+  type: bugfix
+  jira_tickets:
+    - BAR-1619
