@@ -1814,10 +1814,12 @@ class TestAzureCloudSnapshotInterface(object):
             expected_snapshot_name,
             {
                 "location": expected_location,
-                "incremental": True,
-                "creation_data": {
-                    "create_option": "Copy",
-                    "source_uri": expected_disk_id,
+                "properties": {
+                    "creationData": {
+                        "createOption": "Copy",
+                        "sourceUri": expected_disk_id,
+                    },
+                    "incremental": True,
                 },
             },
         )
