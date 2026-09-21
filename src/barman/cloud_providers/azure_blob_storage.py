@@ -677,8 +677,10 @@ class AzureCloudSnapshotInterface(CloudSnapshotInterface):
             snapshot_name,
             {
                 "location": location,
-                "incremental": True,
-                "creation_data": {"create_option": "Copy", "source_uri": disk_id},
+                "properties": {
+                    "creationData": {"createOption": "Copy", "sourceUri": disk_id},
+                    "incremental": True,
+                },
             },
         )
 
