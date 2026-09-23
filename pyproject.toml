@@ -25,7 +25,7 @@ classifiers = [
   "Topic :: System :: Recovery Tools",
   "Intended Audience :: System Administrators",
   "Operating System :: POSIX :: Linux",
-  "Operating System :: BSD :: FreeBSD",
+  "Operating System :: POSIX :: BSD :: FreeBSD",
   "Operating System :: Unix",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3 :: Only",
