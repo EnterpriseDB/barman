@@ -49,7 +49,10 @@ Documentation = "https://docs.pgbarman.org/"
 argcomplete = ["argcomplete"]
 aws-snapshots = ["boto3"]
 azure = ["azure-identity", "azure-storage-blob"]
-azure-snapshots = ["azure-identity", "azure-mgmt-compute"]
+azure-snapshots = [
+    "azure-identity",
+    "azure-mgmt-compute>=38.0.0",
+]
 cloud = ["boto3"]
 google = ["google-cloud-storage>=3.12,<3.14"]
 google-snapshots = ["grpcio", "google-cloud-compute"]

@@ -205,7 +205,7 @@ requires-dist = [
     { name = "argcomplete", marker = "extra == 'argcomplete'" },
     { name = "azure-identity", marker = "extra == 'azure'" },
     { name = "azure-identity", marker = "extra == 'azure-snapshots'" },
-    { name = "azure-mgmt-compute", marker = "extra == 'azure-snapshots'" },
+    { name = "azure-mgmt-compute", marker = "extra == 'azure-snapshots'", specifier = ">=38.0.0" },
     { name = "azure-storage-blob", marker = "extra == 'azure'" },
     { name = "boto3", marker = "extra == 'aws-snapshots'" },
     { name = "boto3", marker = "extra == 'cloud'" },
