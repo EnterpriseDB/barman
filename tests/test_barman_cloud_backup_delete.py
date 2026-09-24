@@ -248,6 +248,7 @@ class TestCloudBackupDelete(object):
         catalog.configure_mock(
             **{
                 "prefix": "",
+                "server_name": "test_server",
                 "unreadable_backups": [],
                 "get_backup_info.side_effect": get_backup_info,
                 "get_backup_list.side_effect": get_backup_list,
@@ -576,7 +577,8 @@ class TestCloudBackupDelete(object):
         backup_info.snapshots_info = mock.Mock(snapshots=snapshots)
 
         # AND a CloudBackupCatalog which returns the backup_info for only that backup
-        cloud_backup_catalog_mock.return_value = self._create_catalog(backup_metadata)
+        mock_catalog = self._create_catalog(backup_metadata)
+        cloud_backup_catalog_mock.return_value = mock_catalog
 
         # WHEN barman-cloud-backup-delete runs
         cloud_backup_delete.main(
@@ -591,10 +593,12 @@ class TestCloudBackupDelete(object):
             [backup_id],
             is_snapshot_backup=True,
         )
-        # AND delete_snapshot_backup was called for the backup
+        # AND delete_snapshot_backup was called for the backup, using the backup
+        # id barman already trusts rather than reading it back off the
+        # unauthenticated backup_info
         mock_snapshots_interface = get_snapshot_interface_mock.return_value
         mock_snapshots_interface.delete_snapshot_backup.assert_called_once_with(
-            backup_info
+            backup_info, backup_id
         )
 
     @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")

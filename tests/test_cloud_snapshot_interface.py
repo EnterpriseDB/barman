@@ -50,6 +50,7 @@ from barman.exceptions import (
     FsOperationFailed,
     SnapshotBackupException,
     SnapshotInstanceNotFoundException,
+    SnapshotOwnershipError,
 )
 
 
@@ -675,10 +676,14 @@ class TestGcpCloudSnapshotInterface(object):
     def _get_mock_snapshots_client(self):
         """
         Helper which returns a mock snapshots client that always succeeds.
+
+        ``get`` simply needs to not raise for ownership verification to
+        proceed to the name check, so no particular return value is needed.
         """
         snapshots_client = mock.Mock()
         snapshots_client.insert.return_value = mock.Mock(error_code=None, warnings=None)
         snapshots_client.delete.return_value = mock.Mock(error_code=None, warnings=None)
+        snapshots_client.get.return_value = mock.Mock()
         return snapshots_client
 
     def _get_mock_volumes(self, disks):
@@ -915,7 +920,8 @@ class TestGcpCloudSnapshotInterface(object):
 
     def test_delete_snapshot(self, mock_google_cloud_compute, caplog):
         """Verify that a snapshot can be deleted successfully."""
-        # GIVEN the snapshots client deletes successfully
+        # GIVEN a snapshot which is verified as created by Barman, and a
+        # snapshots client which deletes successfully
         mock_google_cloud_compute.SnapshotsClient.return_value = (
             self._get_mock_snapshots_client()
         )
@@ -926,10 +932,16 @@ class TestGcpCloudSnapshotInterface(object):
 
         # WHEN a snapshot is deleted
         snapshot_name = self._get_snapshot_name(self.gcp_disks[0])
-        snapshot_interface._delete_snapshot(snapshot_name)
+        snapshot_interface._delete_snapshot(
+            mock.Mock(identifier=snapshot_name), None, self.backup_id
+        )
 
-        # THEN delete was called on the SnapshotsClient for that project/snapshot
+        # THEN ownership was verified before deletion
         mock_snapshots_client = mock_google_cloud_compute.SnapshotsClient.return_value
+        mock_snapshots_client.get.assert_called_once_with(
+            project=self.gcp_project, snapshot=snapshot_name
+        )
+        # AND delete was called on the SnapshotsClient for that project/snapshot
         mock_snapshots_client.delete.assert_called_once_with(
             {"project": self.gcp_project, "snapshot": snapshot_name}
         )
@@ -946,13 +958,16 @@ class TestGcpCloudSnapshotInterface(object):
         """
         # GIVEN a new GcpCloudSnapshotInterface
         snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
-        # AND a snapshots client which will fail with a NotFound error
+        # AND a snapshot which is verified as created by Barman, but which
+        # will fail with a NotFound error when deleted
         mock_snapshots_client = mock_google_cloud_compute.SnapshotsClient.return_value
         mock_snapshots_client.delete.side_effect = NotFound("snapshot not found")
 
         # WHEN a snapshot is deleted
         snapshot_name = self._get_snapshot_name(self.gcp_disks[0])
-        snapshot_interface._delete_snapshot(snapshot_name)
+        snapshot_interface._delete_snapshot(
+            mock.Mock(identifier=snapshot_name), None, self.backup_id
+        )
 
         # THEN delete was called on the SnapshotsClient for that project/snapshot
         mock_snapshots_client = mock_google_cloud_compute.SnapshotsClient.return_value
@@ -962,6 +977,35 @@ class TestGcpCloudSnapshotInterface(object):
         # AND result was not called on the response
         resp = mock_snapshots_client.delete.return_value
         resp.result.assert_not_called()
+
+    def test_delete_snapshot_ownership_not_found(
+        self, mock_google_cloud_compute, caplog
+    ):
+        """
+        Verify that a snapshot which cannot be found during ownership
+        verification is treated as already deleted: no error is raised and
+        no delete request is made.
+        """
+        # GIVEN a snapshot which cannot be found during ownership verification
+        mock_snapshots_client = mock_google_cloud_compute.SnapshotsClient.return_value
+        mock_snapshots_client.get.side_effect = NotFound("snapshot not found")
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+        caplog.set_level(logging.INFO)
+
+        # WHEN a snapshot is deleted
+        # THEN no exception is raised
+        snapshot_name = self._get_snapshot_name(self.gcp_disks[0])
+        snapshot_interface._delete_snapshot(
+            mock.Mock(identifier=snapshot_name), None, self.backup_id
+        )
+
+        # AND no delete request was made, since we already know it's gone
+        mock_snapshots_client.delete.assert_not_called()
+        # AND an info message was logged
+        assert (
+            "Snapshot {} could not be found: nothing to delete".format(snapshot_name)
+            in caplog.text
+        )
 
     def test_delete_snapshot_warnings(self, mock_google_cloud_compute, caplog):
         """Verify that warnings are logged if present in the snapshots response."""
@@ -977,7 +1021,9 @@ class TestGcpCloudSnapshotInterface(object):
 
         # WHEN a snapshot is deleted
         snapshot_name = self._get_snapshot_name(self.gcp_disks[0])
-        snapshot_interface._delete_snapshot(snapshot_name)
+        snapshot_interface._delete_snapshot(
+            mock.Mock(identifier=snapshot_name), None, self.backup_id
+        )
 
         # THEN the warning is included in the log output
         assert (
@@ -991,7 +1037,8 @@ class TestGcpCloudSnapshotInterface(object):
         """Verify that a snapshot can be deleted successfully."""
         # GIVEN a new GcpCloudSnapshotInterface
         snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
-        # AND a snapshots client which will fail to delete a snapshot
+        # AND a snapshot which is verified as created by Barman, but which
+        # will fail to delete
         mock_snapshots_client = mock_google_cloud_compute.SnapshotsClient.return_value
         mock_resp = mock_snapshots_client.delete.return_value
         mock_resp.result.return_value = True
@@ -1002,7 +1049,9 @@ class TestGcpCloudSnapshotInterface(object):
         # THEN a CloudProviderError is raised
         snapshot_name = self._get_snapshot_name(self.gcp_disks[0])
         with pytest.raises(CloudProviderError) as exc:
-            snapshot_interface._delete_snapshot(snapshot_name)
+            snapshot_interface._delete_snapshot(
+                mock.Mock(identifier=snapshot_name), None, self.backup_id
+            )
 
         # AND the exception message contains the snapshot name, error code and error
         # message
@@ -1019,21 +1068,26 @@ class TestGcpCloudSnapshotInterface(object):
         "snapshots_list",
         (
             [],
-            [mock.Mock(identifier="snapshot0")],
-            [mock.Mock(identifier="snapshot0"), mock.Mock(identifier="snapshot1")],
+            [mock.Mock(identifier="snapshot0-20380119t031407")],
+            [
+                mock.Mock(identifier="snapshot0-20380119t031407"),
+                mock.Mock(identifier="snapshot1-20380119t031407"),
+            ],
         ),
     )
     def test_delete_snapshot_backup(
         self, snapshots_list, mock_google_cloud_compute, caplog
     ):
         """Verfiy that all snapshots for a backup are deleted."""
-        # GIVEN a backup_info specifying zero or more snapshots
+        # GIVEN a backup_info specifying zero or more snapshots, each named
+        # per Barman's naming convention for the expected backup id
         backup_info = mock.Mock(
             backup_id=self.backup_id, snapshots_info=mock.Mock(snapshots=snapshots_list)
         )
         # AND log level is info
         caplog.set_level(logging.INFO)
-        # AND the snapshots client deletes successfully
+        # AND every snapshot is verified as created by Barman, and the
+        # snapshots client deletes successfully
         mock_google_cloud_compute.SnapshotsClient.return_value = (
             self._get_mock_snapshots_client()
         )
@@ -1041,7 +1095,7 @@ class TestGcpCloudSnapshotInterface(object):
         snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, zone=None)
 
         # WHEN delete_snapshot_backup is called
-        snapshot_interface.delete_snapshot_backup(backup_info)
+        snapshot_interface.delete_snapshot_backup(backup_info, self.backup_id)
 
         # THEN delete was called on the SnapshotsClient for each snapshot
         mock_snapshots_client = mock_google_cloud_compute.SnapshotsClient.return_value
@@ -1058,6 +1112,101 @@ class TestGcpCloudSnapshotInterface(object):
                 )
                 in caplog.text
             )
+
+    def test_get_snapshot_name_not_found(self, mock_google_cloud_compute):
+        """
+        Verify None is returned, distinct from any name, when the snapshot
+        cannot be found at all.
+        """
+        # GIVEN a snapshot which cannot be found
+        mock_snapshots_client = self._get_mock_snapshots_client()
+        mock_snapshots_client.get.side_effect = NotFound("snapshot not found")
+        mock_google_cloud_compute.SnapshotsClient.return_value = mock_snapshots_client
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+
+        # WHEN the snapshot's name is fetched
+        # THEN it is reported as missing
+        assert (
+            snapshot_interface._get_snapshot_name(
+                mock.Mock(identifier="test_snapshot"), None
+            )
+            is None
+        )
+
+    def test_get_snapshot_name_found(self, mock_google_cloud_compute):
+        """
+        Verify the snapshot's own name is returned when it can be found.
+        Whether it actually matches the expected backup id is
+        _snapshot_name_matches's concern, not this method's (see
+        test_snapshot_name_matches).
+        """
+        # GIVEN a snapshot which exists
+        mock_google_cloud_compute.SnapshotsClient.return_value = (
+            self._get_mock_snapshots_client()
+        )
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+        snapshot_name = "test_disk_0-{}".format(self.backup_id.lower())
+
+        # WHEN the snapshot's name is fetched
+        # THEN its own name is returned
+        assert (
+            snapshot_interface._get_snapshot_name(
+                mock.Mock(identifier=snapshot_name), None
+            )
+            == snapshot_name
+        )
+
+    @pytest.mark.parametrize(
+        ("snapshot_name", "expected_backup_id", "matches"),
+        (
+            # Matches: ends with "-{backup_id}", case-insensitively
+            ("test_disk_0-20380119t031407", "20380119T031407", True),
+            ("TEST_DISK_0-20380119T031407", "20380119t031407", True),
+            # Does not match: no "-{backup_id}" suffix at all
+            ("test_disk_0", "20380119T031407", False),
+            # Does not match: ends with a different backup id
+            ("test_disk_0-some_other_backup_id", "20380119T031407", False),
+        ),
+    )
+    def test_snapshot_name_matches(
+        self, snapshot_name, expected_backup_id, matches, mock_google_cloud_compute
+    ):
+        """
+        Verify the naming-convention matching rule shared by every provider
+        (see the CloudSnapshotInterface class docstring). Tested once here,
+        via a concrete provider instance, rather than duplicated per
+        provider -- the rule itself is provider-agnostic.
+        """
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+        assert (
+            snapshot_interface._snapshot_name_matches(snapshot_name, expected_backup_id)
+            is matches
+        )
+
+    def test_delete_snapshot_ownership_failed(self, mock_google_cloud_compute):
+        """
+        Verify that a snapshot is not deleted, and SnapshotOwnershipError is
+        raised, when ownership cannot be verified.
+        """
+        # GIVEN a snapshot whose name does not match the expected backup id
+        mock_google_cloud_compute.SnapshotsClient.return_value = (
+            self._get_mock_snapshots_client()
+        )
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+        snapshot_name = "test_snapshot"
+
+        # WHEN the snapshot is deleted
+        # THEN a SnapshotOwnershipError is raised
+        with pytest.raises(SnapshotOwnershipError) as exc:
+            snapshot_interface._delete_snapshot(
+                mock.Mock(identifier=snapshot_name), None, self.backup_id
+            )
+        assert snapshot_name in str(exc.value)
+        assert self.backup_id in str(exc.value)
+
+        # AND delete was never called
+        mock_snapshots_client = mock_google_cloud_compute.SnapshotsClient.return_value
+        mock_snapshots_client.delete.assert_not_called()
 
     @pytest.mark.parametrize(
         (
@@ -1487,6 +1636,9 @@ class TestAzureCloudSnapshotInterface(object):
     def _get_mock_snapshot_operations(self):
         """
         Helper which creates a mock SnapshotOperations client that always succeeds.
+
+        ``get`` simply needs to not raise for ownership verification to
+        proceed to the name check, so no particular return value is needed.
         """
         mock_resp = mock.Mock()
         mock_resp.status.return_value = "Succeeded"
@@ -1494,6 +1646,8 @@ class TestAzureCloudSnapshotInterface(object):
         mock_snapshot_operations = mock.Mock()
         mock_snapshot_operations.begin_create_or_update.return_value = mock_resp
         mock_snapshot_operations.begin_delete.return_value = mock_resp
+        mock_snapshot_operations.begin_update.return_value = mock_resp
+        mock_snapshot_operations.get.return_value = mock.Mock()
         return mock_snapshot_operations
 
     def _get_mock_instances_client(self, resource_group_name, instance_name, disks):
@@ -1847,7 +2001,8 @@ class TestAzureCloudSnapshotInterface(object):
 
     def test_delete_snapshot(self, caplog):
         """Verify that a snapshot can be deleted successfully."""
-        # GIVEN a successful response from the delete snapshot request
+        # GIVEN a snapshot which is verified as created by Barman, and a
+        # successful response from the delete snapshot request
         mock_compute_client = (
             self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
         )
@@ -1860,11 +2015,19 @@ class TestAzureCloudSnapshotInterface(object):
         caplog.set_level(logging.INFO)
 
         # WHEN a snapshot is deleted
-        snapshot_name = "test_snapshot"
+        snapshot_name = "test_snapshot-{}".format(self.backup_id.lower())
         resource_group = "test_resource_group"
-        snapshot_interface._delete_snapshot(snapshot_name, resource_group)
+        snapshot_interface._delete_snapshot(
+            mock.Mock(identifier=snapshot_name),
+            mock.Mock(resource_group=resource_group),
+            self.backup_id,
+        )
 
-        # THEN delete was called on the client with the expected arguments
+        # THEN ownership was verified before deletion
+        mock_compute_client.snapshots.get.assert_called_once_with(
+            resource_group, snapshot_name
+        )
+        # AND delete was called on the client with the expected arguments
         mock_compute_client.snapshots.begin_delete.assert_called_once_with(
             resource_group, snapshot_name
         )
@@ -1879,7 +2042,8 @@ class TestAzureCloudSnapshotInterface(object):
         a successful deletion. This is because a ResourceNotFoundError is raised if the
         resource group cannot be found - this is an error condition.
         """
-        # GIVEN a delete snapshot request which will raise a ResourceNotFoundError
+        # GIVEN a snapshot which is verified as created by Barman, and a
+        # delete snapshot request which will raise a ResourceNotFoundError
         mock_compute_client = (
             self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
         )
@@ -1892,14 +2056,54 @@ class TestAzureCloudSnapshotInterface(object):
 
         # WHEN a snapshot is deleted
         # THEN a ResourceNotFoundError is raised
-        snapshot_name = "test_snapshot"
+        snapshot_name = "test_snapshot-{}".format(self.backup_id.lower())
         resource_group = "test_resource_group"
         with pytest.raises(ResourceNotFoundError):
-            snapshot_interface._delete_snapshot(snapshot_name, resource_group)
+            snapshot_interface._delete_snapshot(
+                mock.Mock(identifier=snapshot_name),
+                mock.Mock(resource_group=resource_group),
+                self.backup_id,
+            )
+
+    def test_delete_snapshot_ownership_not_found(self, caplog):
+        """
+        Verify that a snapshot which cannot be found during ownership
+        verification is treated as already deleted: no error is raised and
+        no delete request is made.
+        """
+        # GIVEN a snapshot which cannot be found during ownership verification
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        mock_compute_client.snapshots = self._get_mock_snapshot_operations()
+        mock_compute_client.snapshots.get.side_effect = ResourceNotFoundError
+        snapshot_interface = AzureCloudSnapshotInterface(
+            self.azure_subscription_id, self.azure_resource_group
+        )
+        caplog.set_level(logging.INFO)
+
+        # WHEN a snapshot is deleted
+        # THEN no exception is raised
+        snapshot_name = "test_snapshot"
+        resource_group = "test_resource_group"
+        snapshot_interface._delete_snapshot(
+            mock.Mock(identifier=snapshot_name),
+            mock.Mock(resource_group=resource_group),
+            self.backup_id,
+        )
+
+        # AND no delete request was made, since we already know it's gone
+        mock_compute_client.snapshots.begin_delete.assert_not_called()
+        # AND an info message was logged
+        assert (
+            "Snapshot {} could not be found: nothing to delete".format(snapshot_name)
+            in caplog.text
+        )
 
     def test_delete_snapshot_failed(self):
         """Verify that an unsuccessful response results in a CloudProviderError."""
-        # GIVEN a delete snapshot request which will return an unsuccessful response
+        # GIVEN a snapshot which is verified as created by Barman, and a
+        # delete snapshot request which will return an unsuccessful response
         mock_compute_client = (
             self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
         )
@@ -1914,9 +2118,13 @@ class TestAzureCloudSnapshotInterface(object):
 
         # WHEN a snapshot is deleted and a failure response is received
         # THEN a CloudProviderError is raised
-        snapshot_name = "snapshot_name"
+        snapshot_name = "snapshot_name-{}".format(self.backup_id.lower())
         with pytest.raises(CloudProviderError) as exc:
-            snapshot_interface._delete_snapshot(snapshot_name, "resource group")
+            snapshot_interface._delete_snapshot(
+                mock.Mock(identifier=snapshot_name),
+                mock.Mock(resource_group="resource group"),
+                self.backup_id,
+            )
         # AND the exception has the expected message
         expected_message = (
             "Deletion of snapshot {} failed with error code {}: {}".format(
@@ -1929,8 +2137,11 @@ class TestAzureCloudSnapshotInterface(object):
         "snapshots_list",
         (
             [],
-            [mock.Mock(identifier="snapshot0")],
-            [mock.Mock(identifier="snapshot0"), mock.Mock(identifier="snapshot1")],
+            [mock.Mock(identifier="snapshot0-20380119t031407")],
+            [
+                mock.Mock(identifier="snapshot0-20380119t031407"),
+                mock.Mock(identifier="snapshot1-20380119t031407"),
+            ],
         ),
     )
     def test_delete_snapshot_backup(
@@ -1939,7 +2150,9 @@ class TestAzureCloudSnapshotInterface(object):
         caplog,
     ):
         """Verify that all snapshots for a backup are deleted."""
-        # GIVEN a backup_info specifying zero or more snapshots in a given resource group
+        # GIVEN a backup_info specifying zero or more snapshots, each named
+        # per Barman's naming convention for the expected backup id, in a
+        # given resource group
         resource_group = "resource group"
         backup_info = mock.Mock(
             backup_id=self.backup_id,
@@ -1958,7 +2171,7 @@ class TestAzureCloudSnapshotInterface(object):
         snapshot_interface = AzureCloudSnapshotInterface(self.azure_subscription_id)
 
         # WHEN delete_snapshot_backup is called
-        snapshot_interface.delete_snapshot_backup(backup_info)
+        snapshot_interface.delete_snapshot_backup(backup_info, self.backup_id)
 
         # THEN begin_delete was called for each snapshot
         mock_snapshots_operation = mock_compute_client.snapshots
@@ -1977,6 +2190,108 @@ class TestAzureCloudSnapshotInterface(object):
                 )
                 in caplog.text
             )
+
+    def test_get_snapshot_name_not_found(self):
+        """
+        Verify None is returned, distinct from any name, when the snapshot
+        cannot be found at all.
+        """
+        # GIVEN a snapshot which cannot be found
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        mock_compute_client.snapshots = self._get_mock_snapshot_operations()
+        mock_compute_client.snapshots.get.side_effect = ResourceNotFoundError
+        snapshot_interface = AzureCloudSnapshotInterface(self.azure_subscription_id)
+
+        # WHEN the snapshot's name is fetched
+        # THEN it is reported as missing
+        assert (
+            snapshot_interface._get_snapshot_name(
+                mock.Mock(identifier="test_snapshot"),
+                mock.Mock(resource_group="test_resource_group"),
+            )
+            is None
+        )
+
+    def test_get_snapshot_name_resource_group_not_found(self):
+        """
+        Verify a missing resource group is not treated as a missing snapshot:
+        it must propagate rather than being folded into a refused ownership
+        check, since it is a configuration error we cannot do anything about
+        (and, unlike the snapshot name, is not confirmed to be genuine by a
+        successful lookup).
+        """
+        # GIVEN a resource group which cannot be found
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        mock_compute_client.snapshots = self._get_mock_snapshot_operations()
+        not_found_error = ResourceNotFoundError("resource group not found")
+        not_found_error.error = mock.Mock(code="ResourceGroupNotFound")
+        mock_compute_client.snapshots.get.side_effect = not_found_error
+        snapshot_interface = AzureCloudSnapshotInterface(self.azure_subscription_id)
+
+        # WHEN the snapshot's name is fetched
+        # THEN the ResourceNotFoundError propagates rather than being refused
+        with pytest.raises(ResourceNotFoundError):
+            snapshot_interface._get_snapshot_name(
+                mock.Mock(identifier="test_snapshot"),
+                mock.Mock(resource_group="test_resource_group"),
+            )
+
+    def test_get_snapshot_name_found(self):
+        """
+        Verify the snapshot's own name is returned when it can be found.
+        Whether it actually matches the expected backup id is
+        _snapshot_name_matches's concern, not this method's (see
+        TestGcpCloudSnapshotInterface.test_snapshot_name_matches).
+        """
+        # GIVEN a snapshot which exists
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        mock_compute_client.snapshots = self._get_mock_snapshot_operations()
+        snapshot_interface = AzureCloudSnapshotInterface(self.azure_subscription_id)
+        snapshot_name = "my-managed-disk-{}".format(self.backup_id.lower())
+
+        # WHEN the snapshot's name is fetched
+        # THEN its own name is returned
+        assert (
+            snapshot_interface._get_snapshot_name(
+                mock.Mock(identifier=snapshot_name),
+                mock.Mock(resource_group="test_resource_group"),
+            )
+            == snapshot_name
+        )
+
+    def test_delete_snapshot_ownership_failed(self):
+        """
+        Verify that a snapshot is not deleted, and SnapshotOwnershipError is
+        raised, when ownership cannot be verified.
+        """
+        # GIVEN a snapshot whose name does not match the expected backup id
+        mock_compute_client = (
+            self._mock_azure_mgmt_compute.ComputeManagementClient.return_value
+        )
+        mock_compute_client.snapshots = self._get_mock_snapshot_operations()
+        snapshot_interface = AzureCloudSnapshotInterface(self.azure_subscription_id)
+        snapshot_name = "test_snapshot"
+        resource_group = "test_resource_group"
+
+        # WHEN the snapshot is deleted
+        # THEN a SnapshotOwnershipError is raised
+        with pytest.raises(SnapshotOwnershipError) as exc:
+            snapshot_interface._delete_snapshot(
+                mock.Mock(identifier=snapshot_name),
+                mock.Mock(resource_group=resource_group),
+                self.backup_id,
+            )
+        assert snapshot_name in str(exc.value)
+        assert self.backup_id in str(exc.value)
+
+        # AND begin_delete was never called
+        mock_compute_client.snapshots.begin_delete.assert_not_called()
 
     @pytest.mark.parametrize(
         (
@@ -2569,6 +2884,7 @@ class TestAwsCloudSnapshotInterface(object):
     aws_region = "eu-west-1"
     backup_id = "20380119T031407"
     server_name = "test_server"
+    end_time = datetime.datetime(2038, 1, 19, 3, 24, 7, tzinfo=datetime.timezone.utc)
 
     def _get_mock_volumes(self, disks):
         """Helper which returns mock AwsVolumeMetadata objects for the given disks."""
@@ -2673,6 +2989,16 @@ class TestAwsCloudSnapshotInterface(object):
     def _get_snapshot_name(self, disk):
         """Helper which forges the expected snapshot name for the given disk name."""
         return "{}-{}".format(disk["name"], self.backup_id.lower())
+
+    def _get_mock_describe_snapshots_resp(self, snapshot_id, name_tag_value=None):
+        """
+        Helper which returns a mock describe_snapshots response for a single
+        snapshot. If name_tag_value is set then a Name tag with that value
+        is added, since the Name tag is the only metadata used to verify
+        ownership (see the class docstring).
+        """
+        tags = [{"Key": "Name", "Value": name_tag_value}] if name_tag_value else []
+        return {"Snapshots": [{"SnapshotId": snapshot_id, "Tags": tags}]}
 
     @pytest.fixture()
     def mock_ec2_client(self, mock_boto3):
@@ -3598,7 +3924,15 @@ class TestAwsCloudSnapshotInterface(object):
 
     def test_delete_snapshot(self, mock_ec2_client, caplog):
         """Verify that a snapshot can be deleted successfully."""
-        # GIVEN a successful response from the delete snapshot request
+        # GIVEN a snapshot which is verified as created by Barman
+        snapshot_id = "snap-0123"
+        mock_ec2_client.describe_snapshots.return_value = (
+            self._get_mock_describe_snapshots_resp(
+                snapshot_id,
+                name_tag_value="my-pgdata-volume-{}".format(self.backup_id.lower()),
+            )
+        )
+        # AND a successful response from the delete snapshot request
         mock_ec2_client.delete_snapshot.return_value = {}
         # AND a mock snapshots interface
         snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
@@ -3606,17 +3940,30 @@ class TestAwsCloudSnapshotInterface(object):
         caplog.set_level(logging.INFO)
 
         # WHEN a snapshot is deleted
-        snapshot_id = "snap-0123"
-        snapshot_interface._delete_snapshot(snapshot_id)
+        snapshot_interface._delete_snapshot(
+            mock.Mock(identifier=snapshot_id), None, self.backup_id
+        )
 
-        # THEN delete was called on the client with the expected arguments
+        # THEN ownership was verified before deletion
+        mock_ec2_client.describe_snapshots.assert_called_once_with(
+            SnapshotIds=[snapshot_id], OwnerIds=["self"]
+        )
+        # AND delete was called on the client with the expected arguments
         mock_ec2_client.delete_snapshot.assert_called_once_with(SnapshotId=snapshot_id)
         # AND a success message was logged
         assert "Snapshot {} deleted".format(snapshot_id) in caplog.text
 
     def test_delete_snapshot_not_found(self, mock_ec2_client, caplog):
         """Verify that a snapshot ID which can't be found is success."""
-        # GIVEN a successful response from the delete snapshot request
+        # GIVEN a snapshot which is verified as created by Barman
+        snapshot_id = "snap-0123"
+        mock_ec2_client.describe_snapshots.return_value = (
+            self._get_mock_describe_snapshots_resp(
+                snapshot_id,
+                name_tag_value="my-pgdata-volume-{}".format(self.backup_id.lower()),
+            )
+        )
+        # AND a successful response from the delete snapshot request
         mock_ec2_client.delete_snapshot.side_effect = (
             ClientError({"Error": {"Code": "InvalidSnapshot.NotFound"}}, "message"),
         )
@@ -3627,8 +3974,9 @@ class TestAwsCloudSnapshotInterface(object):
 
         # WHEN a snapshot is deleted
         # THEN no exceptions are raised
-        snapshot_id = "snap-0123"
-        snapshot_interface._delete_snapshot(snapshot_id)
+        snapshot_interface._delete_snapshot(
+            mock.Mock(identifier=snapshot_id), None, self.backup_id
+        )
 
         # THEN delete was called on the client with the expected arguments
         mock_ec2_client.delete_snapshot.assert_called_once_with(SnapshotId=snapshot_id)
@@ -3637,9 +3985,45 @@ class TestAwsCloudSnapshotInterface(object):
         # AND a warning message was logged
         assert "Snapshot {} could not be found".format(snapshot_id) in caplog.text
 
+    def test_delete_snapshot_ownership_not_found(self, mock_ec2_client, caplog):
+        """
+        Verify that a snapshot which cannot be found during ownership
+        verification is treated as already deleted: no error is raised and
+        no delete request is made.
+        """
+        # GIVEN a snapshot which cannot be found during ownership verification
+        snapshot_id = "snap-0123"
+        mock_ec2_client.describe_snapshots.side_effect = ClientError(
+            {"Error": {"Code": "InvalidSnapshot.NotFound"}}, "message"
+        )
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+        caplog.set_level(logging.INFO)
+
+        # WHEN a snapshot is deleted
+        # THEN no exception is raised
+        snapshot_interface._delete_snapshot(
+            mock.Mock(identifier=snapshot_id), None, self.backup_id
+        )
+
+        # AND no delete request was made, since we already know it's gone
+        mock_ec2_client.delete_snapshot.assert_not_called()
+        # AND an info message was logged
+        assert (
+            "Snapshot {} could not be found: nothing to delete".format(snapshot_id)
+            in caplog.text
+        )
+
     def test_delete_snapshot_failed(self, mock_ec2_client, caplog):
         """Verify that a failed deletion results in a CloudProviderError."""
-        # GIVEN an unexpected error from the delete snapshot request
+        # GIVEN a snapshot which is verified as created by Barman
+        snapshot_id = "snap-0123"
+        mock_ec2_client.describe_snapshots.return_value = (
+            self._get_mock_describe_snapshots_resp(
+                snapshot_id,
+                name_tag_value="my-pgdata-volume-{}".format(self.backup_id.lower()),
+            )
+        )
+        # AND an unexpected error from the delete snapshot request
         mock_ec2_client.delete_snapshot.side_effect = (
             ClientError({"Error": {"Code": "Something.Bad"}}, "message"),
         )
@@ -3648,9 +4032,10 @@ class TestAwsCloudSnapshotInterface(object):
 
         # WHEN a snapshot is deleted
         # THEN a CloudProviderError is raised
-        snapshot_id = "snap-0123"
         with pytest.raises(CloudProviderError) as exc:
-            snapshot_interface._delete_snapshot(snapshot_id)
+            snapshot_interface._delete_snapshot(
+                mock.Mock(identifier=snapshot_id), None, self.backup_id
+            )
 
         # AND the exception has the expected message
         expected_message = "Deletion of snapshot {} failed with error code {}".format(
@@ -3678,13 +4063,20 @@ class TestAwsCloudSnapshotInterface(object):
         )
         # AND log level is info
         caplog.set_level(logging.INFO)
+        # AND every snapshot is verified as created by Barman
+        mock_ec2_client.describe_snapshots.return_value = (
+            self._get_mock_describe_snapshots_resp(
+                "unused",
+                name_tag_value="my-pgdata-volume-{}".format(self.backup_id.lower()),
+            )
+        )
         # AND the snapshot delete requests are successful
         mock_ec2_client.delete_snapshot.return_value = {}
         # AND a new AwsCloudSnapshotInterface
         snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
 
         # WHEN delete_snapshot_backup is called
-        snapshot_interface.delete_snapshot_backup(backup_info)
+        snapshot_interface.delete_snapshot_backup(backup_info, self.backup_id)
 
         # THEN delete_snapshot was called for each snapshot
         expected_calls = [
@@ -3694,15 +4086,24 @@ class TestAwsCloudSnapshotInterface(object):
 
     def test_delete_snapshot_with_lock(self, mock_ec2_client):
         """Verify that a snapshot is not deleted and an error is raised."""
+        # GIVEN a snapshot which is verified as created by Barman
+        snapshot_id = "snap-0123"
+        mock_ec2_client.describe_snapshots.return_value = (
+            self._get_mock_describe_snapshots_resp(
+                snapshot_id,
+                name_tag_value="my-pgdata-volume-{}".format(self.backup_id.lower()),
+            )
+        )
         mock_ec2_client.delete_snapshot.side_effect = (
             ClientError({"Error": {"Code": "SnapshotLocked"}}, "message"),
         )
         # AND a mock snapshots interface
         snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
 
-        snapshot_id = "snap-0123"
         with pytest.raises(SystemExit) as exc:
-            snapshot_interface._delete_snapshot(snapshot_id)
+            snapshot_interface._delete_snapshot(
+                mock.Mock(identifier=snapshot_id), None, self.backup_id
+            )
 
         # AND the exception has the expected message
         expected_message = (
@@ -3712,6 +4113,128 @@ class TestAwsCloudSnapshotInterface(object):
         )
 
         assert expected_message in str(exc.value)
+
+    @pytest.mark.parametrize(
+        ("error_code", "expected_result"),
+        (
+            # A snapshot which genuinely cannot be found is reported as
+            # missing (None), distinct from a refused ownership check.
+            ("InvalidSnapshot.NotFound", None),
+            # A malformed id indicates corrupt input rather than a missing
+            # snapshot, so it can never match ("") but is not reported as
+            # missing.
+            ("InvalidSnapshotID.Malformed", ""),
+        ),
+    )
+    def test_get_snapshot_name_not_found(
+        self, error_code, expected_result, mock_ec2_client
+    ):
+        """
+        Verify a genuinely missing snapshot (None) is distinguished from a
+        malformed snapshot id (""), which can never match and so is left
+        to the normal ownership-mismatch path instead.
+        """
+        # GIVEN a snapshot which cannot be found, or a malformed snapshot id
+        mock_ec2_client.describe_snapshots.side_effect = ClientError(
+            {"Error": {"Code": error_code}}, "message"
+        )
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+
+        # WHEN the snapshot's name is fetched
+        # THEN the result matches expected_result
+        assert (
+            snapshot_interface._get_snapshot_name(
+                mock.Mock(identifier="snap-0123"), None
+            )
+            == expected_result
+        )
+
+    def test_get_snapshot_name_error(self, mock_ec2_client):
+        """Verify a CloudProviderError is raised for an unexpected API error."""
+        # GIVEN an unexpected error while describing the snapshot
+        mock_ec2_client.describe_snapshots.side_effect = ClientError(
+            {"Error": {"Code": "Something.Bad"}}, "message"
+        )
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+
+        # WHEN the snapshot's name is fetched
+        # THEN a CloudProviderError is raised
+        with pytest.raises(CloudProviderError) as exc:
+            snapshot_interface._get_snapshot_name(
+                mock.Mock(identifier="snap-0123"), None
+            )
+        assert "Could not verify ownership of snapshot snap-0123" in str(exc.value)
+
+    def test_get_snapshot_name_found(self, mock_ec2_client):
+        """
+        Verify the snapshot's Name tag is returned when the snapshot can be
+        found. Whether it actually matches the expected backup id is
+        _snapshot_name_matches's concern, not this method's (see
+        TestGcpCloudSnapshotInterface.test_snapshot_name_matches).
+        """
+        # GIVEN a snapshot with a Name tag
+        snapshot_id = "snap-0123"
+        name_tag_value = "my-pgdata-volume-{}".format(self.backup_id.lower())
+        mock_ec2_client.describe_snapshots.return_value = (
+            self._get_mock_describe_snapshots_resp(
+                snapshot_id, name_tag_value=name_tag_value
+            )
+        )
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+
+        # WHEN the snapshot's name is fetched
+        # THEN its Name tag is returned
+        assert (
+            snapshot_interface._get_snapshot_name(
+                mock.Mock(identifier=snapshot_id), None
+            )
+            == name_tag_value
+        )
+
+    def test_get_snapshot_name_no_name_tag(self, mock_ec2_client):
+        """
+        Verify an empty string, which can never match, is returned for a
+        snapshot with no Name tag at all.
+        """
+        # GIVEN a snapshot with no Name tag
+        snapshot_id = "snap-0123"
+        mock_ec2_client.describe_snapshots.return_value = (
+            self._get_mock_describe_snapshots_resp(snapshot_id)
+        )
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+
+        # WHEN the snapshot's name is fetched
+        # THEN an empty string is returned
+        assert (
+            snapshot_interface._get_snapshot_name(
+                mock.Mock(identifier=snapshot_id), None
+            )
+            == ""
+        )
+
+    def test_delete_snapshot_ownership_failed(self, mock_ec2_client):
+        """
+        Verify that a snapshot is not deleted, and SnapshotOwnershipError is
+        raised, when ownership cannot be verified.
+        """
+        # GIVEN a snapshot with no Name tag matching the expected backup id
+        snapshot_id = "snap-0123"
+        mock_ec2_client.describe_snapshots.return_value = (
+            self._get_mock_describe_snapshots_resp(snapshot_id)
+        )
+        snapshot_interface = AwsCloudSnapshotInterface(region=self.aws_region)
+
+        # WHEN the snapshot is deleted
+        # THEN a SnapshotOwnershipError is raised
+        with pytest.raises(SnapshotOwnershipError) as exc:
+            snapshot_interface._delete_snapshot(
+                mock.Mock(identifier=snapshot_id), None, self.backup_id
+            )
+        assert snapshot_id in str(exc.value)
+        assert self.backup_id in str(exc.value)
+
+        # AND delete_snapshot was never called
+        mock_ec2_client.delete_snapshot.assert_not_called()
 
 
 class TestAwsVolumeMetadata(object):

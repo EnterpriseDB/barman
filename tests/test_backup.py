@@ -3461,7 +3461,7 @@ class TestSnapshotBackup(object):
         )
         mock_snapshot_interface = mock_get_snapshot_interface.return_value
         mock_snapshot_interface.delete_snapshot_backup.assert_called_once_with(
-            backup_info
+            backup_info, backup_info.backup_id
         )
         # AND rmtree was called twice in total
         assert mock_shutil.rmtree.call_count == 2
