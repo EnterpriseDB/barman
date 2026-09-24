@@ -99,6 +99,7 @@ file.
     * ``compute.instances.get``
     * ``compute.snapshots.create``
     * ``compute.snapshots.delete``
+    * ``compute.snapshots.get``
     * ``compute.snapshots.list``
 
 For provider specific credentials configurations, refer to the
