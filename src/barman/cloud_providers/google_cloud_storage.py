@@ -727,12 +727,40 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
             project=self.project, snapshots=snapshots
         )
 
-    def _delete_snapshot(self, snapshot_name):
+    def _get_snapshot_name(self, snapshot, snapshots_info):
         """
-        Delete the specified snapshot.
+        Fetch the snapshot's own name, using metadata read directly from
+        GCP. Check the :class:`CloudSnapshotInterface` docstring notes for
+        more details.
 
-        :param str snapshot_name: The short name used to reference the snapshot within GCP.
+        :param barman.cloud.SnapshotMetadata snapshot: Metadata for the
+            snapshot being checked.
+        :param barman.cloud.SnapshotsInfo snapshots_info: Unused -- GCP
+            snapshot names are sufficient on their own, unlike Azure's (see
+            the base class docstring).
+        :rtype: str|None
+        :return: The snapshot's own name, or ``None`` if the snapshot could
+            not be found at all.
         """
+        snapshot_name = snapshot.identifier
+        try:
+            self.client.get(project=self.project, snapshot=snapshot_name)
+        except NotFound:
+            return None
+        return snapshot_name
+
+    def _delete_snapshot_resource(self, snapshot, snapshots_info):
+        """
+        Delete the specified snapshot. Called only once
+        :meth:`~barman.cloud.CloudSnapshotInterface._delete_snapshot` has
+        already confirmed its ownership.
+
+        :param barman.cloud.SnapshotMetadata snapshot: Metadata for the
+            snapshot to be deleted.
+        :param barman.cloud.SnapshotsInfo snapshots_info: Unused, see
+            :meth:`_get_snapshot_name`.
+        """
+        snapshot_name = snapshot.identifier
         try:
             resp = self.client.delete(
                 {
@@ -762,20 +790,6 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
             )
 
         _logger.info("Snapshot %s deleted", snapshot_name)
-
-    def delete_snapshot_backup(self, backup_info):
-        """
-        Delete all snapshots for the supplied backup.
-
-        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
-        """
-        for snapshot in backup_info.snapshots_info.snapshots:
-            _logger.info(
-                "Deleting snapshot '%s' for backup %s",
-                snapshot.identifier,
-                backup_info.backup_id,
-            )
-            self._delete_snapshot(snapshot.identifier)
 
     def get_attached_volumes(self, instance_name, disks=None, fail_on_missing=True):
         """

@@ -1464,12 +1464,59 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
 
         _logger.info("Snapshot locked: \n%s" % json.dumps(_output, indent=4))
 
-    def _delete_snapshot(self, snapshot_id):
+    def _get_snapshot_name(self, snapshot, snapshots_info):
         """
-        Delete the specified snapshot.
+        Fetch the snapshot's ``Name`` tag, using metadata read directly from
+        AWS. Check the :class:`CloudSnapshotInterface` docstring notes for
+        more details.
 
-        :param str snapshot_id: The ID of the snapshot to be deleted.
+        :param barman.cloud.SnapshotMetadata snapshot: Metadata for the
+            snapshot being checked.
+        :param barman.cloud.SnapshotsInfo snapshots_info: Unused -- AWS
+            snapshot ids are sufficient on their own, unlike Azure's (see
+            the base class docstring).
+        :rtype: str|None
+        :return: The snapshot's ``Name`` tag (``""`` if it has none), or
+            ``None`` if the snapshot could not be found at all. A malformed
+            id (``InvalidSnapshotID.Malformed``) also returns ``""``:
+            corrupt input isn't the same as a legitimately missing snapshot,
+            but it can never match either.
+        :raises barman.cloud.CloudProviderError: If the snapshot could not be
+            described for any other reason.
         """
+        snapshot_id = snapshot.identifier
+        try:
+            resp = self.ec2_client.describe_snapshots(
+                SnapshotIds=[snapshot_id], OwnerIds=["self"]
+            )
+        except ClientError as exc:
+            error_code = exc.response["Error"]["Code"]
+            if error_code == "InvalidSnapshot.NotFound":
+                return None
+            if error_code == "InvalidSnapshotID.Malformed":
+                return ""
+            raise CloudProviderError(
+                "Could not verify ownership of snapshot %s: %s"
+                % (snapshot_id, exc.response["Error"])
+            )
+        snapshots = resp.get("Snapshots", [])
+        if not snapshots:
+            return ""
+        tags = {tag["Key"]: tag["Value"] for tag in snapshots[0].get("Tags", [])}
+        return tags.get("Name", "")
+
+    def _delete_snapshot_resource(self, snapshot, snapshots_info):
+        """
+        Delete the specified snapshot. Called only once
+        :meth:`~barman.cloud.CloudSnapshotInterface._delete_snapshot` has
+        already confirmed its ownership.
+
+        :param barman.cloud.SnapshotMetadata snapshot: Metadata for the
+            snapshot to be deleted.
+        :param barman.cloud.SnapshotsInfo snapshots_info: Unused, see
+            :meth:`_get_snapshot_name`.
+        """
+        snapshot_id = snapshot.identifier
         try:
             self.ec2_client.delete_snapshot(SnapshotId=snapshot_id)
         except ClientError as exc:
@@ -1490,20 +1537,6 @@ class AwsCloudSnapshotInterface(CloudSnapshotInterface):
                     % (snapshot_id, error_code, exc.response["Error"])
                 )
         _logger.info("Snapshot %s deleted", snapshot_id)
-
-    def delete_snapshot_backup(self, backup_info):
-        """
-        Delete all snapshots for the supplied backup.
-
-        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
-        """
-        for snapshot in backup_info.snapshots_info.snapshots:
-            _logger.info(
-                "Deleting snapshot '%s' for backup %s",
-                snapshot.identifier,
-                backup_info.backup_id,
-            )
-            self._delete_snapshot(snapshot.identifier)
 
     def get_attached_volumes(
         self, instance_identifier, disks=None, fail_on_missing=True

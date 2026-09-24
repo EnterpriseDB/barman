@@ -748,17 +748,53 @@ class AzureCloudSnapshotInterface(CloudSnapshotInterface):
             resource_group=self.resource_group,
         )
 
-    def _delete_snapshot(self, snapshot_name, resource_group):
+    def _get_snapshot_name(self, snapshot, snapshots_info):
         """
-        Delete the specified snapshot.
+        Fetch the snapshot's own name, using metadata read directly from
+        Azure. Check the :class:`CloudSnapshotInterface` docstring notes for
+        more details.
 
-        :param str snapshot_name: The short name used to reference the snapshot within
-            Azure.
-        :param str resource_group: The resource_group to which the snapshot belongs.
+        Azure snapshot names are only unique within a resource group, so
+        *snapshots_info* (rather than just *snapshot.identifier*) is needed
+        here to look the snapshot up at all.
+
+        :param barman.cloud.SnapshotMetadata snapshot: Metadata for the
+            snapshot being checked.
+        :param barman.cloud_providers.azure_blob_storage.AzureSnapshotsInfo
+            snapshots_info: Provides the resource_group to which *snapshot*
+            belongs.
+        :rtype: str|None
+        :return: The snapshot's own name, or ``None`` if the snapshot could
+            not be found at all.
+        :raises azure.core.exceptions.ResourceNotFoundError: If
+            *resource_group* itself cannot be found — a configuration error,
+            deliberately left to propagate rather than treated as a refused
+            ownership check.
         """
-        # The call to begin_delete will raise a ResourceNotFoundError if the resource
-        # group cannot be found. This is deliberately not caught here because it is
-        # an error condition which we cannot do anything about.
+        snapshot_name = snapshot.identifier
+        resource_group = snapshots_info.resource_group
+        try:
+            self.client.snapshots.get(resource_group, snapshot_name)
+        except ResourceNotFoundError as exc:
+            error_code = exc.error.code if exc.error else None
+            if error_code == "ResourceGroupNotFound":
+                raise
+            return None
+        return snapshot_name
+
+    def _delete_snapshot_resource(self, snapshot, snapshots_info):
+        """
+        Delete the specified snapshot. Called only once
+        :meth:`~barman.cloud.CloudSnapshotInterface._delete_snapshot` has
+        already confirmed its ownership.
+
+        :param barman.cloud.SnapshotMetadata snapshot: Metadata for the
+            snapshot to be deleted.
+        :param barman.cloud_providers.azure_blob_storage.AzureSnapshotsInfo
+            snapshots_info: See :meth:`_get_snapshot_name`.
+        """
+        snapshot_name = snapshot.identifier
+        resource_group = snapshots_info.resource_group
         # If the snapshot itself cannot be found then the response status will be
         # `succeeded`, exactly as if it did exist and was successfully deleted.
         resp = self.client.snapshots.begin_delete(
@@ -774,22 +810,6 @@ class AzureCloudSnapshotInterface(CloudSnapshotInterface):
             )
 
         _logger.info("Snapshot %s deleted", snapshot_name)
-
-    def delete_snapshot_backup(self, backup_info):
-        """
-        Delete all snapshots for the supplied backup.
-
-        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
-        """
-        for snapshot in backup_info.snapshots_info.snapshots:
-            _logger.info(
-                "Deleting snapshot '%s' for backup %s",
-                snapshot.identifier,
-                backup_info.backup_id,
-            )
-            self._delete_snapshot(
-                snapshot.identifier, backup_info.snapshots_info.resource_group
-            )
 
     def get_attached_volumes(self, instance_name, disks=None, fail_on_missing=True):
         """

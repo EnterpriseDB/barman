@@ -272,7 +272,7 @@ def _delete_backup(
             snapshot_interface = get_snapshot_interface_from_backup_info(
                 backup_info, config
             )
-            snapshot_interface.delete_snapshot_backup(backup_info)
+            snapshot_interface.delete_snapshot_backup(backup_info, backup_id)
         else:
             print("Skipping deletion of snapshots due to --dry-run option")
         # Delete the backup_label for snapshots backups as this is not stored in the

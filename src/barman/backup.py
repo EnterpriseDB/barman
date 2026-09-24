@@ -1502,7 +1502,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             snapshot_interface = get_snapshot_interface_from_backup_info(
                 backup, self.server.config
             )
-            snapshot_interface.delete_snapshot_backup(backup)
+            snapshot_interface.delete_snapshot_backup(backup, backup.backup_id)
         # If this backup does *not* have snapshots then tablespaces are stored on the
         # barman server so must be deleted.
         elif backup.tablespaces:
