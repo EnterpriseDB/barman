@@ -142,6 +142,14 @@ class SnapshotInstanceNotFoundException(SnapshotBackupException):
     """
 
 
+class SnapshotOwnershipError(SnapshotBackupException):
+    """
+    Raised when a snapshot found prior to deletion does not match the
+    expected backup id (see :class:`~barman.cloud.CloudSnapshotInterface`
+    for how that check works).
+    """
+
+
 class ExportBackupException(BarmanException):
     """
     Exception for export-backup operation failures.

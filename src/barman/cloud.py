@@ -53,6 +53,7 @@ from barman.exceptions import (
     CommandFailedException,
     ConfigurationException,
     PostgresConnectionLost,
+    SnapshotOwnershipError,
 )
 from barman.fs import UnixLocalCommand, path_allowed
 from barman.infofile import BackupInfo, WalFileInfo
@@ -2664,10 +2665,37 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
 
 
 class CloudSnapshotInterface(with_metaclass(ABCMeta)):
-    """Defines a common interface for handling cloud snapshots."""
+    """
+    Defines a common interface for handling cloud snapshots.
+
+    .. note::
+        When deleting snapshot backups, Barman confirms that the snapshot's name
+        (or, on AWS, its ``Name`` tag) ends with the expected backup id (following
+        the naming convention used when creating snapshots). This ensures we're only
+        deleting what we're supposed to delete. As ``backup.info`` files living in
+        cloud buckets can be tampered, this avoids Barman deleting snapshots that
+        are unrelated to it.
+    """
 
     _required_config_for_backup = ("snapshot_disks", "snapshot_instance")
     _required_config_for_restore = ("snapshot_recovery_instance",)
+
+    def _snapshot_name_matches(self, snapshot_name, expected_backup_id):
+        """
+        Assert that the snapshot's name follows the expected naming convention
+        for snapshot backups.
+
+        Used by :meth:`_delete_snapshot` (see the class docstring). What
+        differs between providers is only how *snapshot_name* is retrieved
+        from the cloud provider (:meth:`_get_snapshot_name`); the matching
+        rule itself is the same everywhere, which this method centralizes.
+
+        :param str snapshot_name: The snapshot's own name (or, on AWS, its
+            ``Name`` tag).
+        :param str expected_backup_id: The backup's id.
+        :rtype: bool
+        """
+        return snapshot_name.lower().endswith("-%s" % expected_backup_id.lower())
 
     @classmethod
     def validate_backup_config(cls, config):
@@ -2721,12 +2749,100 @@ class CloudSnapshotInterface(with_metaclass(ABCMeta)):
             to be backed up.
         """
 
-    @abstractmethod
-    def delete_snapshot_backup(self, backup_info):
+    def delete_snapshot_backup(self, backup_info, expected_backup_id):
         """
-        Delete all snapshots for the supplied backup.
+        Delete all snapshots for the supplied backup, refusing any whose
+        name does not match the expected backup id (see the class
+        docstring).
+
+        ``backup_info`` comes from ``backup.info``, which is untrusted, so
+        *expected_backup_id* must come from a source trusted independently
+        of it (e.g. the backup directory name), never read back off
+        ``backup_info`` itself.
 
         :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        :param str expected_backup_id: Trusted independently of
+            ``backup_info`` (see above).
+        """
+        for snapshot in backup_info.snapshots_info.snapshots:
+            _logger.info(
+                "Deleting snapshot '%s' for backup %s",
+                snapshot.identifier,
+                backup_info.backup_id,
+            )
+            self._delete_snapshot(
+                snapshot, backup_info.snapshots_info, expected_backup_id
+            )
+
+    def _delete_snapshot(self, snapshot, snapshots_info, expected_backup_id):
+        """
+        Verify the specified snapshot's name matches the expected backup id
+        and delete it, using metadata re-read from the cloud provider,
+        never ``backup.info`` (see :meth:`delete_snapshot_backup`). A
+        snapshot which can't be found is treated as already deleted rather
+        than an ownership failure.
+
+        This is shared by every provider: what differs between them is only
+        how a snapshot's name is fetched (:meth:`_get_snapshot_name`) and
+        how it is actually deleted (:meth:`_delete_snapshot_resource`), so
+        those -- not this method -- are what each provider implements.
+
+        :param barman.cloud.SnapshotMetadata snapshot: Metadata for the
+            snapshot to be deleted.
+        :param barman.cloud.SnapshotsInfo snapshots_info: The backup's
+            snapshots_info, for any additional context an implementation
+            needs beyond ``snapshot.identifier`` (e.g. Azure snapshot names
+            are only unique within the resource group recorded here, not
+            globally).
+        :param str expected_backup_id: See :meth:`delete_snapshot_backup`.
+        :raises barman.exceptions.SnapshotOwnershipError: if the snapshot
+            was found but its name does not match *expected_backup_id*.
+        """
+        snapshot_name = self._get_snapshot_name(snapshot, snapshots_info)
+        if snapshot_name is None:
+            _logger.info(
+                "Snapshot %s could not be found: nothing to delete",
+                snapshot.identifier,
+            )
+            return
+        if not self._snapshot_name_matches(snapshot_name, expected_backup_id):
+            raise SnapshotOwnershipError(
+                "Refusing to delete snapshot %s: it is not recognized as a "
+                "snapshot created for backup %s"
+                % (snapshot.identifier, expected_backup_id)
+            )
+        self._delete_snapshot_resource(snapshot, snapshots_info)
+
+    @abstractmethod
+    def _get_snapshot_name(self, snapshot, snapshots_info):
+        """
+        Fetch the name to check against the expected backup id (see
+        :meth:`_delete_snapshot`), using metadata read directly from the
+        cloud provider, never ``backup.info``.
+
+        :param barman.cloud.SnapshotMetadata snapshot: Metadata for the
+            snapshot being checked.
+        :param barman.cloud.SnapshotsInfo snapshots_info: See
+            :meth:`_delete_snapshot`.
+        :rtype: str|None
+        :return: The snapshot's own name (or, on AWS, its ``Name`` tag), or
+            ``None`` if the snapshot could not be found at all. A snapshot
+            that was found but is otherwise unusable (e.g. a malformed id)
+            may return any name that won't match, since it's treated the
+            same as a genuine mismatch.
+        """
+
+    @abstractmethod
+    def _delete_snapshot_resource(self, snapshot, snapshots_info):
+        """
+        Delete the specified snapshot. Called only once
+        :meth:`_delete_snapshot` has already confirmed its name matches the
+        expected backup id.
+
+        :param barman.cloud.SnapshotMetadata snapshot: Metadata for the
+            snapshot to be deleted.
+        :param barman.cloud.SnapshotsInfo snapshots_info: See
+            :meth:`_delete_snapshot`.
         """
 
     @abstractmethod
