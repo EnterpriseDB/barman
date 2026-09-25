@@ -380,7 +380,7 @@ def get_snapshot_interface_from_backup_info(backup_info, config=None):
             raise BarmanException(
                 "backup_info has snapshot provider 'gcp' but project is not set"
             )
-        gcp_zone = config is not None and config.gcp_zone or None
+        gcp_zone = getattr(config, "gcp_zone", None)
         return GcpCloudSnapshotInterface(
             backup_info.snapshots_info.project,
             gcp_zone,
