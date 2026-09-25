@@ -53,6 +53,7 @@ except ImportError:
 try:
     # These are internal, unversioned APIs which can change without notice,
     # hence the strict pin on google-cloud-storage in pyproject.toml
+    from google.cloud.storage.blob import _get_host_name, _quote
     from google.cloud.storage.transfer_manager import (
         XMLMPUContainer,
         XMLMPUPart,
@@ -60,7 +61,8 @@ try:
     )
 except ImportError:
     raise SystemExit(
-        "google-cloud-storage module is an incompatible version. Please ensure version 3.12 is installed"
+        "google-cloud-storage module is an incompatible version. Please ensure "
+        "version 3.12 or 3.13 is installed"
     )
 
 
@@ -85,6 +87,14 @@ class GoogleCloudInterface(CloudInterface):
         This gives us full control over the multi-part upload cycle at the risk
         of those classes being changed in future versions without any notice.
         See: https://github.com/googleapis/google-cloud-python/issues/17494
+
+        The multipart upload URL is resolved using the private
+        ``google.cloud.storage.blob._get_host_name`` and ``_quote`` helpers, the
+        same ones ``google.cloud.storage.transfer_manager`` uses internally, so
+        that it honors ``STORAGE_EMULATOR_HOST`` and other endpoint overrides the
+        same way every other request made by this client does. These are private
+        APIs too, and carry the same risk of changing in future versions without
+        notice.
     """
 
     # https://cloud.google.com/storage/docs/multipart-uploads
@@ -327,13 +337,20 @@ class GoogleCloudInterface(CloudInterface):
         """
         Build the XML API multipart upload URL for a given key.
 
+        Resolves the host and encodes the key the same way
+        ``google.cloud.storage.transfer_manager`` does for its own uploads:
+        the host is read from the client's own connection, so
+        ``STORAGE_EMULATOR_HOST``, ``API_ENDPOINT_OVERRIDE``, a custom
+        universe domain and mTLS are all respected exactly as they are for
+        every other request this client makes, and the key is
+        percent-encoded rather than inserted as-is.
+
         :param str key: The object key
         :return: The upload URL
         :rtype: str
         """
-        universe_domain = os.getenv("GOOGLE_CLOUD_UNIVERSE_DOMAIN", "googleapis.com")
-        host = f"storage.{universe_domain}"
-        return f"https://{host}/{self.bucket_name}/{key}"
+        host = _get_host_name(self.client._connection)
+        return f"{host}/{self.bucket_name}/{_quote(key)}"
 
     def _get_multipart_headers(self, blob):
         """
