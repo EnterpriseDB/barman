@@ -3938,6 +3938,42 @@ class TestGoogleCloudInterface(TestCase):
         # AND the result contains the part number and ETag
         assert result == {"PartNumber": 1, "ETag": "mock-etag-123"}
 
+    @mock.patch("barman.cloud_providers.google_cloud_storage._quote")
+    @mock.patch("barman.cloud_providers.google_cloud_storage._get_host_name")
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_get_multipart_url(self, gcs_client_mock, mock_get_host_name, mock_quote):
+        """
+        Tests that the multipart upload URL is built from the host resolved
+        by _get_host_name (which is what respects STORAGE_EMULATOR_HOST,
+        API_ENDPOINT_OVERRIDE and mTLS -- see google.cloud.storage.blob and
+        google.cloud.storage.transfer_manager, which resolve a MPU host the
+        same way) and from the percent-encoded key, rather than a
+        hardcoded "storage.googleapis.com".
+        """
+        # GIVEN a client whose connection resolves to a given host
+        mock_get_host_name.return_value = "http://fake-gcs:4443"
+
+        # AND a key which requires percent-encoding
+        mock_quote.return_value = "path%2Fto%2Fblob with spaces"
+
+        # WHEN the multipart upload URL is built for a key
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-test/test/"
+        )
+        result = cloud_interface._get_multipart_url("path/to/blob with spaces")
+
+        # THEN the host is resolved from the client's own connection
+        mock_get_host_name.assert_called_once_with(cloud_interface.client._connection)
+
+        # AND the key is percent-encoded
+        mock_quote.assert_called_once_with("path/to/blob with spaces")
+
+        # AND the resulting URL combines the resolved host, bucket and
+        # encoded key
+        assert result == (
+            "http://fake-gcs:4443/barman-test/path%2Fto%2Fblob with spaces"
+        )
+
     @mock.patch(
         "barman.cloud_providers.google_cloud_storage.GoogleCloudInterface._get_multipart_headers"
     )
@@ -3946,8 +3982,12 @@ class TestGoogleCloudInterface(TestCase):
     )
     @mock.patch("barman.cloud_providers.google_cloud_storage.XMLMPUContainer")
     @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    @mock.patch(
+        "barman.cloud_providers.google_cloud_storage.GoogleCloudInterface._get_multipart_url"
+    )
     def test_create_multipart_upload(
         self,
+        mock_get_multipart_url,
         gcs_client_mock,
         mock_mpu_container_cls,
         mock_get_blob_object,
@@ -3961,10 +4001,13 @@ class TestGoogleCloudInterface(TestCase):
         mock_container.upload_id = "test-upload-id-123"
         mock_mpu_container_cls.return_value = mock_container
 
-        # AND mocked _get_blob_object and _get_multipart_headers
+        # AND mocked _get_blob_object, _get_multipart_headers and _get_multipart_url
         mock_blob = mock.MagicMock()
         mock_get_blob_object.return_value = mock_blob
         mock_get_multipart_headers.return_value = {"x-goog-meta": "value"}
+        mock_get_multipart_url.return_value = (
+            "https://storage.googleapis.com/barman-test/path/to/blob"
+        )
 
         # WHEN create_multipart_upload is called
         cloud_interface = GoogleCloudInterface(
@@ -3974,6 +4017,9 @@ class TestGoogleCloudInterface(TestCase):
 
         # THEN _get_blob_object is called with the key
         mock_get_blob_object.assert_called_once_with("path/to/blob")
+
+        # AND _get_multipart_url is called with the key
+        mock_get_multipart_url.assert_called_once_with("path/to/blob")
 
         # AND _get_multipart_headers is called with the blob
         mock_get_multipart_headers.assert_called_once_with(mock_blob)
@@ -4000,8 +4046,12 @@ class TestGoogleCloudInterface(TestCase):
     )
     @mock.patch("barman.cloud_providers.google_cloud_storage.XMLMPUContainer")
     @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    @mock.patch(
+        "barman.cloud_providers.google_cloud_storage.GoogleCloudInterface._get_multipart_url"
+    )
     def test_create_multipart_upload_with_encryption(
         self,
+        mock_get_multipart_url,
         gcs_client_mock,
         mock_mpu_container_cls,
         mock_get_blob_object,
@@ -4020,13 +4070,16 @@ class TestGoogleCloudInterface(TestCase):
         mock_container.upload_id = "test-upload-id-123"
         mock_mpu_container_cls.return_value = mock_container
 
-        # AND mocked _get_blob_object and _get_multipart_headers
+        # AND mocked _get_blob_object, _get_multipart_headers and _get_multipart_url
         mock_blob = mock.MagicMock()
         mock_get_blob_object.return_value = mock_blob
         mock_get_multipart_headers.return_value = {
             "base": "header",
             "x-goog-encryption-kms-key-name": kms_key_name,
         }
+        mock_get_multipart_url.return_value = (
+            "https://storage.googleapis.com/barman-test/path/to/blob"
+        )
 
         # WHEN create_multipart_upload is called
         cloud_interface = GoogleCloudInterface(
@@ -4037,6 +4090,9 @@ class TestGoogleCloudInterface(TestCase):
 
         # THEN _get_blob_object is called with the key
         mock_get_blob_object.assert_called_once_with("path/to/blob")
+
+        # AND _get_multipart_url is called with the key
+        mock_get_multipart_url.assert_called_once_with("path/to/blob")
 
         # AND _get_multipart_headers is called with the blob
         mock_get_multipart_headers.assert_called_once_with(mock_blob)
@@ -4066,8 +4122,12 @@ class TestGoogleCloudInterface(TestCase):
     )
     @mock.patch("barman.cloud_providers.google_cloud_storage.XMLMPUContainer")
     @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    @mock.patch(
+        "barman.cloud_providers.google_cloud_storage.GoogleCloudInterface._get_multipart_url"
+    )
     def test_create_multipart_upload_with_tags(
         self,
+        mock_get_multipart_url,
         gcs_client_mock,
         mock_mpu_container_cls,
         mock_get_blob_object,
@@ -4084,7 +4144,7 @@ class TestGoogleCloudInterface(TestCase):
         mock_container.upload_id = "test-upload-id-123"
         mock_mpu_container_cls.return_value = mock_container
 
-        # AND mocked _get_blob_object and _get_multipart_headers
+        # AND mocked _get_blob_object, _get_multipart_headers and _get_multipart_url
         mock_blob = mock.MagicMock()
         mock_get_blob_object.return_value = mock_blob
         mock_get_multipart_headers.return_value = {
@@ -4092,6 +4152,9 @@ class TestGoogleCloudInterface(TestCase):
             "x-goog-meta-env": "test",
             "x-goog-meta-project": "barman",
         }
+        mock_get_multipart_url.return_value = (
+            "https://storage.googleapis.com/barman-test/path/to/blob"
+        )
 
         # WHEN create_multipart_upload is called
         cloud_interface = GoogleCloudInterface(
@@ -4102,6 +4165,9 @@ class TestGoogleCloudInterface(TestCase):
 
         # THEN _get_blob_object is called with the key
         mock_get_blob_object.assert_called_once_with("path/to/blob")
+
+        # AND _get_multipart_url is called with the key
+        mock_get_multipart_url.assert_called_once_with("path/to/blob")
 
         # AND _get_multipart_headers is called with the blob
         mock_get_multipart_headers.assert_called_once_with(mock_blob)
