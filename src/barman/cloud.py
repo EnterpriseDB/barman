@@ -3308,7 +3308,7 @@ class CloudWalDownloader(object):
         requested_wal_path = os.path.join(source_dir, wal_name)
         prefix = source_dir if parallel > 1 else requested_wal_path
 
-        wals_to_download = []
+        wals_to_download = {}
         found_requested_wal = False
         count = 0
         for path in sorted(self.cloud_interface.list_bucket(prefix)):
@@ -3328,7 +3328,7 @@ class CloudWalDownloader(object):
                 _logger.info(
                     "Found WAL %s for server %s as %s", filename, self.server_name, path
                 )
-                wals_to_download.append(path)
+                wals_to_download[path] = True
                 count += 1
 
         # Return an empty list if the requested WAL is not found,
@@ -3337,7 +3337,18 @@ class CloudWalDownloader(object):
         if not found_requested_wal:
             return []
 
-        return wals_to_download
+        # If we end up with multiple candidates for the same WAL, it is likely be due
+        # to the presence of a <wal> + its <wal>.partial counterpart, which happens in
+        # CNPG clusters only. Check: https://github.com/EnterpriseDB/barman/issues/1224
+        # In this case, the complete WAL should always prevail.
+        for wal_path in wals_to_download.copy().keys():
+            if (
+                xlog.is_partial_file(self._remove_compression_suffix(wal_path))
+                and wal_path.replace(".partial", "") in wals_to_download
+            ):
+                del wals_to_download[wal_path]
+
+        return list(wals_to_download.keys())
 
     def _validate_wal_path(self, wal_path, no_partial):
         """
