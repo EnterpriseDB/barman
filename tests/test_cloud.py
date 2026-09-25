@@ -7368,6 +7368,74 @@ class TestCloudWalDownloader:
         expected_prefix = "bucket/barman/test_server/wals/{}".format(history_file)
         mock_cloud_interface.list_bucket.assert_called_once_with(expected_prefix)
 
+    @pytest.mark.parametrize("parallel", [0, 1])
+    def test_get_wals_to_download_dedup_wal_and_partial(self, parallel):
+        """
+        Test that _get_wals_to_download returns only the complete WAL file when
+        both the requested WAL and its ``.partial`` counterpart are present and
+        parallelism is disabled.
+
+        This happens in CNPG, where a WAL can be uploaded as both the complete
+        file and a ``.partial`` file with the same base name.
+        """
+        # GIVEN a cloud bucket holding both the complete WAL and its .partial
+        # counterpart
+        mock_cloud_interface = MagicMock()
+        mock_cloud_interface.path = "bucket/barman"
+        wal_name = "000000010000000100000001"
+        wal_dir = "0000000100000001"
+        source_dir = "bucket/barman/test_server/wals/{}/".format(wal_dir)
+        complete_wal_path = source_dir + wal_name
+        partial_wal_path = source_dir + wal_name + ".partial"
+        mock_cloud_interface.list_bucket.return_value = [
+            complete_wal_path,
+            partial_wal_path,
+        ]
+
+        # AND a CloudWalDownloader with the mocked cloud interface
+        downloader = CloudWalDownloader(mock_cloud_interface, "test_server")
+
+        # WHEN _get_wals_to_download is called with parallelism disabled
+        result = downloader._get_wals_to_download(
+            wal_name, no_partial=False, parallel=parallel
+        )
+
+        # THEN only the complete WAL file is returned
+        assert result == [complete_wal_path]
+
+    def test_get_wals_to_download_dedup_wal_and_partial_out_of_order(self):
+        """
+        Test that _get_wals_to_download returns the complete WAL file even when
+        the ``.partial`` counterpart sorts before it lexicographically.
+
+        A compressed complete WAL (e.g. ``<wal>.zst``) sorts after ``<wal>.partial.zst``
+        because ``p`` < ``z``, so the complete file is not necessarily the first
+        candidate found.
+        """
+        # GIVEN a cloud bucket where the .partial file sorts before the compressed
+        # complete WAL
+        mock_cloud_interface = MagicMock()
+        mock_cloud_interface.path = "bucket/barman"
+        wal_name = "000000010000000100000001"
+        wal_dir = "0000000100000001"
+        source_dir = "bucket/barman/test_server/wals/{}/".format(wal_dir)
+        partial_wal_path = source_dir + wal_name + ".partial.zst"
+        complete_wal_path = source_dir + wal_name + ".zst"
+        mock_cloud_interface.list_bucket.return_value = sorted(
+            [partial_wal_path, complete_wal_path]
+        )
+
+        # AND a CloudWalDownloader with the mocked cloud interface
+        downloader = CloudWalDownloader(mock_cloud_interface, "test_server")
+
+        # WHEN _get_wals_to_download is called with parallelism disabled
+        result = downloader._get_wals_to_download(
+            wal_name, no_partial=False, parallel=1
+        )
+
+        # THEN only the complete (compressed) WAL file is returned
+        assert result == [complete_wal_path]
+
     @pytest.mark.parametrize(
         ("wal_path", "no_partial", "expected_valid"),
         [
@@ -7658,6 +7726,23 @@ class TestCloudWalDownloader:
         # THEN False is returned and no move is attempted
         assert result is False
         mock_isfile.assert_called_once_with("/spool/dir/000000010000000100000001")
+
+    def test_try_to_deliver_from_spool_spool_dir_not_exists(self, tmp_path):
+        """
+        Test that _try_to_deliver_from_spool returns False when the spool
+        directory itself does not exist.
+        """
+        # GIVEN a CloudWalDownloader whose spool directory does not exist
+        spool_dir = tmp_path / "spool"
+        downloader = CloudWalDownloader(mock.Mock(), "test_server", str(spool_dir))
+
+        # WHEN _try_to_deliver_from_spool is called
+        wal_name = "000000010000000100000001"
+        destination = str(tmp_path / "restore" / wal_name)
+        result = downloader._try_to_deliver_from_spool(wal_name, destination)
+
+        # THEN False is returned
+        assert result is False
 
     @mock.patch("barman.cloud.shutil.move")
     @mock.patch("barman.cloud.os.path.isfile")
