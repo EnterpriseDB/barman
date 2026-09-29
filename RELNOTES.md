@@ -2,6 +2,89 @@
 
 © Copyright EnterpriseDB UK Limited 2024-2026 - All rights reserved.
 
+## 3.20.1 (2026-09-29)
+
+### Bugfixes
+
+- Fix CVE-2026-93853 - privilege escalation issue that could delete unrelated cloud snapshots
+
+  Before deleting a snapshot-based backup, Barman now checks, using
+  metadata read directly from the cloud provider rather than from the
+  backup catalog, that the snapshot's name (or, for AWS, its `Name` tag)
+  matches the naming convention Barman uses for the backup being
+  deleted. If it doesn't match, deletion is refused and an error is
+  raised instead. A snapshot that cannot be found at all is treated as
+  already deleted, with no error raised.
+
+  Previously, Barman trusted the snapshot identifiers recorded in the
+  backup catalog (`backup.info`) without further verification. On AWS,
+  Azure and Google Cloud alike, anyone able to overwrite that catalog
+  object could cause Barman to delete unrelated cloud snapshots --
+  including snapshots outside the backup being removed -- using
+  Barman's own cloud credentials on the next retention run or manual
+  deletion.
+
+  This is a privilege escalation risk specifically where the principal
+  able to write the backup catalog is more restricted than Barman's own
+  cloud identity (for example, a separate upload or CI principal without
+  snapshot-delete permissions), the kind of least-privilege setup that
+  is recommended. Deployments using a single, shared identity for both
+  are not granted a new capability by this issue, but upgrading is still
+  recommended.
+
+  CVE ID: CVE-2026-93853
+
+  References: BAR-1608.
+
+- Fix GCS multipart backup uploads ignoring `STORAGE_EMULATOR_HOST`
+
+  The multipart upload support added for Google Cloud Storage in 3.20.0
+  only accounted for a custom `GOOGLE_CLOUD_UNIVERSE_DOMAIN`, ignoring
+  `STORAGE_EMULATOR_HOST` and other endpoint overrides such as
+  `API_ENDPOINT_OVERRIDE`. As a result, `barman-cloud-backup` against a
+  GCS-compatible emulator failed, even though every other GCS operation
+  correctly honored the emulator. The multipart upload URL is now
+  resolved the same way as every other request made by the GCS client,
+  so it respects the configured endpoint.
+
+  References: BAR-1621.
+
+- Fix `barman-cloud-wal-restore` serving an incomplete WAL, or crashing, when both the complete and `.partial` versions exist
+
+  When cloud storage held both a complete WAL file and its `.partial`
+  counterpart for the same segment (it happens only with CloudNativePG),
+  `barman-cloud-wal-restore` could result in the incomplete `.partial` file being
+  restored instead of the complete WAL.
+
+  Also, even when `parallel` was unused, Barman would still attempt to create a spool
+  directory, which could fail on a read-only filesystem or in the lack of the
+  necessary permissions.
+
+  The complete WAL is now always preferred over its `.partial` counterpart when both
+  are present and no attempt is made to create a spool directory unnecessarily.
+
+  NOTE: This behavior is specific to CloudNativePG and does not apply to other cloud
+  storage setups.
+
+  References: BAR-1620.
+
+- Fix Azure disk snapshot creation with recent versions of the Azure SDK
+
+  Creating Azure snapshots backups could fail with recent versions of the
+  `azure-mgmt-compute` SDK (>= 38.0), which changed its API interface.
+  This issue has been addressed to ensure compatibility with the updated SDK.
+  Please update your `azure-mgmt-compute` lib to a version >= 38.0 for this release.
+
+  References: BAR-1619.
+
+- Fix `barman-cloud-backup-delete` crashing when deleting GCP snapshot backups
+
+  `barman-cloud-backup-delete` could crash with an `AttributeError` when
+  deleting a snapshot backup taken with `--cloud-provider google-cloud-storage`.
+  This issue is now fixed.
+
+  References: BAR-1624.
+
 ## 3.20.0 (2026-08-27)
 
 ### Notable changes
