@@ -129,7 +129,7 @@ wheels = [
 
 [[package]]
 name = "barman"
-version = "3.20.0"
+version = "3.20.1"
 source = { editable = "." }
 dependencies = [
     { name = "psycopg2" },
