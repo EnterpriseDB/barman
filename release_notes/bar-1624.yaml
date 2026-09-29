@@ -1,9 +1,0 @@
----
-- summary: Fix `barman-cloud-backup-delete` crashing when deleting GCP snapshot backups
-  description: |
-    `barman-cloud-backup-delete` could crash with an `AttributeError` when
-    deleting a snapshot backup taken with `--cloud-provider google-cloud-storage`.
-    This issue is now fixed.
-  type: bugfix
-  jira_tickets:
-    - BAR-1624
