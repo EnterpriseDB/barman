@@ -101,6 +101,40 @@ class TestCloudBackup(object):
         )
         uploader.backup.assert_called_once()
 
+    @mock.patch("barman.clients.cloud_backup.multiprocessing")
+    @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
+    @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
+    @mock.patch("barman.clients.cloud_backup.CloudBackupUploader")
+    def test_multiprocessing_tempdir_created_outside_tempdir(
+        self,
+        _uploader_mock,
+        _cloud_interface_mock,
+        _postgres_connection,
+        multiprocessing_mock,
+        _rmtree_mock,
+        tempfile_mock,
+    ):
+        """
+        The multiprocessing temporary directory must be created before
+        ``tempfile.tempdir`` points at the private directory that is removed
+        on exit, otherwise multiprocessing fails to clean it up at exit.
+        """
+        private_tempdir = tempfile_mock.mkdtemp.return_value
+        tempdir_when_called = []
+        multiprocessing_mock.util.get_temp_dir.side_effect = lambda: (
+            tempdir_when_called.append(tempfile_mock.tempdir)
+        )
+
+        # WHEN barman-cloud-backup is run
+        cloud_backup.main(["cloud_storage_url", "test_server"])
+
+        # THEN the multiprocessing temp dir is created exactly once
+        multiprocessing_mock.util.get_temp_dir.assert_called_once_with()
+        # AND tempfile was not yet redirected to the private directory
+        assert tempdir_when_called[0] is not private_tempdir
+        # AND tempfile is redirected afterwards
+        assert tempfile_mock.tempdir is private_tempdir
+
     @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
     @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
     @mock.patch("barman.clients.cloud_backup.CloudBackupUploader")
