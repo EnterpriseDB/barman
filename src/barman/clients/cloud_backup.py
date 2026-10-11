@@ -17,6 +17,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+import multiprocessing.util
 import os
 import re
 import tempfile
@@ -172,6 +173,11 @@ def main(args=None):
     tempdir = tempfile.mkdtemp(prefix="barman-cloud-backup-")
     try:
         _validate_config(config)
+        # Create the multiprocessing temporary directory before redirecting
+        # `tempfile`, otherwise it is created inside `tempdir` and removed with
+        # it, and multiprocessing fails to remove it again at interpreter exit
+        # (a FileNotFoundError traceback since Python 3.13)
+        multiprocessing.util.get_temp_dir()
         # Create any temporary file in the `tempdir` subdirectory
         tempfile.tempdir = tempdir
 
