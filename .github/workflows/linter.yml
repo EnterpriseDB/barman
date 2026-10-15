@@ -49,7 +49,7 @@ jobs:
           fetch-depth: 0
 
       - name: Super-linter
-        uses: super-linter/super-linter/slim@v8
+        uses: super-linter/super-linter/slim@v9
         env:
           # To report GitHub Actions status checks
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
