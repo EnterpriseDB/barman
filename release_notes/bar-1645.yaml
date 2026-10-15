@@ -1,0 +1,23 @@
+---
+- summary: Fix inactive servers modifying the shared backup catalog
+  description: |
+    Barman 3.20.0 allowed `check-backup` and `keep` to run on inactive servers
+    (`active = false`), and `delete` was also allowed. That is only safe when the
+    inactive server owns its backup catalog. When several Barman installations
+    share the same cloud bucket, and an inactive one does not own the catalog,
+    these commands could:
+
+    * overwrite the status of a backup in the shared catalog with `check-backup`.
+      A check that saw a different set of WAL files could mark a good backup as
+      `FAILED` for every installation.
+    * write keep annotations to the shared bucket with `keep`.
+    * delete a backup that was marked to be kept by the installation that owns
+      it with `delete`, as that keep annotation was not taken into account.
+
+    `check-backup`, `keep` and `delete` are now skipped on inactive servers, as
+    `check-backup` and `keep` were before 3.20.0. Read-only and diagnostic
+    commands, `restore`, `get-wal`, `cloud-wal-restore` and `terminate-process`
+    remain available.
+  type: minor_change
+  jira_tickets:
+    - BAR-1645
