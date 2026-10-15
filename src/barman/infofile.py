@@ -1343,15 +1343,17 @@ class CloudLocalBackupInfo(LocalBackupInfo):
         super(CloudLocalBackupInfo, self).save(
             filename=filename, file_object=file_object
         )
-        # When file_object is provided, the parent save() writes to that
-        # in-memory object rather than to the local file on disk. In that
-        # case there is no local file to upload, so we skip the cloud sync.
-        if not file_object:
+        # The cloud copy of backup.info is the catalog. Only sync it when the
+        # parent save() wrote to the catalog file on disk. When file_object is
+        # provided there is no local file to upload, and when filename points
+        # elsewhere (e.g. ``.barman-recover.info``, which a restore writes in the
+        # destination directory to record what was restored there) the file is
+        # local state that must not replace the catalog object.
+        if not file_object and filename in (None, self.get_filename()):
             _logger.debug(
                 "Updating backup.info of backup %s in the cloud storage", self.backup_id
             )
-            backup_info_path = filename or self.get_filename()
-            with open(backup_info_path, "rb") as backup_info_fileobj:
+            with open(self.get_filename(), "rb") as backup_info_fileobj:
                 key = os.path.join(self.get_basebackup_directory(), "backup.info")
                 self._backup_cloud_interface.upload_fileobj(backup_info_fileobj, key)
 
