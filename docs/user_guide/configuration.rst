@@ -102,9 +102,9 @@ These are general configurations options.
 **active**
 
 When this option is set to ``true`` (default), the server operates fully. If set to
-``false``, the server is restricted to operations that don't ingest new data. This
-means that operational commands such as backup execution or WAL archiving are
-temporarily disabled.
+``false``, the server is restricted to operations that neither ingest new data nor
+modify the backup catalog. This means that operational commands such as backup
+execution or WAL archiving are temporarily disabled.
 
 When incorporating a new server into Barman, we recommend initially setting
 ``active = false``. Verify that barman check shows no issues before activating the
@@ -114,9 +114,12 @@ initial setup.
 .. important::
    Setting ``active = false`` for a server disables operational commands (such as
    ``backup``, ``put-wal``, ``receive-wal``, and cron-driven actions) for that server.
+   Commands that modify the backup catalog (``check-backup``, ``keep`` and ``delete``)
+   are also skipped, because an inactive server may not own its catalog, for example
+   when it points to a cloud bucket shared with another Barman installation.
    Diagnostics and read-only commands (like ``check``, ``list-backups``, ``status``,
    ``show-servers``, ``diagnose``, ``list-processes``, and some options for
-   ``receive-wal`` maintenance subcommands) remain available.
+   ``receive-wal`` maintenance subcommands) remain available, as well as ``restore``.
 
    If the server is marked as inactive, ``barman cron`` will kill any background
    ``receive-wal`` processes and skip any other tasks.
