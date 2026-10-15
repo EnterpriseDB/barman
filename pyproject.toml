@@ -54,7 +54,7 @@ azure-snapshots = [
     "azure-mgmt-compute>=38.0.0",
 ]
 cloud = ["boto3"]
-google = ["google-cloud-storage>=3.12,<3.14"]
+google = ["google-cloud-storage>=3.12,<3.18"]
 google-snapshots = ["grpcio", "google-cloud-compute"]
 snappy = ["python-snappy", "cramjam >= 2.7.0"]
 zstandard = ["zstandard"]
