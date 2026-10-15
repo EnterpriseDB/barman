@@ -1870,7 +1870,7 @@ def delete(args):
     """
     server = get_server(
         args,
-        skip_inactive=False,
+        skip_inactive=True,
         skip_disabled=False,
         inactive_is_error=False,
         disabled_is_error=True,
@@ -2162,7 +2162,7 @@ def check_backup(args):
     """
     server = get_server(
         args,
-        skip_inactive=False,
+        skip_inactive=True,
         inactive_is_error=False,
         skip_disabled=False,
         disabled_is_error=False,
@@ -2503,7 +2503,7 @@ def keep(args):
         output.close_and_exit()
     server = get_server(
         args,
-        skip_inactive=False,
+        skip_inactive=True,
         inactive_is_error=False,
         skip_disabled=False,
         disabled_is_error=False,
