@@ -49,6 +49,7 @@ from barman.cli import (
     command,
     config_switch,
     cron,
+    delete,
     export_backup,
     generate_manifest,
     get_model,
@@ -2413,46 +2414,54 @@ class TestCli(object):
         dummy_server.sync_status.assert_called_once_with(None, None)
         mock_output.close_and_exit.assert_called_once()
 
+    @pytest.mark.parametrize(
+        "command, command_args",
+        [
+            (check_backup, {"backup_id": "test_backup_id"}),
+            (keep, {"backup_id": "test_backup_id", "release": True}),
+            (delete, {"backup_id": "test_backup_id"}),
+        ],
+    )
     @patch("barman.cli.parse_backup_id")
-    @patch("barman.cli.get_server")
+    @patch("barman.cli.Server")
     @patch("barman.cli.output")
-    def test_check_backup_inactive_server(
-        self, mock_output, mock_get_server, mock_parse_backup_id
+    def test_catalog_commands_skip_inactive_server(
+        self,
+        mock_output,
+        mock_server_class,
+        mock_parse_backup_id,
+        command,
+        command_args,
+        monkeypatch,
     ):
         """
-        Verify that the `check-backup` command works with an inactive server.
+        Verify that commands which modify the backup catalog are skipped on an
+        inactive server.
 
-        An inactive server should allow maintenance operations like re-checking
-        the status of existing backups.
+        An inactive server does not necessarily own its catalog, e.g. when it
+        points to a cloud bucket shared with another Barman installation.
         """
-        # GIVEN an inactive server and a backup
-        args = Mock()
-        args.server_name = "inactive_server"
-        args.backup_id = "test_backup_id"
-
+        # GIVEN an inactive server
+        config = build_config_from_dicts(main_conf={"active": "false"})
+        monkeypatch.setattr(barman, "__config__", config)
         dummy_server = Mock()
-        dummy_server.config.name = "inactive_server"
-        dummy_server.config.active = False
-        mock_get_server.return_value = dummy_server
+        dummy_server.config = config.get_server("main")
+        mock_server_class.return_value = dummy_server
+        mock_output.close_and_exit.side_effect = SystemExit
+        args = Mock(server_name="main", **command_args)
 
-        mock_backup_info = Mock()
-        mock_backup_info.status = BackupInfo.DONE
-        mock_parse_backup_id.return_value = mock_backup_info
+        # WHEN calling the command
+        with pytest.raises(SystemExit):
+            command(args)
 
-        # WHEN calling check-backup
-        check_backup(args)
-
-        # THEN get_server should be called with skip_inactive=False
-        mock_get_server.assert_called_once_with(
-            args,
-            skip_inactive=False,
-            inactive_is_error=False,
-            skip_disabled=False,
-            disabled_is_error=False,
-        )
-
-        # AND the check_backup method should be called
-        dummy_server.check_backup.assert_called_once_with(mock_backup_info)
+        # THEN the server is skipped
+        mock_output.info.assert_called_once_with("Skipping inactive server 'main'")
+        # AND the backup is never retrieved nor touched
+        mock_parse_backup_id.assert_not_called()
+        dummy_server.check_backup.assert_not_called()
+        dummy_server.delete_backup.assert_not_called()
+        dummy_server.backup_manager.keep_backup.assert_not_called()
+        dummy_server.backup_manager.release_keep.assert_not_called()
 
     @pytest.mark.parametrize(
         "arg_timeout, config_timeout, expected_timeout",
@@ -2771,49 +2780,6 @@ class TestKeepCli(object):
         keep(mock_args)
         mock_get_server.return_value.backup_manager.release_keep.assert_called_once_with(
             "test_backup_id"
-        )
-
-    @patch("barman.cli.parse_backup_id")
-    @patch("barman.cli.get_server")
-    def test_barman_keep_inactive_server(
-        self,
-        mock_get_server,
-        mock_parse_backup_id,
-        mock_args,
-        monkeypatch_config,
-    ):
-        """
-        Verify that the `keep` command works with an inactive server.
-
-        An inactive server should allow maintenance operations like setting
-        retention flags on existing backups.
-        """
-        # GIVEN an inactive server and a backup
-        mock_args.target = "standalone"
-        mock_parse_backup_id.return_value.backup_id = "test_backup_id"
-        mock_parse_backup_id.return_value.status = BackupInfo.DONE
-        mock_parse_backup_id.return_value.is_incremental = False
-
-        dummy_server = Mock()
-        dummy_server.config.name = "inactive_server"
-        dummy_server.config.active = False
-        mock_get_server.return_value = dummy_server
-
-        # WHEN calling keep
-        keep(mock_args)
-
-        # THEN get_server should be called with skip_inactive=False
-        mock_get_server.assert_called_once_with(
-            mock_args,
-            skip_inactive=False,
-            inactive_is_error=False,
-            skip_disabled=False,
-            disabled_is_error=False,
-        )
-
-        # AND the keep_backup method should be called
-        dummy_server.backup_manager.keep_backup.assert_called_once_with(
-            "test_backup_id", "standalone"
         )
 
 
