@@ -1,0 +1,16 @@
+---
+- summary: Fix local restore of cloud backups overwriting backup.info in cloud storage
+  description: |
+    When restoring a backup stored in cloud storage to a local directory, Barman
+    uploaded a copy of the `backup.info` file back to the bucket, replacing the
+    catalog object. As a consequence, `barman restore` required write access to
+    the bucket, and restores performed from a second Barman instance reading the
+    same catalog would write to the catalog of the primary site.
+
+    Barman now only updates `backup.info` in cloud storage when the backup
+    catalog itself is modified. Restores no longer write to the bucket.
+
+    This issue was introduced in Barman 3.19.0.
+  type: bugfix
+  jira_tickets:
+    - BAR-1630
