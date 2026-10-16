@@ -1335,6 +1335,79 @@ class TestBackup(object):
         # THEN it reports whether the backup was checked
         assert result is expected
 
+    @pytest.mark.parametrize(
+        "archived_wals,expected_status,expected_error,expected_checked_wals",
+        [
+            # All the required WALs are archived
+            (
+                [
+                    "000000010000000000000001",
+                    "000000010000000000000002",
+                    "000000010000000000000003",
+                ],
+                BackupInfo.DONE,
+                None,
+                [
+                    "000000010000000000000001",
+                    "000000010000000000000002",
+                    "000000010000000000000003",
+                ],
+            ),
+            # One of the required WALs is missing
+            (
+                ["000000010000000000000001", "000000010000000000000003"],
+                BackupInfo.FAILED,
+                "At least one WAL file is missing. "
+                "The first missing WAL file is 000000010000000000000002",
+                ["000000010000000000000001", "000000010000000000000002"],
+            ),
+        ],
+    )
+    @patch("barman.backup.output")
+    @patch("barman.infofile.LocalBackupInfo.save")
+    def test_check_backup_required_wals(
+        self,
+        _mock_save,
+        _mock_output,
+        archived_wals,
+        expected_status,
+        expected_error,
+        expected_checked_wals,
+    ):
+        """
+        Test that check_backup asks the WAL storage strategy whether each required
+        WAL exists, so that it does not depend on how or where the WAL was stored.
+        """
+        # GIVEN a server whose WAL storage holds the given WALs
+        backup_manager = build_backup_manager()
+        backup_manager.server.wal_storage = Mock()
+        backup_manager.server.wal_storage.exists.side_effect = lambda wal: (
+            wal in archived_wals
+        )
+        latest_wal = Mock()
+        latest_wal.name = max(archived_wals)
+        backup_manager.get_latest_archived_wals_info = Mock(
+            return_value={"00000001": latest_wal}
+        )
+        # AND a backup requiring three WALs
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            status=BackupInfo.WAITING_FOR_WALS,
+            begin_wal="000000010000000000000001",
+            end_wal="000000010000000000000003",
+        )
+
+        # WHEN check_backup is called
+        backup_manager.check_backup(backup_info)
+
+        # THEN the status reflects the presence of the WALs in the WAL storage
+        assert backup_info.status == expected_status
+        assert backup_info.error == expected_error
+        # AND the required WALs were checked in order, up to the first missing one
+        assert backup_manager.server.wal_storage.exists.call_args_list == [
+            call(wal) for wal in expected_checked_wals
+        ]
+
     def test_backup_manager_has_keep_manager_capability(self, tmpdir):
         """
         Verifies that KeepManagerMixin methods are available in BackupManager

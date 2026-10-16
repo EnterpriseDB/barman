@@ -2052,22 +2052,23 @@ class TestLocalWalStorageStrategy:
         """
         Test that :meth:`exists` correctly checks for the existence of a WAL file.
         """
-        # GIVEN a LocalWalStorageStrategy instance
+        # GIVEN a LocalWalStorageStrategy whose WAL directory holds one WAL
+        wal_name = "000000010000000000000001"
+        wals_dir = tmpdir.mkdir("wals")
+        wals_dir.mkdir(barman.xlog.hash_dir(wal_name)).join(wal_name).write("content")
         wal_storage = LocalWalStorageStrategy(
-            build_backup_manager(name="TestServer"), None
+            build_backup_manager(
+                name="TestServer", main_conf={"wals_directory": str(wals_dir)}
+            ),
+            None,
         )
-        # AND a temporary file representing the WAL file
-        wal_file_path = tmpdir.join("000000010000000000000001")
-        wal_file_path.write("WAL file content")
-        # WHEN exists is called on the existing file
-        result_existing = wal_storage.exists(str(wal_file_path))
+        # WHEN exists is called on the existing WAL
+        result_existing = wal_storage.exists(wal_name)
         # THEN it returns True
         assert result_existing is True
 
-        # WHEN exists is called on a non-existing file
-        result_non_existing = wal_storage.exists(
-            str(tmpdir.join("000000010000000000000002"))
-        )
+        # WHEN exists is called on a WAL that is not in the WAL directory
+        result_non_existing = wal_storage.exists("000000010000000000000002")
         # THEN it returns False
         assert result_non_existing is False
 
@@ -2296,7 +2297,9 @@ class TestCloudWalStorageStrategy:
         )
         mock_post_scripts.assert_has_calls([call(wal_info1), call(wal_info2)])
 
-    def test_exists(self):
+    @pytest.mark.parametrize("object_exists", [True, False])
+    @patch("barman.wal_archiver.xlog.hash_dir", return_value="0000000100000001")
+    def test_exists(self, _mock_hash_dir, object_exists):
         """
         Test that :meth:`exists` correctly checks for the existence of a WAL file
         in cloud storage.
@@ -2305,16 +2308,111 @@ class TestCloudWalStorageStrategy:
         wal_storage = CloudWalStorageStrategy(
             build_backup_manager(name="TestServer"), MagicMock()
         )
-        wal_storage.cloud_interface = MagicMock()
+        wal_storage.cloud_interface = MagicMock(path="barman-bucket")
+        # AND the WAL is, or is not, stored under the key of the configured
+        # compression, and nothing else shares its prefix
+        wal_storage.cloud_interface.check_object_existence.return_value = object_exists
+        wal_storage.cloud_interface.list_bucket.return_value = []
 
         # WHEN exists is called
-        full_path = "barman-bucket/wals/0000000100000001/000000010000000000000001"
-        wal_storage.exists(full_path)
+        result = wal_storage.exists("000000010000000000000001")
 
-        # THEN cloud_interface.object_exists is called with the correct key
+        # THEN the existence of the object is checked with the correct key
         wal_storage.cloud_interface.check_object_existence.assert_called_once_with(
-            full_path
+            "barman-bucket/TestServer/wals/0000000100000001/000000010000000000000001"
         )
+        # AND the result reflects whether the WAL was found
+        assert result is object_exists
+
+    @patch("barman.wal_archiver.xlog.hash_dir", return_value="0000000100000001")
+    def test_find_wal_key_configured_compression(self, _mock_hash_dir):
+        """
+        Test that :meth:`_find_wal_key` does not list the bucket when the object is
+        found under the key built from the configured compression.
+        """
+        # GIVEN a CloudWalStorageStrategy with gzip configured
+        backup_manager = build_backup_manager(name="TestServer")
+        backup_manager.config.compression = "gzip"
+        wal_storage = CloudWalStorageStrategy(backup_manager, MagicMock())
+        wal_storage.cloud_interface = MagicMock(path="barman-bucket")
+        # AND the WAL exists under the configured key
+        wal_storage.cloud_interface.check_object_existence.return_value = True
+
+        # WHEN the key of the WAL is looked up
+        expected_key = (
+            "barman-bucket/TestServer/wals/0000000100000001/000000010000000000000001.gz"
+        )
+        result = wal_storage._find_wal_key("000000010000000000000001")
+
+        # THEN the configured key is returned after a single existence check
+        # and no listing
+        assert result == expected_key
+        wal_storage.cloud_interface.check_object_existence.assert_called_once_with(
+            expected_key
+        )
+        wal_storage.cloud_interface.list_bucket.assert_not_called()
+        # AND exists reports that the WAL exists
+        assert wal_storage.exists("000000010000000000000001") is True
+
+    @pytest.mark.parametrize(
+        "configured,stored_keys,expected_key",
+        [
+            # Archived with another compression than the configured one
+            (None, ["000000010000000000000001.gz"], "000000010000000000000001.gz"),
+            ("gzip", ["000000010000000000000001.zst"], "000000010000000000000001.zst"),
+            # Archived before compression was enabled
+            ("gzip", ["000000010000000000000001"], "000000010000000000000001"),
+            # Present among objects for other WALs
+            (
+                None,
+                ["000000010000000000000001.bz2", "000000010000000000000002.gz"],
+                "000000010000000000000001.bz2",
+            ),
+            # Absent
+            (None, [], None),
+            # Objects sharing the prefix that are not this WAL
+            (
+                None,
+                [
+                    "000000010000000000000001.partial",
+                    "000000010000000000000001.00000028.backup",
+                    "000000010000000000000001.unknown",
+                ],
+                None,
+            ),
+        ],
+    )
+    @patch("barman.wal_archiver.xlog.hash_dir", return_value="0000000100000001")
+    def test_find_wal_key_other_compression(
+        self, _mock_hash_dir, configured, stored_keys, expected_key
+    ):
+        """
+        Test that :meth:`_find_wal_key` finds a WAL archived with a compression
+        different from the configured one, and only accepts exact WAL names.
+        """
+        # GIVEN a CloudWalStorageStrategy with some compression configured
+        backup_manager = build_backup_manager(name="TestServer")
+        backup_manager.config.compression = configured
+        wal_storage = CloudWalStorageStrategy(backup_manager, MagicMock())
+        wal_storage.cloud_interface = MagicMock(path="barman-bucket")
+        # AND the configured key is not found
+        wal_storage.cloud_interface.check_object_existence.return_value = False
+        # AND the bucket holds the given objects under the WAL prefix
+        wal_dir = "barman-bucket/TestServer/wals/0000000100000001/"
+        wal_storage.cloud_interface.list_bucket.return_value = [
+            wal_dir + key for key in stored_keys
+        ]
+
+        # WHEN the key of the WAL is looked up
+        result = wal_storage._find_wal_key("000000010000000000000001")
+
+        # THEN the bucket is listed by the WAL prefix and the actual key is returned
+        wal_storage.cloud_interface.list_bucket.assert_called_once_with(
+            wal_dir + "000000010000000000000001"
+        )
+        assert result == (wal_dir + expected_key if expected_key else None)
+        # AND exists reflects whether a key was found
+        assert wal_storage.exists("000000010000000000000001") is bool(expected_key)
 
     @patch("barman.wal_archiver.xlog.hash_dir", return_value="0000000100000001")
     def test_get_full_path(self, mock_hash_dir):

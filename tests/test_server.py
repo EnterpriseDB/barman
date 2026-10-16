@@ -5340,13 +5340,11 @@ class TestServer(object):
     def _mock_wal_storage(self, server, present_wals):
         """
         Replace *server.wal_storage* with a MagicMock whose ``exists`` method
-        returns True for paths whose basename is in *present_wals*, and whose
-        ``get_full_path`` returns the WAL name itself as the path.
+        returns True for WAL names in *present_wals*.
         """
         present = set(present_wals)
         server.wal_storage = MagicMock()
-        server.wal_storage.get_full_path.side_effect = lambda name: name
-        server.wal_storage.exists.side_effect = lambda path: path in present
+        server.wal_storage.exists.side_effect = lambda name: name in present
 
     @patch("barman.server.Server.get_backup")
     @patch("barman.server.Server.get_last_backup_id")
