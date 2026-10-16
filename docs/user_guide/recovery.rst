@@ -108,10 +108,9 @@ specific recovery, you can disable it using the ``--no-delta-restore`` option wi
 .. important::
   The ``delta-restore`` option is supported **only** in the following scenarios:
 
-  * **Local restore of plain backups** - incremental, compressed, encrypted, or
-    multi-format backups are *not* supported.
-  * **Remote restore with** ``staging_location=local`` - using
-    ``staging_location=remote`` is *not* supported.
+  * **Local restore** of backups that are not incremental, compressed, encrypted, or
+    stored in the cloud.
+  * **Remote restore** with ``staging_location=local``.
 
 Tablespace Remapping
 --------------------
