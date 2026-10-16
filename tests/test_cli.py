@@ -1122,7 +1122,7 @@ class TestCli(object):
         _out, err = capsys.readouterr()
         assert (
             "Cannot restore a backup locally with delta mode when the backup is not "
-            "plain." in err
+            "plain or is stored in the cloud." in err
         )
 
         # 2. Local restore with compressed backup
@@ -1136,7 +1136,7 @@ class TestCli(object):
         _out, err = capsys.readouterr()
         assert (
             "Cannot restore a backup locally with delta mode when the backup is not "
-            "plain." in err
+            "plain or is stored in the cloud." in err
         )
 
         # 3. Local restore with encrypted backup
@@ -1151,10 +1151,27 @@ class TestCli(object):
         _out, err = capsys.readouterr()
         assert (
             "Cannot restore a backup locally with delta mode when the backup is not "
-            "plain." in err
+            "plain or is stored in the cloud." in err
         )
 
-        # 4. Remote restore with any backup and staging_location="remote"
+        # 4. Local restore with a plain backup stored in the cloud
+        mock_backup_info.is_incremental = False
+        mock_backup_info.compression = False
+        mock_backup_info.encryption = None
+        get_server_mock.return_value.use_backup_cloud_storage = True
+        # WITH a barman recover command
+        with pytest.raises(SystemExit):
+            restore(mock_restore_args)
+
+        # AND there are no errors
+        _out, err = capsys.readouterr()
+        assert (
+            "Cannot restore a backup locally with delta mode when the backup is not "
+            "plain or is stored in the cloud." in err
+        )
+
+        # 5. Remote restore with any backup and staging_location="remote"
+        get_server_mock.return_value.use_backup_cloud_storage = False
         mock_backup_info.is_incremental = False
         mock_backup_info.compression = False
         mock_backup_info.encryption = "gpg"
