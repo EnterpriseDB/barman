@@ -1388,18 +1388,21 @@ def restore(args):
 
     delta_restore = RecoveryOptions.DELTA_RESTORE in server.config.recovery_options
     if delta_restore:
-        # Local restore does not support delta for non-plain backups.
+        # Local restore does not support delta for non-plain backups, nor for backups
+        # stored in the cloud, which are extracted over the destination without
+        # removing the files that are not part of the backup.
         if not args.remote_ssh_command:
             if any(
                 [
                     backup_info.is_incremental,
                     backup_info.compression,
                     backup_info.encryption,
+                    server.use_backup_cloud_storage,
                 ]
             ):
                 output.error(
                     "Cannot restore a backup locally with delta mode when the backup is "
-                    "not plain."
+                    "not plain or is stored in the cloud."
                 )
                 output.close_and_exit()
         # Remote restore does not support delta when staging_location is remote.
