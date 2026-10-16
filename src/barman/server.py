@@ -4297,7 +4297,7 @@ class Server(RemoteStatusMixin):
             for segment in xlog.generate_segment_names(
                 begin_wal, end_wal, xlog_segment_size=xlog_segment_size
             )
-            if not self.wal_storage.exists(self.wal_storage.get_full_path(segment))
+            if not self.wal_storage.exists(segment)
         ]
 
         return missing_wals
@@ -4436,7 +4436,7 @@ class Server(RemoteStatusMixin):
 
             # Finish if the closed wal file is in the archive.
             if wal_file:
-                if self.wal_storage.exists(self.wal_storage.get_full_path(wal_file)):
+                if self.wal_storage.exists(wal_file):
                     break
             else:
                 # Check if any new file has been archived, on any timeline

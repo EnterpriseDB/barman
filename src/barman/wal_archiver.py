@@ -138,6 +138,24 @@ class WalStorageStrategy(metaclass=ABCMeta):
         :return list[str]: a list of deleted WAL names.
         """
 
+    @abstractmethod
+    def exists(self, wal_name):
+        """
+        Check whether a WAL file is stored in the configured destination.
+
+        :param str wal_name: the WAL file name
+        :return bool: ``True`` if the WAL exists, ``False`` otherwise
+        """
+
+    @abstractmethod
+    def get_full_path(self, wal_name):
+        """
+        Return the full path of a WAL file in the configured destination.
+
+        :param str wal_name: the WAL file name
+        :return str: the full path (or object key) of the WAL file
+        """
+
     def _run_pre_archive_scripts(self, wal_info, src_file):
         """
         Run the pre-archive scripts.
@@ -515,8 +533,8 @@ class LocalWalStorageStrategy(WalStorageStrategy):
 
         self._run_post_delete_wal_scripts(wal_info, error)
 
-    def exists(self, wal_full_path):
-        return os.path.exists(wal_full_path)
+    def exists(self, wal_name):
+        return os.path.exists(self.get_full_path(wal_name))
 
     def get_full_path(self, wal_name):
         # Build the path which contains the file
@@ -690,8 +708,44 @@ class CloudWalStorageStrategy(WalStorageStrategy):
 
         return wals_deleted
 
-    def exists(self, wal_full_path):
-        return self.cloud_interface.check_object_existence(wal_full_path)
+    def exists(self, wal_name):
+        """
+        Check whether a WAL file is stored in the cloud, whatever its compression.
+
+        :param str wal_name: the WAL file name
+        :return bool: ``True`` if the WAL exists, ``False`` otherwise
+        """
+        return self._find_wal_key(wal_name) is not None
+
+    def _find_wal_key(self, wal_name):
+        """
+        Find the cloud object key of a WAL file, whatever its compression.
+
+        The object key built from the current ``compression`` setting is checked
+        first, which is the common case and costs a single request. If it is not
+        found, the WAL may have been archived with a different compression (or
+        none), e.g. due to a configuration change. Therefore, the prefix of the WAL
+        name is listed and any known compression suffix is accepted, as
+        ``barman cloud-wal-restore`` does.
+
+        :param str wal_name: the WAL file name
+        :return str|None: the object key of the WAL, or ``None`` if it is not found
+        """
+        key = self.get_full_path(wal_name)
+        if self.cloud_interface.check_object_existence(key):
+            return key
+        # Compressors without an EXTENSION (pigz, custom) are not supported for
+        # cloud WAL storage, so no object is ever stored with their suffix.
+        valid_names = {wal_name}.union(
+            wal_name + compressor.EXTENSION
+            for compressor in compression_registry.values()
+            if getattr(compressor, "EXTENSION", None)
+        )
+        prefix = self._build_wal_object_key(wal_name, None)
+        for key in self.cloud_interface.list_bucket(prefix):
+            if os.path.basename(key) in valid_names:
+                return key
+        return None
 
     def get_full_path(self, wal_name):
         """
@@ -701,8 +755,8 @@ class CloudWalStorageStrategy(WalStorageStrategy):
             This method uses the current compression configuration to determine
             the file extension. If the compression config has changed since the WAL
             was originally stored, this method will return a path that does not match
-            the actual cloud object. Callers that need to handle WALs stored under a
-            previous compression config should use bucket listing instead.
+            the actual cloud object. Callers that need to check whether a WAL exists
+            regardless of its compression should use :meth:`exists` instead.
 
         :param str wal_name: the WAL file name
         :return: the full cloud object key

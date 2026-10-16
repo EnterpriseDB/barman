@@ -2006,8 +2006,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             # Stop checking if we reach the last archived wal
             if wal > last_archived_wal:
                 break
-            wal_full_path = self.server.wal_storage.get_full_path(wal)
-            if not self.server.wal_storage.exists(wal_full_path):
+            if not self.server.wal_storage.exists(wal):
                 missing_wal = wal
                 break
 
