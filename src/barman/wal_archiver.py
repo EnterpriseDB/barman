@@ -1658,15 +1658,52 @@ class WalPrefetchWorker(_ForkProcess):
 
     The process is always started with the ``fork`` start method, so the child
     inherits the archiver from the parent instead of receiving a pickled copy of it.
+
+    .. note::
+        Since the archival happens in a child process, any change it makes to the WAL
+        metadata (e.g. setting compression and size) is not visible to the parent. For
+        that reason, the child process sends the resulting metadata back through a pipe,
+        which the parent reads with :meth:`_read_wal_info` once the worker finished.
     """
 
-    def __init__(self, wal_path, *args, **kwargs):
+    def __init__(self, wal_path, receiver, *args, **kwargs):
+        """
+        :param str wal_path: Full path to the WAL file to archive.
+        :param multiprocessing.connection.Connection receiver: The receiving end
+            of the pipe through which the child process sends back the archived WAL
+            metadata.
+        """
         super(WalPrefetchWorker, self).__init__(*args, **kwargs)
         self.wal_path = wal_path
+        self.wal_info = None
+        self._receiver = receiver
+
+    def join(self, *args, **kwargs):
+        super(WalPrefetchWorker, self).join(*args, **kwargs)
+        self._read_wal_info()
+
+    def _read_wal_info(self):
+        """
+        Read the metadata of the archived WAL sent by the child process.
+
+        Must be called after the worker finished. Populates :attr:`wal_info` if the
+        worker was successful and sent any metadata.
+        """
+        try:
+            if self.exitcode == 0:
+                try:
+                    self.wal_info = self._receiver.recv()
+                except EOFError:
+                    _logger.error(
+                        "Prefetch worker for %s exited successfully but sent no WAL info",
+                        self.wal_path,
+                    )
+        finally:
+            self._receiver.close()
 
     @property
     def success(self):
-        return self.exitcode == 0
+        return self.exitcode == 0 and self.wal_info is not None
 
 
 class ParallelWalArchiver:
@@ -1772,33 +1809,41 @@ class ParallelWalArchiver:
         # Prefetch workers are only started after the primary WAL is successfully
         # archived — if it fails, no worker processes are spawned.
         try:
-            self._archive_single_wal(wal_path)
+            wal_info = self._archive_single_wal(wal_path)
         except Exception as e:
             _logger.error("Archival of WAL file %s failed: %s" % (wal_path, e))
             raise
 
-        # Start a worker process for each WAL to prefetch, then wait for all of them.
-        # The list is already capped to `n_prefetch` items by _get_wals_to_prefetch,
-        # so no batching is needed.
+        # Start one worker process per prefetched WAL, then wait for all of them.
+        # _get_wals_to_prefetch already caps the list at `n_prefetch` items, so there
+        # is no need to batch the workers.
+        # Each worker archives a single WAL file and reports back the resulting WalInfo
+        # object containing its final state (e.g. updated compression, size etc.) to
+        # the parent process through a one-way pipe.
         prefetch_workers = []
         for prefetch_wal_path in wals_to_prefetch:
+            receiver, sender = multiprocessing.Pipe(duplex=False)
             worker = WalPrefetchWorker(
                 wal_path=prefetch_wal_path,
+                receiver=receiver,
                 target=self._prefetch_worker,
-                args=(prefetch_wal_path,),
+                args=(prefetch_wal_path, sender),
             )
             worker.start()
             prefetch_workers.append(worker)
+            # Since WalPrefetchWorker uses the fork start method, the child process
+            # will have its own copy of the sending end, so we can drop ours
+            sender.close()
         for worker in prefetch_workers:
             worker.join()
+
+        # Perform post archive actions, e.g. updating the xlog.db
+        self._post_archive_exec(wal_info, prefetch_workers)
 
         # If parallel archival is performed, update the last-archived cache
         # based on the results of the archivals
         if prefetch_workers:
             self._update_metadata(wal_path, prefetch_workers)
-
-        # Perform post archive actions, e.g. updating the xlog.db
-        self._post_archive_exec(wal_path, prefetch_workers)
 
     def _is_already_archived(self, wal_path):
         """
@@ -1904,7 +1949,7 @@ class ParallelWalArchiver:
 
         return wals_to_prefetch
 
-    def _prefetch_worker(self, wal_path):
+    def _prefetch_worker(self, wal_path, sender):
         """
         Worker function that archives a WAL file in a subprocess.
 
@@ -1913,13 +1958,22 @@ class ParallelWalArchiver:
         are logged but not propagated, since the parent process checks success via
         the worker's exit code.
 
+        On success, the metadata returned by :meth:`_archive_single_wal` is sent to
+        the parent process through *sender*, as changes made to it in this
+        process are not visible to the parent.
+
         :param str wal_path: Full path to the WAL file to archive.
+        :param multiprocessing.connection.Connection sender: The sending end of
+            the pipe used to send the archived WAL metadata to the parent process.
         """
         try:
-            self._archive_single_wal(wal_path)
+            wal_info = self._archive_single_wal(wal_path)
+            sender.send(wal_info)
         except Exception as e:
             _logger.warning("Prefetch of WAL file %s failed: %s" % (wal_path, e))
             sys.exit(1)
+        finally:
+            sender.close()
 
     @property
     def last_archived_cache_path(self):
@@ -2088,18 +2142,23 @@ class ParallelWalArchiver:
         to their specific destination (cloud storage, remote server, etc.).
 
         :param str wal_path: Full path to the WAL file to archive.
+        :return: Metadata of the archived WAL, as it should be recorded after the
+            archival (e.g. including the compression applied), or ``None`` if the
+            subclass has no use for it.
+        :rtype: barman.infofile.WalFileInfo|None
         :raises Exception: If archival fails.
         """
         raise NotImplementedError("Subclasses must implement _archive_single_wal")
 
-    def _post_archive_exec(self, wal_path, prefetch_workers):
+    def _post_archive_exec(self, wal_info, prefetch_workers):
         """
         Perform any post-archival actions after the main WAL and prefetch workers.
 
         Subclasses may override this method to perform additional actions after
         archival, such as updating metadata, or cleanup.
 
-        :param str wal_path: Full path to the main WAL file that was archived.
+        :param barman.infofile.WalFileInfo|None wal_info: Metadata of the main WAL
+            file that was archived, as returned by :meth:`_archive_single_wal`.
         :param list[WalPrefetchWorker] prefetch_workers: List of prefetch workers,
             in the order their WAL files were archived.
         """
@@ -2147,6 +2206,9 @@ class CloudWalArchiver(ParallelWalArchiver):
         the same name, the local file is copied to the errors directory.
 
         :param str wal_path: Full path to the WAL file to archive.
+        :return: Metadata of the archived WAL, with the compression and size of the
+            object uploaded to cloud storage.
+        :rtype: barman.infofile.WalFileInfo
         """
         wal_info = self._build_wal_info(wal_path)
         compressor = self.compression_manager.get_default_compressor()
@@ -2172,6 +2234,7 @@ class CloudWalArchiver(ParallelWalArchiver):
             self._copy_wal_file_to_errors_directory(
                 wal_info.orig_filename, wal_info.name, "duplicate"
             )
+        return wal_info
 
     def _build_wal_info(self, wal_path):
         """
@@ -2212,7 +2275,7 @@ class CloudWalArchiver(ParallelWalArchiver):
             if e.errno == errno.ENOENT:
                 _logger.warning("%s not found" % src)
 
-    def _post_archive_exec(self, wal_path, prefetch_workers):
+    def _post_archive_exec(self, wal_info, prefetch_workers):
         """
         Update archival metadata on ``xlogdb`` based on the archived WALs.
 
@@ -2226,16 +2289,19 @@ class CloudWalArchiver(ParallelWalArchiver):
         successful archival of C would be written to  after D, which would break the
         ordering of WALs in ``xlogdb``.
 
-        :param str wal_path: Full path to the main WAL file that was archived.
+        The metadata written is the one returned by :meth:`_archive_single_wal`, so
+        that the compression and size of the uploaded object are recorded, which are
+        needed to build the object key of the WAL later on (e.g. when deleting it).
+
+        :param barman.infofile.WalFileInfo wal_info: Metadata of the main WAL file
+            that was archived.
         :param list[WalPrefetchWorker] prefetch_workers: List of prefetch workers,
             in the order their WAL files should appear in xlogdb.
         """
         with self.server.xlogdb("a") as fxlogdb:
-            wal_info = self._build_wal_info(wal_path)
             fxlogdb.write(wal_info.to_xlogdb_line())
             for worker in prefetch_workers:
                 if worker.success:
-                    p_wal_info = self._build_wal_info(worker.wal_path)
-                    fxlogdb.write(p_wal_info.to_xlogdb_line())
+                    fxlogdb.write(worker.wal_info.to_xlogdb_line())
                 else:
                     break
