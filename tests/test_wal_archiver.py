@@ -2722,9 +2722,9 @@ class TestWalPrefetchWorker:
         # THEN it is a process of the fork context
         assert issubclass(WalPrefetchWorker, fork_process_cls)
         # AND an instance reports the fork start method
-        assert WalPrefetchWorker("/pg_wal/000000010000000000000001")._start_method == (
-            "fork"
-        )
+        assert WalPrefetchWorker(
+            "/pg_wal/000000010000000000000001", MagicMock()
+        )._start_method == ("fork")
 
 
 class TestParallelWalArchiver:
@@ -3001,14 +3001,14 @@ class TestParallelWalArchiver:
         archiver = self._make_archiver(tmp_path)
         wal_path = "/pg_wal/000000010000000000000001"
 
-        with patch.object(archiver, "_archive_single_wal"):
+        with patch.object(archiver, "_archive_single_wal") as mock_archive:
             with patch.object(archiver, "_get_wals_to_prefetch", return_value=[]):
                 with patch.object(archiver, "_update_metadata") as mock_update:
                     with patch.object(archiver, "_post_archive_exec") as mock_post:
                         archiver.archive(wal_path, parallel=0)
 
         mock_update.assert_not_called()
-        mock_post.assert_called_once_with(wal_path, [])
+        mock_post.assert_called_once_with(mock_archive.return_value, [])
 
     @patch("barman.wal_archiver.os.path.getsize")
     @patch("barman.wal_archiver.WalPrefetchWorker")
@@ -3024,7 +3024,7 @@ class TestParallelWalArchiver:
         prefetch_wal_path = "/pg_wal/000000010000000000000002"
         mock_worker_cls.return_value = MagicMock(spec=WalPrefetchWorker)
 
-        with patch.object(archiver, "_archive_single_wal"):
+        with patch.object(archiver, "_archive_single_wal") as mock_archive:
             with patch.object(
                 archiver, "_get_wals_to_prefetch", return_value=[prefetch_wal_path]
             ):
@@ -3033,7 +3033,164 @@ class TestParallelWalArchiver:
                         archiver.archive(wal_path, parallel=2)
 
         mock_update.assert_called_once_with(wal_path, [mock_worker_cls.return_value])
-        mock_post.assert_called_once_with(wal_path, [mock_worker_cls.return_value])
+        mock_post.assert_called_once_with(
+            mock_archive.return_value, [mock_worker_cls.return_value]
+        )
+
+    @patch("barman.wal_archiver.os.path.getsize")
+    def test_archive_propagates_wal_info_changes_made_in_prefetch_workers(
+        self, mock_getsize, tmp_path
+    ):
+        """
+        The WalFileInfo changes made while archiving a prefetched WAL (which runs in
+        a child process) must reach ``_post_archive_exec``.
+        """
+        mock_getsize.return_value = barman.xlog.DEFAULT_XLOG_SEG_SIZE
+        wal_path = "/pg_wal/000000010000000000000001"
+        prefetch_wal_path = "/pg_wal/000000010000000000000002"
+
+        # GIVEN an archiver that updates compression and size of the WALs it archives
+        class CompressingArchiver(ParallelWalArchiver):
+            def _archive_single_wal(self, wal_path):
+                return WalFileInfo(
+                    name=os.path.basename(wal_path),
+                    size=1234,
+                    time=0,
+                    compression="gzip",
+                    encryption=None,
+                )
+
+        archiver = CompressingArchiver("test-server", str(tmp_path))
+
+        # WHEN a WAL is archived along with a prefetched WAL
+        with patch.object(
+            archiver, "_get_wals_to_prefetch", return_value=[prefetch_wal_path]
+        ):
+            with patch.object(archiver, "_update_metadata"):
+                with patch.object(archiver, "_post_archive_exec") as mock_post:
+                    archiver.archive(wal_path, parallel=2)
+
+        # THEN the compression and size reach _post_archive_exec for both WALs
+        wal_info, workers = mock_post.call_args[0]
+        assert wal_info.name == "000000010000000000000001"
+        assert wal_info.compression == "gzip"
+        assert wal_info.size == 1234
+        assert len(workers) == 1
+        assert workers[0].success
+        assert workers[0].wal_info.name == "000000010000000000000002"
+        assert workers[0].wal_info.compression == "gzip"
+        assert workers[0].wal_info.size == 1234
+
+    def test_prefetch_worker_sends_wal_info_on_success(self, tmp_path):
+        """
+        _prefetch_worker should send what ``_archive_single_wal`` returned through
+        the pipe, and close its end of it.
+        """
+        # GIVEN an archiver whose archival returns some WAL info
+        archiver = self._make_archiver(tmp_path)
+        sender = MagicMock()
+
+        # WHEN the worker function archives a WAL successfully
+        with patch.object(archiver, "_archive_single_wal") as mock_archive:
+            archiver._prefetch_worker("/pg_wal/000000010000000000000002", sender)
+
+        # THEN the WAL info is sent and the connection closed
+        sender.send.assert_called_once_with(mock_archive.return_value)
+        sender.close.assert_called_once_with()
+
+    def test_prefetch_worker_exits_without_sending_on_failure(self, tmp_path):
+        """
+        _prefetch_worker should exit with code 1 and send nothing when the archival
+        fails.
+        """
+        # GIVEN an archiver whose archival fails
+        archiver = self._make_archiver(tmp_path)
+        result_conn = MagicMock()
+
+        # WHEN the worker function runs
+        with patch.object(
+            archiver, "_archive_single_wal", side_effect=Exception("oops!")
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                archiver._prefetch_worker(
+                    "/pg_wal/000000010000000000000002", result_conn
+                )
+
+        # THEN it exits with 1, nothing is sent, and the connection is closed
+        assert exc_info.value.code == 1
+        result_conn.send.assert_not_called()
+        result_conn.close.assert_called_once_with()
+
+    @pytest.mark.parametrize(
+        ("exitcode", "sent", "expected_wal_info", "expect_error"),
+        [
+            # Successful worker that sent a WAL info
+            (0, "info", "info", False),
+            # Successful worker that sent nothing
+            (0, None, None, True),
+            # Failed worker: whatever is in the pipe is ignored
+            (1, "info", None, False),
+        ],
+    )
+    def test_wal_prefetch_worker_read_wal_info(
+        self, exitcode, sent, expected_wal_info, expect_error, caplog
+    ):
+        """
+        _read_wal_info should only populate ``wal_info`` for a successful worker that
+        sent it, log an error if a successful worker sent nothing, and always close
+        the connection.
+        """
+        # GIVEN a pipe, optionally with a WAL info already sent through it
+        receiver, sender = multiprocessing.Pipe(duplex=False)
+        if sent:
+            sender.send(sent)
+        # AND the sending end closed, as it is once the child process exited
+        sender.close()
+        worker = WalPrefetchWorker("/pg_wal/000000010000000000000002", receiver)
+
+        # WHEN the worker finished with the given exit code and the info is read
+        with patch.object(
+            WalPrefetchWorker, "exitcode", new_callable=PropertyMock
+        ) as mock_exitcode:
+            mock_exitcode.return_value = exitcode
+            with caplog.at_level(logging.ERROR, logger="barman.wal_archiver"):
+                worker._read_wal_info()
+
+        # THEN wal_info is set only when expected, and the receiving pipe is closed
+        assert worker.wal_info == expected_wal_info
+        assert receiver.closed
+        # AND an error is logged only when a successful worker sent no WAL info
+        assert (
+            "exited successfully but sent no WAL info" in caplog.text
+        ) is expect_error
+
+    @pytest.mark.parametrize(
+        ("exitcode", "wal_info", "expected"),
+        [
+            (0, "info", True),
+            # Exited successfully but never sent its WAL info
+            (0, None, False),
+            (1, "info", False),
+            (1, None, False),
+            # Not finished yet
+            (None, None, False),
+        ],
+    )
+    def test_wal_prefetch_worker_success(self, exitcode, wal_info, expected):
+        """
+        ``success`` requires both a zero exit code and a received WAL info.
+        """
+        # GIVEN a worker with the given exit code and WAL info
+        worker = WalPrefetchWorker("/pg_wal/000000010000000000000002", MagicMock())
+        worker.wal_info = wal_info
+
+        # WHEN success is checked
+        with patch.object(
+            WalPrefetchWorker, "exitcode", new_callable=PropertyMock
+        ) as mock_exitcode:
+            mock_exitcode.return_value = exitcode
+            # THEN it is only True when both conditions hold
+            assert worker.success is expected
 
     def test_ensure_cache_dir_creates_directory_with_restrictive_mode(self, tmp_path):
         """
@@ -3339,14 +3496,82 @@ class TestCloudWalArchiver:
             archiver.server.get_errors_dst.return_value,
         )
 
+    @pytest.mark.parametrize(
+        ("compression", "uploaded_size"),
+        [(None, 16777216), ("gzip", 1234)],
+    )
+    def test_archive_single_wal_returns_info_of_uploaded_object(
+        self, compression, uploaded_size
+    ):
+        """
+        _archive_single_wal should return the metadata updated by the storage
+        strategy, so the compression and size of the uploaded object are the ones
+        recorded later on.
+        """
+        # GIVEN a WAL whose upload changes its compression and size, as the
+        # storage strategy does when a compressor is configured
+        archiver = self._make_archiver()
+        wal_info = WalFileInfo(
+            name="000000010000000000000001",
+            size=16777216,
+            time=1700000000.0,
+            compression=None,
+        )
+
+        def fake_save(compressor, encryption, info, skip_delete):
+            info.compression = compression
+            info.size = uploaded_size
+
+        archiver.wal_storage.save.side_effect = fake_save
+
+        # WHEN _archive_single_wal is called
+        with patch.object(archiver, "_build_wal_info", return_value=wal_info):
+            result = archiver._archive_single_wal("/pg_wal/000000010000000000000001")
+
+        # THEN the returned metadata describes the uploaded object
+        assert result.name == "000000010000000000000001"
+        assert result.compression == compression
+        assert result.size == uploaded_size
+
+    def test_post_archive_exec_writes_uploaded_object_info_to_xlogdb(self):
+        """
+        _post_archive_exec should write to xlogdb the compression and size of the
+        uploaded objects, for both the main WAL and the prefetched ones.
+        """
+        # GIVEN a main WAL and a prefetched WAL, both uploaded compressed
+        main_info = WalFileInfo(
+            name="000000010000000000000001",
+            size=1234,
+            time=1700000000.0,
+            compression="gzip",
+        )
+        prefetched_info = WalFileInfo(
+            name="000000010000000000000002",
+            size=5678,
+            time=1700000001.0,
+            compression="gzip",
+        )
+        worker = MagicMock(success=True, wal_info=prefetched_info)
+
+        archiver = self._make_archiver()
+        mock_fxlogdb = MagicMock()
+        archiver.server.xlogdb.return_value.__enter__.return_value = mock_fxlogdb
+
+        # WHEN _post_archive_exec is called
+        archiver._post_archive_exec(main_info, [worker])
+
+        # THEN xlogdb gets one line per WAL, in order, with compression and size
+        assert mock_fxlogdb.write.call_args_list == [
+            call(main_info.to_xlogdb_line()),
+            call(prefetched_info.to_xlogdb_line()),
+        ]
+
     def test_post_archive_exec_stops_writing_at_first_worker_failure(self):
         """
         _post_archive_exec should stop writing to xlogdb at the first failed
         worker, to avoid gaps in the archive.
         """
-        # GIVEN a main WAL path and three workers: first succeeds, second fails, third succeeds
-        main_wal_path = "/pg_wal/000000010000000000000001"
-
+        # GIVEN a main WAL info and three workers: first succeeds, second fails, third succeeds
         main_wal_info = MagicMock()
         main_wal_info.name = "000000010000000000000001"
         main_wal_info.to_xlogdb_line.return_value = "line1\n"
@@ -3357,28 +3582,23 @@ class TestCloudWalArchiver:
 
         worker_ok = MagicMock(spec=WalPrefetchWorker)
         worker_ok.success = True
-        worker_ok.wal_path = "/pg_wal/000000010000000000000002"
+        worker_ok.wal_info = worker_ok_wal_info
 
         worker_fail = MagicMock(spec=WalPrefetchWorker)
         worker_fail.success = False
-        worker_fail.wal_path = "/pg_wal/000000010000000000000003"
+        worker_fail.wal_info = None
 
         worker_after_fail = MagicMock(spec=WalPrefetchWorker)
         worker_after_fail.success = True
-        worker_after_fail.wal_path = "/pg_wal/000000010000000000000004"
+        worker_after_fail.wal_info = MagicMock()
 
         archiver = self._make_archiver()
         mock_fxlogdb = MagicMock()
         archiver.server.xlogdb.return_value.__enter__.return_value = mock_fxlogdb
 
-        with patch.object(
-            archiver,
-            "_build_wal_info",
-            side_effect=[main_wal_info, worker_ok_wal_info],
-        ):
-            archiver._post_archive_exec(
-                main_wal_path, [worker_ok, worker_fail, worker_after_fail]
-            )
+        archiver._post_archive_exec(
+            main_wal_info, [worker_ok, worker_fail, worker_after_fail]
+        )
 
         # THEN only main WAL and first successful worker's one are written to xlogdb
         # Neither the failed worker's WAL nor the one after it should be written
@@ -3396,7 +3616,6 @@ class TestCloudWalArchiver:
         cross-timeline detection.
         """
         # GIVEN the main "WAL" being archived is actually a .history file
-        history_path = "/pg_wal/00000003.history"
         history_info = MagicMock()
         history_info.name = "00000003.history"
         history_info.to_xlogdb_line.return_value = "history-line\n"
@@ -3406,8 +3625,7 @@ class TestCloudWalArchiver:
         archiver.server.xlogdb.return_value.__enter__.return_value = mock_fxlogdb
 
         # WHEN _post_archive_exec is called with no prefetch workers
-        with patch.object(archiver, "_build_wal_info", return_value=history_info):
-            archiver._post_archive_exec(history_path, [])
+        archiver._post_archive_exec(history_info, [])
 
         # THEN the xlogdb entry is still written (history files are valid xlogdb entries)
         mock_fxlogdb.write.assert_called_once_with("history-line\n")
