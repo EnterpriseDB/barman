@@ -3312,6 +3312,8 @@ def parse_backup_id(server, args):
     """
     Parses backup IDs including special words such as latest, oldest, etc.
 
+    Backup names are resolved among backups in any status, as backup IDs are.
+
     Exit with error if the backup id doesn't exist.
 
     :param Server server: server object to search for the required backup
@@ -3321,7 +3323,9 @@ def parse_backup_id(server, args):
     backup_id = get_backup_id_using_shortcut(server, args.backup_id, BackupInfo)
     if backup_id is None:
         try:
-            backup_id = server.get_backup_id_from_name(args.backup_id)
+            backup_id = server.get_backup_id_from_name(
+                args.backup_id, BackupInfo.STATUS_ALL
+            )
         except ValueError as exc:
             output.error(str(exc))
             output.close_and_exit()
