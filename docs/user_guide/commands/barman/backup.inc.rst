@@ -113,7 +113,8 @@ Parameters
 
 ``--name``
     Specify a friendly name for this backup which can be used in place of the backup ID
-    in barman commands.
+    in barman commands. The name resolves to the backup regardless of its status. If more
+    than one backup has the same name, commands fail and list the matching backup IDs.
 
 ``--no-immediate-checkpoint``
     Forces the backup to wait for the checkpoint to be executed overriding any value set

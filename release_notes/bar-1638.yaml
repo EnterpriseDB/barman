@@ -12,10 +12,10 @@
     Commands which require a usable backup, such as `restore`, keep checking
     the backup status and report an error for backups that cannot be used.
 
-    **Behavior change**: if more than one backup has the same name, which can
-    now include `STARTED` or `FAILED` backups, for example when a failed backup
-    is retried using the same name, commands fail with an error listing the IDs
-    of the matching backups. Use the backup ID in that case.
+    As before, if more than one backup has the same name, commands fail with
+    an error listing the IDs of the matching backups, and the backup ID must be
+    used instead. This now also takes `STARTED` and `FAILED` backups into
+    account, for example when a failed backup is retried using the same name.
   type: bugfix
   jira_tickets:
     - BAR-1638

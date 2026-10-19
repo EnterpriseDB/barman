@@ -144,7 +144,9 @@ uploaded to the cloud.
 
 ``-n`` / ``--name``
   A name which can be used to reference this backup in commands such as
-  ``barman-cloud-restore`` and ``barman-cloud-backup-delete``.
+  ``barman-cloud-restore`` and ``barman-cloud-backup-delete``. The name resolves to the
+  backup regardless of its status. If more than one backup has the same name, commands
+  fail and list the matching backup IDs.
 
 ``-J`` / ``--jobs``
   Number of subprocesses to upload data to cloud storage (default: ``2``).
