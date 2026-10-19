@@ -17,6 +17,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 import io
 import logging
+import multiprocessing
 import os
 import stat
 
@@ -2704,6 +2705,25 @@ class TestCloudWalStorageStrategy:
             obj_key,
             mock_tempfile.return_value.__enter__.return_value.name,
             decompress="gzip",
+        )
+
+
+class TestWalPrefetchWorker:
+    def test_uses_fork_start_method(self):
+        """
+        The worker must always be started with ``fork``, whatever the platform
+        default is. Python 3.14 defaults to ``forkserver`` on Linux, which pickles
+        the process target (the whole archiver) and fails.
+        """
+        # GIVEN the fork context of multiprocessing
+        fork_process_cls = multiprocessing.get_context("fork").Process
+
+        # WHEN WalPrefetchWorker is inspected
+        # THEN it is a process of the fork context
+        assert issubclass(WalPrefetchWorker, fork_process_cls)
+        # AND an instance reports the fork start method
+        assert WalPrefetchWorker("/pg_wal/000000010000000000000001")._start_method == (
+            "fork"
         )
 
 

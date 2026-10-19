@@ -1638,13 +1638,26 @@ class StreamingWalArchiver(WalArchiver):
         # TODO: Add status information for WAL streaming
 
 
-class WalPrefetchWorker(multiprocessing.Process):
+# The worker is always started with the ``fork`` start method, regardless of the
+# platform default. Python 3.14 changed the default on Linux to ``forkserver``,
+# which pickles the process target and sends it to a fresh interpreter. The target
+# is a bound method of the archiver, so the whole archiver would be pickled along
+# with the server configuration, which has attributes that cannot be pickled. With
+# ``fork`` the child simply inherits the memory of the parent and nothing needs to
+# be pickled.
+_ForkProcess = multiprocessing.get_context("fork").Process
+
+
+class WalPrefetchWorker(_ForkProcess):
     """
     Custom worker class used to prefetch WAL files in parallel.
 
     It is a simple wrapper around :class:`multiprocessing.Process` that holds the WAL name
     to archive and provides a ``success`` property to check if the process was
     successful after finished.
+
+    The process is always started with the ``fork`` start method, so the child
+    inherits the archiver from the parent instead of receiving a pickled copy of it.
     """
 
     def __init__(self, wal_path, *args, **kwargs):
