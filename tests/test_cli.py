@@ -2047,6 +2047,9 @@ class TestCli(object):
             ("last-failed", "20221108T120000"),
             # Backup names should always return the backup with the corresponding ID
             ("named backup", "20221107T120000"),
+            # Backup names should resolve regardless of the backup status
+            ("failed backup", "20221108T120000"),
+            ("started backup", "20221105T120000"),
             # The backup ID should return the backup with that ID
             ("20221109T120000", "20221109T120000"),
         ),
@@ -2065,7 +2068,10 @@ class TestCli(object):
                 backup_id="20221109T120000", status="DONE", backup_type="full"
             ),
             "20221108T120000": Mock(
-                backup_id="20221108T120000", status="FAILED", backup_type="full"
+                backup_id="20221108T120000",
+                backup_name="failed backup",
+                status="FAILED",
+                backup_type="full",
             ),
             "20221107T120000": Mock(
                 backup_id="20221107T120000",
@@ -2076,6 +2082,12 @@ class TestCli(object):
             "20221106T120000": Mock(
                 backup_id="20221106T120000", status="DONE", backup_type="full"
             ),
+            "20221105T120000": Mock(
+                backup_id="20221105T120000",
+                backup_name="started backup",
+                status="STARTED",
+                backup_type="full",
+            ),
         }
         server.backup_manager._backup_cache = backup_infos
 
@@ -2085,6 +2097,43 @@ class TestCli(object):
 
         # THEN the expected backup_info is returned
         assert backup_info is backup_infos[expected_backup_id]
+
+    @patch("barman.backup.BackupManager._load_backup_cache")
+    def test_parse_backup_id_name_shared_by_backups_in_different_status(
+        self, _mock_load_backup_cache, capsys
+    ):
+        """
+        Verify that a name shared by backups in different statuses is ambiguous.
+        """
+        # GIVEN a server with a failed and a done backup sharing the same name
+        server = build_real_server()
+        server.backup_manager._backup_cache = {
+            "20221109T120000": Mock(
+                backup_id="20221109T120000",
+                backup_name="nightly",
+                status="DONE",
+                backup_type="full",
+            ),
+            "20221108T120000": Mock(
+                backup_id="20221108T120000",
+                backup_name="nightly",
+                status="FAILED",
+                backup_type="full",
+            ),
+        }
+
+        # WHEN parse_backup_id is called with that name
+        args = Mock(backup_id="nightly")
+
+        # THEN an error is raised
+        with pytest.raises(SystemExit):
+            parse_backup_id(server, args)
+
+        # AND it lists the matching backups
+        _out, err = capsys.readouterr()
+        assert "Multiple backups found matching name 'nightly'" in err
+        assert "20221109T120000" in err
+        assert "20221108T120000" in err
 
     @pytest.mark.parametrize(
         ("backup_infos", "backup_id"),
