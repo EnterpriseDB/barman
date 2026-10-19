@@ -1,0 +1,21 @@
+---
+- summary: Resolve backup names for backups in any status
+  description: |
+    Backup names given to `barman backup --name` were only resolved for backups
+    in `WAITING_FOR_WALS` or `DONE` status. For `STARTED` and `FAILED` backups,
+    commands such as `delete`, `show-backup` and `check-backup` failed with
+    `Unknown backup`, although `list-backup` showed the name and the same
+    commands worked with the backup ID. This made it hard to clean up failed
+    backups by name.
+
+    Backup names now resolve for backups in any status, as backup IDs do.
+    Commands which require a usable backup, such as `restore`, keep checking
+    the backup status and report an error for backups that cannot be used.
+
+    **Behavior change**: if more than one backup has the same name, which can
+    now include `STARTED` or `FAILED` backups, for example when a failed backup
+    is retried using the same name, commands fail with an error listing the IDs
+    of the matching backups. Use the backup ID in that case.
+  type: bugfix
+  jira_tickets:
+    - BAR-1638
