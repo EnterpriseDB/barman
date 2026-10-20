@@ -27,6 +27,7 @@ from __future__ import print_function
 
 import argparse
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -39,6 +40,7 @@ from barman.compression import CompressionManager, get_server_config_minimal
 from barman.utils import force_str
 
 DEFAULT_USER = "barman"
+REMOTE_BARMAN_EXECUTABLE = "barman"
 DEFAULT_SPOOL_DIR = "/var/tmp/walrestore"
 
 # The string_types list is used to identify strings
@@ -214,7 +216,9 @@ def build_ssh_command(config, wal_name, peek=0):
         "-q",  # quiet mode - suppress warnings
         "-T",  # disable pseudo-terminal allocation
         "%s@%s" % (config.user, config.barman_host),
-        "barman",
+        shlex.quote(
+            os.path.join(config.remote_barman_path or "", REMOTE_BARMAN_EXECUTABLE)
+        ),
     ]
 
     if config.config:
@@ -347,6 +351,12 @@ def parse_arguments(args=None):
     parser.add_argument(
         "--port",
         help="The port used for the ssh connection to the Barman server.",
+    )
+    parser.add_argument(
+        "--remote-barman-path",
+        metavar="DIR",
+        help="The directory containing the 'barman' executable on the Barman server. "
+        "Use it when 'barman' is not in PATH.",
     )
     parser.add_argument(
         "-s",

@@ -27,6 +27,7 @@ import argparse
 import copy
 import hashlib
 import os
+import shlex
 import subprocess
 import sys
 import tarfile
@@ -42,6 +43,7 @@ from barman.infofile import WalFileInfo
 from barman.wal_archiver import ParallelWalArchiver
 
 DEFAULT_USER = "barman"
+REMOTE_BARMAN_EXECUTABLE = "barman"
 BUFSIZE = 16 * 1024
 PREFETCH_CACHE_DIR = "/tmp/barman-{server_name}-{computed_hash}"
 
@@ -129,7 +131,10 @@ def build_ssh_command(config):
         "-q",  # quiet mode - suppress warnings
         "-T",  # disable pseudo-terminal allocation
         "%s@%s" % (config.user, config.barman_host),
-        "barman",
+        # ssh hands the command to a remote shell, so the path must be quoted
+        shlex.quote(
+            os.path.join(config.remote_barman_path or "", REMOTE_BARMAN_EXECUTABLE)
+        ),
     ]
 
     if config.config:
@@ -198,6 +203,12 @@ def parse_arguments(args=None):
     parser.add_argument(
         "--port",
         help="The port used for the ssh connection to the Barman server.",
+    )
+    parser.add_argument(
+        "--remote-barman-path",
+        metavar="DIR",
+        help="The directory containing the 'barman' executable on the Barman server. "
+        "Use it when 'barman' is not in PATH.",
     )
     parser.add_argument(
         "-c",
