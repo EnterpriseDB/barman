@@ -35,6 +35,7 @@ class TestRemoteGetWal(object):
             user="barman",
             barman_host="remote.barman.host",
             config=None,
+            remote_barman_path=None,
             server_name="this-server",
         )
         dest_file = tmpdir.join("test-dest").strpath
@@ -431,6 +432,7 @@ def test_peek_additional_files_spool_dir_is_created(
                 user="barman",
                 port=None,
                 config=None,
+                remote_barman_path=None,
                 test=None,
                 compression=None,
                 keep_compression=False,
@@ -454,6 +456,7 @@ def test_peek_additional_files_spool_dir_is_created(
                 user="barman",
                 port="22",
                 config="/etc/barman.conf",
+                remote_barman_path=None,
                 test=True,
                 compression=None,
                 keep_compression=False,
@@ -480,6 +483,7 @@ def test_peek_additional_files_spool_dir_is_created(
                 user="barman",
                 port=None,
                 config=None,
+                remote_barman_path=None,
                 test=None,
                 compression="gzip",
                 keep_compression=False,
@@ -503,6 +507,7 @@ def test_peek_additional_files_spool_dir_is_created(
                 user="barman",
                 port=None,
                 config=None,
+                remote_barman_path=None,
                 test=None,
                 compression=None,
                 keep_compression=True,
@@ -526,6 +531,7 @@ def test_peek_additional_files_spool_dir_is_created(
                 user="barman",
                 port=None,
                 config=None,
+                remote_barman_path=None,
                 test=None,
                 compression=None,
                 keep_compression=False,
@@ -626,3 +632,39 @@ def test_try_deliver_from_spool(mock_move, mock_path_exists):
             walrestore.try_deliver_from_spool(config, dest_file)
             # THEN it should move the spool file to the destination
             mock_move.assert_called_once_with(spool_file, dest_file)
+
+
+@pytest.mark.parametrize(
+    ("extra_args", "expected_barman"),
+    [
+        ([], "barman"),
+        (
+            ["--remote-barman-path", "/opt/barman/bin"],
+            "/opt/barman/bin/barman",
+        ),
+        (["--remote-barman-path", "/opt/barman/bin/"], "/opt/barman/bin/barman"),
+        (
+            ["--remote-barman-path", "/opt/my barman/bin"],
+            "'/opt/my barman/bin/barman'",
+        ),
+    ],
+)
+def test_build_ssh_command_remote_barman_path(extra_args, expected_barman):
+    """Test the ``--remote-barman-path`` option is used in the ssh command"""
+    # GIVEN barman-wal-restore arguments with or without the option
+    config = walrestore.parse_arguments(
+        extra_args + ["a.host", "a-server", "000000010000000000000001", "/tmp/dest"]
+    )
+
+    # WHEN the ssh command is built
+    command = walrestore.build_ssh_command(config, "000000010000000000000001")
+
+    # THEN the remote barman command is the one requested, quoted for the shell
+    assert command == [
+        "ssh",
+        "-q",
+        "-T",
+        "barman@a.host",
+        expected_barman,
+        "get-wal 'a-server' '000000010000000000000001'",
+    ]

@@ -388,6 +388,7 @@ class TestRemoteWalArchiver(object):
             user="barman",
             barman_host="barman.example.com",
             config=None,
+            remote_barman_path=None,
             port=None,
             md5=False,
             compression=None,
@@ -601,6 +602,7 @@ class TestRemotePutWal(object):
             user="barman",
             barman_host="remote.barman.host",
             config=None,
+            remote_barman_path=None,
             server_name="this-server",
             test=False,
             port=None,
@@ -665,6 +667,7 @@ class TestRemotePutWal(object):
             user="barman",
             barman_host="remote.barman.host",
             config=None,
+            remote_barman_path=None,
             server_name="this-server",
             test=False,
             port=None,
@@ -737,6 +740,7 @@ class TestRemotePutWal(object):
             user="barman",
             barman_host="remote.barman.host",
             config=None,
+            remote_barman_path=None,
             server_name="this-server",
             test=False,
             port=None,
@@ -884,3 +888,43 @@ class TestChecksumTarFile(object):
             assert (
                 checksum == hashlib.new(hash_algorithm, bytes(src_string)).hexdigest()
             )
+
+
+class TestRemoteBarmanPath(object):
+    """Tests for the ``--remote-barman-path`` option."""
+
+    @pytest.mark.parametrize(
+        ("extra_args", "expected_barman"),
+        [
+            ([], "barman"),
+            (
+                ["--remote-barman-path", "/opt/barman/bin"],
+                "/opt/barman/bin/barman",
+            ),
+            (["--remote-barman-path", "/opt/barman/bin/"], "/opt/barman/bin/barman"),
+            (
+                ["--remote-barman-path", "/opt/my barman/bin"],
+                "'/opt/my barman/bin/barman'",
+            ),
+        ],
+    )
+    def test_build_ssh_command(self, extra_args, expected_barman):
+        # GIVEN barman-wal-archive arguments with or without the option
+        config = walarchive.parse_arguments(
+            extra_args + ["--test", "a.host", "a-server", "DUMMY"]
+        )
+
+        # WHEN the ssh command is built
+        command = walarchive.build_ssh_command(config)
+
+        # THEN the remote barman command is the one requested, quoted for the shell
+        assert command == [
+            "ssh",
+            "-q",
+            "-T",
+            "barman@a.host",
+            expected_barman,
+            "put-wal",
+            "a-server",
+            "--test",
+        ]
