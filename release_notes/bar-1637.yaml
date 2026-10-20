@@ -1,0 +1,13 @@
+---
+- summary: Fix delta restore removing unrelated content from tablespace locations
+  description: |
+    A delta restore removed everything in a tablespace location that was not part
+    of the backup. This included content that belongs to something else, such as the
+    directory of the old Postgres major version left in the location by
+    `pg_upgrade`.
+    Now only the extra files within the backup's own tablespace directory
+    (`PG_<major>_<catversion>`) are removed, and any other content in the location
+    is kept.
+  type: bugfix
+  jira_tickets:
+    - BAR-1637
