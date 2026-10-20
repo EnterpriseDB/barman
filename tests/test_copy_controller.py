@@ -18,6 +18,7 @@
 
 import multiprocessing.dummy
 import os
+import shutil
 import time
 from datetime import datetime
 
@@ -725,7 +726,9 @@ class TestRsyncCopyController(object):
         ) * workers_start_batch_period
         assert end_time - start_time > minimum_allowed_time
 
-    def _run_analyze_directory(self, list_files_mock, tmpdir, ref_list, src_list):
+    def _run_analyze_directory(
+        self, list_files_mock, tmpdir, ref_list, src_list, item_class=None
+    ):
         # Apply it to _list_files calls
         list_files_mock.side_effect = [ref_list, src_list]
 
@@ -778,7 +781,7 @@ class TestRsyncCopyController(object):
             src=":/pg/data/",
             dst=backup_info.get_data_directory(),
             is_directory=True,
-            item_class=rcc.PGDATA_CLASS,
+            item_class=item_class or rcc.PGDATA_CLASS,
             optional=False,
         )
 
@@ -1033,6 +1036,168 @@ class TestRsyncCopyController(object):
         # all directories and exclude all files
         assert item.exclude_and_protect_file
         assert open(item.exclude_and_protect_file).read() == "+ */\n- *\n"
+
+    @pytest.mark.parametrize(
+        ("item_class", "expected_protect_top_level"),
+        [
+            (RsyncCopyController.TABLESPACE_CLASS, True),
+            (RsyncCopyController.PGDATA_CLASS, False),
+        ],
+    )
+    @patch("barman.copy_controller.RsyncCopyController._list_files")
+    def test_analyze_directory_protects_top_level_of_tablespace(
+        self, list_files_mock, item_class, expected_protect_top_level, tmpdir
+    ):
+        """
+        Verify that, if the destination has content, the exclude_and_protect_file
+        of a tablespace protects every top level entry that is not in the source,
+        as a tablespace location can hold content of other Postgres versions.
+        """
+        # GIVEN a destination with content
+        ref_list = [
+            _FileItem(
+                "drwxrwxrwt",
+                69632,
+                datetime(2015, 2, 9, 15, 1, 0, tzinfo=dateutil.tz.tzlocal()),
+                ".",
+            ),
+            _FileItem(
+                "-rw-r--r--",
+                69612,
+                datetime(2015, 2, 9, 15, 1, 0, tzinfo=dateutil.tz.tzlocal()),
+                "PG_15_1/other",
+            ),
+        ]
+        # AND a source with a file
+        src_list = [ref_list[0]] + [
+            _FileItem(
+                "-rw-r--r--",
+                69612,
+                datetime(2015, 2, 20, 22, 15, 33, tzinfo=dateutil.tz.tzlocal()),
+                "PG_16_1/file",
+            ),
+        ]
+
+        # WHEN the directory is analyzed
+        item, _ = self._run_analyze_directory(
+            list_files_mock, tmpdir, ref_list, src_list, item_class=item_class
+        )
+
+        # THEN the file of the source is protected
+        expected = "P /PG_16_1/file\n- /PG_16_1/file\n"
+        # AND the top level of the destination is only protected for tablespaces
+        if expected_protect_top_level:
+            expected += "P /*\n"
+        assert open(item.exclude_and_protect_file).read() == expected
+
+    @pytest.mark.skipif(shutil.which("rsync") is None, reason="rsync not available")
+    @patch("barman.copy_controller.Pool", new=multiprocessing.dummy.Pool)
+    @patch("signal.signal")
+    def test_copy_tablespace_keeps_unrelated_content(self, _signal_mock, tmpdir):
+        """
+        Verify that copying a tablespace over a destination with content, as done
+        by a delta restore, purges only the files within the directories of the
+        backup, and keeps other content of the tablespace location.
+        """
+        # GIVEN the payload of a tablespace backup
+        src = tmpdir.mkdir("src")
+        version_src = src.mkdir("PG_16_1")
+        version_src.mkdir("5").join("271").write("new")
+        version_src.join("5").mkdir("sub").join("272").write("new")
+        # AND a tablespace location with stale files in the version directory
+        dst = tmpdir.mkdir("dst")
+        version_dir = dst.mkdir("PG_16_1")
+        version_dir.join("stale_top").write("stale")
+        version_dir.mkdir("5").join("stale").write("stale")
+        version_dir.join("5").mkdir("sub").join("stale_nested").write("stale")
+        version_dir.mkdir("stale_dir").join("stale").write("stale")
+        # AND content that does not belong to the backup
+        dst.mkdir("PG_15_1").mkdir("5").join("99999").write("keep")
+        dst.mkdir("other_cluster").join("keep.txt").write("keep")
+        dst.join("note.txt").write("keep")
+
+        # WHEN the tablespace is copied
+        controller = RsyncCopyController(path=os.environ.get("PATH"))
+        controller.add_directory(
+            label="ts1",
+            src="%s/" % src.strpath,
+            dst=dst.strpath,
+            item_class=RsyncCopyController.TABLESPACE_CLASS,
+        )
+        controller.copy()
+
+        # THEN the payload of the backup was copied
+        assert dst.join("PG_16_1", "5", "271").read() == "new"
+        assert dst.join("PG_16_1", "5", "sub", "272").read() == "new"
+        # AND the stale files within the backup directories were purged
+        assert not dst.join("PG_16_1", "stale_top").check()
+        assert not dst.join("PG_16_1", "5", "stale").check()
+        assert not dst.join("PG_16_1", "5", "sub", "stale_nested").check()
+        assert not dst.join("PG_16_1", "stale_dir").check()
+        # AND the other content of the location was kept
+        assert dst.join("PG_15_1", "5", "99999").read() == "keep"
+        assert dst.join("other_cluster", "keep.txt").read() == "keep"
+        assert dst.join("note.txt").read() == "keep"
+
+    @pytest.mark.skipif(shutil.which("rsync") is None, reason="rsync not available")
+    @patch("barman.copy_controller.Pool", new=multiprocessing.dummy.Pool)
+    @patch("signal.signal")
+    def test_copy_tablespace_to_empty_location(self, _signal_mock, tmpdir):
+        """
+        Verify that copying a tablespace to an empty location, as done by a
+        restore without a previous content, copies the payload of the backup.
+        """
+        # GIVEN the payload of a tablespace backup
+        src = tmpdir.mkdir("src")
+        src.mkdir("PG_16_1").mkdir("5").join("271").write("new")
+        # AND an empty tablespace location
+        dst = tmpdir.mkdir("dst")
+
+        # WHEN the tablespace is copied
+        controller = RsyncCopyController(path=os.environ.get("PATH"))
+        controller.add_directory(
+            label="ts1",
+            src="%s/" % src.strpath,
+            dst=dst.strpath,
+            item_class=RsyncCopyController.TABLESPACE_CLASS,
+        )
+        controller.copy()
+
+        # THEN the payload of the backup was copied
+        assert dst.join("PG_16_1", "5", "271").read() == "new"
+
+    @pytest.mark.skipif(shutil.which("rsync") is None, reason="rsync not available")
+    @patch("barman.copy_controller.Pool", new=multiprocessing.dummy.Pool)
+    @patch("signal.signal")
+    def test_copy_tablespace_twice_keeps_unrelated_content(self, _signal_mock, tmpdir):
+        """
+        Verify that repeating the copy of a tablespace over the result of a
+        previous copy keeps the payload and the other content of the location.
+        """
+        # GIVEN the payload of a tablespace backup
+        src = tmpdir.mkdir("src")
+        src.mkdir("PG_16_1").mkdir("5").join("271").write("new")
+        # AND a tablespace location with content that does not belong to the backup
+        dst = tmpdir.mkdir("dst")
+        dst.mkdir("PG_15_1").mkdir("5").join("99999").write("keep")
+        dst.join("note.txt").write("keep")
+
+        # WHEN the tablespace is copied twice
+        for _ in range(2):
+            controller = RsyncCopyController(path=os.environ.get("PATH"))
+            controller.add_directory(
+                label="ts1",
+                src="%s/" % src.strpath,
+                dst=dst.strpath,
+                item_class=RsyncCopyController.TABLESPACE_CLASS,
+            )
+            controller.copy()
+
+        # THEN the payload of the backup is there
+        assert dst.join("PG_16_1", "5", "271").read() == "new"
+        # AND the other content of the location was kept
+        assert dst.join("PG_15_1", "5", "99999").read() == "keep"
+        assert dst.join("note.txt").read() == "keep"
 
     @patch("barman.copy_controller.RsyncCopyController._rsync_factory")
     @patch("barman.copy_controller.RsyncCopyController._rsync_ignore_vanished_files")
