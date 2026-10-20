@@ -15,6 +15,7 @@ Synopsis
         [ --port PORT ]
         [ { { -z | --gzip } | { -j | --bzip2 } | --xz | --snappy | --zstd | --lz4 } ]
         [ --compression-level COMPRESSION_LEVEL ]
+        [ --remote-barman-path DIR ]
         [ { -c | --config } CONFIG ]
         [ { -t | --test } ]
         [ --md5 ]
@@ -88,6 +89,14 @@ Parameters
   of the predefined labels: ``low``, ``medium``, and ``high``. The range of each
   algorithm as well as what level each predefined label maps to can be found in
   :ref:`compression_level <configuration-options-compression-level>`.
+
+``--remote-barman-path``
+    Directory containing the ``barman`` executable on the Barman server. Use it when
+    ``barman`` is not in ``PATH``.
+
+    .. note::
+        The value is passed to the remote shell quoted, so it must be an absolute path.
+        Shell expansions such as ``~`` or ``$HOME`` are not performed on the Barman server.
 
 ``-c`` /  ``--config``
     Specify the configuration file on the Barman server.

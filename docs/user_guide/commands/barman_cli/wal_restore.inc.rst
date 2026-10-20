@@ -18,6 +18,7 @@ Synopsis
         [ --spool-dir SPOOL_DIR ]
         [ { -P | --partial } ]
         [ { { -z | --gzip } | { -j | --bzip2 } | --keep-compression } ]
+        [ --remote-barman-path DIR ]
         [ { -c | --config } CONFIG ]
         [ { -t | --test } ]
         BARMAN_HOST SERVER_NAME WAL_NAME WAL_DEST
@@ -94,6 +95,14 @@ Parameters
 ``--keep-compression``
     If specified, compressed files will be trasnfered as-is and decompressed on arrival
     on the client-side.
+
+``--remote-barman-path``
+    Directory containing the ``barman`` executable on the Barman server. Use it when
+    ``barman`` is not in ``PATH``.
+
+    .. note::
+        The value is passed to the remote shell quoted, so it must be an absolute path.
+        Shell expansions such as ``~`` or ``$HOME`` are not performed on the Barman server.
 
 ``-c`` /  ``--config``
     Specify the configuration file on the Barman server.
