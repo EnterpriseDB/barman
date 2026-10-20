@@ -112,6 +112,12 @@ specific recovery, you can disable it using the ``--no-delta-restore`` option wi
     stored in the cloud.
   * **Remote restore** with ``staging_location=local``.
 
+.. note::
+  In a tablespace location, a delta restore only removes the extra files within the
+  directories of the backup, such as ``PG_<major>_<catalog version>``. Any other
+  content of the location, such as the directory of another Postgres major version, is
+  kept.
+
 Tablespace Remapping
 --------------------
 
