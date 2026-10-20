@@ -1023,6 +1023,17 @@ class RsyncCopyController(object):
             # All remaining files must be checked with checksums enabled
             item.check_list.append(entry)
 
+        # A tablespace location can hold other content, such as the directory of
+        # an old major version left by pg_upgrade, or other tablespaces of WarehousePG
+        # that share the same location. Protect them from the purge, which then only
+        # removes extra files within the tablespace directory itself
+        # (e.g. PG_<major>_<catversion>)
+        # This also applies when backing up a tablespace with rsync, which is
+        # harmless: the source is already limited to PG_<major>_*, and the
+        # destination is a fresh directory (or a previous attempt of that backup)
+        if ref_has_content and item.item_class == self.TABLESPACE_CLASS:
+            exclude_and_protect_filter.write("P /*\n")
+
         # Close all the control files
         dir_list.close()
         exclude_and_protect_filter.close()
