@@ -18,6 +18,7 @@
 
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 import mock
 import pytest
@@ -267,9 +268,12 @@ class TestUnixLocalCommand(object):
         actual = cm.get_path_device_number(incoming_dir.strpath)
         assert expected == actual
 
+    @patch("barman.fs.os.urandom", return_value=b"\xde\xad\xbe\xef")
+    @patch("barman.fs.os.getpid", return_value=1234)
     @patch("barman.fs.Command")
-    def test_check_write_permission(self, command_mock):
+    def test_check_write_permission(self, command_mock, _getpid_mock, _urandom_mock):
         command_instance = command_mock.return_value
+        check_file = "test dir/.barman_write_check.1234.deadbeef"
 
         ulc = UnixLocalCommand()
 
@@ -312,7 +316,7 @@ class TestUnixLocalCommand(object):
         assert command_instance.mock_calls == [
             call("test '-e' 'test dir'"),
             call("test '-d' 'test dir'"),
-            call("touch 'test dir/.barman_write_check'"),
+            call("touch '%s'" % check_file),
         ]
 
         # Path exists, is a directory, is writable, but remove failure
@@ -329,8 +333,8 @@ class TestUnixLocalCommand(object):
         assert command_instance.mock_calls == [
             call("test '-e' 'test dir'"),
             call("test '-d' 'test dir'"),
-            call("touch 'test dir/.barman_write_check'"),
-            call("rm 'test dir/.barman_write_check'"),
+            call("touch '%s'" % check_file),
+            call("rm '%s'" % check_file),
         ]
 
         # Path exists, is a directory, is writable, and can remove
@@ -347,9 +351,37 @@ class TestUnixLocalCommand(object):
         assert command_instance.mock_calls == [
             call("test '-e' 'test dir'"),
             call("test '-d' 'test dir'"),
-            call("touch 'test dir/.barman_write_check'"),
-            call("rm 'test dir/.barman_write_check'"),
+            call("touch '%s'" % check_file),
+            call("rm '%s'" % check_file),
         ]
+
+    def test_check_write_permission_concurrent(self, tmp_path):
+        # GIVEN a directory shared by several concurrent write checks
+        def check(_):
+            return UnixLocalCommand().check_write_permission(str(tmp_path))
+
+        # WHEN the checks run in parallel
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            results = list(executor.map(check, range(100)))
+
+        # THEN all of them succeed and no check file is left behind
+        assert all(results)
+        assert list(tmp_path.iterdir()) == []
+
+    @pytest.mark.skipif(
+        hasattr(os, "geteuid") and os.geteuid() == 0,
+        reason="root can write to read-only directories",
+    )
+    def test_check_write_permission_read_only_dir(self, tmp_path):
+        # GIVEN a read-only directory
+        tmp_path.chmod(0o500)
+        try:
+            # WHEN the write permission is checked
+            # THEN it fails
+            with pytest.raises(FsOperationFailed):
+                UnixLocalCommand().check_write_permission(str(tmp_path))
+        finally:
+            tmp_path.chmod(0o700)
 
     @patch("barman.fs.Command")
     def test_create_symbolic_link(self, command_mock):
