@@ -82,6 +82,8 @@ EXPECTED_MINIMAL = {
             "children_backup_ids": None,
             "cluster_size": 2048,
             "encryption": None,
+            "whpg_dbid": None,
+            "whpg_version": None,
         }
     },
     "config": {},

@@ -192,6 +192,8 @@ class TestCloudBackupShow(object):
             "hba_file": "/pgdata/location/pg_hba.conf",
             "ident_file": "/pgdata/location/pg_ident.conf",
             "included_files": None,
+            "whpg_dbid": None,
+            "whpg_version": None,
             "mode": "concurrent",
             "parent_backup_id": None,
             "pgdata": "/pgdata/location",

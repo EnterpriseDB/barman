@@ -727,6 +727,55 @@ class TestBackupInfo(object):
             if line.startswith("status"):
                 assert line.strip() == "status=FAILED"
 
+    @pytest.mark.parametrize(
+        ("whpg_dbid", "whpg_version", "expected"),
+        [
+            (None, None, False),
+            (3, 70000, True),
+            (3, None, False),
+            (None, 70000, False),
+        ],
+    )
+    def test_is_whpg(self, whpg_dbid, whpg_version, expected):
+        """
+        Test that a backup is a WarehousePG one if all the metadata is present
+        """
+        # GIVEN a backup with or without WarehousePG metadata
+        backup_info = build_test_backup_info(
+            whpg_dbid=whpg_dbid, whpg_version=whpg_version
+        )
+
+        # WHEN checking if it is a WarehousePG backup
+        # THEN the result depends on the metadata being present
+        assert backup_info.is_whpg is expected
+
+    @pytest.mark.parametrize("is_whpg", [True, False])
+    def test_whpg_metadata_save_and_load(self, is_whpg, tmpdir):
+        """
+        Test that the WarehousePG metadata is saved to backup.info and loaded back
+        as integers, and that it stays unset for other PostgreSQL instances.
+        """
+        # GIVEN a backup with or without WarehousePG metadata
+        server = build_mocked_server(
+            main_conf={
+                "basebackups_directory": tmpdir.strpath,
+                "backup_directory": tmpdir.join("main"),
+            },
+        )
+        b_info = LocalBackupInfo(server, backup_id="fake_name")
+        if is_whpg:
+            b_info.whpg_dbid = 3
+            b_info.whpg_version = 70000
+
+        # WHEN the backup.info is saved and loaded back
+        b_info.save()
+        loaded = LocalBackupInfo(server, backup_id="fake_name")
+
+        # THEN the metadata is the same as before saving
+        assert loaded.is_whpg is is_whpg
+        assert loaded.whpg_dbid == (3 if is_whpg else None)
+        assert loaded.whpg_version == (70000 if is_whpg else None)
+
     def test_backup_info_version(self, tmpdir):
         """
         Simple test for backup_version management.

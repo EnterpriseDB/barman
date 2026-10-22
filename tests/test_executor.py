@@ -49,6 +49,7 @@ from barman.exceptions import (
     DataTransferFailure,
     FsOperationFailed,
     PostgresConnectionError,
+    PostgresInvalidWhpgSettings,
     SnapshotBackupException,
     SshCommandException,
 )
@@ -906,6 +907,7 @@ class TestStrategy(object):
         # Given a PostgreSQL connection of the specified version
         mock_postgres = mock.Mock()
         mock_postgres.server_version = server_version
+        mock_postgres.is_whpg = False
         # Mock the get_setting("data_directory"), get_setting("data_checksums") and
         # get_setting("summarize_wal") calls, respectively
         mock_postgres.get_setting.side_effect = [
@@ -966,6 +968,53 @@ class TestStrategy(object):
         assert backup_info.xlog_segment_size == 16
         assert backup_info.tablespaces == tablespaces
         assert backup_info.cluster_size == 2048
+
+    def test__pg_get_metadata_whpg(self):
+        # GIVEN a connection to a WarehousePG instance
+        mock_postgres = mock.Mock()
+        mock_postgres.server_version = 120000
+        mock_postgres.is_whpg = True
+        settings = {
+            "data_directory": "data_directory",
+            "gp_dbid": "3",
+            "gp_server_version_num": "70000",
+            "data_checksums": "on",
+        }
+        mock_postgres.get_setting.side_effect = settings.get
+        mock_postgres.get_configuration_files.return_value = dict(
+            config_file="/etc/postgresql.conf",
+            hba_file="/pg/pg_hba.conf",
+            ident_file="/pg/pg_ident.conf",
+        )
+        mock_postgres.get_tablespaces.return_value = None
+        strategy = PostgresBackupStrategy(mock_postgres, "test server")
+        backup_info = build_test_backup_info()
+        assert backup_info.is_whpg is False
+
+        # WHEN the metadata is loaded
+        strategy._pg_get_metadata(backup_info)
+
+        # THEN the WarehousePG metadata is stored as integers
+        assert backup_info.whpg_dbid == 3
+        assert backup_info.whpg_version == 70000
+        assert backup_info.is_whpg is True
+
+    def test__pg_get_metadata_invalid_whpg_settings(self):
+        # GIVEN a connection to an instance with only some WarehousePG settings
+        mock_postgres = mock.Mock()
+        mock_postgres.server_version = 120000
+        type(mock_postgres).is_whpg = mock.PropertyMock(
+            side_effect=PostgresInvalidWhpgSettings("Unexpected set")
+        )
+        mock_postgres.get_setting.return_value = "data_directory"
+        mock_postgres.get_configuration_files.return_value = {}
+        mock_postgres.get_tablespaces.return_value = None
+        strategy = PostgresBackupStrategy(mock_postgres, "test server")
+
+        # WHEN the metadata is loaded
+        # THEN the error is propagated, so that the backup fails
+        with pytest.raises(PostgresInvalidWhpgSettings):
+            strategy._pg_get_metadata(build_test_backup_info())
 
 
 class TestPostgresBackupExecutor(object):
@@ -1409,136 +1458,70 @@ class TestPostgresBackupExecutor(object):
             mock.call()(),
         ]
 
+    @pytest.mark.parametrize(
+        ("configured_dbid", "whpg_dbid"),
+        [
+            # Regular Postgres, nothing configured
+            (None, None),
+            # WarehousePG, dbid is inferred from the instance
+            (None, 3),
+            # The deprecated option is ignored in favor of the inferred value
+            ("42", 3),
+            # The deprecated option is ignored even for regular Postgres
+            ("42", None),
+        ],
+    )
     @patch("barman.backup_executor.PgBaseBackup")
     @patch("barman.backup_executor.PostgresBackupExecutor.fetch_remote_status")
-    def test_backup_copy_with_warehousepg_dbid(
-        self, remote_mock, pg_basebackup_mock, tmpdir, capsys
+    def test_backup_copy_warehousepg_dbid(
+        self,
+        remote_mock,
+        pg_basebackup_mock,
+        configured_dbid,
+        whpg_dbid,
+        tmpdir,
+        capsys,
     ):
         """
-        Test that warehousepg_dbid is correctly passed to PgBaseBackup.
-
-        :param remote_mock: mock for the fetch_remote_status method
-        :param pg_basebackup_mock: mock for the PgBaseBackup object
-        :param tmpdir: pytest temp directory
-        :param capsys: pytest capture output
+        Test that ``--target-gp-dbid`` uses the dbid inferred from the instance,
+        and that the deprecated ``warehousepg_dbid`` option is ignored.
         """
-        backup_manager = build_backup_manager(
-            global_conf={
-                "barman_home": tmpdir.mkdir("home").strpath,
-                "backup_method": "postgres",
-                "warehousepg_dbid": "42",
-            }
-        )
+        # GIVEN a server which may have the deprecated option configured
+        global_conf = {
+            "barman_home": tmpdir.mkdir("home").strpath,
+            "backup_method": "postgres",
+        }
+        if configured_dbid is not None:
+            global_conf["warehousepg_dbid"] = configured_dbid
+        backup_manager = build_backup_manager(global_conf=global_conf)
         remote_mock.return_value = {
             "pg_basebackup_version": "14",
             "pg_basebackup_path": "/fake/path",
             "pg_basebackup_bwlimit": True,
         }
-        server_mock = backup_manager.server
-        streaming_mock = server_mock.streaming
+        streaming_mock = backup_manager.server.streaming
         streaming_mock.get_connection_string.return_value = "fake=connstring"
         streaming_mock.conn_parameters = {
             "host": "fakeHost",
             "port": "fakePort",
             "user": "fakeUser",
         }
+        # AND a backup which may have been taken from a WarehousePG instance
         backup_info = build_test_backup_info(
-            server=backup_manager.server, backup_id="fake_backup_id"
+            server=backup_manager.server,
+            backup_id="fake_backup_id",
+            whpg_dbid=whpg_dbid,
+            whpg_version=70000 if whpg_dbid is not None else None,
         )
+
+        # WHEN the backup is copied
         backup_manager.executor.backup_copy(backup_info)
+
+        # THEN the dbid passed to pg_basebackup is the one from the backup info
         out, err = capsys.readouterr()
         assert out == ""
         assert err == ""
-
-        # Verify that warehousepg_dbid was passed to PgBaseBackup
-        assert pg_basebackup_mock.mock_calls == [
-            mock.call.make_logging_handler(logging.INFO),
-            mock.call(
-                connection=mock.ANY,
-                version="14",
-                app_name="barman_streaming_backup",
-                destination=mock.ANY,
-                command="/fake/path",
-                tbs_mapping=mock.ANY,
-                bwlimit=None,
-                immediate=False,
-                retry_times=0,
-                retry_sleep=30,
-                retry_handler=mock.ANY,
-                path=mock.ANY,
-                compression=None,
-                err_handler=mock.ANY,
-                out_handler=mock.ANY,
-                parent_backup_manifest_path=None,
-                warehousepg_dbid=42,
-            ),
-            mock.call()(),
-        ]
-
-    @patch("barman.backup_executor.PgBaseBackup")
-    @patch("barman.backup_executor.PostgresBackupExecutor.fetch_remote_status")
-    def test_backup_copy_without_warehousepg_dbid(
-        self, remote_mock, pg_basebackup_mock, tmpdir, capsys
-    ):
-        """
-        Test that warehousepg_dbid is None when not configured.
-
-        :param remote_mock: mock for the fetch_remote_status method
-        :param pg_basebackup_mock: mock for the PgBaseBackup object
-        :param tmpdir: pytest temp directory
-        :param capsys: pytest capture output
-        """
-        backup_manager = build_backup_manager(
-            global_conf={
-                "barman_home": tmpdir.mkdir("home").strpath,
-                "backup_method": "postgres",
-            }
-        )
-        remote_mock.return_value = {
-            "pg_basebackup_version": "14",
-            "pg_basebackup_path": "/fake/path",
-            "pg_basebackup_bwlimit": True,
-        }
-        server_mock = backup_manager.server
-        streaming_mock = server_mock.streaming
-        streaming_mock.get_connection_string.return_value = "fake=connstring"
-        streaming_mock.conn_parameters = {
-            "host": "fakeHost",
-            "port": "fakePort",
-            "user": "fakeUser",
-        }
-        backup_info = build_test_backup_info(
-            server=backup_manager.server, backup_id="fake_backup_id"
-        )
-        backup_manager.executor.backup_copy(backup_info)
-        out, err = capsys.readouterr()
-        assert out == ""
-        assert err == ""
-
-        # Verify that warehousepg_dbid was passed as None to PgBaseBackup
-        assert pg_basebackup_mock.mock_calls == [
-            mock.call.make_logging_handler(logging.INFO),
-            mock.call(
-                connection=mock.ANY,
-                version="14",
-                app_name="barman_streaming_backup",
-                destination=mock.ANY,
-                command="/fake/path",
-                tbs_mapping=mock.ANY,
-                bwlimit=None,
-                immediate=False,
-                retry_times=0,
-                retry_sleep=30,
-                retry_handler=mock.ANY,
-                path=mock.ANY,
-                compression=None,
-                err_handler=mock.ANY,
-                out_handler=mock.ANY,
-                parent_backup_manifest_path=None,
-                warehousepg_dbid=None,
-            ),
-            mock.call()(),
-        ]
+        assert pg_basebackup_mock.call_args.kwargs["warehousepg_dbid"] == whpg_dbid
 
     def test_postgres_start_backup(self):
         """

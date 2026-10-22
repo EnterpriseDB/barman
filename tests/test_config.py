@@ -2022,6 +2022,36 @@ class TestCsvParsing(object):
         with pytest.raises(ValueError):
             BackupOptions("test_string", "", "")
 
+    @pytest.mark.parametrize("section", ["global", "server", "model"])
+    @patch("barman.config.output")
+    def test_ignored_option_output(self, out_mock, section):
+        """
+        Test that options which have no effect anymore are reported as deprecated
+        """
+        # GIVEN a configuration which has the warehousepg_dbid option in a section
+        option = {"warehousepg_dbid": "3"}
+        c = testing_helpers.build_config_from_dicts(
+            global_conf=option if section == "global" else None,
+            main_conf=option if section == "server" else None,
+            with_model=True,
+            model_conf=option if section == "model" else None,
+        )
+
+        # WHEN the section is validated
+        if section == "global":
+            c.validate_global_config()
+        elif section == "server":
+            c.validate_server_config("main")
+        else:
+            c.validate_model_config("main:model")
+
+        # THEN a warning says that the option is deprecated and ignored
+        out_mock.warning.assert_called_once()
+        args = out_mock.warning.call_args.args
+        assert args[1] == "warehousepg_dbid"
+        assert "deprecated and ignored" in args[0]
+        assert "inferred from the instance" in args[3]
+
     @patch("barman.config.output")
     def test_invalid_option_output(self, out_mock):
         """

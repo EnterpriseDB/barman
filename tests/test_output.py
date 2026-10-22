@@ -1453,6 +1453,29 @@ class TestConsoleWriter(object):
         )
         assert err == ""
 
+    @pytest.mark.parametrize("is_whpg", [True, False])
+    def test_result_show_backup_with_whpg_metadata(self, is_whpg, capsys):
+        # GIVEN a backup info which may have been taken from a WarehousePG instance
+        kwargs = {"whpg_dbid": 3, "whpg_version": 70000} if is_whpg else {}
+        ext_info = mock_backup_ext_info(
+            status=BackupInfo.DONE,
+            wals_per_second=0.1,
+            est_dedup_size=1024,
+            deduplication_ratio=0.5,
+            **kwargs,
+        )
+
+        # WHEN the show_backup output is generated in Plain form
+        console_writer = output.ConsoleOutputWriter()
+        console_writer.init_list_backup(ext_info["server_name"], False)
+        console_writer.result_show_backup(ext_info)
+        console_writer.close()
+        out, _err = capsys.readouterr()
+
+        # THEN the output contains the WarehousePG metadata only for WarehousePG
+        assert ("    WarehousePG dbid     : 3" in out) is is_whpg
+        assert ("    WarehousePG version  : 70000" in out) is is_whpg
+
     def test_result_show_backup_with_backup_name(self, capsys):
         # GIVEN a backup info with a backup_name
         ext_info = mock_backup_ext_info(
@@ -2288,6 +2311,50 @@ class TestJsonWriter(object):
             type_mock.assert_called_once()
 
     @mock.patch.dict("os.environ", {"TZ": "US/Eastern"})
+    @pytest.mark.parametrize("is_whpg", [True, False])
+    def test_result_show_backup_with_whpg_metadata(self, is_whpg, capsys):
+        # GIVEN a backup which may have been taken from a WarehousePG instance
+        backup_manager = build_backup_manager(
+            main_conf={"backup_options": "concurrent_backup"}
+        )
+        kwargs = {"whpg_dbid": 3, "whpg_version": 70000} if is_whpg else {}
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            backup_id="12345",
+            begin_time=self.begin_time,
+            end_time=self.end_time,
+            **kwargs,
+        )
+        ext_info = mock_backup_ext_info(
+            backup_info=backup_info,
+            children_timelines=(mock.Mock(tli="1"), mock.Mock(tli="2")),
+            wals_per_second=0.01,
+            est_dedup_size=1024,
+            deduplication_ratio=0.99,
+            wal_compression_ratio=0.5,
+            copy_time=1,
+            analysis_time=2,
+            number_of_workers=1,
+            backup_type="full",
+            retention_policy_status="VALID",
+            previous_backup_id="12345",
+            next_backup_id="123456",
+        )
+
+        # WHEN the show_backup output is generated in JSON form
+        writer = output.JsonOutputWriter()
+        writer.result_show_backup(ext_info)
+        writer.close()
+        out, _err = capsys.readouterr()
+        server_information = json.loads(out)[ext_info["server_name"]][
+            "server_information"
+        ]
+
+        # THEN the JSON contains the WarehousePG metadata, which is null for other
+        # PostgreSQL instances
+        assert server_information["whpg_dbid"] == (3 if is_whpg else None)
+        assert server_information["whpg_version"] == (70000 if is_whpg else None)
+
     def test_result_show_backup(self, capsys):
         """
         Unit test for the show-backup command that display information about a

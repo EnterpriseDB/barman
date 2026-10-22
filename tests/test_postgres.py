@@ -35,6 +35,7 @@ from barman.exceptions import (
     PostgresDuplicateReplicationSlot,
     PostgresException,
     PostgresInvalidReplicationSlot,
+    PostgresInvalidWhpgSettings,
     PostgresIsInRecovery,
     PostgresObsoleteFeature,
     PostgresUnsupportedFeature,
@@ -583,6 +584,65 @@ class TestPostgres(object):
         with pytest.raises(psycopg2.Error):
             server.postgres.get_available_settings(["wal_keep_size"])
 
+    @pytest.mark.parametrize(
+        ("available", "expected"),
+        [
+            ([], False),
+            (["gp_dbid", "gp_server_version_num"], True),
+        ],
+    )
+    @patch("barman.postgres.PostgreSQLConnection.get_available_settings")
+    def test_is_whpg(self, get_available_settings_mock, available, expected):
+        """
+        Test that an instance is a WarehousePG one if both settings are available
+        """
+        # GIVEN a server which has none or all of the WarehousePG settings
+        server = build_real_server()
+        get_available_settings_mock.return_value = available
+
+        # WHEN checking if it is a WarehousePG instance
+        result = server.postgres.is_whpg
+
+        # THEN the WarehousePG settings are looked up
+        get_available_settings_mock.assert_called_once_with(
+            ["gp_dbid", "gp_server_version_num"]
+        )
+        # AND the result matches the availability of the settings
+        assert result is expected
+
+    @pytest.mark.parametrize("available", [["gp_dbid"], ["gp_server_version_num"]])
+    @patch("barman.postgres.PostgreSQLConnection.get_available_settings")
+    def test_is_whpg_partial_settings(self, get_available_settings_mock, available):
+        """
+        Test that an error is raised if only one of the settings is available
+        """
+        # GIVEN a server which only has one of the WarehousePG settings
+        server = build_real_server()
+        get_available_settings_mock.return_value = available
+
+        # WHEN checking if it is a WarehousePG instance
+        # THEN an error is raised
+        with pytest.raises(PostgresInvalidWhpgSettings, match="Unexpected set"):
+            server.postgres.is_whpg
+
+    @pytest.mark.parametrize(
+        "error", [PostgresConnectionError("down"), psycopg2.OperationalError("down")]
+    )
+    @patch("barman.postgres.PostgreSQLConnection.get_available_settings")
+    def test_is_whpg_connection_error(self, get_available_settings_mock, error):
+        """
+        Test that a failure to query the server is not reported as a non-WarehousePG
+        instance
+        """
+        # GIVEN a server which cannot be queried
+        server = build_real_server()
+        get_available_settings_mock.side_effect = error
+
+        # WHEN checking if it is a WarehousePG instance
+        # THEN the error is propagated instead of returning ``False``
+        with pytest.raises(type(error)):
+            server.postgres.is_whpg
+
     @patch("barman.postgres.PostgreSQLConnection.connect")
     def test_get_systemid(self, conn):
         """
@@ -995,8 +1055,10 @@ class TestPostgres(object):
     @patch("barman.postgres.PostgreSQLConnection.get_setting")
     @patch("barman.postgres.PostgreSQLConnection.get_synchronous_standby_names")
     @patch("barman.postgres.PostgreSQLConnection.get_systemid")
+    @patch("barman.postgres.PostgreSQLConnection.is_whpg", new_callable=PropertyMock)
     def test_get_remote_status(
         self,
+        is_whpg_mock,
         get_systemid_mock,
         get_synchronous_standby_names_mock,
         get_setting_mock,
@@ -1036,6 +1098,7 @@ class TestPostgres(object):
         checkpoint_timeout_mock.return_value = 600
         xlog_segment_size.return_value = 2 << 22
         get_systemid_mock.return_value = 6721602258895701769
+        is_whpg_mock.return_value = False
 
         settings = {
             "data_directory": "a directory",
@@ -1085,6 +1148,7 @@ class TestPostgres(object):
             "xlog_segment_size": 8388608,
             "postgres_systemid": 6721602258895701769,
             "has_monitoring_privileges": True,
+            "is_whpg": False,
         }
 
         # Test PostgreSQL 9.6
@@ -1117,6 +1181,7 @@ class TestPostgres(object):
             "xlog_segment_size": 8388608,
             "postgres_systemid": 6721602258895701769,
             "has_monitoring_privileges": True,
+            "is_whpg": False,
         }
 
         # Test PostgreSQL 13
@@ -1150,6 +1215,7 @@ class TestPostgres(object):
             "xlog_segment_size": 8388608,
             "postgres_systemid": 6721602258895701769,
             "has_monitoring_privileges": True,
+            "is_whpg": False,
         }
 
         # Test PostgreSQL 12 based server which uses the wal_keep_size name, e.g.
@@ -1167,6 +1233,11 @@ class TestPostgres(object):
         assert "wal_keep_size" not in result
         assert "wal_keep_segments" not in result
 
+        # Test a WarehousePG instance
+        is_whpg_mock.return_value = True
+        assert server.postgres.fetch_remote_status()["is_whpg"] is True
+        is_whpg_mock.return_value = False
+
         # Test error management
         server.postgres.close()
         conn_mock.side_effect = psycopg2.DatabaseError
@@ -1182,6 +1253,7 @@ class TestPostgres(object):
             "synchronous_standby_names": None,
             "version_supported": None,
             "postgres_systemid": None,
+            "is_whpg": None,
         }
 
         get_setting_mock.side_effect = psycopg2.ProgrammingError
@@ -1196,6 +1268,7 @@ class TestPostgres(object):
             "synchronous_standby_names": None,
             "version_supported": None,
             "postgres_systemid": None,
+            "is_whpg": None,
         }
 
     @patch("barman.postgres.PostgreSQLConnection.connect")

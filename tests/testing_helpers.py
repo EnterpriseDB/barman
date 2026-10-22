@@ -77,6 +77,8 @@ def build_test_backup_info(
     children_backup_ids=None,
     cluster_size=2048,
     encryption=None,
+    whpg_dbid=None,
+    whpg_version=None,
 ):
     """
     Create an 'Ad Hoc' BackupInfo object for testing purposes.
@@ -114,6 +116,9 @@ def build_test_backup_info(
     :param str|None: parent_backup_id status flag
     :param list|None: children_backup_ids status flag
     :param int|None: cluster_size status flag
+    :param int|None whpg_dbid: the ``gp_dbid`` of a WarehousePG instance
+    :param int|None whpg_version: the ``gp_server_version_num`` of a WarehousePG
+        instance
     :rtype: barman.infofile.LocalBackupInfo
     """
     if begin_time is None:
@@ -491,6 +496,7 @@ def build_mocked_server(
     server.path = "/test/bin"
     server.systemid = "6721602258895701769"
     server.postgres.server_version = pg_version
+    server.postgres.is_whpg = False
     server.meta_directory = "%s/meta" % server.config.backup_directory
     server.use_backup_cloud_storage = False
     server.use_wal_cloud_storage = False
