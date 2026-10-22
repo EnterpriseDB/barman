@@ -17,6 +17,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+import os
 import re
 import shutil
 import sys
@@ -206,6 +207,13 @@ class UnixLocalCommand(object):
         raise exception if the creation fails.
         raise exception if the removal fails.
 
+        The file has a unique name, so concurrent checks on the same directory
+        do not colide.
+
+        .. note::
+            If the process is killed after creating the file and before removing
+            it, the file is left behind in the directory.
+
         :param dir_path full dir_path for the directory to check
         """
         _logger.debug("Check if directory %s is writable" % dir_path)
@@ -213,13 +221,14 @@ class UnixLocalCommand(object):
         if exists:
             is_dir = self.cmd("test", args=["-d", dir_path])
             if is_dir == 0:
-                can_write = self.cmd(
-                    "touch", args=["%s/.barman_write_check" % dir_path]
+                check_file = "%s/.barman_write_check.%s.%s" % (
+                    dir_path,
+                    os.getpid(),
+                    os.urandom(4).hex(),
                 )
+                can_write = self.cmd("touch", args=[check_file])
                 if can_write == 0:
-                    can_remove = self.cmd(
-                        "rm", args=["%s/.barman_write_check" % dir_path]
-                    )
+                    can_remove = self.cmd("rm", args=[check_file])
                     if can_remove == 0:
                         return True
                     else:
