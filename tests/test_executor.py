@@ -2107,6 +2107,7 @@ class TestCloudPostgresBackupExecutor(object):
             "my-bucket/backups/test_server/base/fake_backup_id/backup.info",
         )
 
+    @pytest.mark.parametrize("whpg_dbid", [None, 3])
     @patch("barman.backup_executor.CloudPostgresBackupExecutor._wait_copy_start")
     @patch(
         "barman.backup_executor.CloudPostgresBackupExecutor.get_remote_status",
@@ -2133,9 +2134,11 @@ class TestCloudPostgresBackupExecutor(object):
         mock_get_bandwidth_limit,
         mock_get_remote_status,
         mock_wait_copy_start,
+        whpg_dbid,
     ):
         """
-        Test that :class:`PgBaseBackup` is correctly initialized and run.
+        Test that :class:`PgBaseBackup` is correctly initialized and run, including
+        the WarehousePG dbid when the backup was taken from a WarehousePG instance.
         """
         # GIVEN a CloudPostgresBackupExecutor with all relevant attributes set
         executor = CloudPostgresBackupExecutor(None)
@@ -2150,7 +2153,10 @@ class TestCloudPostgresBackupExecutor(object):
             immediate_checkpoint=True,
         )
         # WHEN _run_pg_basebackup is called with a test BackupInfo
-        backup_info = build_test_backup_info()
+        backup_info = build_test_backup_info(
+            whpg_dbid=whpg_dbid,
+            whpg_version=70000 if whpg_dbid is not None else None,
+        )
         result = executor._run_pg_basebackup(backup_info)
         # THEN it returns a PgBaseBackup instance
         assert result == mock_pg_basebackup.return_value
@@ -2168,6 +2174,7 @@ class TestCloudPostgresBackupExecutor(object):
             immediate=True,
             path=server_path,
             parent_backup_manifest_path=mock_get_parent_manifest.return_value,
+            warehousepg_dbid=whpg_dbid,
         )
         # AND the instance of PgBaseBackup was actually run
         mock_pg_basebackup.return_value.assert_called_once()
