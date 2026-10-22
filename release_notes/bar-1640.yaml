@@ -1,0 +1,15 @@
+---
+- summary: 'Support for WarehousePG: Detect the WAL retention setting in use by the server'
+  description: |
+    Barman used to choose between `wal_keep_segments` and `wal_keep_size`
+    according to the PostgreSQL version reported by the server. This does not
+    hold for WarehousePG 7, which is based on PostgreSQL 12 but uses the
+    `wal_keep_size` name introduced in PostgreSQL 13.
+
+    Barman now checks which of the two parameters the server has, instead of
+    relying on the server version. This way, `barman show-server` reports the
+    WAL retention setting of WarehousePG 7, and Barman no longer requests a
+    parameter that does not exist in the server.
+  type: minor_change
+  jira_tickets:
+    - BAR-1640
