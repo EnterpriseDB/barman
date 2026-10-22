@@ -1,0 +1,22 @@
+---
+- summary: 'Support for WarehousePG: Detect WarehousePG instances and save their metadata in the backup'
+  description: |
+    Barman now detects when it is connected to a WarehousePG instance by checking
+    whether the `gp_dbid` and `gp_server_version_num` settings exist, and fails if
+    only one of them does. When backing up a WarehousePG instance, these values are
+    saved in the backup metadata and shown by `barman show-backup`. Backups of
+    other PostgreSQL instances are not affected.
+
+    The `warehousepg_dbid` configuration option is deprecated and no longer has any
+    effect. Barman now infers the database id from the instance it is connected to
+    through `conninfo`, and passes it to `pg_basebackup` for every `postgres`
+    backup, including the ones uploaded straight to the cloud, which did not
+    receive it before. Barman warns about the option when reading the
+    configuration, and it should be removed from it.
+
+    The documentation has a new WarehousePG page describing how to connect to
+    WarehousePG instances, and what Barman does, and does not do, for WarehousePG
+    clusters.
+  type: minor_change
+  jira_tickets:
+    - BAR-1660
