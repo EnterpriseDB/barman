@@ -737,7 +737,9 @@ class ConsoleOutputWriter(object):
 
         data_checksums = backup_info.get("data_checksums")
         summarize_wal = backup_info.get("summarize_wal")
-        if data_checksums or summarize_wal:
+        whpg_dbid = backup_info.get("whpg_dbid")
+        whpg_version = backup_info.get("whpg_version")
+        if data_checksums or summarize_wal or whpg_dbid is not None:
             output_fun(header_row.format("Server information"))
             if data_checksums:
                 output_fun(
@@ -745,6 +747,10 @@ class ConsoleOutputWriter(object):
                 )
             if summarize_wal:
                 output_fun(nested_row.format("WAL summarizer", summarize_wal))
+            if whpg_dbid is not None:
+                output_fun(nested_row.format("WarehousePG dbid", whpg_dbid))
+            if whpg_version is not None:
+                output_fun(nested_row.format("WarehousePG version", whpg_version))
             output_fun("")
 
     @staticmethod
@@ -1686,6 +1692,8 @@ class JsonOutputWriter(ConsoleOutputWriter):
         output["server_information"] = dict(
             data_checksums=data["data_checksums"],
             summarize_wal=data["summarize_wal"],
+            whpg_dbid=data["whpg_dbid"],
+            whpg_version=data["whpg_version"],
         )
 
         cluster_size = data.get("cluster_size")

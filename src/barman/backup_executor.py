@@ -783,7 +783,7 @@ class PostgresBackupExecutor(BackupExecutor):
             err_handler=self._err_handler,
             out_handler=PgBaseBackup.make_logging_handler(logging.INFO),
             parent_backup_manifest_path=parent_backup_manifest_path,
-            warehousepg_dbid=self.config.warehousepg_dbid,
+            warehousepg_dbid=backup_info.whpg_dbid,
         )
 
         # Do the actual copy
@@ -2682,6 +2682,15 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
             for item in tablespaces:
                 msg = "\t%s, %s, %s" % (item.oid, item.name, item.location)
                 _logger.info(msg)
+
+        # Set WarehousePG metadata, only available in WarehousePG instances
+        if self.postgres.is_whpg:
+            backup_info.set_attribute(
+                "whpg_dbid", int(self.postgres.get_setting("gp_dbid"))
+            )
+            backup_info.set_attribute(
+                "whpg_version", int(self.postgres.get_setting("gp_server_version_num"))
+            )
 
         # Set data_checksums state
         data_checksums = self.postgres.get_setting("data_checksums")

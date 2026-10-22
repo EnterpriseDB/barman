@@ -774,7 +774,7 @@ class ServerConfig(BaseConfig):
         "wal_retention_policy",
         "wal_streaming_conninfo",
         "wals_directory",
-        "warehousepg_dbid",
+        "warehousepg_dbid",  # Deprecated in 3.21, ignored
         "worm_mode",
         "xlogdb_directory",
     ]
@@ -877,7 +877,7 @@ class ServerConfig(BaseConfig):
         "streaming_backup_name",
         "tablespace_bandwidth_limit",
         "wal_retention_policy",
-        "warehousepg_dbid",
+        "warehousepg_dbid",  # Deprecated in 3.21, ignored
         "worm_mode",
         "xlogdb_directory",
     ]
@@ -1477,6 +1477,15 @@ class Config(object):
 
     _QUOTE_RE = re.compile(r"""^(["'])(.*)\1$""")
 
+    #: Options which are still accepted but have no effect, mapped to the hint
+    #: which is shown to users who still have them in their configuration.
+    _IGNORED_KEYS = {
+        "warehousepg_dbid": (
+            "The WarehousePG database id is inferred from the instance Barman "
+            "is connected to through 'conninfo'"
+        ),
+    }
+
     def __init__(self, filename=None):
         #  In Python 3 ConfigParser has changed to be strict by default.
         #  Barman wants to preserve the Python 2 behavior, so we are
@@ -1996,6 +2005,14 @@ class Config(object):
                     'Invalid configuration option "%s" in [%s] section.',
                     name,
                     section,
+                )
+            elif name in Config._IGNORED_KEYS:
+                output.warning(
+                    'Configuration option "%s" in [%s] section is deprecated and '
+                    "ignored. %s. Please remove it from your configuration.",
+                    name,
+                    section,
+                    Config._IGNORED_KEYS[name],
                 )
 
 

@@ -584,6 +584,11 @@ class BackupInfo(FieldListFile):
 
     encryption = Field("encryption")
 
+    #: ``gp_dbid`` of the instance, only set for WarehousePG instances.
+    whpg_dbid = Field("whpg_dbid", load=int)
+    #: ``gp_server_version_num`` of the instance, only set for WarehousePG instances.
+    whpg_version = Field("whpg_version", load=int)
+
     __slots__ = "backup_id", "backup_version"
     #: "backup_version": Indicates the internal backup directory layout version.
     #:
@@ -668,6 +673,16 @@ class BackupInfo(FieldListFile):
         :return bool: ``True`` if this backup has a parent, ``False`` otherwise.
         """
         return self.parent_backup_id is not None
+
+    @property
+    def is_whpg(self):
+        """
+        Check if the backup was taken from a WarehousePG instance.
+
+        :return bool: ``True`` if the WarehousePG metadata is present, ``False``
+            otherwise.
+        """
+        return self.whpg_dbid is not None and self.whpg_version is not None
 
     @property
     def has_children(self):

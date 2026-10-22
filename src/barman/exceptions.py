@@ -309,6 +309,12 @@ class PostgresAppNameError(PostgresConnectionError):
     """
 
 
+class PostgresInvalidWhpgSettings(PostgresException):
+    """
+    Only part of the settings which identify a WarehousePG instance are available
+    """
+
+
 class PostgresSuperuserRequired(PostgresException):
     """
     Superuser access is required

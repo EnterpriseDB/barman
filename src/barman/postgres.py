@@ -46,6 +46,7 @@ from barman.exceptions import (
     PostgresDuplicateReplicationSlot,
     PostgresException,
     PostgresInvalidReplicationSlot,
+    PostgresInvalidWhpgSettings,
     PostgresIsInRecovery,
     PostgresObsoleteFeature,
     PostgresReplicationSlotInUse,
@@ -464,6 +465,10 @@ class PostgreSQLConnection(PostgreSQL):
     ANY_STREAMING_CLIENT = (STANDBY, WALSTREAMER)
 
     HEARTBEAT_QUERY = "SELECT 1"
+
+    #: Settings which are only available in WarehousePG instances. An instance is
+    #: considered to be a WarehousePG one if all of them are available.
+    WHPG_SETTINGS = ("gp_dbid", "gp_server_version_num")
 
     def __init__(
         self,
@@ -998,6 +1003,7 @@ class PostgreSQLConnection(PostgreSQL):
             "synchronous_standby_names",
             "postgres_systemid",
             "version_supported",
+            "is_whpg",
         ]
         # Initialise the result dictionary setting all the values to None
         result = dict.fromkeys(
@@ -1063,7 +1069,12 @@ class PostgreSQLConnection(PostgreSQL):
             # Retrieve the list of synchronous standby names
             result["synchronous_standby_names"] = self.get_synchronous_standby_names()
             result["postgres_systemid"] = self.get_systemid()
-        except (PostgresConnectionError, psycopg2.Error) as e:
+            result["is_whpg"] = self.is_whpg
+        except (
+            PostgresConnectionError,
+            PostgresInvalidWhpgSettings,
+            psycopg2.Error,
+        ) as e:
             _logger.warning(
                 "Error retrieving PostgreSQL status: %s", force_str(e).strip()
             )
@@ -1112,6 +1123,27 @@ class PostgreSQLConnection(PostgreSQL):
         cur.execute("SELECT name FROM pg_settings WHERE name = ANY(%s)", (names,))
         found = {row[0] for row in cur.fetchall()}
         return [name for name in names if name in found]
+
+    @property
+    def is_whpg(self):
+        """
+        Whether the server is a WarehousePG instance.
+
+        An instance is considered to be a WarehousePG one if the ``gp_dbid`` and
+        ``gp_server_version_num`` settings are available.
+
+        :return bool: ``True`` if the server is a WarehousePG instance, ``False``
+            otherwise.
+        :raises PostgresInvalidWhpgSettings: if only some of the settings are
+            available.
+        """
+        available = self.get_available_settings(list(self.WHPG_SETTINGS))
+        if available and len(available) != len(self.WHPG_SETTINGS):
+            raise PostgresInvalidWhpgSettings(
+                "Unexpected set of WarehousePG settings: only %s of %s are available"
+                % (", ".join(available), ", ".join(self.WHPG_SETTINGS))
+            )
+        return bool(available)
 
     def get_tablespaces(self):
         """
