@@ -562,20 +562,14 @@ Scope: Global / Server / Model.
 
 **warehousepg_dbid**
 
-Specifies the integer identifier for a WarehousePG database. When set, this value is
-passed to ``pg_basebackup`` via the ``--target-gp-dbid`` parameter for WarehousePG
-compatibility. This option is required when backing up WarehousePG segments.
+.. deprecated:: 3.21
+  This option has no effect and will be removed in a future release.
 
-.. important::
-  This option is only relevant for WarehousePG databases and should not be set for
-  standard PostgreSQL databases.
-
-  Furthermore, Barman does not handle backups and restores for WarehousePG clusters.
-  The orchestration of backup and restore operations for WarehousePG clusters must be
-  managed externally by the user.
-
-.. note::
-  Only supported when ``backup_method = postgres``.
+Barman used to pass this value to ``pg_basebackup`` via the ``--target-gp-dbid``
+parameter when backing up WarehousePG segments. It now infers the identifier from the
+``gp_dbid`` setting of the instance it is connected to through ``conninfo``, so this
+option should be removed from the configuration. Barman warns about it when reading the
+configuration if it is still set. Refer to :ref:`WarehousePG <warehousepg>` for details.
 
 Scope: Global / Server / Model.
 

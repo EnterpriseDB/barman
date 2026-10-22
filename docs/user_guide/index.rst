@@ -24,6 +24,7 @@ DBAs during the recovery phase.
    backup
    cloud_snapshot_backup
    aws_outposts
+   warehousepg
    wal_archiving
    catalog
    recovery
