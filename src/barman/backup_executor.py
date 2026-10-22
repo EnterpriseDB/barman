@@ -1185,6 +1185,7 @@ class CloudPostgresBackupExecutor(PostgresBackupExecutor):
             immediate=self.config.immediate_checkpoint,
             path=self.server.path,
             parent_backup_manifest_path=parent_backup_manifest,
+            warehousepg_dbid=backup_info.whpg_dbid,
         )
         # Because we're using the wait=False here, this try-except block will only
         # catch basic errors such as command not found in PATH
