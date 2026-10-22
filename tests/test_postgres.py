@@ -556,6 +556,34 @@ class TestPostgres(object):
         assert server.postgres.get_setting("test_setting") is None
 
     @patch("barman.postgres.PostgreSQLConnection.connect")
+    def test_get_available_settings(self, conn):
+        """
+        Test that only the settings which exist in the server are returned
+        """
+        # GIVEN a server which only has one of the settings
+        server = build_real_server()
+        cursor_mock = conn.return_value.cursor.return_value
+        cursor_mock.fetchall.return_value = [("wal_keep_size",)]
+
+        # WHEN looking for both settings
+        result = server.postgres.get_available_settings(
+            ["wal_keep_segments", "wal_keep_size"]
+        )
+
+        # THEN pg_settings is queried for them
+        cursor_mock.execute.assert_called_once_with(
+            "SELECT name FROM pg_settings WHERE name = ANY(%s)",
+            (["wal_keep_segments", "wal_keep_size"],),
+        )
+        # AND only the existing one is returned
+        assert result == ["wal_keep_size"]
+
+        # AND an error is propagated to the caller
+        cursor_mock.execute.side_effect = psycopg2.Error
+        with pytest.raises(psycopg2.Error):
+            server.postgres.get_available_settings(["wal_keep_size"])
+
+    @patch("barman.postgres.PostgreSQLConnection.connect")
     def test_get_systemid(self, conn):
         """
         Simple test for retrieving the systemid from the database
@@ -963,6 +991,7 @@ class TestPostgres(object):
         "barman.postgres.PostgreSQLConnection.current_size", new_callable=PropertyMock
     )
     @patch("barman.postgres.PostgreSQLConnection.get_configuration_files")
+    @patch("barman.postgres.PostgreSQLConnection.get_available_settings")
     @patch("barman.postgres.PostgreSQLConnection.get_setting")
     @patch("barman.postgres.PostgreSQLConnection.get_synchronous_standby_names")
     @patch("barman.postgres.PostgreSQLConnection.get_systemid")
@@ -971,6 +1000,7 @@ class TestPostgres(object):
         get_systemid_mock,
         get_synchronous_standby_names_mock,
         get_setting_mock,
+        get_available_settings_mock,
         get_configuration_files_mock,
         current_size_mock,
         current_xlog_info,
@@ -1020,6 +1050,10 @@ class TestPostgres(object):
         }
 
         get_setting_mock.side_effect = lambda x: settings.get(x, "unknown")
+
+        # The wal_keep_* setting in use is found by looking at the server, not at
+        # its version
+        get_available_settings_mock.return_value = ["wal_keep_segments"]
 
         # Test PostgreSQL < Minimal
         conn_mock.return_value.server_version = 90500
@@ -1086,6 +1120,7 @@ class TestPostgres(object):
         }
 
         # Test PostgreSQL 13
+        get_available_settings_mock.return_value = ["wal_keep_size"]
         conn_mock.return_value.server_version = 130000
         server_txt_version_mock.return_value = "13.0"
         result = server.postgres.fetch_remote_status()
@@ -1117,9 +1152,25 @@ class TestPostgres(object):
             "has_monitoring_privileges": True,
         }
 
+        # Test PostgreSQL 12 based server which uses the wal_keep_size name, e.g.
+        # WarehousePG 7
+        get_available_settings_mock.return_value = ["wal_keep_size"]
+        conn_mock.return_value.server_version = 120000
+        server_txt_version_mock.return_value = "12.0"
+        result = server.postgres.fetch_remote_status()
+        assert result["wal_keep_size"] == "a wal_keep_size value"
+        assert "wal_keep_segments" not in result
+
+        # Test a server which has none of them
+        get_available_settings_mock.return_value = []
+        result = server.postgres.fetch_remote_status()
+        assert "wal_keep_size" not in result
+        assert "wal_keep_segments" not in result
+
         # Test error management
         server.postgres.close()
         conn_mock.side_effect = psycopg2.DatabaseError
+        get_available_settings_mock.side_effect = psycopg2.DatabaseError
         assert server.postgres.fetch_remote_status() == {
             "is_superuser": None,
             "is_in_recovery": None,
