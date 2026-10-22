@@ -1016,12 +1016,15 @@ class PostgreSQLConnection(PostgreSQL):
                     "wal_compression",
                 ]
             )
-            # Retrieve wal_keep_segments from version 9.0 onwards, until
-            # version 13.0, where it was renamed to wal_keep_size
-            if self.server_version < 130000:
-                pg_settings.append("wal_keep_segments")
-            else:
-                pg_settings.append("wal_keep_size")
+            # PostgreSQL 13 renamed wal_keep_segments to wal_keep_size, so one
+            # would expect to find only one of them depending on the server
+            # version. However, WarehousePG 7 is based on PostgreSQL 12 but uses
+            # the PostgreSQL 13 name, wal_keep_size. As running SHOW for a
+            # parameter that does not exist logs an error in the server, check
+            # which of them exist instead of inferring it from the version.
+            pg_settings.extend(
+                self.get_available_settings(["wal_keep_segments", "wal_keep_size"])
+            )
 
             # retrieves superuser settings
             if self.has_backup_privileges:
@@ -1097,6 +1100,18 @@ class PostgreSQLConnection(PostgreSQL):
                 force_str(e).strip(),
             )
             return None
+
+    def get_available_settings(self, names):
+        """
+        Get which of the given Postgres settings exist in the server
+
+        :param list[str] names: the parameter names to look for
+        :return list[str]: the names which exist in the server
+        """
+        cur = self._cursor()
+        cur.execute("SELECT name FROM pg_settings WHERE name = ANY(%s)", (names,))
+        found = {row[0] for row in cur.fetchall()}
+        return [name for name in names if name in found]
 
     def get_tablespaces(self):
         """
