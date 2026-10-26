@@ -5968,6 +5968,91 @@ class TestCloudBackupUploader(object):
         ]
         assert not any([attr == "backup_name" for attr in backup_info_attrs_set])
 
+    @pytest.mark.parametrize(
+        ("major_version", "is_whpg", "files", "expected"),
+        (
+            # Community PostgreSQL: only PG_<major>_* is uploaded
+            (
+                16,
+                False,
+                [
+                    "top.txt",
+                    "extra/sub/stray.txt",
+                    "PG_16_202307071/5/1234",
+                    "PG_16_202307071/5/pgsql_tmp1",
+                ],
+                [
+                    "PG_16_202307071",
+                    "PG_16_202307071/5",
+                    "PG_16_202307071/5/1234",
+                ],
+            ),
+            # WarehousePG: only <dbid>/ of the backed up instance is
+            # uploaded, not the ones of other instances sharing the location
+            (
+                7,
+                True,
+                [
+                    "top.txt",
+                    "extra/sub/stray.txt",
+                    "4/GPDB_7_302307071/5/9999",
+                    "3/extra.file",
+                    "3/GPDB_7_302307071/5/1234",
+                    "3/GPDB_7_302307071/5/pgsql_tmp1",
+                    "3/GPDB_8_302307071/5/9999",
+                ],
+                [
+                    "3",
+                    "3/GPDB_7_302307071",
+                    "3/GPDB_7_302307071/5",
+                    "3/GPDB_7_302307071/5/1234",
+                ],
+            ),
+        ),
+    )
+    @mock.patch("barman.cloud.CloudInterface")
+    def test_backup_data_files_tablespace_content(
+        self, mock_cloud_interface, major_version, is_whpg, files, expected, tmpdir
+    ):
+        """Test which members of a tablespace are uploaded, per tablespace layout."""
+        # GIVEN a tablespace directory with the supplied files
+        tablespace_dir = tmpdir.mkdir("ts1")
+        for relpath in files:
+            tablespace_dir.join(relpath).ensure()
+        # AND an empty PGDATA directory
+        pgdata_dir = tmpdir.mkdir("pgdata")
+        # AND a backup info of a server of the supplied flavour, whose instance
+        # has dbid 3
+        backup_info = MagicMock(
+            pgdata=str(pgdata_dir),
+            tablespaces=[MagicMock(location=str(tablespace_dir), oid=1234)],
+            is_whpg=is_whpg,
+            whpg_dbid=3,
+            whpg_major_version=major_version,
+        )
+        # AND an upload controller which records the members added to each tar
+        mock_cloud_interface.MIN_CHUNK_SIZE = 5 << 20
+        mock_cloud_interface.MAX_ARCHIVE_SIZE = 1 << 30
+        mock_cloud_interface.MAX_CHUNKS_PER_FILE = 10000
+        controller = CloudUploadController(
+            mock_cloud_interface, "prefix", 1 << 30, None
+        )
+        tars = {}
+        controller._get_tar = lambda name: tars.setdefault(name, mock.Mock())
+        controller.add_file = mock.Mock()
+        uploader = CloudBackupUploader(
+            self.server_name, mock_cloud_interface, 1 << 30, MagicMock()
+        )
+
+        # WHEN the data files are backed up
+        uploader._backup_data_files(
+            controller, backup_info, str(pgdata_dir), major_version
+        )
+
+        # THEN only the expected members are in the tablespace tar
+        arcnames = sorted(c[1]["arcname"] for c in tars["1234"].add.call_args_list)
+        assert arcnames == sorted(expected)
+
 
 class TestCloudBackupUploaderBarman(object):
     """

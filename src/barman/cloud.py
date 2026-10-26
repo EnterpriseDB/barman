@@ -58,7 +58,11 @@ from barman.exceptions import (
 from barman.fs import UnixLocalCommand, path_allowed
 from barman.infofile import BackupInfo, WalFileInfo
 from barman.postgres import PostgresKeepAlive
-from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
+from barman.postgres_plumbing import (
+    EXCLUDE_LIST,
+    PGDATA_EXCLUDE_LIST,
+    get_tablespace_filters,
+)
 from barman.utils import (
     BarmanEncoder,
     force_str,
@@ -1889,7 +1893,7 @@ class CloudBackupUploader(CloudBackup):
         """
 
         # List of paths to be excluded by the PGDATA copy
-        exclude = []
+        pgdata_exclude = PGDATA_EXCLUDE_LIST + EXCLUDE_LIST
 
         # Process every tablespace
         if backup_info.tablespaces:
@@ -1898,26 +1902,22 @@ class CloudBackupUploader(CloudBackup):
                 # exclude and protect it from being copied twice during
                 # the data directory copy
                 if tablespace.location.startswith(backup_info.pgdata + "/"):
-                    exclude += [tablespace.location[len(backup_info.pgdata) :]]
+                    pgdata_exclude += [tablespace.location[len(backup_info.pgdata) :]]
 
                 # Exclude and protect the tablespace from being copied again
                 # during the data directory copy
-                exclude += ["/pg_tblspc/%s" % tablespace.oid]
+                pgdata_exclude += ["/pg_tblspc/%s" % tablespace.oid]
 
                 # Copy the tablespace directory.
-                # NOTE: Barman should archive only the content of directory
-                #    "PG_" + PG_MAJORVERSION + "_" + CATALOG_VERSION_NO
-                # but CATALOG_VERSION_NO is not easy to retrieve, so we copy
-                #    "PG_" + PG_MAJORVERSION + "_*"
-                # It could select some spurious directory if a development or
-                # a beta version have been used, but it's good enough for a
-                # production system as it filters out other major versions.
+                tbspc_include, tbspc_exclude = get_tablespace_filters(
+                    backup_info, server_major_version
+                )
                 controller.upload_directory(
                     label=tablespace.name,
                     src=self._get_tablespace_location(tablespace),
                     dst="%s" % tablespace.oid,
-                    exclude=["/*"] + EXCLUDE_LIST,
-                    include=["/PG_%s_*" % server_major_version],
+                    exclude=tbspc_exclude,
+                    include=tbspc_include,
                 )
 
         # Copy PGDATA directory (or if that is itself a symlink, just follow it
@@ -1929,7 +1929,7 @@ class CloudBackupUploader(CloudBackup):
             label="pgdata",
             src=pgdata_dir,
             dst="data",
-            exclude=PGDATA_EXCLUDE_LIST + EXCLUDE_LIST + exclude,
+            exclude=pgdata_exclude,
         )
 
         # At last copy pg_control
