@@ -1,0 +1,14 @@
+---
+- summary: Fix unrelated directories being included in cloud backups of tablespaces
+  description: |
+    When taking a backup to cloud object storage, Barman only intends to back
+    up the `PG_<major>_*` directory of each tablespace. However, directories
+    inside the tablespace location could still be included in the tablespace backup.
+    This caused undesired behaviors, such as when tablespace located inside PGDATA
+    would have its contents duplicated in the backup.
+
+    Barman now currectly handles tablespace directories, ensuring that only the
+    intended `PG_<major>_*` directories are included in the backup.
+  type: bugfix
+  jira_tickets:
+    - BAR-1635
