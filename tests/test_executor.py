@@ -59,6 +59,24 @@ from barman.server import CheckOutputStrategy, CheckStrategy
 from barman.utils import total_seconds
 
 
+def mock_tablespaces_copy(backup_info, rsync_mock):
+    """
+    Make the mocked rsync copy transfer the version directory of every tablespace
+
+    :param LocalBackupInfo backup_info: the backup being copied
+    :param mock.Mock rsync_mock: mock for the RsyncCopyController class
+    """
+
+    def copy():
+        for tablespace in backup_info.tablespaces:
+            version_dir = os.path.join(
+                backup_info.get_data_directory(tablespace.oid), "PG_9.6_201608131"
+            )
+            os.mkdir(version_dir)
+
+    rsync_mock.return_value.copy.side_effect = copy
+
+
 # noinspection PyMethodMayBeStatic
 class TestRsyncBackupExecutor(object):
     """
@@ -314,6 +332,7 @@ class TestRsyncBackupExecutor(object):
         backup_info.save()
         # This is to check that all the preparation is done correctly
         assert os.path.exists(backup_info.filename)
+        mock_tablespaces_copy(backup_info, rsync_mock)
 
         backup_manager.executor.backup_copy(backup_info)
 
@@ -419,6 +438,7 @@ class TestRsyncBackupExecutor(object):
         backup_info.save()
         # This is to check that all the preparation is done correctly
         assert os.path.exists(backup_info.filename)
+        mock_tablespaces_copy(backup_info, rsync_mock)
 
         backup_manager.executor.backup_copy(backup_info)
 
@@ -529,6 +549,7 @@ class TestRsyncBackupExecutor(object):
         backup_info.save()
         # This is to check that all the preparation is done correctly
         assert os.path.exists(backup_info.filename)
+        mock_tablespaces_copy(backup_info, rsync_moc)
         # Execute a backup
         backup_manager.executor.backup_copy(backup_info)
         out, err = capsys.readouterr()
@@ -562,11 +583,75 @@ class TestRsyncBackupExecutor(object):
         backup_info.save()
         # This is to check that all the preparation is done correctly
         assert os.path.exists(backup_info.filename)
+        mock_tablespaces_copy(backup_info, rsync_moc)
         # Execute a backup
         backup_manager.executor.backup_copy(backup_info)
         out, err = capsys.readouterr()
         # check for the presence of the warning in the stderr
         assert ("WARNING: The usage of include directives is not supported") not in err
+
+    @patch("barman.backup_executor.RsyncCopyController")
+    def test_backup_copy_fails_on_empty_tablespace(self, rsync_mock, tmpdir):
+        """
+        Test that the backup fails if the copy leaves a tablespace empty
+        """
+        # GIVEN a backup of a server with two tablespaces
+        backup_manager = build_backup_manager(
+            global_conf={"barman_home": tmpdir.mkdir("home").strpath}
+        )
+        backup_manager.server.postgres.server_major_version = "9.6"
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            pgdata="/pg/data",
+            config_file="/etc/postgresql.conf",
+            hba_file="/pg/data/pg_hba.conf",
+            ident_file="/pg/data/pg_ident.conf",
+            begin_xlog="0/2000028",
+            begin_wal="000000010000000000000002",
+            begin_offset=28,
+        )
+        backup_info.save()
+
+        # AND a copy which transfers nothing for any tablespace, as it happens
+        # when the source has no "PG_<major>_*" directory
+        # WHEN the copy is executed
+        with pytest.raises(BackupException) as excinfo:
+            backup_manager.executor.backup_copy(backup_info)
+
+        # THEN it fails with an error describing the empty tablespace
+        assert str(excinfo.value) == (
+            "No data was copied for tablespace 'tbs1' (location: /fake/location): "
+            "no 'PG_9.6_*' directory was found there"
+        )
+
+    @patch("barman.backup_executor.RsyncCopyController")
+    def test_backup_copy_succeeds_on_populated_tablespace(self, rsync_mock, tmpdir):
+        """
+        Test that the backup does not fail when the copy transfers tablespace data
+        """
+        # GIVEN a backup of a server with two tablespaces
+        backup_manager = build_backup_manager(
+            global_conf={"barman_home": tmpdir.mkdir("home").strpath}
+        )
+        backup_manager.server.postgres.server_major_version = "9.6"
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            pgdata="/pg/data",
+            config_file="/etc/postgresql.conf",
+            hba_file="/pg/data/pg_hba.conf",
+            ident_file="/pg/data/pg_ident.conf",
+            begin_xlog="0/2000028",
+            begin_wal="000000010000000000000002",
+            begin_offset=28,
+        )
+        backup_info.save()
+
+        # AND a copy which transfers the version directory of every tablespace
+        mock_tablespaces_copy(backup_info, rsync_mock)
+
+        # WHEN the copy is executed
+        # THEN it does not fail
+        backup_manager.executor.backup_copy(backup_info)
 
     def test_validate_config_compression(self):
         # GIVEN a server with backup_method = rysnc and backup_method = gzip
