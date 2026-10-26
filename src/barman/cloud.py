@@ -477,6 +477,11 @@ class CloudUploadController(object):
         for root, dirs, files in os.walk(src):
             tar_root = os.path.relpath(root, src)
             if not path_allowed(exclude, include, tar_root, True):
+                # If this directory is to be excluded, prune the whole subtree.
+                # The exception is the root directory itself, represented by ".",
+                # otherwise we skip all the contents of src.
+                if tar_root != ".":
+                    dirs[:] = []
                 continue
             try:
                 self._get_tar(dst).add(root, arcname=tar_root, recursive=False)

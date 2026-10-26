@@ -5717,6 +5717,69 @@ class TestCloudUploadController(object):
         # THEN the chunk_size is set to the expected value
         assert controller.chunk_size == expected_chunk_size
 
+    @pytest.mark.parametrize(
+        ("files", "exclude", "include", "expected"),
+        (
+            # Tablespace rules: only the PG_<major>_* directory is kept, and
+            # nested directories under a rejected one are pruned too
+            (
+                [
+                    "top.txt",
+                    "extra/own.txt",
+                    "extra/sub/stray.txt",
+                    "PG_16_202307071/5/1234",
+                ],
+                ["/*"],
+                ["/PG_16_*"],
+                [
+                    "PG_16_202307071",
+                    "PG_16_202307071/5",
+                    "PG_16_202307071/5/1234",
+                ],
+            ),
+            # A tablespace located inside PGDATA is not added to the PGDATA tar
+            (
+                [
+                    "PG_VERSION",
+                    "ts1/PG_16_202307071/5/1234",
+                    "ts1/extra/stray.txt",
+                    "base/1/2",
+                ],
+                ["/ts1"],
+                None,
+                [".", "./PG_VERSION", "base", "base/1", "base/1/2"],
+            ),
+        ),
+    )
+    @mock.patch("barman.cloud.CloudInterface")
+    def test_upload_directory_prunes_excluded_directories(
+        self, mock_cloud_interface, files, exclude, include, expected, tmpdir
+    ):
+        """Test that the children of a rejected directory are not uploaded."""
+        # GIVEN a directory tree
+        for relpath in files:
+            path = tmpdir.join(relpath)
+            path.ensure()
+        # AND an upload controller with a mocked tar
+        mock_cloud_interface.MIN_CHUNK_SIZE = 5 << 20
+        mock_cloud_interface.MAX_ARCHIVE_SIZE = 1 << 30
+        mock_cloud_interface.MAX_CHUNKS_PER_FILE = 10000
+        controller = CloudUploadController(
+            mock_cloud_interface, "prefix", 1 << 30, None
+        )
+        mock_tar = mock.Mock()
+        controller._get_tar = mock.Mock(return_value=mock_tar)
+
+        # WHEN the directory is uploaded with the exclude and include rules
+        controller.upload_directory(
+            "label", str(tmpdir), "dst", exclude=exclude, include=include
+        )
+
+        # THEN only the members accepted by the rules and not under a rejected
+        # directory are added to the tar
+        arcnames = sorted(c[1]["arcname"] for c in mock_tar.add.call_args_list)
+        assert arcnames == sorted(expected)
+
 
 class TestCloudBackupUploader(object):
     """Tests for the CloudBackupUploader class."""
