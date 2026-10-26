@@ -2174,6 +2174,24 @@ class RsyncBackupExecutor(ExternalBackupExecutor):
         # Store statistics about the copy
         backup_info.copy_stats = controller.statistics()
 
+        # Fail if nothing has been copied for a tablespace. Only the content of the
+        # "PG_<major>_*" directory is copied, so an empty destination means the
+        # source has no directory with that name, e.g. due to a layout that is not
+        # supported. We do not expect this to happen, but a backup missing the
+        # tablespace data would only be noticed when restoring it, so it is failed.
+        if backup_info.tablespaces:
+            for tablespace in backup_info.tablespaces:
+                if not os.listdir(backup_info.get_data_directory(tablespace.oid)):
+                    raise BackupException(
+                        "No data was copied for tablespace '%s' (location: %s): "
+                        "no 'PG_%s_*' directory was found there"
+                        % (
+                            tablespace.name,
+                            tablespace.location,
+                            self.server.postgres.server_major_version,
+                        )
+                    )
+
         # Check for any include directives in PostgreSQL configuration
         # Currently, include directives are not supported for files that
         # reside outside PGDATA. These files must be manually backed up.
