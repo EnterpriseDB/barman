@@ -25,6 +25,7 @@
                   [ --min-chunk-size MIN_CHUNK_SIZE ]
                   [ --max-bandwidth MAX_BANDWIDTH ]
                   [ --keepalive-interval KEEPALIVE_INTERVAL ]
+                  [ --no-started-backup-info ]
                   [ --snapshot-instance SNAPSHOT_INSTANCE ]
                   [ --snapshot-disk NAME [ --snapshot-disk NAME ... ] ]
                   [ --snapshot-zone GCP_ZONE ]
@@ -168,6 +169,14 @@ uploaded to the cloud.
   An interval, in seconds, at which a heartbeat query is sent to the PostgreSQL server
   to keep the connection alive during the upload phase (default: ``60``). A value of
   ``0`` disables the heartbeat.
+
+``--no-started-backup-info``
+  Don't upload a ``backup.info`` file with status ``STARTED`` when the backup starts.
+  The ``backup.info`` file is then uploaded once, when the backup ends. Use this option
+  with object stores that refuse to overwrite an existing object, such as a bucket
+  with a retention policy and no object versioning. Without this option, the final
+  ``backup.info`` upload fails on such stores. A running backup isn't listed in the
+  catalog until it ends.
 
 ``--snapshot-instance``
   Instance where the disks to be backed up as snapshots are attached.

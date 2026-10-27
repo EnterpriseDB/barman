@@ -7937,6 +7937,74 @@ class TestCoordinateBackupStartedUpload(object):
         # AND the final upload had status FAILED
         assert upload_calls[-1] == BackupInfo.FAILED
 
+    @pytest.mark.parametrize("fail_copy", (False, True))
+    @mock.patch("barman.cloud.PostgresKeepAlive")
+    @mock.patch("barman.cloud.CloudBackupUploader.create_upload_controller")
+    @mock.patch("barman.cloud.CloudBackupUploader._backup_data_files")
+    @mock.patch("barman.cloud.ConcurrentBackupStrategy")
+    @mock.patch("barman.cloud.BackupInfo")
+    def test_backup_info_uploaded_once_without_started_upload(
+        self,
+        mock_backup_info,
+        _mock_backup_strategy,
+        mock_backup_data_files,
+        _mock_create_upload_controller,
+        _mock_keepalive,
+        fail_copy,
+    ):
+        """
+        Verify that with upload_started_backup_info=False, backup.info is uploaded
+        exactly once, with the final status, both when the backup succeeds and when
+        it fails.
+        """
+        # GIVEN a CloudBackupUploader that must not upload a STARTED backup.info
+        mock_cloud_interface = MagicMock(MAX_ARCHIVE_SIZE=99999, MIN_CHUNK_SIZE=2)
+        mock_postgres = MagicMock(server_major_version=150000)
+        mock_backup_info.return_value.backup_label = None
+        mock_backup_info.return_value.backup_id = "20250101T120000"
+        uploader = CloudBackupUploader(
+            self.server_name,
+            mock_cloud_interface,
+            99999,
+            mock_postgres,
+            upload_started_backup_info=False,
+        )
+        mock_backup_info.STARTED = BackupInfo.STARTED
+        mock_backup_info.FAILED = BackupInfo.FAILED
+        mock_backup_info.DONE = BackupInfo.DONE
+
+        def fake_set_attribute(attr, value):
+            setattr(mock_backup_info.return_value, attr, value)
+
+        mock_backup_info.return_value.set_attribute.side_effect = fake_set_attribute
+
+        # AND an object store that, like a bucket with a retention policy and no
+        # versioning, refuses to overwrite an existing object
+        stored = {}
+        upload_calls = []
+
+        def refuse_overwrite(fileobj, key):
+            if "backup.info" in key:
+                upload_calls.append(mock_backup_info.return_value.status)
+            if key in stored:
+                raise Exception("object is under retention and cannot be overwritten")
+            stored[key] = True
+
+        mock_cloud_interface.upload_fileobj.side_effect = refuse_overwrite
+        if fail_copy:
+            mock_backup_data_files.side_effect = Exception("upload error")
+
+        # WHEN backup is called
+        if fail_copy:
+            with pytest.raises(SystemExit):
+                uploader.backup()
+        else:
+            uploader.backup()
+
+        # THEN backup.info was uploaded exactly once, with the final status
+        expected = BackupInfo.FAILED if fail_copy else BackupInfo.DONE
+        assert upload_calls == [expected]
+
 
 class TestGetBackupIdUsingShortcutSkipsStarted(object):
     """Tests that _get_backup_id_using_shortcut skips STARTED backups."""

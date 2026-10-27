@@ -259,6 +259,7 @@ def main(args=None):
                             config.snapshot_disks,
                             config.backup_name,
                             keepalive_interval=config.keepalive_interval,
+                            upload_started_backup_info=config.upload_started_backup_info,
                         )
                         snapshot_backup.backup()
                     # Otherwise upload everything to the object store
@@ -267,6 +268,7 @@ def main(args=None):
                             postgres=postgres,
                             backup_name=config.backup_name,
                             keepalive_interval=config.keepalive_interval,
+                            upload_started_backup_info=config.upload_started_backup_info,
                             **uploader_kwargs,
                         )
                         uploader.backup()
@@ -375,6 +377,15 @@ def parse_arguments(args=None):
         "(default: 60)",
         default=60,
         dest="keepalive_interval",
+    )
+    parser.add_argument(
+        "--no-started-backup-info",
+        help="do not upload a backup.info with status STARTED when the backup "
+        "starts. backup.info is then uploaded only once, when the backup ends, "
+        "which object stores that refuse overwrites require (default: upload it)",
+        action="store_false",
+        default=True,
+        dest="upload_started_backup_info",
     )
     parser.add_argument(
         "-S",
