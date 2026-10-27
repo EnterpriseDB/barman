@@ -1534,6 +1534,7 @@ class CloudBackup(with_metaclass(ABCMeta)):
         postgres,
         backup_name=None,
         keepalive_interval=0,
+        upload_started_backup_info=True,
     ):
         """
         :param str server_name: The name of the server being backed up.
@@ -1546,12 +1547,18 @@ class CloudBackup(with_metaclass(ABCMeta)):
         :param int keepalive_interval: Interval in seconds at which a heartbeat query
             is sent to the PostgreSQL server during the backup to prevent idle connection
             timeouts. A value of 0 disables the mechanism.
+        :param bool upload_started_backup_info: If ``True``, upload a ``backup.info``
+            with status ``STARTED`` at the start of the backup, so the backup is
+            visible in the catalog while it runs. The final ``backup.info`` then
+            overwrites it. If ``False``, ``backup.info`` is uploaded only once, at the
+            end, which is required by object stores that refuse overwrites.
         """
         self.server_name = server_name
         self.cloud_interface = cloud_interface
         self.postgres = postgres
         self.backup_name = backup_name
         self._keepalive_interval = keepalive_interval
+        self.upload_started_backup_info = upload_started_backup_info
         # Stats
         self.copy_start_time = None
         self.copy_end_time = None
@@ -1703,9 +1710,11 @@ class CloudBackup(with_metaclass(ABCMeta)):
                 ):
                     # Mark as STARTED and upload backup.info so the backup is visible
                     # in the catalog immediately.  The finally block will overwrite
-                    # this with the final status (DONE or FAILED).
-                    self.backup_info.set_attribute("status", BackupInfo.STARTED)
-                    self._upload_backup_info()
+                    # this with the final status (DONE or FAILED). Skipped on request
+                    # for object stores that refuse to overwrite an existing object.
+                    if self.upload_started_backup_info:
+                        self.backup_info.set_attribute("status", BackupInfo.STARTED)
+                        self._upload_backup_info()
 
                     self._take_backup()
             except PostgresConnectionLost as exc:
@@ -1789,6 +1798,7 @@ class CloudBackupUploader(CloudBackup):
         min_chunk_size=None,
         max_bandwidth=None,
         keepalive_interval=60,
+        upload_started_backup_info=True,
     ):
         """
         Base constructor.
@@ -1808,6 +1818,8 @@ class CloudBackupUploader(CloudBackup):
         :param int keepalive_interval: interval in seconds at which a heartbeat query
           is sent to the PostgreSQL server during the upload phase to prevent idle
           connection timeouts. A value of 0 disables the mechanism.
+        :param bool upload_started_backup_info: whether to upload a ``backup.info``
+          with status ``STARTED`` at the start of the backup
         """
         super(CloudBackupUploader, self).__init__(
             server_name,
@@ -1815,6 +1827,7 @@ class CloudBackupUploader(CloudBackup):
             postgres,
             backup_name,
             keepalive_interval,
+            upload_started_backup_info,
         )
 
         self.compression = compression
@@ -2202,6 +2215,7 @@ class CloudBackupSnapshot(CloudBackup):
         snapshot_disks,
         backup_name=None,
         keepalive_interval=60,
+        upload_started_backup_info=True,
     ):
         """
         Create the backup client for snapshot backups
@@ -2222,9 +2236,16 @@ class CloudBackupSnapshot(CloudBackup):
         :param int keepalive_interval: Interval in seconds at which a heartbeat query
             is sent to the PostgreSQL server during the snapshot phase to prevent idle
             connection timeouts. A value of 0 disables the mechanism.
+        :param bool upload_started_backup_info: Whether to upload a ``backup.info``
+            with status ``STARTED`` at the start of the backup.
         """
         super(CloudBackupSnapshot, self).__init__(
-            server_name, cloud_interface, postgres, backup_name, keepalive_interval
+            server_name,
+            cloud_interface,
+            postgres,
+            backup_name,
+            keepalive_interval,
+            upload_started_backup_info,
         )
         self.snapshot_interface = snapshot_interface
         self.snapshot_instance = snapshot_instance
