@@ -21,6 +21,7 @@ import datetime
 import gzip
 import logging
 import os
+import pickle
 import shutil
 import sys
 import threading
@@ -3561,7 +3562,7 @@ class TestGoogleCloudInterface(TestCase):
         self.assertEqual(gcs_client_mock.call_count, 2)
 
     @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
-    def test_getstate_excludes_client(self, _gcs_client_mock):
+    def test_getstate_excludes_client(self, gcs_client_mock):
         """
         Test that GoogleCloudInterface instances can be pickled (i.e. the
         google-cloud-storage client references are excluded).
@@ -3578,10 +3579,39 @@ class TestGoogleCloudInterface(TestCase):
         assert "client" not in state
         assert "container_client" not in state
 
+        # AND the original instance keeps its client
+        assert cloud_interface.client is gcs_client_mock.return_value
+
         # AND the pickling round-trip works
         unpickled = pickle.loads(pickle.dumps(cloud_interface))
         assert unpickled.bucket_name == "some-bucket"
         assert unpickled.path == "useful/path"
+
+    def test_pickle_with_real_client(self):
+        """
+        Test that GoogleCloudInterface can be pickled with a real
+        google-cloud-storage client, as done when starting the upload workers
+        with the ``forkserver`` start method (the default on Python 3.14+).
+        """
+        # GIVEN a GoogleCloudInterface with a real client, using anonymous
+        # credentials so nothing is sent anywhere
+        with mock.patch.dict(
+            os.environ,
+            {
+                "STORAGE_EMULATOR_HOST": "http://127.0.0.1:9",
+                "GOOGLE_CLOUD_PROJECT": "test",
+            },
+        ):
+            cloud_interface = GoogleCloudInterface("gs://some-bucket/useful/path")
+
+        # WHEN the interface is pickled and unpickled
+        unpickled = pickle.loads(pickle.dumps(cloud_interface))
+
+        # THEN the round-trip works and keeps the configuration
+        assert unpickled.bucket_name == "some-bucket"
+        assert unpickled.path == "useful/path"
+        # AND the original keeps its client
+        assert cloud_interface.client is not None
 
     @pytest.mark.skipif(
         sys.version_info < (3, 5), reason="requires python3.6 or higher"
