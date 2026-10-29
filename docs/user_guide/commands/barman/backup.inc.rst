@@ -75,9 +75,9 @@ Parameters
     Show a help message and exit. Provides information about command usage.
 
 ``--incremental``
-    Execute a block-level incremental backup. You must provide a ``BACKUP_ID`` or a
-    shortcut to a previous backup, which will serve as the parent backup for the
-    incremental backup.
+    Execute a block-level incremental backup. You must provide a ``BACKUP_ID``, a
+    backup name or a shortcut to a previous backup, which will serve as the parent
+    backup for the incremental backup.
     
     .. note::
         The backup to be and the parent backup must have ``backup_method=postgres``.
@@ -113,8 +113,8 @@ Parameters
 
 ``--name``
     Specify a friendly name for this backup which can be used in place of the backup ID
-    in barman commands. The name resolves to the backup regardless of its status. If more
-    than one backup has the same name, commands fail and list the matching backup IDs.
+    in barman commands. If more than one backup has the same name, commands fail and
+    list the matching backup IDs.
 
 ``--no-immediate-checkpoint``
     Forces the backup to wait for the checkpoint to be executed overriding any value set

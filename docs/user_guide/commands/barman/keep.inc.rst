@@ -20,7 +20,7 @@ Description
 Mark the specified backup with a ``target`` as an archival backup to be retained
 indefinitely, overriding any active retention policies. You can also check the keep
 ``status`` of a backup and ``release`` the keep mark from a backup. You can use a
-shortcut instead of ``BACKUP_ID``.
+backup name or a shortcut instead of ``BACKUP_ID``.
 
 .. note::
   Incremental backups are not eligible for the ``keep`` command. This restriction exists
@@ -41,7 +41,8 @@ Parameters
     Name of the server in barman node
 
 ``BACKUP_ID``
-    Id of the backup in barman catalog.
+    ID or name of the backup in the barman catalog. If more than one backup has the
+    same name, the command fails and lists the matching backup IDs.
 
 ``-h`` / ``--help``
     Show a help message and exit. Provides information about command usage.

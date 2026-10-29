@@ -18,7 +18,8 @@ Description
 Runs ``pg_verifybackup`` on a backup manifest file (available since Postgres version 13).
 For rsync backups, it can be used after creating a manifest file using the
 ``generate-manifest`` command. Requires ``pg_verifybackup`` to be installed on the
-backup server. You can use a shortcut instead of ``BACKUP_ID``.
+backup server. You can use a backup name or a
+shortcut instead of ``BACKUP_ID``.
 
 Starting with Postgres 18, tar-format backups taken with the ``postgres`` backup
 method can also be verified, including those compressed with ``gzip``, ``lz4`` or
@@ -33,7 +34,8 @@ Parameters
     Name of the server in barman node
 
 ``BACKUP_ID``
-    Id of the backup in barman catalog.
+    ID or name of the backup in the barman catalog. If more than one backup has the
+    same name, the command fails and lists the matching backup IDs.
 
 ``-h`` / ``--help``
     Show a help message and exit. Provides information about command usage.

@@ -103,7 +103,10 @@ WALs are considered unused if:
   * ``google-cloud-storage``.
 
 ``-b`` / ``--backup-id``
-  ID of the backup to be deleted. You can use a shortcut instead of the backup ID.
+  ID or name of the backup to be deleted. You can use a shortcut instead of the
+  backup ID.
+  If more than one backup has the same name, the command fails and lists the
+  matching backup IDs.
 
 ``-m`` / ``--minimum-redundancy``
   The minimum number of backups that should always be available.

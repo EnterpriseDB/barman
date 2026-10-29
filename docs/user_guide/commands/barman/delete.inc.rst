@@ -15,7 +15,8 @@ Synopsis
 Description
 ^^^^^^^^^^^
 
-Delete the specified backup. You can use a shortcut instead of ``BACKUP_ID``.
+Delete the specified backup. You can use a backup name or a
+shortcut instead of ``BACKUP_ID``.
 
 Parameters
 ^^^^^^^^^^
@@ -24,7 +25,8 @@ Parameters
     Name of the server in barman node
 
 ``BACKUP_ID``
-    Id of the backup in barman catalog.
+    ID or name of the backup in the barman catalog. If more than one backup has the
+    same name, the command fails and lists the matching backup IDs.
 
 ``-h`` / ``--help``
     Show a help message and exit. Provides information about command usage.

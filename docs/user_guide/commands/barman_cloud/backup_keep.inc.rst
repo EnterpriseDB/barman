@@ -60,7 +60,10 @@ and are not subject to standard retention policies.
   ``s3://bucket/path/to/folder``.
 
 ``BACKUP_ID``
-  The ID of the backup to be kept. You can use a shortcut instead of the backup ID.
+  The ID or name of the backup to be kept. You can use a shortcut instead of the
+  backup ID.
+  If more than one backup has the same name, the command fails and lists the
+  matching backup IDs.
 
 ``-V`` / ``--version``
   Show version and exit.

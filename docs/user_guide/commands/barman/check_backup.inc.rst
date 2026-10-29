@@ -17,7 +17,8 @@ Description
 
 Check that all necessary WAL files for verifying the consistency of a physical backup are
 properly archived. This command is automatically executed by the cron job and at the end
-of each backup operation. You can use a shortcut instead of ``BACKUP_ID``.
+of each backup operation. You can use a backup name or a
+shortcut instead of ``BACKUP_ID``.
 
 Parameters
 ^^^^^^^^^^
@@ -26,7 +27,8 @@ Parameters
     Name of the server in barman node.
 
 ``BACKUP_ID``
-    Id of the backup in barman catalog.
+    ID or name of the backup in the barman catalog. If more than one backup has the
+    same name, the command fails and lists the matching backup IDs.
 
 ``-h`` / ``--help``
     Show a help message and exit. Provides information about command usage.

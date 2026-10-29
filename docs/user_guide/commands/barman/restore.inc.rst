@@ -55,7 +55,7 @@ server in the destination directory. The restoration can be performed locally (o
 barman node itself) or remotely (on another machine accessible via SSH). The location is
 determined by whether or not the ``--remote-ssh-command`` option is used. More
 information on this command can be found in the :ref:`recovery` section. You can use a
-shortcut instead of ``BACKUP_ID``.
+backup name or a shortcut instead of ``BACKUP_ID``.
 
 Parameters
 ^^^^^^^^^^
@@ -64,8 +64,10 @@ Parameters
     Name of the server in barman node
 
 ``BACKUP_ID``
-    Id of the backup in the barman catalog. Use ``auto`` to have Barman automatically
-    find the most suitable backup for the restore operation.
+    ID or name of the backup in the barman catalog. If more than one backup has the
+    same name, the command fails and lists the matching backup IDs. Use ``auto`` to
+    have Barman automatically find the most suitable backup for the restore
+    operation.
 
 ``DESTINATION_DIR``
     Destination directory to restore the backup.

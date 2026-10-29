@@ -39,7 +39,8 @@ Parameters
     Name of the server in barman node.
 
 ``BACKUP_ID``
-    Id of the backup in barman catalog.
+    ID or name of the backup in the barman catalog. If more than one backup has the
+    same name, the command fails and lists the matching backup IDs.
 
 ``OUTPUT_DIRECTORY``
     Existing directory where the exported tarball will be written. Must be

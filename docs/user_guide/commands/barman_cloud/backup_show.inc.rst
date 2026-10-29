@@ -38,7 +38,9 @@ but it has fewer information.
 **Parameters**
 
 ``BACKUP_ID``
-  The ID of the backup. You can use a shortcut instead of the backup ID.
+  The ID or name of the backup. You can use a shortcut instead of the backup ID.
+  If more than one backup has the same name, the command fails and lists the
+  matching backup IDs.
 
 ``SERVER_NAME``
   Name of the server that holds the backup to be displayed.
