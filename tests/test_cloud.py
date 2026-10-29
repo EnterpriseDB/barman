@@ -3561,7 +3561,7 @@ class TestGoogleCloudInterface(TestCase):
         self.assertEqual(gcs_client_mock.call_count, 2)
 
     @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
-    def test_getstate_excludes_client(self, _gcs_client_mock):
+    def test_getstate_excludes_client(self, gcs_client_mock):
         """
         Test that GoogleCloudInterface instances can be pickled (i.e. the
         google-cloud-storage client references are excluded).
@@ -3577,6 +3577,9 @@ class TestGoogleCloudInterface(TestCase):
         # THEN the client references are excluded from the state
         assert "client" not in state
         assert "container_client" not in state
+
+        # AND the original instance keeps its client
+        assert cloud_interface.client is gcs_client_mock.return_value
 
         # AND the pickling round-trip works
         unpickled = pickle.loads(pickle.dumps(cloud_interface))
