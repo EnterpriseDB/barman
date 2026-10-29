@@ -100,7 +100,7 @@ def parse_arguments(args=None):
     )
     parser.add_argument(
         "backup_id",
-        help="the backup ID of the backup to be kept",
+        help="the backup ID or name of the backup to be kept",
     )
     keep_options = parser.add_mutually_exclusive_group(required=True)
     keep_options.add_argument(

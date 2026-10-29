@@ -103,7 +103,7 @@ def parse_arguments(args=None):
         "(e.g. file:///path/to/key.b64). The file must contain a base64-encoded "
         "256-bit key.",
     )
-    parser.add_argument("backup_id", help="the backup ID")
+    parser.add_argument("backup_id", help="the backup ID or name")
 
     parser.add_argument(
         "--format",

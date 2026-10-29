@@ -464,7 +464,7 @@ def parse_arguments(args=None):
     delete_arguments.add_argument(
         "-b",
         "--backup-id",
-        help="Backup ID of the backup to be deleted",
+        help="Backup ID or name of the backup to be deleted",
     )
     parser.add_argument(
         "-m",

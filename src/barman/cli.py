@@ -472,8 +472,9 @@ def backup_completer(prefix, parsed_args, **kwargs):
             "--incremental",
             completer=backup_completer,
             dest="backup_id",
-            help="performs an incremental backup. An ID of a previous backup must "
-            "be provided ('latest' and 'latest-full' are also available options)",
+            help="performs an incremental backup. An ID or name of a previous backup "
+            "must be provided ('latest' and 'latest-full' are also available "
+            "options)",
         ),
         argument(
             "--reuse-backup",
@@ -862,7 +863,7 @@ def rebuild_xlogdb(args):
         argument(
             "backup_id",
             completer=backup_completer,
-            help="specifies the backup ID to restore",
+            help="specifies the ID or name of the backup to restore",
         ),
         argument(
             "destination_directory",
@@ -1772,7 +1773,9 @@ def sync_wals(args):
             help="specifies the server name for the command",
         ),
         argument(
-            "backup_id", completer=backup_completer, help="specifies the backup ID"
+            "backup_id",
+            completer=backup_completer,
+            help="specifies the backup ID or name",
         ),
     ],
     cmd_aliases=["show-backups"],
@@ -1804,7 +1807,9 @@ def show_backup(args):
             help="specifies the server name for the command",
         ),
         argument(
-            "backup_id", completer=backup_completer, help="specifies the backup ID"
+            "backup_id",
+            completer=backup_completer,
+            help="specifies the backup ID or name",
         ),
         argument(
             "--target",
@@ -1863,7 +1868,9 @@ def list_files(args):
             help="specifies the server name for the command",
         ),
         argument(
-            "backup_id", completer=backup_completer, help="specifies the backup ID"
+            "backup_id",
+            completer=backup_completer,
+            help="specifies the backup ID or name",
         ),
     ]
 )
@@ -2151,7 +2158,9 @@ def receive_wal(args):
             help="specifies the server name for the command",
         ),
         argument(
-            "backup_id", completer=backup_completer, help="specifies the backup ID"
+            "backup_id",
+            completer=backup_completer,
+            help="specifies the backup ID or name",
         ),
     ]
 )
@@ -2187,7 +2196,9 @@ def check_backup(args):
             help="specifies the server name for the command ",
         ),
         argument(
-            "backup_id", completer=backup_completer, help="specifies the backup ID"
+            "backup_id",
+            completer=backup_completer,
+            help="specifies the backup ID or name",
         ),
     ],
     cmd_aliases=["verify"],
@@ -2225,7 +2236,7 @@ def verify_backup(args):
         argument(
             "backup_id",
             completer=backup_completer,
-            help="specifies the backup ID to export",
+            help="specifies the ID or name of the backup to export",
         ),
         argument(
             "output_directory",
@@ -2432,7 +2443,9 @@ def import_backup(args):
             help="specifies the server name for the command ",
         ),
         argument(
-            "backup_id", completer=backup_completer, help="specifies the backup ID"
+            "backup_id",
+            completer=backup_completer,
+            help="specifies the backup ID or name",
         ),
     ],
 )
@@ -2477,7 +2490,9 @@ def generate_manifest(args):
             help="specifies the server name for the command",
         ),
         argument(
-            "backup_id", completer=backup_completer, help="specifies the backup ID"
+            "backup_id",
+            completer=backup_completer,
+            help="specifies the backup ID or name",
         ),
         argument(
             "-r", "--release", help="remove the keep annotation", action="store_true"

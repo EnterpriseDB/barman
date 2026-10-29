@@ -182,7 +182,7 @@ def parse_arguments(args=None):
         "previously made with barman-cloud-backup command."
         "Currently AWS S3, Azure Blob Storage and Google Cloud Storage are supported.",
     )
-    parser.add_argument("backup_id", help="the backup ID")
+    parser.add_argument("backup_id", help="the backup ID or name")
     parser.add_argument("recovery_dir", help="the path to a directory for recovery.")
     parser.add_argument(
         "--tablespace",
