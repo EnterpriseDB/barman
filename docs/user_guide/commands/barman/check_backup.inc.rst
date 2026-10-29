@@ -20,6 +20,26 @@ properly archived. This command is automatically executed by the cron job and at
 of each backup operation. You can use a backup name or a
 shortcut instead of ``BACKUP_ID``.
 
+The exit status reflects the status of the backup after the check:
+
+.. list-table::
+    :widths: 15 100
+    :header-rows: 1
+
+    * - **Exit code**
+      - **Meaning**
+    * - ``0``
+      - The backup is ``DONE``: all the required WAL files are archived.
+    * - ``1``
+      - The backup is not ``DONE``, or the check could not be performed. This happens
+        when:
+
+        * The backup is ``FAILED``, for example because a required WAL file is missing.
+        * The backup is ``WAITING_FOR_WALS``: not all the required WAL files have been
+          archived yet, so the backup consistency cannot be verified.
+        * The check could not be performed, for example because another process holds
+          the backup lock.
+
 Parameters
 ^^^^^^^^^^
 
