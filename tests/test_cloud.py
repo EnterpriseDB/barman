@@ -3560,6 +3560,29 @@ class TestGoogleCloudInterface(TestCase):
                 assert cloud_interface.path == test["expected-path"]
         self.assertEqual(gcs_client_mock.call_count, 2)
 
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_getstate_excludes_client(self, _gcs_client_mock):
+        """
+        Test that GoogleCloudInterface instances can be pickled (i.e. the
+        google-cloud-storage client references are excluded).
+        """
+        import pickle
+
+        # GIVEN a GoogleCloudInterface instance
+        cloud_interface = GoogleCloudInterface("gs://some-bucket/useful/path")
+
+        # WHEN we get its state for pickling
+        state = cloud_interface.__getstate__()
+
+        # THEN the client references are excluded from the state
+        assert "client" not in state
+        assert "container_client" not in state
+
+        # AND the pickling round-trip works
+        unpickled = pickle.loads(pickle.dumps(cloud_interface))
+        assert unpickled.bucket_name == "some-bucket"
+        assert unpickled.path == "useful/path"
+
     @pytest.mark.skipif(
         sys.version_info < (3, 5), reason="requires python3.6 or higher"
     )
