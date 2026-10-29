@@ -1281,6 +1281,60 @@ class TestBackup(object):
             "following reason: %s" % err_msg
         )
 
+    @pytest.mark.parametrize(
+        ("backup_status", "begin_wal", "end_wal", "expected"),
+        [
+            # Backup still in progress: nothing to check
+            (BackupInfo.STARTED, "000000010000000000000001", None, False),
+            # Backup spanning multiple timelines: marked as FAILED
+            (
+                BackupInfo.WAITING_FOR_WALS,
+                "000000010000000000000001",
+                "000000020000000000000005",
+                True,
+            ),
+            # No WAL archived yet for the backup timeline: keeps waiting for WALs
+            (
+                BackupInfo.WAITING_FOR_WALS,
+                "000000010000000000000001",
+                "000000010000000000000005",
+                True,
+            ),
+        ],
+    )
+    @patch("barman.backup.output")
+    @patch("barman.infofile.LocalBackupInfo.save")
+    def test_check_backup_return_value(
+        self,
+        _mock_save,
+        _mock_output,
+        backup_status,
+        begin_wal,
+        end_wal,
+        expected,
+        tmpdir,
+    ):
+        """
+        Test that check_backup reports whether the backup was checked, i.e. it
+        returns ``False`` only when there is nothing to check yet.
+        """
+        # GIVEN a backup in the given status with the given WAL range
+        backup_manager = build_backup_manager(
+            main_conf={"backup_directory": tmpdir.strpath}
+        )
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            status=backup_status,
+            begin_wal=begin_wal,
+            end_wal=end_wal,
+        )
+
+        # WHEN check_backup is called
+        result = backup_manager.check_backup(backup_info)
+
+        # THEN it reports whether the backup was checked
+        assert result is expected
+
     def test_backup_manager_has_keep_manager_capability(self, tmpdir):
         """
         Verifies that KeepManagerMixin methods are available in BackupManager

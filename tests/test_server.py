@@ -3340,6 +3340,50 @@ class TestServer(object):
             # AND receive_wal was not called on the archiver
             mock_receive_wal.assert_not_called()
 
+    @pytest.mark.parametrize(
+        ("lock_error", "backup_status", "manager_result", "manager_called", "expected"),
+        [
+            (None, BackupInfo.DONE, True, True, True),
+            (None, BackupInfo.STARTED, False, True, False),
+            (LockFileBusy(), BackupInfo.DONE, True, False, False),
+            (LockFilePermissionDenied(), BackupInfo.DONE, True, False, False),
+            (None, BackupInfo.FAILED, True, False, False),
+        ],
+    )
+    @patch("barman.server.ServerBackupIdLock")
+    def test_check_backup_return_value(
+        self,
+        mock_lock,
+        lock_error,
+        backup_status,
+        manager_result,
+        manager_called,
+        expected,
+        tmpdir,
+    ):
+        """
+        Verify that check_backup reports whether the check was performed.
+        """
+        # GIVEN a server and a backup in the given status
+        server = build_real_server(
+            global_conf={"barman_home": tmpdir.mkdir("home").strpath},
+        )
+        # AND a backup manager which reports whether it checked the backup
+        server.backup_manager.check_backup = MagicMock(return_value=manager_result)
+        backup_info = build_test_backup_info(server=server, status=backup_status)
+        # AND the backup lock may fail to be acquired
+        if lock_error is not None:
+            mock_lock.side_effect = lock_error
+
+        # WHEN check_backup is called
+        result = server.check_backup(backup_info)
+
+        # THEN it returns whether the check was performed
+        assert result is expected
+        # AND the backup manager is only asked to check when the lock is acquired
+        # and the backup has not failed
+        assert server.backup_manager.check_backup.called is manager_called
+
     @patch("barman.infofile.BackupInfo.save")
     @patch("os.path.exists")
     def test_check_backup(

@@ -2530,6 +2530,63 @@ class TestCli(object):
         dummy_server.backup_manager.release_keep.assert_not_called()
 
     @pytest.mark.parametrize(
+        ("status", "checked", "expect_error"),
+        [
+            (BackupInfo.DONE, True, False),
+            (BackupInfo.FAILED, True, False),
+            (BackupInfo.WAITING_FOR_WALS, True, True),
+            # The check was skipped, e.g. another process holds the backup lock
+            (BackupInfo.WAITING_FOR_WALS, False, True),
+            (BackupInfo.DONE, False, True),
+        ],
+    )
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    @patch("barman.cli.output")
+    def test_check_backup_exit_code(
+        self,
+        mock_output,
+        mock_get_server,
+        mock_parse_backup_id,
+        status,
+        checked,
+        expect_error,
+    ):
+        """
+        Verify the exit code reported by `check-backup`.
+
+        An error, which makes the command exit with 1, is emitted for a
+        ``WAITING_FOR_WALS`` backup after a check, and when the check was not
+        performed. Other results are left to the error set while checking the
+        backup.
+        """
+        # GIVEN a backup with the status left by the check
+        args = Mock()
+        dummy_server = Mock()
+        dummy_server.config.name = "main"
+        dummy_server.check_backup.return_value = checked
+        mock_get_server.return_value = dummy_server
+        mock_backup_info = Mock()
+        mock_backup_info.backup_id = "test_backup_id"
+        mock_backup_info.status = status
+        mock_parse_backup_id.return_value = mock_backup_info
+
+        # WHEN calling check-backup
+        check_backup(args)
+
+        # THEN an error is emitted only when expected, without being logged
+        if expect_error:
+            mock_output.error.assert_called_once()
+            kwargs = mock_output.error.call_args.kwargs
+            assert "exit_code" not in kwargs
+            assert kwargs["log"] is False
+        else:
+            mock_output.error.assert_not_called()
+
+        # AND the command should exit through the output module
+        mock_output.close_and_exit.assert_called_once()
+
+    @pytest.mark.parametrize(
         "arg_timeout, config_timeout, expected_timeout",
         [(None, None, 30), (None, 300, 300), (600, 300, 600)],
     )
