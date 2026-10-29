@@ -2171,6 +2171,9 @@ def check_backup(args):
     beginning to the end of the full backup) are correctly
     archived. This command is automatically invoked by the
     cron command and at the end of every backup operation.
+
+    Exit with ``0`` if the backup is ``DONE``, and ``1`` if it is ``FAILED`` or
+    ``WAITING_FOR_WALS``, or if the check could not be performed.
     """
     server = get_server(
         args,
@@ -2184,7 +2187,26 @@ def check_backup(args):
     backup_info = parse_backup_id(server, args)
 
     with closing(server):
-        server.check_backup(backup_info)
+        checked = server.check_backup(backup_info)
+
+    # Neither error is logged, as cron runs this command periodically while the
+    # backup is waiting for WALs, which would flood the log.
+    if not checked:
+        output.error(
+            "The check of backup %s of server %s was not performed",
+            backup_info.backup_id,
+            server.config.name,
+            log=False,
+        )
+    elif backup_info.status == BackupInfo.WAITING_FOR_WALS:
+        output.error(
+            "Backup %s of server %s is %s: not all the required WAL files "
+            "have been archived yet, so its consistency cannot be verified",
+            backup_info.backup_id,
+            server.config.name,
+            BackupInfo.WAITING_FOR_WALS,
+            log=False,
+        )
     output.close_and_exit()
 
 

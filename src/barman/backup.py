@@ -1943,6 +1943,8 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         cron command and at the end of every backup operation.
 
         :param backup_info: the target backup
+        :return bool: ``True`` if the backup was checked, ``False`` if there was
+            nothing to check because the backup is still in progress
         """
 
         # Gather the list of the latest archived wals
@@ -1955,7 +1957,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         # Case 0: there is nothing to check for this backup, as it is
         # currently in progress
         if not end_wal:
-            return
+            return False
 
         # Case 1: the backup spans multiple timelines, which is not supported. We must
         # mark the backup as FAILED with a proper error message
@@ -1973,7 +1975,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 "This backup has been marked as FAILED due to the "
                 "following reason: %s" % backup_info.error
             )
-            return
+            return True
 
         # Case 2: Barman still doesn't know about the timeline the backup
         # started with. We still haven't archived any WAL corresponding
@@ -1982,7 +1984,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         if not timelines or begin_timeline not in timelines:
             backup_info.status = BackupInfo.WAITING_FOR_WALS
             backup_info.save()
-            return
+            return True
 
         # Find the most recent archived WAL for this server in the timeline
         # where the backup was taken
@@ -1994,7 +1996,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         if last_archived_wal < begin_wal:
             backup_info.status = BackupInfo.WAITING_FOR_WALS
             backup_info.save()
-            return
+            return True
 
         # Check the intersection between the required WALs and the archived
         # ones. They should all exist
@@ -2026,7 +2028,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 "This backup has been marked as FAILED due to the "
                 "following reason: %s" % backup_info.error
             )
-            return
+            return True
 
         if end_wal <= last_archived_wal:
             # Case 5: if the most recent WAL file archived is more recent or
@@ -2040,6 +2042,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             # all the WAL files until that point are present.
             backup_info.status = BackupInfo.WAITING_FOR_WALS
         backup_info.save()
+        return True
 
     def verify_backup(self, backup_info):
         """

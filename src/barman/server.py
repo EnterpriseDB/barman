@@ -4546,6 +4546,8 @@ class Server(RemoteStatusMixin):
         first to the last WAL file)
 
         :param backup_info: the target backup
+        :return bool: ``True`` if the check was performed, ``False`` if it was
+            skipped, e.g. because another process holds the backup lock
         """
         output.debug(
             "Checking backup %s of server %s", backup_info.backup_id, self.config.name
@@ -4556,7 +4558,7 @@ class Server(RemoteStatusMixin):
             # were previously FAILED due to copy errors
             if backup_info.status == BackupInfo.FAILED:
                 output.error("The validity of a failed backup cannot be checked")
-                return
+                return False
 
             # Take care of the backup lock.
             # Only one process can modify a backup a a time
@@ -4566,7 +4568,7 @@ class Server(RemoteStatusMixin):
                 backup_info.backup_id,
             ):
                 orig_status = backup_info.status
-                self.backup_manager.check_backup(backup_info)
+                checked = self.backup_manager.check_backup(backup_info)
                 if orig_status == backup_info.status:
                     output.debug(
                         "Check finished: the status of backup %s of server %s "
@@ -4584,6 +4586,7 @@ class Server(RemoteStatusMixin):
                         orig_status,
                         backup_info.status,
                     )
+            return checked
         except LockFileBusy:
             # If another process is holding the backup lock,
             # notify the user and terminate.
@@ -4593,13 +4596,13 @@ class Server(RemoteStatusMixin):
                 "Another process is holding the lock for "
                 "backup %s of server %s." % (backup_info.backup_id, self.config.name)
             )
-            return
+            return False
 
         except LockFilePermissionDenied as e:
             # We cannot access the lockfile.
             # warn the user and terminate
             output.error("Permission denied, unable to access '%s'" % e)
-            return
+            return False
 
     def sync_status(self, last_wal=None, last_position=None):
         """
