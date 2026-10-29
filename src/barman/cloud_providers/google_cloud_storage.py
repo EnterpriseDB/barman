@@ -113,6 +113,18 @@ class GoogleCloudInterface(CloudInterface):
 
     MAX_DELETE_BATCH_SIZE = 100
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Remove the google-cloud-storage client references from the state as
+        # they cannot be pickled, and Python 3.14+ uses "forkserver" as the
+        # default multiprocessing start method on POSIX platforms, which pickles
+        # the object when the worker processes are created.
+        # The worker processes create their own client in _reinit_session, so
+        # do not need the client from the parent process.
+        del state["client"]
+        del state["container_client"]
+        return state
+
     def __init__(
         self, url, jobs=2, tags=None, delete_batch_size=None, kms_key_name=None
     ):
