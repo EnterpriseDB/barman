@@ -38,6 +38,7 @@ import barman
 from barman.compression import get_internal_compressor
 from barman.config import parse_compression_level
 from barman.exceptions import ArchiverFailure
+from barman.infofile import WalFileInfo
 from barman.wal_archiver import ParallelWalArchiver
 
 DEFAULT_USER = "barman"
@@ -522,6 +523,9 @@ class RemoteWalArchiver(ParallelWalArchiver):
         Archive a single WAL file to the remote Barman server.
 
         :param wal_path: The name of WAL to upload
+        :return: Metadata of the archived WAL. It is sent back by the prefetch worker
+            processes to the parent, so that it can tell the archival succeeded.
+        :rtype: barman.infofile.WalFileInfo
         """
         put_wal = RemotePutWal(self.config, wal_path)
         put_wal.wait()
@@ -539,6 +543,11 @@ class RemoteWalArchiver(ParallelWalArchiver):
                 "Remote 'barman put-wal' command has failed! (exit code %s)"
                 % put_wal.returncode
             )
+
+        # The managers are not needed because compression and encryption are given
+        return WalFileInfo.from_file(
+            wal_path, compression=self.config.compression, encryption=None
+        )
 
 
 if __name__ == "__main__":

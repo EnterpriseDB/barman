@@ -28,6 +28,8 @@ import mock
 import pytest
 
 from barman.clients import walarchive
+from barman.exceptions import ArchiverFailure
+from barman.infofile import WalFileInfo
 
 
 def pipe_helper():
@@ -431,8 +433,11 @@ class TestRemoteWalArchiver(object):
         # AND found_in_cache reflects that result
         assert archiver.found_in_cache is already_archived
 
+    @mock.patch("barman.clients.walarchive.WalFileInfo")
     @mock.patch("barman.clients.walarchive.RemotePutWal")
-    def test_archive_single_wal_creates_remote_put_wal(self, mock_remote_put_wal):
+    def test_archive_single_wal_creates_remote_put_wal(
+        self, mock_remote_put_wal, _mock_wal_file_info
+    ):
         """
         _archive_single_wal should create a RemotePutWal and wait for it.
         """
@@ -452,8 +457,61 @@ class TestRemoteWalArchiver(object):
         # AND wait() was called
         mock_remote_put_wal.return_value.wait.assert_called_once()
 
+    @pytest.mark.parametrize("compression", [None, "gzip"])
     @mock.patch("barman.clients.walarchive.RemotePutWal")
-    def test_archive_single_wal_tracks_main_wal_returncode(self, mock_remote_put_wal):
+    def test_archive_single_wal_returns_wal_file_info(
+        self, mock_remote_put_wal, compression, tmpdir
+    ):
+        """
+        _archive_single_wal should return the WalFileInfo of the archived WAL, using
+        the configured compression and no encryption.
+        """
+        # GIVEN a WAL file and a RemoteWalArchiver with the given compression
+        wal_file = tmpdir.join("000000010000000000000002")
+        wal_file.write("wal content")
+        config = self._make_config()
+        config.compression = compression
+        archiver = walarchive.RemoteWalArchiver("test-server", "/tmp/cache", config)
+        mock_remote_put_wal.return_value.returncode = 0
+
+        # WHEN archiving the WAL file
+        result = archiver._archive_single_wal(wal_file.strpath)
+
+        # THEN a WalFileInfo describing the file is returned
+        assert isinstance(result, WalFileInfo)
+        assert result.name == "000000010000000000000002"
+        assert result.size == wal_file.size()
+        # AND it carries the configured compression and no encryption
+        assert result.compression == compression
+        assert result.encryption is None
+
+    @mock.patch("barman.clients.walarchive.WalFileInfo")
+    @mock.patch("barman.clients.walarchive.RemotePutWal")
+    def test_archive_single_wal_raises_on_failure(
+        self, mock_remote_put_wal, mock_wal_file_info
+    ):
+        """
+        _archive_single_wal should raise ArchiverFailure, without building a
+        WalFileInfo, when the remote process fails.
+        """
+        # GIVEN a RemoteWalArchiver whose remote process fails
+        config = self._make_config()
+        archiver = walarchive.RemoteWalArchiver("test-server", "/tmp/cache", config)
+        mock_remote_put_wal.return_value.returncode = 1
+
+        # WHEN archiving a WAL file
+        # THEN ArchiverFailure is raised
+        with pytest.raises(ArchiverFailure):
+            archiver._archive_single_wal("/pg_wal/000000010000000000000002")
+
+        # AND no WalFileInfo was built
+        mock_wal_file_info.from_file.assert_not_called()
+
+    @mock.patch("barman.clients.walarchive.WalFileInfo")
+    @mock.patch("barman.clients.walarchive.RemotePutWal")
+    def test_archive_single_wal_tracks_main_wal_returncode(
+        self, mock_remote_put_wal, _mock_wal_file_info
+    ):
         """
         _archive_single_wal should track the main WAL process returncode when archiving
         the WAL specified in config.wal_path.
@@ -472,8 +530,11 @@ class TestRemoteWalArchiver(object):
             archiver.main_wal_returncode is mock_remote_put_wal.return_value.returncode
         )
 
+    @mock.patch("barman.clients.walarchive.WalFileInfo")
     @mock.patch("barman.clients.walarchive.RemotePutWal")
-    def test_archive_single_wal_does_not_track_prefetch_wal(self, mock_remote_put_wal):
+    def test_archive_single_wal_does_not_track_prefetch_wal(
+        self, mock_remote_put_wal, _mock_wal_file_info
+    ):
         """
         _archive_single_wal should NOT track prefetch WAL processes.
         """
@@ -488,8 +549,11 @@ class TestRemoteWalArchiver(object):
         # THEN main_wal_returncode is NOT set
         assert archiver.main_wal_returncode is None
 
+    @mock.patch("barman.clients.walarchive.WalFileInfo")
     @mock.patch("barman.clients.walarchive.RemotePutWal")
-    def test_returncode_returns_main_process_returncode(self, mock_remote_put_wal):
+    def test_returncode_returns_main_process_returncode(
+        self, mock_remote_put_wal, _mock_wal_file_info
+    ):
         """
         returncode should return the exit code of the main WAL process.
         """
