@@ -7,7 +7,7 @@
     This caused undesired behaviors, such as when tablespace located inside PGDATA
     would have its contents duplicated in the backup.
 
-    Barman now currectly handles tablespace directories, ensuring that only the
+    Barman now correctly handles tablespace directories, ensuring that only the
     intended `PG_<major>_*` directories are included in the backup.
   type: bugfix
   jira_tickets:
