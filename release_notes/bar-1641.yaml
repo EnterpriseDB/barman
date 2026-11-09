@@ -1,0 +1,17 @@
+---
+- summary: 'Support for WarehousePG: Back up tablespaces on rsync backups'
+  description: |
+    WarehousePG does not store the contents of a tablespace directly under the
+    tablespace location, as PostgreSQL does. Instead, each instance sharing the
+    location has its own directory, named after its `dbid`, which contains the
+    tablespace data:
+
+    ```
+    <location>/<dbid>/GPDB_<major_version>_*/...
+    ```
+
+    Barman now also supports the WarehousePG tablespace directory layout during rsync
+    backups.
+  type: minor_change
+  jira_tickets:
+    - BAR-1641
