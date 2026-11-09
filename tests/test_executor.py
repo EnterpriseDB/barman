@@ -54,7 +54,10 @@ from barman.exceptions import (
     SshCommandException,
 )
 from barman.infofile import BackupInfo, LocalBackupInfo, Tablespace
-from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
+from barman.postgres_plumbing import (
+    EXCLUDE_LIST,
+    PGDATA_EXCLUDE_LIST,
+)
 from barman.server import CheckOutputStrategy, CheckStrategy
 from barman.utils import total_seconds
 
@@ -652,6 +655,71 @@ class TestRsyncBackupExecutor(object):
         # WHEN the copy is executed
         # THEN it does not fail
         backup_manager.executor.backup_copy(backup_info)
+
+    @pytest.mark.parametrize(
+        ("whpg_dbid", "whpg_version", "expected_include", "expected_exclude"),
+        [
+            # Community PostgreSQL: the "PG_<major>_*" directory is included
+            (None, None, ["/PG_9.6_*"], ["/*"] + EXCLUDE_LIST),
+            # WarehousePG: only "GPDB_<major>_*" inside the directory of the instance,
+            # <dbid>, is included
+            (
+                3,
+                70000,
+                ["/3", "/3/GPDB_7_*"],
+                ["/*", "/3/*"] + EXCLUDE_LIST,
+            ),
+        ],
+    )
+    @patch("barman.backup_executor.RsyncCopyController")
+    def test_backup_copy_tablespace_filters(
+        self,
+        rsync_mock,
+        whpg_dbid,
+        whpg_version,
+        expected_include,
+        expected_exclude,
+        tmpdir,
+    ):
+        """
+        Test that the tablespaces are copied with the include and exclude patterns
+        matching the layout of the server flavour
+        """
+        # GIVEN a backup of a server with two tablespaces
+        backup_manager = build_backup_manager(
+            global_conf={"barman_home": tmpdir.mkdir("home").strpath}
+        )
+        backup_manager.server.postgres.server_major_version = "9.6"
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            pgdata="/pg/data",
+            config_file="/etc/postgresql.conf",
+            hba_file="/pg/data/pg_hba.conf",
+            ident_file="/pg/data/pg_ident.conf",
+            begin_xlog="0/2000028",
+            begin_wal="000000010000000000000002",
+            begin_offset=28,
+            whpg_dbid=whpg_dbid,
+            whpg_version=whpg_version,
+        )
+        backup_info.save()
+
+        # AND a copy which transfers the data of every tablespace
+        mock_tablespaces_copy(backup_info, rsync_mock)
+
+        # WHEN the copy is executed
+        backup_manager.executor.backup_copy(backup_info)
+
+        # THEN every tablespace is copied using the expected patterns
+        tablespace_calls = [
+            args
+            for args in rsync_mock.return_value.add_directory.call_args_list
+            if args.kwargs["item_class"] == rsync_mock.return_value.TABLESPACE_CLASS
+        ]
+        assert len(tablespace_calls) > 0
+        for args in tablespace_calls:
+            assert args.kwargs["exclude"] == expected_exclude
+            assert args.kwargs["include"] == expected_include
 
     def test_validate_config_compression(self):
         # GIVEN a server with backup_method = rysnc and backup_method = gzip

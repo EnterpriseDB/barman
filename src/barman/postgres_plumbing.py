@@ -118,3 +118,49 @@ def function_name_map(server_version):
         )
 
     return name_map
+
+
+def get_tablespace_filters(backup_info, server_major_version):
+    """
+    Build the include and exclude patterns used to copy the data of a tablespace.
+
+    Only the directory holding the data of the server version being backed up
+    is copied. For standard Postgres it's the ``PG_<major_version>_*`` directory inside
+    the tablespace location. For WarehousePG, it's the ``<dbid>/GPDB_<major_version>_*``
+    directory inside the tablespace location.
+
+    The patterns follow the rsync syntax, and are evaluated with all the includes
+    before the excludes.
+
+    .. note::
+        Strictly, Barman should archive only the directory named
+        ``PG_<major_version>_<catalog_version_no>``, but ``catalog_version_no`` is not
+        easy to retrieve. Instead we match ``PG_<major_version>_*``
+        (and <dbid>/GPDB_<major_version>_* for WarehousePG), which still
+        excludes other major versions. The only downside is that it may pick up a stray
+        directory left by a development or beta build of the same major version, which
+        is acceptable for production systems.
+
+    :param barman.infofile.BackupInfo backup_info: the backup being copied
+    :param str server_major_version: major version of the Postgres server
+    :return tuple[list[str], list[str]]: the include and exclude patterns
+    """
+    if backup_info.is_whpg:
+        dbid = backup_info.whpg_dbid
+        # Exclude everything at the tablespace root and everything directly under
+        # <dbid>/. The includes below re-allow the <dbid> directory and its
+        # GPDB_<major_version>_<catalog_version_no> subdirectory.
+        exclude = ["/*", "/%s/*" % dbid] + EXCLUDE_LIST
+        # This include + the exclude above ensures that only the
+        # <dbid>/GPDB_<major_version>_<catalog_version_no> gets included.
+        # Everythign else at the tablespace root or under <dbid>/* gets excluded.
+        include = [
+            "/%s" % dbid,
+            "/%s/GPDB_%s_*" % (dbid, backup_info.whpg_major_version),
+        ]
+    else:
+        # Exclude everything under the root directory except the
+        # PG_<major_version>_<catalog_version_no> directory
+        exclude = ["/*"] + EXCLUDE_LIST
+        include = ["/PG_%s_*" % server_major_version]
+    return include, exclude

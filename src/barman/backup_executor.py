@@ -68,7 +68,11 @@ from barman.fs import (
 )
 from barman.infofile import BackupInfo
 from barman.postgres import PostgresKeepAlive
-from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
+from barman.postgres_plumbing import (
+    EXCLUDE_LIST,
+    PGDATA_EXCLUDE_LIST,
+    get_tablespace_filters,
+)
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import LooseVersion as Version
 from barman.utils import (
@@ -2091,19 +2095,15 @@ class RsyncBackupExecutor(ExternalBackupExecutor):
 
                 # Add the tablespace directory to the list of objects
                 # to be copied by the controller.
-                # NOTE: Barman should archive only the content of directory
-                #    "PG_" + PG_MAJORVERSION + "_" + CATALOG_VERSION_NO
-                # but CATALOG_VERSION_NO is not easy to retrieve, so we copy
-                #    "PG_" + PG_MAJORVERSION + "_*"
-                # It could select some spurious directory if a development or
-                # a beta version have been used, but it's good enough for a
-                # production system as it filters out other major versions.
+                include, exclude = get_tablespace_filters(
+                    backup_info, self.server.postgres.server_major_version
+                )
                 controller.add_directory(
                     label=tablespace.name,
                     src="%s/" % self._format_src(tablespace.location),
                     dst=tablespace_dest,
-                    exclude=["/*"] + EXCLUDE_LIST,
-                    include=["/PG_%s_*" % self.server.postgres.server_major_version],
+                    exclude=exclude,
+                    include=include,
                     bwlimit=self.config.get_bwlimit(tablespace),
                     reuse=self._reuse_path(previous_backup, tablespace),
                     item_class=controller.TABLESPACE_CLASS,

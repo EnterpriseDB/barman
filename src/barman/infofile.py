@@ -685,6 +685,19 @@ class BackupInfo(FieldListFile):
         return self.whpg_dbid is not None and self.whpg_version is not None
 
     @property
+    def whpg_major_version(self):
+        """
+        Get the major version of the WarehousePG instance the backup was taken from.
+
+        :return int|None: the major version, e.g. ``7`` for WarehousePG 7, or
+            ``None`` if the backup was not taken from a WarehousePG instance.
+        """
+        if not self.is_whpg:
+            return None
+        # ``whpg_version`` holds ``gp_server_version_num``, e.g. 70000 for 7.0.0
+        return self.whpg_version // 10000
+
+    @property
     def has_children(self):
         """
         Only checks if the backup_info has children

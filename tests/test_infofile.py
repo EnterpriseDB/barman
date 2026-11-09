@@ -749,6 +749,28 @@ class TestBackupInfo(object):
         # THEN the result depends on the metadata being present
         assert backup_info.is_whpg is expected
 
+    @pytest.mark.parametrize(
+        ("whpg_dbid", "whpg_version", "expected"),
+        [
+            (None, None, None),
+            (3, 60000, 6),
+            (3, 70005, 7),
+            (3, None, None),
+        ],
+    )
+    def test_whpg_major_version(self, whpg_dbid, whpg_version, expected):
+        """
+        Test that the WarehousePG major version is derived from the version number
+        """
+        # GIVEN a backup with or without WarehousePG metadata
+        backup_info = build_test_backup_info(
+            whpg_dbid=whpg_dbid, whpg_version=whpg_version
+        )
+
+        # WHEN getting the WarehousePG major version
+        # THEN it is derived from the version number, if the metadata is present
+        assert backup_info.whpg_major_version == expected
+
     @pytest.mark.parametrize("is_whpg", [True, False])
     def test_whpg_metadata_save_and_load(self, is_whpg, tmpdir):
         """
