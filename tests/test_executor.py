@@ -624,7 +624,7 @@ class TestRsyncBackupExecutor(object):
         # THEN it fails with an error describing the empty tablespace
         assert str(excinfo.value) == (
             "No data was copied for tablespace 'tbs1' (location: /fake/location): "
-            "no 'PG_9.6_*' directory was found there"
+            "no matching directory was found there"
         )
 
     @patch("barman.backup_executor.RsyncCopyController")

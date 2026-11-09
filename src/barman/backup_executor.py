@@ -2184,11 +2184,10 @@ class RsyncBackupExecutor(ExternalBackupExecutor):
                 if not os.listdir(backup_info.get_data_directory(tablespace.oid)):
                     raise BackupException(
                         "No data was copied for tablespace '%s' (location: %s): "
-                        "no 'PG_%s_*' directory was found there"
+                        "no matching directory was found there"
                         % (
                             tablespace.name,
                             tablespace.location,
-                            self.server.postgres.server_major_version,
                         )
                     )
 
