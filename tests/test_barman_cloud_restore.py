@@ -801,6 +801,63 @@ class TestCloudBackupDownloaderObjectStore(TestCloudBackupDownloader):
             backup_file_path, recovery_dir
         )
 
+    @pytest.mark.parametrize(
+        ("whpg_dbid", "whpg_version", "relocation", "expected_target"),
+        [
+            # Postgres: the link points to the tablespace location
+            (None, None, {}, "/fake/location"),
+            (None, None, {"tbs1": "/relocated/tbs1"}, "/relocated/tbs1"),
+            # WarehousePG: the link points to the directory of the dbid in it
+            (3, 70000, {}, "/fake/location/3"),
+            (3, 70000, {"tbs1": "/relocated/tbs1"}, "/relocated/tbs1/3"),
+        ],
+    )
+    @mock.patch("barman.clients.cloud_restore.os.mkdir")
+    @mock.patch("barman.clients.cloud_restore.os.symlink")
+    @mock.patch("barman.clients.cloud_restore.os.path.exists", return_value=False)
+    def test_download_backup_links_tablespaces(
+        self,
+        _mock_os_path_exists,
+        mock_os_symlink,
+        _mock_os_mkdir,
+        whpg_dbid,
+        whpg_version,
+        relocation,
+        expected_target,
+        mock_cloud_interface,
+        mock_catalog,
+    ):
+        """Verify that the pg_tblspc link points to where the tablespace data is."""
+        # GIVEN the backup of a server with or without WarehousePG metadata, with a
+        # tablespace
+        backup_info = build_test_backup_info(
+            backup_id=self.backup_id,
+            tablespaces=(("tbs1", 16387, "/fake/location"),),
+            whpg_dbid=whpg_dbid,
+            whpg_version=whpg_version,
+        )
+        # AND a backup catalog with a tar file for PGDATA and another for the tablespace
+        mock_catalog.get_backup_files.return_value = {
+            None: BackupFileInfo(oid=None, path="data"),
+            16387: BackupFileInfo(oid=16387, path="16387"),
+        }
+        downloader = CloudBackupDownloaderObjectStore(
+            mock_cloud_interface, mock_catalog
+        )
+        recovery_dir = "/path/to/restore_dir"
+
+        # WHEN download_backup is called
+        downloader.download_backup(backup_info, recovery_dir, relocation)
+
+        # THEN the tablespace data is extracted into the tablespace location, with no
+        # dbid appended, as the backup already contains the directory of the dbid
+        extract_target = relocation.get("tbs1", "/fake/location")
+        mock_cloud_interface.extract_tar.assert_any_call("16387", extract_target)
+        # AND the link in pg_tblspc points to the expected target
+        mock_os_symlink.assert_called_once_with(
+            expected_target, "/path/to/restore_dir/pg_tblspc/16387"
+        )
+
     @mock.patch("barman.clients.cloud_restore.os.listdir")
     @mock.patch("barman.clients.cloud_restore.os.path.exists")
     def test_download_backup_recovery_dir_exists(

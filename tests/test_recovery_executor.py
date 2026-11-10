@@ -3625,13 +3625,15 @@ class TestRecoveryOperation(object):
         operation = self.get_recovery_operation()
         operation.cmd = mock.Mock()
 
-        # Mock a backup_info with tablespaces
+        # Mock a backup_info with tablespaces, which is not a WarehousePG one, so the
+        # links point to the tablespace locations
         vol_backup_info = mock.Mock(
             tablespaces=[
                 mock.Mock(oid=123, location="/path/to/original/tbs1"),
                 mock.Mock(oid=321, location="/path/to/original/tbs2"),
             ],
             get_data_directory=lambda oid: f"/path/to/backup_id/data/{oid}",
+            get_tablespace_link_target=lambda location: location,
         )
         # Mock the tablespaces names as we can't do that when instantiate the
         # mock, e.g. mock.Mock(name="tbs1") does not work
@@ -3676,6 +3678,62 @@ class TestRecoveryOperation(object):
                     mock.call("\t%s, %s, %s", 321, "tbs2", tbspc_destinations[1]),
                 ]
             )
+
+    @pytest.mark.parametrize(
+        "tablespace_mapping, tbspc_locations",
+        [
+            # Case 1: Without relocation, the locations are the original ones
+            (None, ["/path/to/original/tbs1", "/path/to/original/tbs2"]),
+            # Case 2: With relocation, the locations are the ones chosen by the user
+            (
+                {"tbs1": "/path/relocation/tbs1", "tbs2": "/path/relocation/tbs2"},
+                ["/path/relocation/tbs1", "/path/relocation/tbs2"],
+            ),
+        ],
+    )
+    def test_link_tablespaces_whpg(self, tablespace_mapping, tbspc_locations):
+        """
+        Test that :meth:`_link_tablespaces` links the tablespaces of a WarehousePG
+        backup to the directory of the ``dbid`` inside the tablespace location.
+        """
+        # GIVEN a RecoveryOperation instance
+        operation = self.get_recovery_operation()
+        operation.cmd = mock.Mock()
+
+        # AND the backup of a WarehousePG instance with dbid 3 and two tablespaces
+        backup_info = testing_helpers.build_test_backup_info(
+            server=testing_helpers.build_real_server(),
+            tablespaces=(
+                ("tbs1", 123, "/path/to/original/tbs1"),
+                ("tbs2", 321, "/path/to/original/tbs2"),
+            ),
+            whpg_dbid=3,
+            whpg_version=70000,
+        )
+        pgdata_dir = "/destination/pgdata"
+
+        # WHEN _link_tablespaces is called for the last operation
+        operation._link_tablespaces(backup_info, pgdata_dir, tablespace_mapping, True)
+
+        # THEN the write permission is checked on the tablespace locations, as the
+        # directory of the dbid is part of the restored data
+        operation.cmd.check_write_permission.assert_has_calls(
+            [mock.call(tbspc_locations[0]), mock.call(tbspc_locations[1])]
+        )
+        # AND the links in pg_tblspc point to the directory of the dbid
+        pg_tblspc_dir = os.path.join(pgdata_dir, "pg_tblspc")
+        operation.cmd.create_symbolic_link.assert_has_calls(
+            [
+                mock.call(
+                    os.path.join(tbspc_locations[0], "3"),
+                    os.path.join(pg_tblspc_dir, "123"),
+                ),
+                mock.call(
+                    os.path.join(tbspc_locations[1], "3"),
+                    os.path.join(pg_tblspc_dir, "321"),
+                ),
+            ]
+        )
 
     @mock.patch("barman.recovery_executor.output", wraps=output)
     def test_link_tablespaces_fails(self, mock_output):

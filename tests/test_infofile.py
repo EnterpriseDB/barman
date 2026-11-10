@@ -771,6 +771,29 @@ class TestBackupInfo(object):
         # THEN it is derived from the version number, if the metadata is present
         assert backup_info.whpg_major_version == expected
 
+    @pytest.mark.parametrize(
+        ("whpg_dbid", "whpg_version", "expected"),
+        [
+            # Postgres: the link points to the tablespace location
+            (None, None, "/path/to/tbs"),
+            # WarehousePG: the link points to the directory of the dbid in it
+            (3, 70000, "/path/to/tbs/3"),
+        ],
+    )
+    def test_get_tablespace_link_target(self, whpg_dbid, whpg_version, expected):
+        """
+        Test that the target of a tablespace link depends on the flavour of the
+        server the backup was taken from
+        """
+        # GIVEN a backup with or without WarehousePG metadata
+        backup_info = build_test_backup_info(
+            whpg_dbid=whpg_dbid, whpg_version=whpg_version
+        )
+
+        # WHEN getting the target of the link of a tablespace in a location
+        # THEN the dbid is only appended for WarehousePG
+        assert backup_info.get_tablespace_link_target("/path/to/tbs") == expected
+
     @pytest.mark.parametrize("is_whpg", [True, False])
     def test_whpg_metadata_save_and_load(self, is_whpg, tmpdir):
         """
