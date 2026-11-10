@@ -335,7 +335,10 @@ class CloudBackupDownloaderObjectStore(CloudBackupDownloader):
                             target_dir,
                         )
                         link_jobs.append(
-                            ["%s/pg_tblspc/%s" % (destination_dir, oid), target_dir]
+                            [
+                                "%s/pg_tblspc/%s" % (destination_dir, oid),
+                                backup_info.get_tablespace_link_target(target_dir),
+                            ]
                         )
                         break
                 else:

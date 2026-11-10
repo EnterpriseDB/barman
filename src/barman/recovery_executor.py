@@ -2398,7 +2398,10 @@ class RecoveryOperation(ABC):
         Create the symlinks for the tablespaces in the destination directory.
 
         Each tablespace has a symlink created in the ``pg_tblspc`` directory
-        pointing to the respective tablespace location after the recovery.
+        pointing to the respective tablespace location after the recovery. For
+        WarehousePG backups, it points to the directory of the instance inside that
+        location, as given by
+        :meth:`~barman.infofile.BackupInfo.get_tablespace_link_target`.
 
         Note:
             "pg_tblspc" directory is created even if there are no tablespaces to be
@@ -2450,7 +2453,9 @@ class RecoveryOperation(ABC):
                 # check for write permissions on destination directory
                 self.cmd.check_write_permission(location)
                 # create symlink between tablespace and recovery folder
-                self.cmd.create_symbolic_link(location, pg_tblspc_file)
+                self.cmd.create_symbolic_link(
+                    backup_info.get_tablespace_link_target(location), pg_tblspc_file
+                )
             except FsOperationFailed as e:
                 output.error(
                     "unable to prepare '%s' tablespace (destination '%s'): %s",

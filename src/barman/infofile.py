@@ -684,6 +684,23 @@ class BackupInfo(FieldListFile):
         """
         return self.whpg_dbid is not None and self.whpg_version is not None
 
+    def get_tablespace_link_target(self, location):
+        """
+        Get the target of the ``pg_tblspc/<oid>`` link of a restored tablespace.
+
+        In Postgres, the link points to the tablespace location. In WarehousePG, each
+        instance sharing the tablespace location has its own directory in it, named
+        after its ``dbid``, and the link points to that directory. As
+        ``pg_tablespace_location()`` returns the location without the ``dbid``, it
+        is appended here.
+
+        :param str location: the directory the tablespace data was copied to
+        :return str: the path to which the ``pg_tblspc/<oid>`` link points
+        """
+        if self.is_whpg:
+            return os.path.join(location, str(self.whpg_dbid))
+        return location
+
     @property
     def whpg_major_version(self):
         """
