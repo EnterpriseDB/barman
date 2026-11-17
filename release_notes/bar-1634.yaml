@@ -1,9 +1,0 @@
----
-- summary: 'Support for WarehousePG: Allow concurrent restores that share a tablespace location'
-  description: |
-    Restores of WarehousePG segments that share a tablespace location could fail
-    with `Unable to remove file`, because they used the same file name to check
-    that the directory is writable. Each check now uses its own unique file name.
-  type: minor_change
-  jira_tickets:
-    - BAR-1634
