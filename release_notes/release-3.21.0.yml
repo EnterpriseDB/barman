@@ -1,21 +1,6 @@
 version: 3.21.0
 date: 2026-11-17
 relnotes:
-  - summary: 'Support for WarehousePG: Link restored tablespaces to the directory
-      of the instance'
-    description: |-
-      In WarehousePG, the data of a tablespace is stored in a directory named after
-      the `dbid` of the instance, inside the tablespace location, and the link in
-      `pg_tblspc` points to that directory. Barman used to point the link to the
-      tablespace location, as it does for PostgreSQL.
-
-      When restoring a WarehousePG backup, Barman now links the tablespaces to the
-      directory of the `dbid`, both with `barman restore` and `barman-cloud-restore`.
-      Restores of other PostgreSQL instances are not affected.
-    jira_tickets:
-      - BAR-1643
-    support_tickets: []
-    type: minor_change
   - summary: '`barman check-backup` now exits with an error for backups waiting for
       WALs'
     description: |-
@@ -36,33 +21,38 @@ relnotes:
       - BAR-1633
     support_tickets: []
     type: minor_change
-  - summary: 'Support for WarehousePG: Back up tablespaces on rsync backups'
+  - summary: Support for WarehousePG
     description: |-
-      WarehousePG does not store the contents of a tablespace directly under the
-      tablespace location, as PostgreSQL does. Instead, each instance sharing the
-      location has its own directory, named after its `dbid`, which contains the
-      tablespace data:
+      Barman now supports backing up and restoring WarehousePG instances,
+      including backups to cloud object storage.
 
-      ```
-      <location>/<dbid>/GPDB_<major_version>_*/...
-      ```
+      Barman detects WarehousePG instances automatically and saves their
+      `gp_dbid` and `gp_server_version_num` in the backup metadata, which
+      `barman show-backup` displays. The `warehousepg_dbid` configuration option
+      is deprecated and no longer has any effect, as Barman now infers the
+      database id from the instance it is connected to. It should be removed from
+      the configuration.
 
-      Barman now also supports the WarehousePG tablespace directory layout during rsync
-      backups.
-    jira_tickets:
-      - BAR-1641
-    support_tickets: []
-    type: minor_change
-  - summary: 'Support for WarehousePG: Allow concurrent restores that share a tablespace
-      location'
-    description: |-
-      Restores of WarehousePG segments that share a tablespace location could fail
-      with `Unable to remove file`, because they used the same file name to check
-      that the directory is writable. Each check now uses its own unique file name.
+      WarehousePG stores the data of a tablespace in a directory named after the
+      `dbid` of the instance, inside the tablespace location. Barman supports this
+      layout in rsync and cloud backups, and `barman restore` and
+      `barman-cloud-restore` link the restored tablespaces to that directory.
+      Backups and restores of other PostgreSQL instances are not affected.
+
+      Barman also reports the WAL retention setting of WarehousePG 7 in
+      `barman show-server`, and concurrent restores that share a tablespace
+      location no longer fail.
+
+      The documentation has a new WarehousePG page with the details.
     jira_tickets:
       - BAR-1634
+      - BAR-1640
+      - BAR-1641
+      - BAR-1643
+      - BAR-1660
+      - BAR-1663
     support_tickets: []
-    type: minor_change
+    type: notable_change
   - summary: Add `--remote-barman-path` to `barman-wal-archive` and `barman-wal-restore`
     description: |-
       `barman-wal-archive` and `barman-wal-restore` now accept the
@@ -95,61 +85,6 @@ relnotes:
       remain available.
     jira_tickets:
       - BAR-1645
-    support_tickets: []
-    type: minor_change
-  - summary: 'Support for WarehousePG: Detect the WAL retention setting in use by
-      the server'
-    description: |-
-      Barman used to choose between `wal_keep_segments` and `wal_keep_size`
-      according to the PostgreSQL version reported by the server. This does not
-      hold for WarehousePG 7, which is based on PostgreSQL 12 but uses the
-      `wal_keep_size` name introduced in PostgreSQL 13.
-
-      Barman now checks which of the two parameters the server has, instead of
-      relying on the server version. This way, `barman show-server` reports the
-      WAL retention setting of WarehousePG 7, and Barman no longer requests a
-      parameter that does not exist in the server.
-    jira_tickets:
-      - BAR-1640
-    support_tickets: []
-    type: minor_change
-  - summary: 'Support for WarehousePG: Detect WarehousePG instances and save their
-      metadata in the backup'
-    description: |-
-      Barman now detects when it is connected to a WarehousePG instance by checking
-      whether the `gp_dbid` and `gp_server_version_num` settings exist, and fails if
-      only one of them does. When backing up a WarehousePG instance, these values are
-      saved in the backup metadata and shown by `barman show-backup`. Backups of
-      other PostgreSQL instances are not affected.
-
-      The `warehousepg_dbid` configuration option is deprecated and no longer has any
-      effect. Barman now infers the database id from the instance it is connected to
-      through `conninfo`, and passes it to `pg_basebackup` for every `postgres`
-      backup, including the ones uploaded straight to the cloud, which did not
-      receive it before. Barman warns about the option when reading the
-      configuration, and it should be removed from it.
-
-      The documentation has a new WarehousePG page describing how to connect to
-      WarehousePG instances, and what Barman does, and does not do, for WarehousePG
-      clusters.
-    jira_tickets:
-      - BAR-1660
-    support_tickets: []
-    type: minor_change
-  - summary: 'Support for WarehousePG: Back up tablespaces to cloud object storage'
-    description: |-
-      WarehousePG does not store the contents of a tablespace directly under the
-      tablespace location, as PostgreSQL does. Instead, each instance sharing the
-      location has its own directory, named after its `dbid`, which contains the
-      tablespace data:
-
-      ```
-      <location>/<dbid>/GPDB_<major_version>_*/...
-      ```
-
-      Barman now also supports the WarehousePG tablespace directory layout for cloud backups.
-    jira_tickets:
-      - BAR-1663
     support_tickets: []
     type: minor_change
   - summary: Fix unrelated directories being included in cloud backups of tablespaces
