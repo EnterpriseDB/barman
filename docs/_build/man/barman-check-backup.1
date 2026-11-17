@@ -29,7 +29,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CHECK-BACKUP" "1" "Aug 27, 2026" "3.20" "Barman"
+.TH "BARMAN-CHECK-BACKUP" "1" "Nov 17, 2026" "3.21" "Barman"
 .SH NAME
 barman-check-backup \- Barman Sub-Commands
 .SH SYNOPSIS
@@ -47,7 +47,42 @@ check\-backup
 .sp
 Check that all necessary WAL files for verifying the consistency of a physical backup are
 properly archived. This command is automatically executed by the cron job and at the end
-of each backup operation. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
+of each backup operation. You can use a backup name or a
+shortcut instead of \fBBACKUP_ID\fP\&.
+.sp
+The exit status reflects the status of the backup after the check:
+.TS
+box center;
+l|l.
+T{
+\fBExit code\fP
+T}	T{
+\fBMeaning\fP
+T}
+_
+T{
+\fB0\fP
+T}	T{
+The backup is \fBDONE\fP: all the required WAL files are archived.
+T}
+_
+T{
+\fB1\fP
+T}	T{
+The backup is not \fBDONE\fP, or the check could not be performed. This happens
+when:
+.INDENT 0.0
+.IP \(bu 2
+The backup is \fBFAILED\fP, for example because a required WAL file is missing.
+.IP \(bu 2
+The backup is \fBWAITING_FOR_WALS\fP: not all the required WAL files have been
+archived yet, so the backup consistency cannot be verified.
+.IP \(bu 2
+The check could not be performed, for example because another process holds
+the backup lock.
+.UNINDENT
+T}
+.TE
 .SH PARAMETERS
 .INDENT 0.0
 .TP
@@ -55,7 +90,8 @@ of each backup operation. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
 Name of the server in barman node.
 .TP
 .B \fBBACKUP_ID\fP
-Id of the backup in barman catalog.
+ID or name of the backup in the barman catalog. If more than one backup has the
+same name, the command fails and lists the matching backup IDs.
 .TP
 .B \fB\-h\fP / \fB\-\-help\fP
 Show a help message and exit. Provides information about command usage.

@@ -28,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CLOUD-BACKUP" "1" "Aug 27, 2026" "3.20" "Barman"
+.TH "BARMAN-CLOUD-BACKUP" "1" "Nov 17, 2026" "3.21" "Barman"
 .SH NAME
 barman-cloud-backup \- Barman-cloud Commands
 .sp
@@ -190,7 +190,8 @@ Database name or conninfo string for Postgres connection (default: \(dqpostgres\
 .TP
 .B \fB\-n\fP / \fB\-\-name\fP
 A name which can be used to reference this backup in commands such as
-\fBbarman\-cloud\-restore\fP and \fBbarman\-cloud\-backup\-delete\fP\&.
+\fBbarman\-cloud\-restore\fP and \fBbarman\-cloud\-backup\-delete\fP\&. If more than one backup
+has the same name, commands fail and list the matching backup IDs.
 .TP
 .B \fB\-J\fP / \fB\-\-jobs\fP
 Number of subprocesses to upload data to cloud storage (default: \fB2\fP).

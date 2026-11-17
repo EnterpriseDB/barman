@@ -29,7 +29,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-SHOW-BACKUP" "1" "Aug 27, 2026" "3.20" "Barman"
+.TH "BARMAN-SHOW-BACKUP" "1" "Nov 17, 2026" "3.21" "Barman"
 .SH NAME
 barman-show-backup \- Barman Sub-Commands
 .SH SYNOPSIS
@@ -46,7 +46,8 @@ show\-backup
 .SH DESCRIPTION
 .sp
 Display detailed information about a specific backup. You can find details about this command in
-Catalog usage \%<#\:catalog-usage-show-backup>\&. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
+Catalog usage \%<#\:catalog-usage-show-backup>\&. You can use a backup name or a
+shortcut instead of \fBBACKUP_ID\fP\&.
 .SH PARAMETERS
 .INDENT 0.0
 .TP
@@ -54,7 +55,8 @@ Catalog usage \%<#\:catalog-usage-show-backup>\&. You can use a shortcut instead
 Name of the server in barman node
 .TP
 .B \fBBACKUP_ID\fP
-Id of the backup in barman catalog.
+ID or name of the backup in the barman catalog. If more than one backup has the
+same name, the command fails and lists the matching backup IDs.
 .TP
 .B \fB\-h\fP / \fB\-\-help\fP
 Show a help message and exit. Provides information about command usage.

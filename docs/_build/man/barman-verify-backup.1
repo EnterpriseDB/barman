@@ -29,7 +29,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-VERIFY-BACKUP" "1" "Aug 27, 2026" "3.20" "Barman"
+.TH "BARMAN-VERIFY-BACKUP" "1" "Nov 17, 2026" "3.21" "Barman"
 .SH NAME
 barman-verify-backup \- Barman Sub-Commands
 .SH SYNOPSIS
@@ -48,7 +48,8 @@ verify\-backup
 Runs \fBpg_verifybackup\fP on a backup manifest file (available since Postgres version 13).
 For rsync backups, it can be used after creating a manifest file using the
 \fBgenerate\-manifest\fP command. Requires \fBpg_verifybackup\fP to be installed on the
-backup server. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
+backup server. You can use a backup name or a
+shortcut instead of \fBBACKUP_ID\fP\&.
 .sp
 Starting with Postgres 18, tar\-format backups taken with the \fBpostgres\fP backup
 method can also be verified, including those compressed with \fBgzip\fP, \fBlz4\fP or
@@ -62,7 +63,8 @@ will fail with an error. Encrypted backups are not supported by this command.
 Name of the server in barman node
 .TP
 .B \fBBACKUP_ID\fP
-Id of the backup in barman catalog.
+ID or name of the backup in the barman catalog. If more than one backup has the
+same name, the command fails and lists the matching backup IDs.
 .TP
 .B \fB\-h\fP / \fB\-\-help\fP
 Show a help message and exit. Provides information about command usage.

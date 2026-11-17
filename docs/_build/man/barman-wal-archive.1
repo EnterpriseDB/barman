@@ -28,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-WAL-ARCHIVE" "1" "Aug 27, 2026" "3.20" "Barman"
+.TH "BARMAN-WAL-ARCHIVE" "1" "Nov 17, 2026" "3.21" "Barman"
 .SH NAME
 barman-wal-archive \- Barman-cli Commands
 .SH SYNOPSIS
@@ -43,6 +43,7 @@ barman\-wal\-archive
     [ \-\-port PORT ]
     [ { { \-z | \-\-gzip } | { \-j | \-\-bzip2 } | \-\-xz | \-\-snappy | \-\-zstd | \-\-lz4 } ]
     [ \-\-compression\-level COMPRESSION_LEVEL ]
+    [ \-\-remote\-barman\-path DIR ]
     [ { \-c | \-\-config } CONFIG ]
     [ { \-t | \-\-test } ]
     [ \-\-md5 ]
@@ -119,6 +120,18 @@ values are integers within the supported range of the chosen algorithm or one
 of the predefined labels: \fBlow\fP, \fBmedium\fP, and \fBhigh\fP\&. The range of each
 algorithm as well as what level each predefined label maps to can be found in
 compression_level \%<#\:configuration-options-compression-level>\&.
+.TP
+.B \fB\-\-remote\-barman\-path\fP
+Directory containing the \fBbarman\fP executable on the Barman server. Use it when
+\fBbarman\fP is not in \fBPATH\fP\&.
+.sp
+\fBNote:\fP
+.INDENT 7.0
+.INDENT 3.5
+The value is passed to the remote shell quoted, so it must be an absolute path.
+Shell expansions such as \fB~\fP or \fB$HOME\fP are not performed on the Barman server.
+.UNINDENT
+.UNINDENT
 .TP
 .B \fB\-c\fP /  \fB\-\-config\fP
 Specify the configuration file on the Barman server.

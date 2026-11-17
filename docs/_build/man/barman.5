@@ -29,7 +29,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN" "5" "Aug 27, 2026" "3.20" "Barman"
+.TH "BARMAN" "5" "Nov 17, 2026" "3.21" "Barman"
 .SH NAME
 barman \- Barman Configurations
 .sp
@@ -144,9 +144,9 @@ These are general configurations options.
 \fBactive\fP
 .sp
 When this option is set to \fBtrue\fP (default), the server operates fully. If set to
-\fBfalse\fP, the server is restricted to operations that don\(aqt ingest new data. This
-means that operational commands such as backup execution or WAL archiving are
-temporarily disabled.
+\fBfalse\fP, the server is restricted to operations that neither ingest new data nor
+modify the backup catalog. This means that operational commands such as backup
+execution or WAL archiving are temporarily disabled.
 .sp
 When incorporating a new server into Barman, we recommend initially setting
 \fBactive = false\fP\&. Verify that barman check shows no issues before activating the
@@ -158,9 +158,12 @@ initial setup.
 .INDENT 3.5
 Setting \fBactive = false\fP for a server disables operational commands (such as
 \fBbackup\fP, \fBput\-wal\fP, \fBreceive\-wal\fP, and cron\-driven actions) for that server.
+Commands that modify the backup catalog (\fBcheck\-backup\fP, \fBkeep\fP and \fBdelete\fP)
+are also skipped, because an inactive server may not own its catalog, for example
+when it points to a cloud bucket shared with another Barman installation.
 Diagnostics and read\-only commands (like \fBcheck\fP, \fBlist\-backups\fP, \fBstatus\fP,
 \fBshow\-servers\fP, \fBdiagnose\fP, \fBlist\-processes\fP, and some options for
-\fBreceive\-wal\fP maintenance subcommands) remain available.
+\fBreceive\-wal\fP maintenance subcommands) remain available, as well as \fBrestore\fP\&.
 .sp
 If the server is marked as inactive, \fBbarman cron\fP will kill any background
 \fBreceive\-wal\fP processes and skip any other tasks.
@@ -672,28 +675,14 @@ Scope: Global / Server / Model.
 .sp
 \fBwarehousepg_dbid\fP
 .sp
-Specifies the integer identifier for a WarehousePG database. When set, this value is
-passed to \fBpg_basebackup\fP via the \fB\-\-target\-gp\-dbid\fP parameter for WarehousePG
-compatibility. This option is required when backing up WarehousePG segments.
+Deprecated since version 3.21: This option has no effect and will be removed in a future release.
+
 .sp
-\fBImportant:\fP
-.INDENT 0.0
-.INDENT 3.5
-This option is only relevant for WarehousePG databases and should not be set for
-standard PostgreSQL databases.
-.sp
-Furthermore, Barman does not handle backups and restores for WarehousePG clusters.
-The orchestration of backup and restore operations for WarehousePG clusters must be
-managed externally by the user.
-.UNINDENT
-.UNINDENT
-.sp
-\fBNote:\fP
-.INDENT 0.0
-.INDENT 3.5
-Only supported when \fBbackup_method = postgres\fP\&.
-.UNINDENT
-.UNINDENT
+Barman used to pass this value to \fBpg_basebackup\fP via the \fB\-\-target\-gp\-dbid\fP
+parameter when backing up WarehousePG segments. It now infers the identifier from the
+\fBgp_dbid\fP setting of the instance it is connected to through \fBconninfo\fP, so this
+option should be removed from the configuration. Barman warns about it when reading the
+configuration if it is still set. Refer to WarehousePG \%<#\:warehousepg> for details.
 .sp
 Scope: Global / Server / Model.
 .sp

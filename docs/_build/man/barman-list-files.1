@@ -29,7 +29,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-LIST-FILES" "1" "Aug 27, 2026" "3.20" "Barman"
+.TH "BARMAN-LIST-FILES" "1" "Nov 17, 2026" "3.21" "Barman"
 .SH NAME
 barman-list-files \- Barman Sub-Commands
 .SH SYNOPSIS
@@ -47,7 +47,8 @@ list\-files
 .UNINDENT
 .SH DESCRIPTION
 .sp
-List all files in a specific backup. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
+List all files in a specific backup. You can use a backup name or a
+shortcut instead of \fBBACKUP_ID\fP\&.
 .SH PARAMETERS
 .INDENT 0.0
 .TP
@@ -55,7 +56,8 @@ List all files in a specific backup. You can use a shortcut instead of \fBBACKUP
 Name of the server in barman node
 .TP
 .B \fBBACKUP_ID\fP
-Id of the backup in barman catalog.
+ID or name of the backup in the barman catalog. If more than one backup has the
+same name, the command fails and lists the matching backup IDs.
 .TP
 .B \fB\-h\fP / \fB\-\-help\fP
 Show a help message and exit. Provides information about command usage.

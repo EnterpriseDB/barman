@@ -29,7 +29,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN" "1" "Aug 27, 2026" "3.20" "Barman"
+.TH "BARMAN" "1" "Nov 17, 2026" "3.21" "Barman"
 .SH NAME
 barman \- Barman Commands
 .sp
@@ -310,9 +310,9 @@ have the same reasoning for greater units of measure.
 Show a help message and exit. Provides information about command usage.
 .TP
 .B \fB\-\-incremental\fP
-Execute a block\-level incremental backup. You must provide a \fBBACKUP_ID\fP or a
-shortcut to a previous backup, which will serve as the parent backup for the
-incremental backup.
+Execute a block\-level incremental backup. You must provide a \fBBACKUP_ID\fP, a
+backup name or a shortcut to a previous backup, which will serve as the parent
+backup for the incremental backup.
 .sp
 \fBNote:\fP
 .INDENT 7.0
@@ -352,7 +352,8 @@ rsync backup strategy.
 .TP
 .B \fB\-\-name\fP
 Specify a friendly name for this backup which can be used in place of the backup ID
-in barman commands.
+in barman commands. If more than one backup has the same name, commands fail and
+list the matching backup IDs.
 .TP
 .B \fB\-\-no\-immediate\-checkpoint\fP
 Forces the backup to wait for the checkpoint to be executed overriding any value set
@@ -476,7 +477,42 @@ check\-backup
 .sp
 Check that all necessary WAL files for verifying the consistency of a physical backup are
 properly archived. This command is automatically executed by the cron job and at the end
-of each backup operation. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
+of each backup operation. You can use a backup name or a
+shortcut instead of \fBBACKUP_ID\fP\&.
+.sp
+The exit status reflects the status of the backup after the check:
+.TS
+box center;
+l|l.
+T{
+\fBExit code\fP
+T}	T{
+\fBMeaning\fP
+T}
+_
+T{
+\fB0\fP
+T}	T{
+The backup is \fBDONE\fP: all the required WAL files are archived.
+T}
+_
+T{
+\fB1\fP
+T}	T{
+The backup is not \fBDONE\fP, or the check could not be performed. This happens
+when:
+.INDENT 0.0
+.IP \(bu 2
+The backup is \fBFAILED\fP, for example because a required WAL file is missing.
+.IP \(bu 2
+The backup is \fBWAITING_FOR_WALS\fP: not all the required WAL files have been
+archived yet, so the backup consistency cannot be verified.
+.IP \(bu 2
+The check could not be performed, for example because another process holds
+the backup lock.
+.UNINDENT
+T}
+.TE
 .SS Parameters
 .INDENT 0.0
 .TP
@@ -484,7 +520,8 @@ of each backup operation. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
 Name of the server in barman node.
 .TP
 .B \fBBACKUP_ID\fP
-Id of the backup in barman catalog.
+ID or name of the backup in the barman catalog. If more than one backup has the
+same name, the command fails and lists the matching backup IDs.
 .TP
 .B \fB\-h\fP / \fB\-\-help\fP
 Show a help message and exit. Provides information about command usage.
@@ -802,7 +839,8 @@ delete
 .UNINDENT
 .SS Description
 .sp
-Delete the specified backup. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
+Delete the specified backup. You can use a backup name or a
+shortcut instead of \fBBACKUP_ID\fP\&.
 .SS Parameters
 .INDENT 0.0
 .TP
@@ -810,7 +848,8 @@ Delete the specified backup. You can use a shortcut instead of \fBBACKUP_ID\fP\&
 Name of the server in barman node
 .TP
 .B \fBBACKUP_ID\fP
-Id of the backup in barman catalog.
+ID or name of the backup in the barman catalog. If more than one backup has the
+same name, the command fails and lists the matching backup IDs.
 .TP
 .B \fB\-h\fP / \fB\-\-help\fP
 Show a help message and exit. Provides information about command usage.
@@ -916,7 +955,8 @@ description.
 Name of the server in barman node.
 .TP
 .B \fBBACKUP_ID\fP
-Id of the backup in barman catalog.
+ID or name of the backup in the barman catalog. If more than one backup has the
+same name, the command fails and lists the matching backup IDs.
 .TP
 .B \fBOUTPUT_DIRECTORY\fP
 Existing directory where the exported tarball will be written. Must be
@@ -959,8 +999,8 @@ generate\-manifest
 .UNINDENT
 .SS Description
 .sp
-Generates a \fBbackup_manifest\fP file for a backup. You can use a shortcut instead of
-\fBBACKUP_ID\fP\&.
+Generates a \fBbackup_manifest\fP file for a backup. You can use a backup name or a
+shortcut instead of \fBBACKUP_ID\fP\&.
 .SS Parameters
 .INDENT 0.0
 .TP
@@ -968,7 +1008,8 @@ Generates a \fBbackup_manifest\fP file for a backup. You can use a shortcut inst
 Name of the server in barman node
 .TP
 .B \fBBACKUP_ID\fP
-Id of the backup in barman catalog.
+ID or name of the backup in the barman catalog. If more than one backup has the
+same name, the command fails and lists the matching backup IDs.
 .TP
 .B \fB\-h\fP / \fB\-\-help\fP
 Show a help message and exit. Provides information about command usage.
@@ -1139,7 +1180,7 @@ keep
 Mark the specified backup with a \fBtarget\fP as an archival backup to be retained
 indefinitely, overriding any active retention policies. You can also check the keep
 \fBstatus\fP of a backup and \fBrelease\fP the keep mark from a backup. You can use a
-shortcut instead of \fBBACKUP_ID\fP\&.
+backup name or a shortcut instead of \fBBACKUP_ID\fP\&.
 .sp
 \fBNote:\fP
 .INDENT 0.0
@@ -1163,7 +1204,8 @@ keep.\fP
 Name of the server in barman node
 .TP
 .B \fBBACKUP_ID\fP
-Id of the backup in barman catalog.
+ID or name of the backup in the barman catalog. If more than one backup has the
+same name, the command fails and lists the matching backup IDs.
 .TP
 .B \fB\-h\fP / \fB\-\-help\fP
 Show a help message and exit. Provides information about command usage.
@@ -1290,7 +1332,8 @@ list\-files
 .UNINDENT
 .SS Description
 .sp
-List all files in a specific backup. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
+List all files in a specific backup. You can use a backup name or a
+shortcut instead of \fBBACKUP_ID\fP\&.
 .SS Parameters
 .INDENT 0.0
 .TP
@@ -1298,7 +1341,8 @@ List all files in a specific backup. You can use a shortcut instead of \fBBACKUP
 Name of the server in barman node
 .TP
 .B \fBBACKUP_ID\fP
-Id of the backup in barman catalog.
+ID or name of the backup in the barman catalog. If more than one backup has the
+same name, the command fails and lists the matching backup IDs.
 .TP
 .B \fB\-h\fP / \fB\-\-help\fP
 Show a help message and exit. Provides information about command usage.
@@ -1628,7 +1672,7 @@ server in the destination directory. The restoration can be performed locally (o
 barman node itself) or remotely (on another machine accessible via SSH). The location is
 determined by whether or not the \fB\-\-remote\-ssh\-command\fP option is used. More
 information on this command can be found in the Recovery \%<#\:recovery> section. You can use a
-shortcut instead of \fBBACKUP_ID\fP\&.
+backup name or a shortcut instead of \fBBACKUP_ID\fP\&.
 .SS Parameters
 .INDENT 0.0
 .TP
@@ -1636,8 +1680,10 @@ shortcut instead of \fBBACKUP_ID\fP\&.
 Name of the server in barman node
 .TP
 .B \fBBACKUP_ID\fP
-Id of the backup in the barman catalog. Use \fBauto\fP to have Barman automatically
-find the most suitable backup for the restore operation.
+ID or name of the backup in the barman catalog. If more than one backup has the
+same name, the command fails and lists the matching backup IDs. Use \fBauto\fP to
+have Barman automatically find the most suitable backup for the restore
+operation.
 .TP
 .B \fBDESTINATION_DIR\fP
 Destination directory to restore the backup.
@@ -1998,7 +2044,8 @@ show\-backup
 .SS Description
 .sp
 Display detailed information about a specific backup. You can find details about this command in
-Catalog usage \%<#\:catalog-usage-show-backup>\&. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
+Catalog usage \%<#\:catalog-usage-show-backup>\&. You can use a backup name or a
+shortcut instead of \fBBACKUP_ID\fP\&.
 .SS Parameters
 .INDENT 0.0
 .TP
@@ -2006,7 +2053,8 @@ Catalog usage \%<#\:catalog-usage-show-backup>\&. You can use a shortcut instead
 Name of the server in barman node
 .TP
 .B \fBBACKUP_ID\fP
-Id of the backup in barman catalog.
+ID or name of the backup in the barman catalog. If more than one backup has the
+same name, the command fails and lists the matching backup IDs.
 .TP
 .B \fB\-h\fP / \fB\-\-help\fP
 Show a help message and exit. Provides information about command usage.
@@ -2363,7 +2411,8 @@ verify\-backup
 Runs \fBpg_verifybackup\fP on a backup manifest file (available since Postgres version 13).
 For rsync backups, it can be used after creating a manifest file using the
 \fBgenerate\-manifest\fP command. Requires \fBpg_verifybackup\fP to be installed on the
-backup server. You can use a shortcut instead of \fBBACKUP_ID\fP\&.
+backup server. You can use a backup name or a
+shortcut instead of \fBBACKUP_ID\fP\&.
 .sp
 Starting with Postgres 18, tar\-format backups taken with the \fBpostgres\fP backup
 method can also be verified, including those compressed with \fBgzip\fP, \fBlz4\fP or
@@ -2377,7 +2426,8 @@ will fail with an error. Encrypted backups are not supported by this command.
 Name of the server in barman node
 .TP
 .B \fBBACKUP_ID\fP
-Id of the backup in barman catalog.
+ID or name of the backup in the barman catalog. If more than one backup has the
+same name, the command fails and lists the matching backup IDs.
 .TP
 .B \fB\-h\fP / \fB\-\-help\fP
 Show a help message and exit. Provides information about command usage.
@@ -2441,6 +2491,7 @@ barman\-wal\-archive
     [ \-\-port PORT ]
     [ { { \-z | \-\-gzip } | { \-j | \-\-bzip2 } | \-\-xz | \-\-snappy | \-\-zstd | \-\-lz4 } ]
     [ \-\-compression\-level COMPRESSION_LEVEL ]
+    [ \-\-remote\-barman\-path DIR ]
     [ { \-c | \-\-config } CONFIG ]
     [ { \-t | \-\-test } ]
     [ \-\-md5 ]
@@ -2518,6 +2569,18 @@ of the predefined labels: \fBlow\fP, \fBmedium\fP, and \fBhigh\fP\&. The range o
 algorithm as well as what level each predefined label maps to can be found in
 compression_level \%<#\:configuration-options-compression-level>\&.
 .TP
+.B \fB\-\-remote\-barman\-path\fP
+Directory containing the \fBbarman\fP executable on the Barman server. Use it when
+\fBbarman\fP is not in \fBPATH\fP\&.
+.sp
+\fBNote:\fP
+.INDENT 7.0
+.INDENT 3.5
+The value is passed to the remote shell quoted, so it must be an absolute path.
+Shell expansions such as \fB~\fP or \fB$HOME\fP are not performed on the Barman server.
+.UNINDENT
+.UNINDENT
+.TP
 .B \fB\-c\fP /  \fB\-\-config\fP
 Specify the configuration file on the Barman server.
 .TP
@@ -2574,6 +2637,7 @@ barman\-wal\-restore
     [ \-\-spool\-dir SPOOL_DIR ]
     [ { \-P | \-\-partial } ]
     [ { { \-z | \-\-gzip } | { \-j | \-\-bzip2 } | \-\-keep\-compression } ]
+    [ \-\-remote\-barman\-path DIR ]
     [ { \-c | \-\-config } CONFIG ]
     [ { \-t | \-\-test } ]
     BARMAN_HOST SERVER_NAME WAL_NAME WAL_DEST
@@ -2655,6 +2719,18 @@ Transfer WAL files compressed with \fBbzip2\fP\&.
 .B \fB\-\-keep\-compression\fP
 If specified, compressed files will be trasnfered as\-is and decompressed on arrival
 on the client\-side.
+.TP
+.B \fB\-\-remote\-barman\-path\fP
+Directory containing the \fBbarman\fP executable on the Barman server. Use it when
+\fBbarman\fP is not in \fBPATH\fP\&.
+.sp
+\fBNote:\fP
+.INDENT 7.0
+.INDENT 3.5
+The value is passed to the remote shell quoted, so it must be an absolute path.
+Shell expansions such as \fB~\fP or \fB$HOME\fP are not performed on the Barman server.
+.UNINDENT
+.UNINDENT
 .TP
 .B \fB\-c\fP /  \fB\-\-config\fP
 Specify the configuration file on the Barman server.

@@ -28,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-WAL-RESTORE" "1" "Aug 27, 2026" "3.20" "Barman"
+.TH "BARMAN-WAL-RESTORE" "1" "Nov 17, 2026" "3.21" "Barman"
 .SH NAME
 barman-wal-restore \- Barman-cli Commands
 .SH SYNOPSIS
@@ -46,6 +46,7 @@ barman\-wal\-restore
     [ \-\-spool\-dir SPOOL_DIR ]
     [ { \-P | \-\-partial } ]
     [ { { \-z | \-\-gzip } | { \-j | \-\-bzip2 } | \-\-keep\-compression } ]
+    [ \-\-remote\-barman\-path DIR ]
     [ { \-c | \-\-config } CONFIG ]
     [ { \-t | \-\-test } ]
     BARMAN_HOST SERVER_NAME WAL_NAME WAL_DEST
@@ -127,6 +128,18 @@ Transfer WAL files compressed with \fBbzip2\fP\&.
 .B \fB\-\-keep\-compression\fP
 If specified, compressed files will be trasnfered as\-is and decompressed on arrival
 on the client\-side.
+.TP
+.B \fB\-\-remote\-barman\-path\fP
+Directory containing the \fBbarman\fP executable on the Barman server. Use it when
+\fBbarman\fP is not in \fBPATH\fP\&.
+.sp
+\fBNote:\fP
+.INDENT 7.0
+.INDENT 3.5
+The value is passed to the remote shell quoted, so it must be an absolute path.
+Shell expansions such as \fB~\fP or \fB$HOME\fP are not performed on the Barman server.
+.UNINDENT
+.UNINDENT
 .TP
 .B \fB\-c\fP /  \fB\-\-config\fP
 Specify the configuration file on the Barman server.

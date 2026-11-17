@@ -28,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CLOUD-BACKUP-SHOW" "1" "Aug 27, 2026" "3.20" "Barman"
+.TH "BARMAN-CLOUD-BACKUP-SHOW" "1" "Nov 17, 2026" "3.21" "Barman"
 .SH NAME
 barman-cloud-backup-show \- Barman-cloud Commands
 .sp
@@ -76,7 +76,9 @@ To use an alternative GCP universe (e.g. S3NS/T\-Systems), set the
 .INDENT 0.0
 .TP
 .B \fBBACKUP_ID\fP
-The ID of the backup. You can use a shortcut instead of the backup ID.
+The ID or name of the backup. You can use a shortcut instead of the backup ID.
+If more than one backup has the same name, the command fails and lists the
+matching backup IDs.
 .TP
 .B \fBSERVER_NAME\fP
 Name of the server that holds the backup to be displayed.

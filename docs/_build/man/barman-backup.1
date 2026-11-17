@@ -29,7 +29,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-BACKUP" "1" "Aug 27, 2026" "3.20" "Barman"
+.TH "BARMAN-BACKUP" "1" "Nov 17, 2026" "3.21" "Barman"
 .SH NAME
 barman-backup \- Barman Sub-Commands
 .SH SYNOPSIS
@@ -104,9 +104,9 @@ have the same reasoning for greater units of measure.
 Show a help message and exit. Provides information about command usage.
 .TP
 .B \fB\-\-incremental\fP
-Execute a block\-level incremental backup. You must provide a \fBBACKUP_ID\fP or a
-shortcut to a previous backup, which will serve as the parent backup for the
-incremental backup.
+Execute a block\-level incremental backup. You must provide a \fBBACKUP_ID\fP, a
+backup name or a shortcut to a previous backup, which will serve as the parent
+backup for the incremental backup.
 .sp
 \fBNote:\fP
 .INDENT 7.0
@@ -146,7 +146,8 @@ rsync backup strategy.
 .TP
 .B \fB\-\-name\fP
 Specify a friendly name for this backup which can be used in place of the backup ID
-in barman commands.
+in barman commands. If more than one backup has the same name, commands fail and
+list the matching backup IDs.
 .TP
 .B \fB\-\-no\-immediate\-checkpoint\fP
 Forces the backup to wait for the checkpoint to be executed overriding any value set

@@ -28,7 +28,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-CLOUD-RESTORE" "1" "Aug 27, 2026" "3.20" "Barman"
+.TH "BARMAN-CLOUD-RESTORE" "1" "Nov 17, 2026" "3.21" "Barman"
 .SH NAME
 barman-cloud-restore \- Barman-cloud Commands
 .sp
@@ -95,9 +95,11 @@ URL of the cloud source, such as a bucket in AWS S3. For example:
 \fBs3://bucket/path/to/folder\fP\&.
 .TP
 .B \fBBACKUP_ID\fP
-The ID of the backup to be restored. You can use a shortcut instead of the backup ID.
-Besides that, you can use \fBauto\fP to have Barman automatically find the most suitable
-backup for the restore operation.
+The ID or name of the backup to be restored. You can use a shortcut instead of the
+backup ID. Besides that, you can use \fBauto\fP to have Barman automatically find the
+most suitable backup for the restore operation.
+If more than one backup has the same name, the command fails and lists the
+matching backup IDs.
 .TP
 .B \fBRECOVERY_DESTINATION\fP
 The path to a directory for recovery.

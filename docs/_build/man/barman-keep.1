@@ -29,7 +29,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "BARMAN-KEEP" "1" "Aug 27, 2026" "3.20" "Barman"
+.TH "BARMAN-KEEP" "1" "Nov 17, 2026" "3.21" "Barman"
 .SH NAME
 barman-keep \- Barman Sub-Commands
 .SH SYNOPSIS
@@ -49,7 +49,7 @@ keep
 Mark the specified backup with a \fBtarget\fP as an archival backup to be retained
 indefinitely, overriding any active retention policies. You can also check the keep
 \fBstatus\fP of a backup and \fBrelease\fP the keep mark from a backup. You can use a
-shortcut instead of \fBBACKUP_ID\fP\&.
+backup name or a shortcut instead of \fBBACKUP_ID\fP\&.
 .sp
 \fBNote:\fP
 .INDENT 0.0
@@ -73,7 +73,8 @@ keep.\fP
 Name of the server in barman node
 .TP
 .B \fBBACKUP_ID\fP
-Id of the backup in barman catalog.
+ID or name of the backup in the barman catalog. If more than one backup has the
+same name, the command fails and lists the matching backup IDs.
 .TP
 .B \fB\-h\fP / \fB\-\-help\fP
 Show a help message and exit. Provides information about command usage.
